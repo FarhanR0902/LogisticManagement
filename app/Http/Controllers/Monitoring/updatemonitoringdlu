@@ -1,0 +1,107 @@
+public function updateMonitoring(Request $request, $id)
+{
+    $logistik = LogistikPengiriman::findOrFail($id);
+
+    $keluar = $logistik->tanggal_keluar_gudang
+        ? strtotime(date('Y-m-d', strtotime($logistik->tanggal_keluar_gudang)))
+        : null;
+
+    $tiba = $request->tanggal_tiba
+        ? strtotime(date('Y-m-d', strtotime($request->tanggal_tiba)))
+        : null;
+
+    $bongkar = $request->tanggal_bongkar
+        ? strtotime(date('Y-m-d', strtotime($request->tanggal_bongkar)))
+        : null;
+
+    $leadtime = (int)($logistik->transport_lead_time ?? 0);
+
+    $estimasi = $keluar
+        ? strtotime("+{$leadtime} days", $keluar)
+        : null;
+
+    $lama_perjalanan = ($keluar && $tiba)
+        ? max(0, floor(($tiba - $keluar) / 86400))
+        : null;
+
+    $sla_tiba = ($tiba && $estimasi)
+        ? (($tiba <= $estimasi) ? 'On Time' : 'Delay')
+        : '-';
+
+    $overstay = ($tiba && $bongkar)
+        ? max(0, floor(($bongkar - $tiba) / 86400))
+        : null;
+
+    $sla_bongkar = ($tiba && $bongkar)
+        ? (($overstay <= 0) ? 'On Time' : 'Delay')
+        : '-';
+
+    // =========================
+    // AUTO STATUS + ALERT
+    // =========================
+$logic = $this->generateStatusAlert($sla_tiba, $sla_bongkar);
+
+$logistik->status_akhir = $logic['status_akhir'];
+$logistik->monitoring_alert = $logic['alert'];
+
+$logistik->sla_tiba = $sla_tiba;
+$logistik->sla_bongkar = $sla_bongkar;
+
+
+
+    $logistik->reason_tiba    = $request->reason_tiba;
+$logistik->reason_bongkar = $request->reason_bongkar;
+
+    // =========================
+    // FIELD UPDATE
+    // =========================
+    $logistik->pic_monitoring   = $request->pic_monitoring;
+    $logistik->status_kendaraan = $request->status_kendaraan;
+    $logistik->action_required  = $request->action_required;
+
+    $logistik->act_urutan_bongkar = $request->act_urutan_bongkar;
+
+    $logistik->tanggal_tiba    = $request->tanggal_tiba;
+    $logistik->tanggal_bongkar = $request->tanggal_bongkar;
+
+    $logistik->overstay_days   = $overstay;
+    $logistik->lama_perjalanan = $lama_perjalanan;
+
+    $logistik->reason_tiba    = $request->reason_tiba;
+    $logistik->reason_bongkar = $request->reason_bongkar;
+
+    $logistik->remarks        = $request->remarks;
+
+    $logistik->act_pgi_date      = $request->input('act_pgi_date');
+    $logistik->created_by        = $request->input('created_by');
+    $logistik->total_do_qty_car  = $request->input('total_do_qty_car');
+
+    // =========================
+// TRANSPORT LAUT (NEW)
+// =========================
+$logistik->transport_laut = $request->transport_laut ?? 0;
+
+if ($logistik->transport_laut == 1) {
+
+    $logistik->nama_kapal = $request->nama_kapal;
+
+    $logistik->etd = $request->etd;
+    $logistik->eta = $request->eta;
+    $logistik->atd = $request->atd;
+    $logistik->ata = $request->ata;
+
+} else {
+
+    $logistik->nama_kapal = null;
+    $logistik->etd = null;
+    $logistik->eta = null;
+    $logistik->atd = null;
+    $logistik->ata = null;
+}
+    $logistik->save();
+
+ return response()->json([
+    'status' => 'success',
+    'message' => 'Data transport laut berhasil diupdate'
+]);
+}

@@ -1,0 +1,514 @@
+<!-- 
+        <script>
+            $(document).ready(function() {
+
+                // ========================================================
+                // 1. HELPER: Mengubah Angka DB (.00) ke Format Rupiah Bulat
+                // ========================================================
+                function formatKeRupiah(angka) {
+                    if (!angka) return '';
+
+                    // Potong desimal database .00 di buntut jika ada (ex: 24159052.00 -> 24159052)
+                    let stringMurni = String(angka).split('.')[0];
+
+                    // Ambil hanya karakter angka saja
+                    let angkaMurni = stringMurni.replace(/[^0-9]/g, '');
+
+                    if (angkaMurni) {
+                        // Beri titik ribuan dan tambahkan prefix Rp
+                        return 'Rp ' + String(angkaMurni).replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+                    }
+                    return '';
+                }
+
+                // Helper untuk mengambil nilai angka murni agar bisa dihitung matematika
+                function ambilAngkaMurni(teks) {
+                    if (!teks) return 0;
+                    // Buang 'Rp' dan semua titik ribuan
+                    let bersih = String(teks).replace(/[^0-9]/g, '');
+                    return parseFloat(bersih) || 0;
+                }
+
+                // ========================================================
+                // 2. FUNGSI PENYULAP: Format Otomatis Saat Data Dimuat
+                // ========================================================
+                function jalankanMaskingRupiahTabel() {
+                    $('.row-nilai-muatan, .row-biaya-kirim, .modal-nilai-muatan, .modal-biaya-kirim').each(function() {
+                        let v = $(this).val();
+                        // Jika data masih berupa angka mentah database, langsung sulap ke Rupiah
+                        if (v && !v.includes('Rp')) {
+                            $(this).val(formatKeRupiah(v));
+                        }
+                    });
+                }
+
+                // ========================================================
+                // 3. INITIALIZATION DATATABLES
+                // ========================================================
+                var table = $('#tablePlanner').DataTable({
+                    scrollX: true,
+                    pageLength: 10,
+                    columnDefs: [{
+                        className: "dt-center",
+                        targets: [0, 21, 23, 24, 27, 28, 29, 32, 33, 34, 37, 38, 39, 41, 44]
+                    }],
+                    language: {
+                        search: "_INPUT_",
+                        searchPlaceholder: "Cari data shipment...",
+                        lengthMenu: "Tampilkan _MENU_ data",
+                        info: "Menampilkan _START_ sampai _END_ dari _TOTAL_ data",
+                        paginate: {
+                            next: "<i class='fa-solid fa-chevron-right'></i>",
+                            previous: "<i class='fa-solid fa-chevron-left'></i>"
+                        }
+                    },
+
+
+                    drawCallback: function(settings) {
+                        // Tiap ganti page atau filter, pastikan format rupiah & hitungan CR tetap terjaga
+                        jalankanMaskingRupiahTabel();
+                        hitungSemuaCostRatioTabel();
+                    }
+                });
+
+                // ======================================
+                // LOAD DATA PLANNER KE DROPDOWN
+                // ======================================
+
+                function loadPlannerFilter() {
+
+                    $('#filterPlanner option:not(:first)').remove();
+
+                    let planners = [];
+
+                    $('input[name="planner"]').each(function() {
+
+                        let planner = $(this).val().trim();
+
+                        if (
+                            planner !== '' &&
+                            !planners.includes(planner)
+                        ) {
+                            planners.push(planner);
+                        }
+
+                    });
+
+                    planners.sort();
+
+                    planners.forEach(function(planner) {
+
+                        $('#filterPlanner').append(
+                            `<option value="${planner}">
+                ${planner}
+            </option>`
+                        );
+
+                    });
+                }
+
+                loadPlannerFilter();
+
+
+                // ======================================
+                // FILTER PLANNER DARI INPUT VALUE
+                // ======================================
+
+                var plannerFilter = '';
+
+                $('#filterPlanner').on('change', function() {
+
+                    plannerFilter = $(this).val();
+
+                    table.draw();
+
+                });
+
+                $.fn.dataTable.ext.search.push(function(settings, data, dataIndex) {
+
+                    var rowNode = table.row(dataIndex).node();
+
+                    // =====================
+                    // FILTER PLANNER
+                    // =====================
+
+                    if (plannerFilter !== '') {
+
+                        var plannerValue = $(rowNode)
+                            .find('input[name="planner"]')
+                            .val();
+
+                        if (plannerValue !== plannerFilter) {
+                            return false;
+                        }
+                    }
+
+                    // =====================
+                    // FILTER CREATE TGL
+                    // =====================
+
+                    if (createTglFilter !== '') {
+
+                        var createTglText = $(rowNode)
+                            .find('td:eq(1)')
+                            .text()
+                            .trim();
+
+                        if (createTglText !== '-') {
+
+                            // 11/06/2026 10:52
+                            var parts = createTglText.split(' ')[0].split('/');
+
+                            var tanggalRow =
+                                parts[2] + '-' +
+                                parts[1] + '-' +
+                                parts[0];
+
+                            if (tanggalRow !== createTglFilter) {
+                                return false;
+                            }
+                        }
+                    }
+
+                    return true;
+
+                });
+
+
+                // ======================================
+                // REFRESH DROPDOWN JIKA PLANNER DIUBAH
+                // ======================================
+
+                $(document).on(
+                    'change',
+                    'input[name="planner"]',
+                    function() {
+
+                        loadPlannerFilter();
+
+                    }
+                );
+
+                var createTglFilter = '';
+
+                $('#filterCreateTgl').on('change', function() {
+
+                    createTglFilter = $(this).val();
+
+                    table.draw();
+
+                });
+
+
+
+                // Jalankan sekali di awal saat halaman pertama kali dibuka
+                jalankanMaskingRupiahTabel();
+
+                // ========================================================
+                // 4. FUNGSI HITUNG CR (Handling Duplikat Shipment Jadi 1)
+                // ========================================================
+                // ========================================================
+                // 4. FUNGSI HITUNG CR (Handling Duplikat Shipment - Biaya Digabung)
+                // ========================================================
+function hitungSemuaCostRatioTabel() {
+
+    var shipmentGroups = {};
+
+    // =========================
+    // A. GROUPING DATA
+    // =========================
+    $('.row-no-shipment').each(function () {
+
+        var noShipment = $(this).val() ? $(this).val().trim() : '';
+        if (noShipment === '') return;
+
+        var currentRow = $(this).closest('tr');
+
+        var muatan = ambilAngkaMurni(
+            currentRow.find('.row-nilai-muatan').val()
+        );
+
+        var biaya = ambilAngkaMurni(
+            currentRow.find('.row-biaya-kirim').val()
+        );
+
+        // INIT GROUP
+        if (!shipmentGroups[noShipment]) {
+            shipmentGroups[noShipment] = {
+                rows: [],
+                totalMuatan: 0,
+                masterBiaya: biaya // 🔥 ambil biaya dari BARIS PERTAMA
+            };
+        }
+
+        shipmentGroups[noShipment].rows.push({
+            element: currentRow,
+            muatan: muatan
+        });
+
+        // MUATAN dijumlahkan semua
+        shipmentGroups[noShipment].totalMuatan += muatan;
+    });
+
+    // =========================
+    // B. HITUNG & OUTPUT
+    // =========================
+    $.each(shipmentGroups, function (noShipment, data) {
+
+        var hasilCrGlobal = 0;
+
+        if (data.totalMuatan > 0) {
+            hasilCrGlobal = (data.masterBiaya / data.totalMuatan) * 100;
+        }
+
+        $.each(data.rows, function (index, item) {
+
+            var row = item.element;
+
+            if (index === 0) {
+
+                // ================= MASTER =================
+                row.find('.row-biaya-kirim')
+                    .val(formatKeRupiah(data.masterBiaya));
+
+                row.find('.row-cr')
+                    .val(hasilCrGlobal.toFixed(4) + '%');
+
+                if (row.find('.row-note').length) {
+                    row.find('.row-note').val('MASTER');
+                }
+
+            } else {
+
+                // ================= DUPLIKAT =================
+                row.find('.row-biaya-kirim')
+                    .val(formatKeRupiah(0));
+
+                row.find('.row-cr')
+                    .val('0.0000% (Duplikat dari ' + noShipment + ')');
+
+                if (row.find('.row-note').length) {
+                    row.find('.row-note')
+                        .val('DUPLIKAT');
+                }
+            }
+        });
+    });
+}
+            function loadNoShipment() {
+
+        let list = [];
+
+        $('input[name="no_shipment"]').each(function () {
+            let val = $(this).val()?.trim();
+
+            if (val && !list.includes(val)) {
+                list.push(val);
+            }
+        });
+
+        list.sort();
+
+        $('#searchNoShipment').html(`
+            <option value="">-- Pilih No Shipment --</option>
+        `);
+
+        list.forEach(function (item) {
+            $('#searchNoShipment').append(`
+                <option value="${item}">${item}</option>
+            `);
+        });
+    }
+
+    loadNoShipment();
+
+    // =========================
+    // AUTO FILL SELECTED SHIPMENT
+    // =========================
+    $(document).on('change', '#searchNoShipment', function () {
+        let val = $(this).val();
+        $('#selectedNoShipment').val(val);
+    });
+
+        
+        </script>
+        <script>
+    $(document).ready(function() {
+        // Inisialisasi DataTables dan simpan ke variabel 'table'
+        var table = $('#tablePlanner').DataTable({
+            scrollX: true,
+            pageLength: 10,
+            columnDefs: [
+                { className: "dt-center", targets: [0, 21, 23, 24, 27, 28, 29, 32, 33, 34, 37, 38, 39, 41, 44] }
+            ],
+            language: {
+                search: "_INPUT_",
+                searchPlaceholder: "Cari data shipment...",
+                lengthMenu: "Tampilkan _MENU_ data",
+                info: "Menampilkan _START_ sampai _END_ dari _TOTAL_ data",
+                paginate: {
+                    next: "<i class='fa-solid fa-chevron-right'></i>",
+                    previous: "<i class='fa-solid fa-chevron-left'></i>"
+                }
+            },
+            // FUNGSIONAL UTAMA: Hitung otomatis setiap kali DataTables merender ulang data
+            drawCallback: function(settings) {
+                hitungSemuaCostRatioTabel();
+            }
+        });
+
+        // ========================================================
+        // FUNGSI GLOBAL: HITUNG TOTAL CR & HANDLE DUPLIKAT
+        // ========================================================
+        function hitungSemuaCostRatioTabel() {
+            var shipmentGroups = {};
+
+            // Langkah 1: Kumpulkan dan jumlahkan Nilai Muatan & Biaya Kirim untuk No Shipment yang sama
+            $('.row-no-shipment').each(function() {
+                var noShipment = $(this).val() ? $(this).val().trim() : '';
+                if (noShipment !== '') {
+                    var currentRow = $(this).closest('tr');
+                    var muatan = parseFloat(currentRow.find('.row-nilai-muatan').val()) || 0;
+                    var biaya = parseFloat(currentRow.find('.row-biaya-kirim').val()) || 0;
+
+                    if (!shipmentGroups[noShipment]) {
+                        shipmentGroups[noShipment] = {
+                            totalMuatan: 0,
+                            totalBiaya: 0,
+                            rows: [] // Menyimpan semua baris yang memiliki No Shipment yang sama
+                        };
+                    }
+
+                    shipmentGroups[noShipment].totalMuatan += muatan;
+                    shipmentGroups[noShipment].totalBiaya += biaya;
+                    shipmentGroups[noShipment].rows.push(currentRow);
+                }
+            });
+
+            // Langkah 2: Hitung CR (%) dan tembak nilainya HANYA ke baris pertama (index 0)
+            $.each(shipmentGroups, function(noShipment, data) {
+                var hasilCr = 0;
+                if (data.totalMuatan > 0) {
+                    hasilCr = (data.totalBiaya / data.totalMuatan) * 100;
+                }
+
+                // Loooping baris di dalam grup shipment ini
+                $.each(data.rows, function(index, row) {
+                    if (index === 0) {
+                        // Jika baris pertama, isi dengan hasil kalkulasi CR asli
+                        row.find('.row-cr').val(hasilCr.toFixed(2));
+                    } else {
+                        // Jika baris ke-2, ke-3 (duplikat), kosongkan input CR-nya
+                        row.find('.row-cr').val('');
+                    }
+                });
+            });
+        }
+
+        // Trigger kalkulasi secara instant ketika user sedang mengetik/mengubah angka di kolom tabel
+        $(document).on('input', '.row-nilai-muatan, .row-biaya-kirim', function() {
+            hitungSemuaCostRatioTabel();
+        });
+        $(document).on('change', '.row-no-shipment', function() {
+            hitungSemuaCostRatioTabel();
+        });
+
+        // ========================================================
+        // RUMUS MODAL: "ADD NEW SHIPMENT"
+        // ========================================================
+        $(document).on('input', '.modal-nilai-muatan, .modal-biaya-kirim', function() {
+            var muatanModal = parseFloat($('.modal-nilai-muatan').val()) || 0;
+            var biayaModal = parseFloat($('.modal-biaya-kirim').val()) || 0;
+            
+            var crModal = 0;
+            if (muatanModal > 0) {
+                crModal = (biayaModal / muatanModal) * 100;
+            }
+            $('.modal-cr').val(crModal.toFixed(2));
+        });
+    });
+</script> -->
+        <!-- <script>
+        $(document).ready(function() {
+            // Inisialisasi DataTables
+            var table = $('#tablePlanner').DataTable({
+                scrollX: true,
+                pageLength: 10,
+                columnDefs: [
+                    { className: "dt-center", targets: [0, 21, 23, 24, 27, 28, 29, 32, 33, 34, 37, 38, 39, 41, 44] }
+                ],
+                language: {
+                    search: "_INPUT_",
+                    searchPlaceholder: "Cari data shipment...",
+                    lengthMenu: "Tampilkan _MENU_ data",
+                    info: "Menampilkan _START_ sampai _END_ dari _TOTAL_ data",
+                    paginate: {
+                        next: "<i class='fa-solid fa-chevron-right'></i>",
+                        previous: "<i class='fa-solid fa-chevron-left'></i>"
+                    }
+                }
+            });
+
+            // ========================================================
+            // RUMUS 1: HITUNG REAL-TIME UNTUK DUPLIKAT DI DALAM TABEL
+            // ========================================================
+            function hitungCostRatioTabel(element) {
+                var currentRow = $(element).closest('tr');
+                var currentShipment = currentRow.find('.row-no-shipment').val().trim();
+
+                if (currentShipment === '') return;
+
+                var totalNilaiMuatan = 0;
+                var totalBiayaKirim = 0;
+                var matchingRows = [];
+
+                // Looping seluruh baris di tabel (termasuk baris halaman lain yang disembunyikan DataTable)
+                table.rows().every(function () {
+                    var rowNode = this.node();
+                    var rowShipment = $(rowNode).find('.row-no-shipment').val() || '';
+
+                    if (rowShipment.trim() === currentShipment) {
+                        var muatan = parseFloat($(rowNode).find('.row-nilai-muatan').val()) || 0;
+                        var biaya = parseFloat($(rowNode).find('.row-biaya-kirim').val()) || 0;
+
+                        totalNilaiMuatan += muatan;
+                        totalBiayaKirim += biaya;
+                        matchingRows.push($(rowNode));
+                    }
+                });
+
+                // Hitung hasil persentase rasio biaya per shipment group
+                var hasilCr = 0;
+                if (totalNilaiMuatan > 0) {
+                    hasilCr = (totalBiayaKirim / totalNilaiMuatan) * 100;
+                }
+
+                // Update otomatis ke semua baris input yang memiliki No Shipment duplikat tersebut
+                $.each(matchingRows, function() {
+                    $(this).find('.row-cr').val(hasilCr.toFixed(2));
+                });
+            }
+
+            // Trigger kalkulasi saat angka muatan, biaya kirim, atau no shipment diubah di tabel
+            $(document).on('input', '.row-nilai-muatan, .row-biaya-kirim', function() {
+                hitungCostRatioTabel(this);
+            });
+            $(document).on('change', '.row-no-shipment', function() {
+                hitungCostRatioTabel(this);
+            });
+
+            // ========================================================
+            // RUMUS 2: HITUNG REAL-TIME DI MODAL "ADD NEW SHIPMENT"
+            // ========================================================
+            $(document).on('input', '.modal-nilai-muatan, .modal-biaya-kirim', function() {
+                var muatanModal = parseFloat($('.modal-nilai-muatan').val()) || 0;
+                var biayaModal = parseFloat($('.modal-biaya-kirim').val()) || 0;
+                
+                var crModal = 0;
+                if (muatanModal > 0) {
+                    crModal = (biayaModal / muatanModal) * 100;
+                }
+                $('.modal-cr').val(crModal.toFixed(2));
+            });
+        });
+    </script> --> 

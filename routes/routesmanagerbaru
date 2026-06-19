@@ -1,0 +1,33 @@
+Route::prefix('manager')->group(function () {
+
+    Route::get('/dashboard', [ManagerController::class, 'dashboard'])
+        ->name('manager.dashboard');
+
+    // ================= GUDANG =================
+    Route::get('/gudang/ontime', [ManagerController::class, 'gudangOnTime'])
+        ->name('manager.gudang.ontime');
+
+    Route::get('/gudang/delay', [ManagerController::class, 'gudangDelay'])
+        ->name('manager.gudang.delay');
+
+    // ================= TUJUAN (CUSTOMER FIX) =================
+    Route::get('/tujuan/ontime', [ManagerController::class, 'tujuanOnTime'])
+        ->name('manager.tujuan.ontime');
+
+    Route::get('/tujuan/delay', [ManagerController::class, 'tujuanDelay'])
+        ->name('manager.tujuan.delay');
+
+    // ================= BONGKAR =================
+    Route::get('/bongkar/ontime', [ManagerController::class, 'bongkarOnTime'])
+        ->name('manager.bongkar.ontime');
+
+    Route::get('/bongkar/delay', [ManagerController::class, 'bongkarDelay'])
+        ->name('manager.bongkar.delay');
+
+    // ================= SUMMARY =================
+    Route::get('/summary-total', [ManagerController::class, 'summaryTotal'])
+        ->name('manager.summary.total');
+
+    Route::get('/summary-area', [ManagerController::class, 'summaryArea'])
+        ->name('manager.summary.area');
+});
