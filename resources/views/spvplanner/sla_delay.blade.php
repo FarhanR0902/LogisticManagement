@@ -4,14 +4,22 @@
 <html lang="id">
 
 <head>
+    <link rel="stylesheet"
+href="https://cdn.datatables.net/1.13.8/css/jquery.dataTables.min.css">
 
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+
+<script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<title>{{ $title }}</title>
+<title>Belum Tiba Di Gudang</title>
 
 <style>
-
+.highlight-exit{
+    background:#cfe2ff !important;
+    border:2px solid #0d6efd !important;
+}
 body{
     font-family:Arial;
     background:#f4f6f9;
@@ -24,13 +32,14 @@ body{
 }
 
 .card{
-    background:white;
+    background:#fff;
     padding:20px;
     border-radius:10px;
     box-shadow:0 2px 10px rgba(0,0,0,0.1);
     margin-top:15px;
-    overflow-x:auto;
+    overflow:auto;
 }
+
 table{
     width:100%;
     border-collapse:collapse;
@@ -55,28 +64,13 @@ td{
     text-align:center;
 }
 
-.badge-delay{
-    background:#dc3545;
-    color:white;
-    padding:5px 10px;
+.status{
+    background:#d4edda;
+    color:#155724;
+    padding:4px 8px;
     border-radius:5px;
     font-weight:bold;
 }
-
-/* BUTTON */
-.btn{
-    padding:8px 14px;
-    border-radius:6px;
-    text-decoration:none;
-    display:inline-block;
-    font-size:14px;
-    margin-right:5px;
-    border:none;
-    cursor:pointer;
-}
-
-.btn-blue{ background:#007bff; color:#fff; }
-.btn-green{ background:#28a745; color:#fff; }
 
 /* FILTER */
 .filter-box{
@@ -93,14 +87,44 @@ select{
     border-radius:5px;
 }
 
-h2{
-    margin-bottom:15px;
+.btn{
+    padding:8px 14px;
+    border-radius:6px;
+    border:none;
+    cursor:pointer;
 }
 
-/* RESPONSIVE */
-@media(max-width:768px){
-    .container{ margin-left:0; }
-    table{ display:block; overflow-x:auto; }
+.btn-green{background:#28a745;color:#fff}
+.btn-blue{background:#007bff;color:#fff}
+
+.bg-red{
+    background:#f8d7da;
+    color:#721c24;
+}
+.bg-green{
+    background:#d4edda;
+    color:#155724;
+}
+.highlight-source{
+    background:#fff3cd !important;
+    border:2px solid #ffc107 !important;
+}
+
+.status{
+    padding:4px 8px;
+    border-radius:5px;
+    font-weight:bold;
+    display:inline-block;
+}
+
+.bg-green{
+    background:#d4edda;
+    color:#155724;
+}
+
+.bg-red{
+    background:#f8d7da;
+    color:#721c24;
 }
 
 </style>
@@ -111,56 +135,17 @@ h2{
 
 <div class="container">
 
-<h2>{{ $title }}</h2>
+<h2>🚛 BELUM TIBA DI GUDANG</h2>
 
 <!-- FILTER -->
-<div class="filter-box">
 
-<form method="GET" action="{{ url('/sla/delay') }}">
-
-    <select name="bulan">
-        <option value="">Bulan</option>
-        @for($i=1; $i<=12; $i++)
-            @php $val = str_pad($i,2,'0',STR_PAD_LEFT); @endphp
-            <option value="{{ $val }}" {{ request('bulan')==$val?'selected':'' }}>
-                {{ date('F', mktime(0,0,0,$i,1)) }}
-            </option>
-        @endfor
-    </select>
-
-    <select name="tahun">
-        <option value="">Tahun</option>
-        @for($y=2023; $y<=date('Y'); $y++)
-            <option value="{{ $y }}" {{ request('tahun')==$y?'selected':'' }}>
-                {{ $y }}
-            </option>
-        @endfor
-    </select>
-
-    <select name="area">
-        <option value="">Area</option>
-        @foreach($list_area as $a)
-            <option value="{{ $a->area }}" {{ request('area')==$a->area?'selected':'' }}>
-                {{ $a->area }}
-            </option>
-        @endforeach
-    </select>
-
-    <button type="submit" class="btn btn-green">Filter</button>
-
-    <a href="{{ url('/dashboard') }}" class="btn btn-blue">⬅ Dashboard</a>
-
-</form>
-
-</div>
 
 <!-- TABLE -->
 <div class="card">
 
-<table>
+<table id="tablePlanner" class="display nowrap">
 
 <thead>
-
 <tr>
     <th>No</th>
     <th>Tanggal Naik Logistik</th>
@@ -170,80 +155,78 @@ h2{
     <th>No Shipment</th>
     <th>Tujuan</th>
     <th>Area</th>
-    <th>Ketersediaan Unit</th>
+    <!-- <th>Ketersediaan Unit</th> -->
     <th>Mobil</th>
-    <th>Perubahan Mobil</th>
-    <th>Nilai Muatan</th>
-    <th>Biaya Kirim</th>
-    <th>CR</th>
+    <!-- <th>Perubahan Mobil</th> -->
     <th>Kategori Ekspedisi</th>
     <th>Ekspedisi</th>
-    <th>Nama Driver</th>
-    <th>No Pol</th>
-    <!-- <th>Status</th> -->
-    <th>Tgl Dpt Unit</th>
-    <th>Planning Loading</th>
-    <th>Tgl Tiba Gudang</th>
-    <th>Tgl Keluar Gudang</th>
-    <th>Lama Digudang</th>
-    <th>SLA Loading</th>
-    <th>Keterangan</th>
-    <th>Lama Pencarian</th>
-    <th>SLA Mobil</th>
-    <th>Status SLA</th>
-</tr>
+    <!-- <th>Nama Driver</th>
+    <th>No Pol</th> -->
+    <th>Status</th>
+    <th>Tanggal Dapat Unit</th>
+    <th>Planning Loading KACS</th>
+    <th>Planning Loading SENTUL</th>
+    <th>Planning Loading CCIE</th>
 
+
+
+    <!-- <th>Status Gudang</th> -->
+   
+    <!-- <th>Keterangan</th> -->
+    <th>Lama Waktu Pencarian</th>
+
+
+</tr>
 </thead>
 
 <tbody>
 
-@if(!empty($list) && count($list) > 0)
-
+@if(!empty($list) && count($list)>0)
+@php
+$markedShipment = [];
+@endphp
 @foreach($list as $r)
-
 <tr>
-    <td>{{ $loop->iteration }}</td>
+<td></td>
+    <td>{{ $r->tanggal_naik_logistik }}</td>
+    <td>{{ $r->rencana_kirim }}</td>
+    <td>{{ $r->transport_lead_time }}</td>
+    <td>{{ $r->planner }}</td>
+<td
+    @if(!in_array($r->no_shipment, $markedShipment))
+        class="highlight-source"
+        @php $markedShipment[] = $r->no_shipment; @endphp
+    @endif
+>
+    {{ $r->no_shipment }}
+</td>
+    <td>{{ $r->tujuan }}</td>
+    <td>{{ $r->area }}</td>
+    <!-- <td>{{ $r->ketersediaan_unit }}</td> -->
+    <td>{{ $r->mobil }}</td>
+    <!-- <td>{{ $r->perubahan_mobil }}</td> -->
+    <td>{{ $r->kategori_ekspedisi }}</td>
+    <td>{{ $r->ekpedisi }}</td>
+    <!-- <td>{{ $r->nama_driver }}</td>
+    <td>{{ $r->no_pol }}</td> -->
+<td>{{ $r->status_pengiriman }}</td>
 
-    <td>{{ $r->tanggal_naik_logistik ?? '-' }}</td>
-    <td>{{ $r->rencana_kirim ?? '-' }}</td>
-    <td>{{ $r->transport_lead_time ?? '-' }}</td>
-    <td>{{ $r->planner ?? '-' }}</td>
-    <td>{{ $r->no_shipment ?? '-' }}</td>
-    <td>{{ $r->tujuan ?? '-' }}</td>
-    <td>{{ $r->area ?? '-' }}</td>
-    <td>{{ $r->ketersediaan_unit ?? '-' }}</td>
-    <td>{{ $r->mobil ?? '-' }}</td>
-    <td>{{ $r->perubahan_mobil ?? '-' }}</td>
-    <td>{{ number_format($r->nilai_muatan ?? 0) }}</td>
-    <td>{{ number_format($r->biaya_kirim ?? 0) }}</td>
-    <td>{{ $r->cr ?? '-' }}</td>
-    <td>{{ $r->kategori_ekspedisi ?? '-' }}</td>
-    <td>{{ $r->ekpedisi ?? '-' }}</td>
-    <td>{{ $r->nama_driver ?? '-' }}</td>
-    <td>{{ $r->no_pol ?? '-' }}</td>
+<td class="highlight-source">
+    {{ $r->tanggal_dpt_unit }}
+</td>
+    <td>{{ $r->planning_loading }}</td>
+      <td>{{ $r->planning_loading_2 }}</td>
+        <td>{{ $r->planning_loading_3 }}</td>
+    <!-- <td>{{ $r->keterangan }}</td> -->
+    <td>{{ $r->lama_waktu_pencarian }}</td>
+
    
-    <td>{{ $r->tanggal_dpt_unit ?? '-' }}</td>
-    <td>{{ $r->planning_loading ?? '-' }}</td>
-    <td>{{ $r->tanggal_tiba_gudang ?? '-' }}</td>
-    <td>{{ $r->tanggal_keluar_gudang ?? '-' }}</td>
-    <td>{{ $r->lama_digudang ?? '-' }}</td>
-    <td>{{ $r->sla_ketepatan_loading ?? '-' }}</td>
-    <td>{{ $r->keterangan ?? '-' }}</td>
-    <td>{{ $r->lama_waktu_pencarian ?? '-' }}</td>
-    <td>{{ $r->sla_dapat_mobil ?? '-' }}</td>
-
-    <td>
-        <span class="badge-delay">DELAY</span>
-    </td>
 </tr>
-
 @endforeach
 
 @else
 
-<tr>
-    <td colspan="30">Tidak ada data</td>
-</tr>
+
 
 @endif
 
@@ -254,6 +237,67 @@ h2{
 </div>
 
 </div>
+<script>
+$(document).ready(function () {
 
+    $.fn.dataTable.ext.type.search.html = function (data) {
+        return $('<div>').html(data).text();
+    };
+
+    var table = $('#tablePlanner').DataTable({
+
+        scrollX: true,
+        autoWidth: false,
+
+        pageLength: 10,
+
+        lengthMenu: [
+            [10,25,50,100,-1],
+            [10,25,50,100,"Semua"]
+        ],
+
+        columnDefs:[
+            {
+                targets:0,
+                searchable:false,
+                orderable:false
+            }
+        ],
+
+        order:[[1,'asc']],
+
+        language:{
+            search:"Cari :",
+            lengthMenu:"Tampilkan _MENU_ data",
+            info:"Menampilkan _START_ sampai _END_ dari _TOTAL_ data",
+            infoEmpty:"Tidak ada data",
+            zeroRecords:"Data tidak ditemukan",
+            paginate:{
+                first:"Awal",
+                last:"Akhir",
+                previous:"<<",
+                next:">>"
+            }
+        }
+
+    });
+
+    table.on('order.dt search.dt draw.dt', function () {
+
+        let start = table.page.info().start;
+
+        table.column(0,{
+            search:'applied',
+            order:'applied'
+        }).nodes().each(function(cell,i){
+
+            cell.innerHTML = start + i + 1;
+
+        });
+
+    }).draw();
+
+});
+</script>
 </body>
 </html>

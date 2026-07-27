@@ -7,6 +7,7 @@ use App\Models\LogistikPengiriman;
 use Illuminate\Support\Facades\DB;
 use Maatwebsite\Excel\Facades\Excel;
 use App\Imports\LogistikImport;
+use App\Exports\LogistikExport;
 
 class LogistikController extends Controller
 {
@@ -228,6 +229,14 @@ $bongkar_delay = (clone $query)
             'value'
         ));
     }
+
+//   public function export()
+// {
+//     return Excel::download(
+//         new LogistikExport,
+//         'Data_Logistik_' . date('Y-m-d_H-i-s') . '.xlsx'
+//     );
+// }
     /* =========================================================
      * IMPORT EXCEL
      * ========================================================= */
@@ -390,11 +399,40 @@ private function filterByDistChannel($query)
     return $query;
 }
 
+public function export(Request $request)
+    {
+        $query = LogistikPengiriman::query();
+
+        $this->filterByDistChannel($query);
+
+        if ($request->date) {
+            $query->whereDate('tanggal_naik_logistik', $request->date);
+        }
+
+        if ($request->month) {
+            $query->whereMonth('tanggal_naik_logistik', $request->month);
+        }
+
+        if ($request->year) {
+            $query->whereYear('tanggal_naik_logistik', $request->year);
+        }
+
+        if ($request->area) {
+            $query->where('area', $request->area);
+        }
+
+        $logistik = $query->orderBy('id', 'DESC')->get();
+
+        return Excel::download(new LogistikExport($logistik), 'logistik.xlsx');
+    }
+
+
 public function dataLogistik(Request $request)
 {
+   
     $query = LogistikPengiriman::query();
 
-      $this->filterByDistChannel($query);
+    $this->filterByDistChannel($query);
 
     /* ================= FILTER ================= */
     if ($request->date) {
@@ -419,6 +457,7 @@ public function dataLogistik(Request $request)
 
     if ($request->search) {
         $search = $request->search;
+        
 
         $query->where(function ($q) use ($search) {
             $q->where('no_shipment', 'like', "%$search%")
@@ -429,58 +468,172 @@ public function dataLogistik(Request $request)
     }
 
     /* ================= DATA ================= */
-    $logistik = $query->orderBy('id', 'DESC')->get();
+$logistik = $query
+    ->orderBy('id', 'DESC')
+    ->get();
 
-    /* ================= LIST DROPDOWN ================= */
-    $picList = LogistikPengiriman::whereNotNull('pic_monitoring')
-        ->distinct()
-        ->pluck('pic_monitoring');
+    /* ================= DROPDOWN ================= */
+$picList = LogistikPengiriman::whereNotNull('pic_monitoring')
+    ->distinct()
+    ->pluck('pic_monitoring');
 
     $areaList = LogistikPengiriman::whereNotNull('area')
         ->distinct()
         ->pluck('area');
 
-    /* ================= ESTIMASI + FORMAT TANGGAL ================= */
-    $estimasiData = $logistik->map(function ($r) {
+    /* ================= ESTIMASI LOGIC FIX ================= */
+ /* ================= ESTIMASI LOGIC ================= */
 
-        /* ---------------- TANGGAL KELUAR ---------------- */
-        $keluar = (!empty($r->tanggal_keluar_gudang) && $r->tanggal_keluar_gudang != 'mm/dd/yyyy')
-            ? strtotime($r->tanggal_keluar_gudang)
-            : null;
+$grouped = $logistik->groupBy('no_shipment');
 
-        $leadtime = is_numeric($r->transport_lead_time)
-            ? (int) $r->transport_lead_time
-            : 0;
+foreach ($grouped as $shipment => $items) {
 
-        $estimasi = $keluar ? strtotime("+$leadtime days", $keluar) : null;
-
-        /* ---------------- FORMAT TANGGAL ---------------- */
-        $tglKeluar = !empty($r->tanggal_keluar_gudang)
-            ? date('d-m-Y', strtotime($r->tanggal_keluar_gudang))
-            : null;
-
-        $tglNaik = !empty($r->tanggal_naik_logistik)
-            ? date('d-m-Y', strtotime($r->tanggal_naik_logistik))
-            : null;
-
+    // ambil tanggal keluar terbesar
+    $keluar = $items->flatMap(function ($r) {
         return [
-            'no_shipment' => $r->no_shipment,
-
-            // kalau kosong = NULL (bukan ONTIME/DELAY)
-            'estimasi' => $estimasi ? date('d-m-Y', $estimasi) : null,
-
-            'tanggal_keluar_gudang' => $tglKeluar,
-            'tanggal_naik_logistik' => $tglNaik,
+            $r->tanggal_keluar_gudang,
+            $r->tanggal_keluar_gudang_2,
+            $r->tanggal_keluar_gudang_3,
         ];
-    });
+    })
+    ->filter(function ($t) {
+        return !empty($t) && $t != 'mm/dd/yyyy';
+    })
+    ->map(fn($t) => strtotime($t))
+    ->max();
 
+    $leadtime = (int) ($items->first()->transport_lead_time ?? 0);
+
+    $baseEstimasi = $keluar
+        ? strtotime("+{$leadtime} days", $keluar)
+        : null;
+
+    // jumlah shipment yang sudah tiba
+    $jumlahSudahTiba = $items->whereNotNull('tanggal_tiba')->count();
+
+    foreach ($items as $r) {
+
+        if (!$baseEstimasi) {
+            $r->tanggal_estimasi = null;
+            continue;
+        }
+
+        if ($r->tanggal_tiba) {
+
+            // yang sudah tiba tetap memakai estimasi yang tersimpan
+            $r->tanggal_estimasi = $r->estimasi_tiba
+                ? strtotime($r->estimasi_tiba)
+                : $baseEstimasi;
+
+        } else {
+
+            // yang belum tiba ikut bergeser sesuai jumlah yang sudah tiba
+            $r->tanggal_estimasi = strtotime(
+                "+{$jumlahSudahTiba} days",
+                $baseEstimasi
+            );
+        }
+    }
+}
     return view('data_logistik', compact(
         'logistik',
-        'estimasiData',
+    
         'picList',
         'areaList'
     ));
 }
+
+// public function dataLogistik(Request $request)
+// {
+//     $query = LogistikPengiriman::query();
+
+//       $this->filterByDistChannel($query);
+
+//     /* ================= FILTER ================= */
+//     if ($request->date) {
+//         $query->whereDate('tanggal_naik_logistik', $request->date);
+//     }
+
+//     if ($request->month) {
+//         $query->whereMonth('tanggal_naik_logistik', $request->month);
+//     }
+
+//     if ($request->year) {
+//         $query->whereYear('tanggal_naik_logistik', $request->year);
+//     }
+
+//     if ($request->pic_monitoring) {
+//         $query->where('pic_monitoring', $request->pic_monitoring);
+//     }
+
+//     if ($request->area) {
+//         $query->where('area', $request->area);
+//     }
+
+//     if ($request->search) {
+//         $search = $request->search;
+
+//         $query->where(function ($q) use ($search) {
+//             $q->where('no_shipment', 'like', "%$search%")
+//               ->orWhere('tujuan', 'like', "%$search%")
+//               ->orWhere('ekspedisi', 'like', "%$search%")
+//               ->orWhere('area', 'like', "%$search%");
+//         });
+//     }
+
+//     /* ================= DATA ================= */
+//     $logistik = $query->orderBy('id', 'DESC')->get();
+
+//     /* ================= LIST DROPDOWN ================= */
+//     $picList = LogistikPengiriman::whereNotNull('pic_monitoring')
+//         ->distinct()
+//         ->pluck('pic_monitoring');
+
+//     $areaList = LogistikPengiriman::whereNotNull('area')
+//         ->distinct()
+//         ->pluck('area');
+
+//     /* ================= ESTIMASI + FORMAT TANGGAL ================= */
+//     $estimasiData = $logistik->map(function ($r) {
+
+//         /* ---------------- TANGGAL KELUAR ---------------- */
+//         $keluar = (!empty($r->tanggal_keluar_gudang) && $r->tanggal_keluar_gudang != 'mm/dd/yyyy')
+//             ? strtotime($r->tanggal_keluar_gudang)
+//             : null;
+
+//         $leadtime = is_numeric($r->transport_lead_time)
+//             ? (int) $r->transport_lead_time
+//             : 0;
+
+//         $estimasi = $keluar ? strtotime("+$leadtime days", $keluar) : null;
+
+//         /* ---------------- FORMAT TANGGAL ---------------- */
+//         $tglKeluar = !empty($r->tanggal_keluar_gudang)
+//             ? date('d-m-Y', strtotime($r->tanggal_keluar_gudang))
+//             : null;
+
+//         $tglNaik = !empty($r->tanggal_naik_logistik)
+//             ? date('d-m-Y', strtotime($r->tanggal_naik_logistik))
+//             : null;
+
+//         return [
+//             'no_shipment' => $r->no_shipment,
+
+//             // kalau kosong = NULL (bukan ONTIME/DELAY)
+//             'estimasi' => $estimasi ? date('d-m-Y', $estimasi) : null,
+
+//             'tanggal_keluar_gudang' => $tglKeluar,
+//             'tanggal_naik_logistik' => $tglNaik,
+//         ];
+//     });
+
+//     return view('data_logistik', compact(
+//         'logistik',
+//         'estimasiData',
+//         'picList',
+//         'areaList'
+//     ));
+// }
 
     public function archiveAll()
     {
@@ -594,22 +747,83 @@ public function dataLogistik(Request $request)
     /* =========================================================
      * ARMADA READY
      * ========================================================= */
+    // public function armada(Request $request)
+    // {
+    //     $query = LogistikPengiriman::where('ketersediaan_unit', 'Sudah Dapat');
+
+    //     if ($request->bulan) {
+    //         $query->whereMonth('tanggal_naik_logistik', $request->bulan);
+    //     }
+
+    //     if ($request->tahun) {
+    //         $query->whereYear('tanggal_naik_logistik', $request->tahun);
+    //     }
+
+    //     $logistik = $query->orderBy('id', 'DESC')->get();
+
+    //     return view('armada', compact('logistik'));
+    // }
+
     public function armada(Request $request)
-    {
-        $query = LogistikPengiriman::where('ketersediaan_unit', 'Sudah Dapat');
+{
+    $query = DB::table('logistik_pengiriman')
+        ->whereNotNull('rencana_kirim')
+        ->whereRaw("TRIM(rencana_kirim) <> ''")
+        ->whereNotNull('tanggal_dpt_unit')
+        ->whereRaw("TRIM(tanggal_dpt_unit) <> ''");
 
-        if ($request->bulan) {
-            $query->whereMonth('tanggal_naik_logistik', $request->bulan);
-        }
-
-        if ($request->tahun) {
-            $query->whereYear('tanggal_naik_logistik', $request->tahun);
-        }
-
-        $logistik = $query->orderBy('id', 'DESC')->get();
-
-        return view('armada', compact('logistik'));
+    if ($request->filled('bulan')) {
+        $query->whereMonth('tanggal_naik_logistik', $request->bulan);
     }
+
+    if ($request->filled('tahun')) {
+        $query->whereYear('tanggal_naik_logistik', $request->tahun);
+    }
+
+    $logistik = $query
+        ->orderBy('tanggal_naik_logistik', 'DESC')
+        ->get()
+        ->map(function ($row) {
+
+    $tibaGudang = $this->getTibaGudangTerdekat($row);
+
+    if ($row->tanggal_dpt_unit && $tibaGudang) {
+
+        $awal = new \DateTime(
+            date('Y-m-d H:i:s', strtotime($row->tanggal_dpt_unit))
+        );
+
+        $akhir = new \DateTime(
+            date('Y-m-d H:i:s', strtotime($tibaGudang))
+        );
+                $awalCek  = (clone $awal)->setTime(0, 0, 0);
+                $akhirCek = (clone $akhir)->setTime(0, 0, 0);
+
+                if ($akhir >= $awal) {
+                    $diff = $awal->diff($akhir);
+
+                    $row->lama_waktu_pencarian = $diff->days > 0
+                        ? "{$diff->days} Hari {$diff->h} Jam {$diff->i} Menit"
+                        : "{$diff->h} Jam {$diff->i} Menit";
+
+                    $row->sla_dapat_mobil   = $akhirCek > $awalCek ? 'Delay' : 'On Time';
+                    $row->status_pengiriman = $akhirCek > $awalCek ? 'Terlambat' : 'Sudah Dapat';
+                } else {
+                    $row->lama_waktu_pencarian = "0 Jam 0 Menit";
+                    $row->sla_dapat_mobil      = 'On Time';
+                    $row->status_pengiriman    = 'Sudah Dapat';
+                }
+            } else {
+                $row->lama_waktu_pencarian = '-';
+                $row->sla_dapat_mobil      = '-';
+                $row->status_pengiriman    = '-';
+            }
+
+            return $row;
+        });
+
+    return view('planner.armada', compact('logistik'));
+}
 
 
     public function edit($id)
@@ -640,22 +854,48 @@ public function dataLogistik(Request $request)
     /* =========================================================
      * BELUM ARMADA
      * ========================================================= */
+    // public function belumArmada(Request $request)
+    // {
+    //     $query = LogistikPengiriman::where('ketersediaan_unit', 'Belum Dapat');
+
+    //     if ($request->bulan) {
+    //         $query->whereMonth('tanggal_naik_logistik', $request->bulan);
+    //     }
+
+    //     if ($request->tahun) {
+    //         $query->whereYear('tanggal_naik_logistik', $request->tahun);
+    //     }
+
+    //     $logistik = $query->orderBy('id', 'DESC')->get();
+
+    //     return view('belum_armada', compact('logistik'));
+    // }
+
+
     public function belumArmada(Request $request)
-    {
-        $query = LogistikPengiriman::where('ketersediaan_unit', 'Belum Dapat');
+{
+    $query = DB::table('logistik_pengiriman')
+        ->where(function ($q) {
+            $q->whereNull('rencana_kirim')
+              ->orWhere('rencana_kirim', '')
+              ->orWhereNull('tanggal_dpt_unit')
+              ->orWhere('tanggal_dpt_unit', '');
+        });
 
-        if ($request->bulan) {
-            $query->whereMonth('tanggal_naik_logistik', $request->bulan);
-        }
-
-        if ($request->tahun) {
-            $query->whereYear('tanggal_naik_logistik', $request->tahun);
-        }
-
-        $logistik = $query->orderBy('id', 'DESC')->get();
-
-        return view('belum_armada', compact('logistik'));
+    if ($request->filled('bulan')) {
+        $query->whereMonth('tanggal_naik_logistik', $request->bulan);
     }
+
+    if ($request->filled('tahun')) {
+        $query->whereYear('tanggal_naik_logistik', $request->tahun);
+    }
+
+    $logistik = $query
+        ->orderBy('tanggal_naik_logistik', 'DESC')
+        ->get();
+
+    return view('planner.belum_armada', compact('logistik'));
+}
 
     /* =========================================================
      * STORE
@@ -701,38 +941,38 @@ public function dataLogistik(Request $request)
     /* =========================================================
      * EXPORT CSV
      * ========================================================= */
-    public function export()
-    {
-        $filename = 'logistik.csv';
+    // public function export()
+    // {
+    //     $filename = 'logistik.csv';
 
-        return response()->stream(function () {
+    //     return response()->stream(function () {
 
-            $handle = fopen('php://output', 'w');
+    //         $handle = fopen('php://output', 'w');
 
-            fputcsv($handle, [
-                'No',
-                'Shipment',
-                'Tujuan',
-                'Area',
-                'Status'
-            ]);
+    //         fputcsv($handle, [
+    //             'No',
+    //             'Shipment',
+    //             'Tujuan',
+    //             'Area',
+    //             'Status'
+    //         ]);
 
-            foreach (LogistikPengiriman::all() as $row) {
-                fputcsv($handle, [
-                    $row->id,
-                    $row->no_shipment,
-                    $row->tujuan,
-                    $row->area,
-                    $row->status_akhir
-                ]);
-            }
+    //         foreach (LogistikPengiriman::all() as $row) {
+    //             fputcsv($handle, [
+    //                 $row->id,
+    //                 $row->no_shipment,
+    //                 $row->tujuan,
+    //                 $row->area,
+    //                 $row->status_akhir
+    //             ]);
+    //         }
 
-            fclose($handle);
-        }, 200, [
-            'Content-Type' => 'text/csv',
-            'Content-Disposition' => "attachment; filename=$filename"
-        ]);
-    }
+    //         fclose($handle);
+    //     }, 200, [
+    //         'Content-Type' => 'text/csv',
+    //         'Content-Disposition' => "attachment; filename=$filename"
+    //     ]);
+    // }
 
     /* =========================================================
  * SLA GLOBAL (ONTIME & DELAY)

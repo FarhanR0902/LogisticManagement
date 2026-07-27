@@ -8,7 +8,7 @@
 
     <style>
         body{
-            font-family:Arial, sans-serif;
+            font-family:Arial;
             background:#f5f5f5;
             margin:0;
         }
@@ -27,15 +27,14 @@
             margin-bottom:15px;
             display:flex;
             gap:10px;
-            flex-wrap:wrap;
         }
 
         .btn{
             padding:8px 12px;
             border-radius:5px;
-            text-decoration:none;
-            color:white;
             font-size:13px;
+            text-decoration:none;
+            color:#fff;
             background:#007bff;
         }
 
@@ -68,14 +67,19 @@
             color:white;
         }
 
-        .status-delay{
+        .badge-red{
             color:#dc2626;
             font-weight:bold;
         }
 
+        .badge-orange{
+            color:#f59e0b;
+            font-weight:bold;
+        }
+
         .empty{
-            padding:20px;
             text-align:center;
+            padding:20px;
         }
     </style>
 </head>
@@ -84,18 +88,11 @@
 
 <div class="container">
 
-    <h2>📊 DATA CUSTOMER DELAY</h2>
+    <h2>📊 DATA DELAY CUSTOMER</h2>
 
     <div class="topbar">
-
-        <a href="{{ url('/monitoring/dashboard') }}" class="btn">
-            ⬅ Dashboard
-        </a>
-
-        <a href="{{ url('/export') }}" class="btn btn-success">
-            📥 Export
-        </a>
-
+        <a href="{{ url('/monitoring/dashboard') }}" class="btn">⬅ Dashboard</a>
+        <a href="{{ url('/export') }}" class="btn btn-success">📥 Export</a>
     </div>
 
     <div class="table-container">
@@ -106,6 +103,7 @@
                 <tr>
                     <th>No</th>
                     <th>No Shipment</th>
+                    <th>Dist Channel</th>
                     <th>Tanggal Naik</th>
                     <th>Rencana Kirim</th>
                     <th>Lead Time</th>
@@ -114,20 +112,23 @@
                     <th>Ekspedisi</th>
                     <th>Driver</th>
                     <th>No Polisi</th>
-
-                    <th>Tiba Estimasi</th>
+                    <th>Tanggal keluar Gudang</th>
+                    <th>Tgl Estimasi</th>
                     <th>Tanggal Tiba</th>
 
-                    <th>Lama Perjalanan (Hari)</th>
+                    <th>Lama Perjalanan</th>
+               
 
                     <th>SLA Tiba</th>
-                    <th>Reason Tiba</th>
+                    <th>Reason Tiba
+                    </th>
+             
                 </tr>
             </thead>
 
             <tbody>
 
-            @forelse($logistik as $i => $row)
+            @forelse(($logistik ?? []) as $i => $row)
 
                 @php
                     $keluar = $row->tanggal_keluar_gudang
@@ -138,15 +139,26 @@
                         ? strtotime($row->tanggal_tiba)
                         : null;
 
+                    $lead = (int) $row->transport_lead_time;
+
+                    $estimasi = $keluar ? strtotime("+$lead days", $keluar) : null;
+
                     $lama_perjalanan = ($keluar && $tiba)
                         ? max(0, floor(($tiba - $keluar) / 86400))
                         : 0;
+
+                    $delay = ($estimasi && $tiba)
+                        ? max(0, floor(($tiba - $estimasi) / 86400))
+                        : 0;
+
+                    $estimasi_show = $estimasi ? date('Y-m-d', $estimasi) : '-';
                 @endphp
 
                 <tr>
 
                     <td>{{ $i + 1 }}</td>
                     <td>{{ $row->no_shipment }}</td>
+                    <td>{{ $row->dist_channel }}</td>
                     <td>{{ $row->tanggal_naik_logistik }}</td>
                     <td>{{ $row->rencana_kirim }}</td>
                     <td>{{ $row->transport_lead_time }}</td>
@@ -155,14 +167,16 @@
                     <td>{{ $row->ekpedisi }}</td>
                     <td>{{ $row->nama_driver }}</td>
                     <td>{{ $row->no_pol }}</td>
-
-                    <td>{{ $row->tanggal_tiba_estimasi ?? '-' }}</td>
+                    <td>{{ $row->tanggal_keluar_gudang ?? '-' }}</td>
+                    <td>{{ $estimasi_show }}</td>
                     <td>{{ $row->tanggal_tiba ?? '-' }}</td>
 
                     <td>{{ $lama_perjalanan }} Hari</td>
 
+              
+
                     <td>
-                        <span class="status-delay">
+                        <span class="badge-red">
                             {{ $row->sla_tiba }}
                         </span>
                     </td>
@@ -173,7 +187,7 @@
             @empty
 
                 <tr>
-                    <td colspan="14" class="empty">
+                    <td colspan="16" class="empty">
                         Data Delay tidak ditemukan
                     </td>
                 </tr>

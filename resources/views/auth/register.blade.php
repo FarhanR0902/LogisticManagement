@@ -1,206 +1,167 @@
-
-
 <!DOCTYPE html>
 <html>
-
 <head>
-    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
-
-<script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
-
     <meta charset="utf-8">
-
     <title>Tambah User</title>
 
+    <!-- Select2 -->
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            font-family: 'Segoe UI', sans-serif;
-        }
+     body {
+    font-family: 'Segoe UI', Arial, sans-serif;
 
-        body {
-            background: #f3f4f6;
-        }
+    background: url("https://cimory.com/uploads/banner/image_vFnyWP1700150109.jpg")
+        no-repeat center center fixed;
 
-        .container {
-            width: calc(100% - 250px);
-            margin-left: 250px;
-            padding: 30px;
-        }
+    background-size: cover;
 
-        .card {
-            background: #fff;
-            border-radius: 20px;
-            padding: 30px;
-            box-shadow: 0 5px 20px rgba(0, 0, 0, .08);
-        }
-
-        .title {
-            font-size: 28px;
-            font-weight: bold;
-            margin-bottom: 25px;
-            color: #111827;
-        }
-
-        .form-group {
-            margin-bottom: 20px;
-        }
-
-        label {
-            display: block;
-            margin-bottom: 8px;
-            font-weight: 600;
-            color: #374151;
-        }
-
-        input,
-        select {
-            width: 100%;
-            padding: 14px;
-            border: 1px solid #d1d5db;
-            border-radius: 12px;
-            outline: none;
-            font-size: 14px;
-            transition: .2s;
-        }
-
-        input:focus,
-        select:focus {
-            border-color: #22c55e;
-            box-shadow: 0 0 0 4px rgba(34, 197, 94, .15);
-        }
-
-        button {
-            background: #22c55e;
-            color: #fff;
-            border: none;
-            padding: 14px 22px;
-            border-radius: 12px;
-            cursor: pointer;
-            font-size: 15px;
-            font-weight: bold;
-            transition: .2s;
-        }
-
-        button:hover {
-            background: #16a34a;
-            transform: translateY(-2px);
-        }
-
-        .alert {
-            background: #fee2e2;
-            color: #991b1b;
-            padding: 15px;
-            border-radius: 10px;
-            margin-bottom: 20px;
-        }
-        body{
-    margin:0;
-    font-family:'Segoe UI',sans-serif;
-    background:linear-gradient(135deg,#e5e7eb,#f8fafc);
-    min-height:100vh;
-    display:flex;
-    justify-content:center;
-    align-items:center;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
 }
 
-.register-box{
-    width:450px;
-    background:#fff;
-    padding:35px;
-    border-radius:20px;
-    box-shadow:0 10px 30px rgba(0,0,0,.08);
+/* BOX REGISTER (SAMAKAN LOGIN) */
+.register-box {
+    background: url("https://i.pinimg.com/1200x/ef/ee/51/efee5115073880a3555e00bf6bc88253.jpg")
+        no-repeat center center;
+
+    background-size: cover;
+
+    padding: 60px;
+    border-radius: 20px;
+    width: 650px;
+
+    box-shadow: 0 20px 40px rgba(0,0,0,0.25);
+
+    position: relative;
+    overflow: hidden;
 }
 
+/* LOGO */
 .logo{
-    text-align:center;
-    margin-bottom:20px;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    margin-bottom:30px;
 }
 
 .logo img{
-    width:80px;
-    height:80px;
-    border-radius:50%;
-    border:3px solid #22c55e;
-    object-fit:cover;
+    width:180px;
+    height:auto;
+    max-height:180px;
+    object-fit:contain;
+    border-radius:15px;
+    padding:10px;
+    background:#fff;
+    margin-bottom:20px;
 }
 
 .logo h3{
-    margin-top:10px;
+    margin:0;
+    font-size:32px;
+    font-weight:800;
     color:#111827;
+    letter-spacing:3px;
 }
 
+/* TITLE */
 h2{
     text-align:center;
-    margin-bottom:25px;
+    margin-bottom:30px;
+    font-size:50px;   /* 🔥 sama login */
+    font-weight:800;
     color:#111827;
 }
 
-.form-group{
-    margin-bottom:18px;
-}
-
+/* LABEL */
 label{
-    display:block;
-    margin-bottom:7px;
+    font-size:20px;
     font-weight:600;
+    color:#374151;
 }
 
+/* INPUT & SELECT */
 input,
 select{
     width:100%;
-    padding:12px;
+    padding:20px;
+    margin:15px 0;
     border:1px solid #d1d5db;
-    border-radius:10px;
-    outline:none;
+    border-radius:12px;
+    font-size:22px;   /* 🔥 sama login */
+    box-sizing:border-box;
 }
 
 input:focus,
 select:focus{
     border-color:#22c55e;
-    box-shadow:0 0 0 3px rgba(34,197,94,.15);
+    box-shadow:0 0 0 4px rgba(34,197,94,.2);
+    outline:none;
 }
 
+/* BUTTON */
 button{
     width:100%;
-    padding:13px;
-    border:none;
-    border-radius:10px;
-    background:#22c55e;
-    color:white;
+    padding:20px;
+    font-size:22px;
     font-weight:bold;
+    border:none;
+    border-radius:12px;
+    background:linear-gradient(135deg,#22c55e,#16a34a);
+    color:white;
     cursor:pointer;
-    transition:.2s;
 }
 
 button:hover{
-    background:#16a34a;
+    transform:translateY(-2px);
 }
 
-.alert{
-    background:#fee2e2;
-    color:#991b1b;
-    padding:12px;
-    border-radius:10px;
-    margin-bottom:20px;
-}
-
+/* LINK */
 .login-link{
-    margin-top:18px;
+    margin-top:25px;
     text-align:center;
-    font-size:14px;
+    font-size:25px;
 }
 
 .login-link a{
     color:#22c55e;
-    font-weight:bold;
     text-decoration:none;
+    font-weight:bold;
+}
+/* bikin select2 mirip dropdown biasa */
+.select2-container--default .select2-selection--single {
+    height: 42px;
+    border-radius: 10px;
+    border: 1px solid #d1d5db;
+    display: flex;
+    align-items: center;
+}
+
+.select2-container--default .select2-selection--single .select2-selection__rendered {
+    font-size: 14px;
+    color: #111827;
+    padding-left: 10px;
+}
+
+.select2-container--default .select2-selection--single .select2-selection__arrow {
+    height: 42px;
+}
+
+.select2-dropdown {
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+/* search box dalam dropdown */
+.select2-search--dropdown .select2-search__field {
+    border-radius: 8px;
+    padding: 8px;
 }
     </style>
-
 </head>
 
 <body>
@@ -215,13 +176,13 @@ button:hover{
     <h2>Registrasi Akun</h2>
 
     @if ($errors->any())
-    <div class="alert">
-        <ul>
-            @foreach ($errors->all() as $error)
-                <li>{{ $error }}</li>
-            @endforeach
-        </ul>
-    </div>
+        <div class="alert">
+            <ul>
+                @foreach ($errors->all() as $error)
+                    <li>{{ $error }}</li>
+                @endforeach
+            </ul>
+        </div>
     @endif
 
     <form action="{{ route('register.store') }}" method="POST">
@@ -244,39 +205,43 @@ button:hover{
 
         <div class="form-group">
             <label>Role</label>
-
-            <select name="role">
+            <select name="role" id="role">
                 <option value="">-- Pilih Role --</option>
                 <option value="planner">Planner</option>
+                 <option value="admin_pasuruan">Pasuruan</option>
                 <option value="monitoring">Monitoring</option>
                 <option value="manager">Manager</option>
-               
                 <option value="developer">Developer</option>
                 <option value="spvplanner">SPV Planner</option>
                 <option value="spvmonitoring">SPV Monitoring</option>
-              
-                <option value="jess">Sales</option>
-             
+                <option value="sales">Sales</option>
             </select>
         </div>
 
-        <div class="form-group">
+        <!-- <div class="form-group">
             <label>Dist Channel (Opsional)</label>
-
             <select name="dist_channel" id="dist_channel">
                 <option value="">-- Tidak Menggunakan Dist Channel --</option>
 
                 @foreach($distChannels as $channel)
-                    <option value="{{ $channel }}">
-                        {{ $channel }}
-                    </option>
+                    <option value="{{ $channel }}">{{ $channel }}</option>
                 @endforeach
             </select>
-        </div>
+        </div> -->
 
-        <button type="submit">
-            Daftar
-        </button>
+<div class="form-group" id="dist_channel_group" style="display:none;">
+    <label>Dist Channel</label>
+
+    <select name="dist_channel" id="dist_channel" class="form-control select2">
+        <option value="">-- Pilih Dist Channel --</option>
+
+        @foreach($distChannels as $channel)
+            <option value="{{ $channel }}">{{ $channel }}</option>
+        @endforeach
+    </select>
+</div>
+
+        <button type="submit">Daftar</button>
 
         <div class="login-link">
             Sudah punya akun?
@@ -287,15 +252,41 @@ button:hover{
 
 </div>
 
-</body>
-
 <script>
-$(document).ready(function() {
+$(document).ready(function () {
+
     $('#dist_channel').select2({
         placeholder: "Cari Dist Channel...",
-        allowClear: true
+        allowClear: true,
+        width: '100%'
     });
+
+    function toggleDistChannel() {
+
+        let role = $('#role').val();
+
+        if (role === 'sales' || role === 'sales') {
+            $('#dist_channel_group').slideDown(200);
+        } else {
+            $('#dist_channel_group').slideUp(200);
+
+            // reset pilihan
+            $('#dist_channel')
+                .val(null)
+                .trigger('change');
+        }
+    }
+
+    // cek saat halaman dibuka
+    toggleDistChannel();
+
+    // cek saat role berubah
+    $('#role').on('change', function () {
+        toggleDistChannel();
+    });
+
 });
 </script>
 
+</body>
 </html>

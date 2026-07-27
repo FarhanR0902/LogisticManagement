@@ -2,6 +2,7 @@
 
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Auth;
+use App\Http\Controllers\TujuanFilterController;
 
 /*
 |--------------------------------------------------------------------------
@@ -14,14 +15,14 @@ use App\Http\Controllers\LogistikController;
 use App\Http\Controllers\Planner\PlannerController;
 use App\Http\Controllers\Monitoring\MonitoringController;
 use App\Http\Controllers\Manager\ManagerController;
-use App\Http\Controllers\Sales\SalesController;
+use App\Http\Controllers\PasuruanController;
 use App\Http\Controllers\Spv\SpvPlannerController;
 use App\Http\Controllers\Spv\SpvMonitoringController;
 use App\Http\Controllers\Developer\DeveloperController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\StorageController;
 use App\Http\Controllers\Cmd\CmdController;
-use App\Http\Controllers\Jess\JessController;
+use App\Http\Controllers\Sales\SalesController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\SummaryController;
 
@@ -55,7 +56,8 @@ Route::post('/logout', function () {
 | LOGISTIK
 |--------------------------------------------------------------------------
 */
-
+Route::get('/logistik/export', [LogistikController::class, 'export'])
+    ->name('logistik.export');
 Route::get('/dashboard', [LogistikController::class, 'dashboard']);
 Route::get('/logistik', [LogistikController::class, 'index']);
 Route::get('/datalogistik', [LogistikController::class, 'dataLogistik']);
@@ -94,7 +96,8 @@ Route::prefix('planner')->group(function () {
  Route::get('/planner/belum-armada', [PlannerController::class, 'belumArmada'])
     ->name('planner.belum_armada');
 
-   
+   Route::get('/planner/export', [PlannerController::class, 'exportPlanner'])
+    ->name('planner.export');
 
     // Route::get('/data', [PlannerController::class, 'index'])
     //     ->name('index');
@@ -126,15 +129,17 @@ Route::post('/planner/autosave-row/{id}', [PlannerController::class, 'autosaveRo
 Route::get(
     '/planner/data-logistik',
     [PlannerController::class, 'dataLogistik']
-)
-    ->name('planner.datalogistik');
+)->name('planner.datalogistik');
 
 Route::get(
     '/monitoring/data-logistik',
     [MonitoringController::class, 'dataLogistik']
-)
-    ->name('monitoring.datalogistik');
+)->name('monitoring.datalogistik');
 
+Route::get(
+    '/monitoring/export',
+    [MonitoringController::class, 'export']
+)->name('monitoring.export');
 Route::put('/monitoring/update/{id}', [MonitoringController::class, 'updateMonitoring']);
 
 Route::prefix('monitoring')->group(function () {
@@ -219,7 +224,31 @@ Route::prefix('manager')->group(function () {
 
     Route::get('/summary-area', [ManagerController::class, 'summaryArea'])
         ->name('manager.summary.area');
+
+       Route::get('/dashboard-pasuruan', [ManagerController::class, 'dashboardPasuruan'])
+        ->name('manager.dashboard.pasuruan');
+
+     Route::get('/manager/data-logistik-pasuruan', [ManagerController::class, 'dataLogistikPasuruan'])
+    ->name('manager.data.pasuruan');
 });
+
+Route::get('/pasuruan/gudang/ontime', [PasuruanController::class, 'gudangOntimePasuruan'])
+    ->name('pasuruan.gudang.ontime');
+
+Route::get('/pasuruan/gudang/delay', [PasuruanController::class, 'gudangDelayPasuruan'])
+    ->name('pasuruan.gudang.delay');
+
+Route::get('/pasuruan/tujuan/ontime', [PasuruanController::class, 'tujuanOntimePasuruan'])
+    ->name('pasuruan.tujuan.ontime');
+
+Route::get('/pasuruan/tujuan/delay', [PasuruanController::class, 'tujuanDelayPasuruan'])
+    ->name('pasuruan.tujuan.delay');
+
+Route::get('/pasuruan/bongkar/ontime', [PasuruanController::class, 'bongkarOntimePasuruan'])
+    ->name('pasuruan.bongkar.ontime');
+
+Route::get('/pasuruan/bongkar/delay', [PasuruanController::class, 'bongkarDelayPasuruan'])
+    ->name('pasuruan.bongkar.delay');
 /*
 |--------------------------------------------------------------------------
 | MANAGER (AUTH REQUIRED)
@@ -302,12 +331,11 @@ Route::get('/summary-area', [SalesController::class, 'summaryArea'])
     '/summary-area/{area}',
     [SalesController::class, 'summaryAreaDetail']
 )->name('summary.area.detail');
-    Route::get('/dashboard', [SalesController::class, 'dashboard'])
-        ->name('dashboard');
+   Route::get('/dashboard-pasuruan', [SalesController::class, 'dashboardPasuruan'])
+    ->name('dashboard.pasuruan');
 
-    // DATA LOGISTIK
-    Route::get('/data-logistik', [SalesController::class, 'dataLogistik'])
-        ->name('datalogistik');
+Route::get('/data-logistik-pasuruan', [SalesController::class, 'dataLogistikPasuruan'])
+    ->name('data.pasuruan');
     // GUDANG
     Route::get('/gudang/ontime', [SalesController::class, 'gudangOntime'])
         ->name('gudang.ontime');
@@ -345,6 +373,35 @@ Route::middleware(['auth'])->prefix('spvplanner')->group(function () {
     Route::get('/dashboard-full', [SpvPlannerController::class, 'dashboardFull'])
         ->name('spvplanner.dashboard.full');
 
+    Route::prefix('tujuan-filter')->name('spvplanner.tujuan-filter.')->group(function () {
+    Route::get('/', [TujuanFilterController::class, 'index'])->name('index');
+    Route::post('/', [TujuanFilterController::class, 'store'])->name('store');
+    Route::put('/{tujuanFilter}', [TujuanFilterController::class, 'update'])->name('update');
+    Route::delete('/{tujuanFilter}', [TujuanFilterController::class, 'destroy'])->name('destroy');
+    Route::post('/import', [TujuanFilterController::class, 'import'])->name('import');
+});
+
+            Route::get('/spvplanner/dashboard', [SpvPlannerController::class, 'dashboard'])
+        ->name('spvplanner.dashboard');
+
+    // Dashboard Pasuruan
+    Route::get('/spvplanner/dashboard-pasuruan', [SpvPlannerController::class, 'dashboardPasuruan'])
+        ->name('spvplanner.dashboard.pasuruan');
+
+            Route::post('/import-pasuruan', [SpvPlannerController::class, 'importPasuruan'])
+        ->name('spvplanner.import.pasuruan');
+
+    Route::get('/export-pasuruan', [SpvPlannerController::class, 'exportPasuruan'])
+        ->name('spvplanner.export.pasuruan');
+
+    // Data Logistik Jakarta
+    Route::get('/spvplanner/data-logistik', [SpvPlannerController::class, 'dataLogistik'])
+        ->name('spvplanner.data');
+
+    // Data Logistik Pasuruan
+    Route::get('/spvplanner/data-logistik-pasuruan', [SpvPlannerController::class, 'dataLogistikPasuruan'])
+        ->name('spvplanner.data.pasuruan');
+
 Route::post('/spvplanner/store', [SpvPlannerController::class, 'store'])
     ->name('spvplanner.store');
      Route::put('spvplanner/update/{id}', [SpvPlannerController::class, 'update'])
@@ -366,12 +423,14 @@ Route::post('/spvplanner/store', [SpvPlannerController::class, 'store'])
 
     Route::get('/belum-armada', [SpvPlannerController::class, 'belumArmada'])
         ->name('spvplanner.belum.armada');
-        Route::delete('/delete/{id}', [SpvPlannerController::class, 'destroy'])
+      Route::delete('/delete/{id}', [SpvPlannerController::class, 'delete'])
     ->name('spvplanner.delete');
     Route::get(
         '/full-data-logistik',
         [SpvPlannerController::class, 'fullDataLogistik']
     )->name('full.data.logistik');
+    Route::get('/full-data-logistik', [SpvPlannerController::class, 'fullDataLogistik'])
+    ->name('full.data.logistik');
     Route::post(
     '/spvplanner/update-gudang23',
     [PlannerController::class, 'updateGudang23']
@@ -547,6 +606,16 @@ Route::put('/spvmonitoring/update/{id}', [SpvMonitoringController::class, 'updat
 // ================= SPV PLANNER =================
 // Route::get('/spvplanner/dashboard', [SPVPlannerController::class, 'dashboardspvplanner'])
 //     ->name('spvplanner.dashboardspvplanner');
+    Route::get('/spvmonitoring/dashboard-pasuruan', [SpvMonitoringController::class, 'dashboardPasuruan'])
+        ->name('spvmonitoring.dashboard.pasuruan');
+
+    // Data Logistik Jakarta
+    // Route::get('/spvmonitoring/data-logistik', [SpvMonitoringController::class, 'dataLogistik'])
+    //     ->name('spvmonitoring.data');
+
+    // Data Logistik Pasuruan
+    Route::get('/spvmonitoring/data-logistik-pasuruan', [SpvMonitoringController::class, 'dataLogistikPasuruan'])
+        ->name('spvmonitoring.data.pasuruan');
 
 
 Route::prefix('cmd')->name('cmd.')->group(function () {
@@ -587,51 +656,173 @@ Route::prefix('cmd')->name('cmd.')->group(function () {
 });
 
 
-Route::prefix('jess')
-    ->as('jess.')
+
+
+Route::prefix('sales')
+    ->as('sales.')
     ->group(function () {
 
         // DASHBOARD
-        Route::get('/dashboard', [JessController::class, 'dashboard'])
+        Route::get('/dashboard', [SalesController::class, 'dashboard'])
             ->name('dashboard');
 
         // GUDANG
-        Route::get('/gudang/ontime', [JessController::class, 'gudangOntime'])
+        Route::get('/gudang/ontime', [SalesController::class, 'gudangOntime'])
             ->name('gudang.ontime');
 
-        Route::get('/gudang/delay', [JessController::class, 'gudangDelay'])
+        Route::get('/gudang/delay', [SalesController::class, 'gudangDelay'])
             ->name('gudang.delay');
 
         // CUSTOMER
     Route::get('/customer/ontime',
-            [JessController::class, 'tujuanOntime'])
+            [SalesController::class, 'tujuanOntime'])
             ->name('customer.ontime');
 
         Route::get('/customer/delay',
-            [JessController::class, 'tujuanDelay'])
+            [SalesController::class, 'tujuanDelay'])
             ->name('customer.delay');
 
         // BONGKAR
-        Route::get('/bongkar/ontime', [JessController::class, 'bongkarOntime'])
+        Route::get('/bongkar/ontime', [SalesController::class, 'bongkarOntime'])
             ->name('bongkar.ontime');
 
-        Route::get('/bongkar/delay', [JessController::class, 'bongkarDelay'])
+        Route::get('/bongkar/delay', [SalesController::class, 'bongkarDelay'])
             ->name('bongkar.delay');
 
         // SUMMARY
-        Route::get('/summary/area', [JessController::class, 'summaryArea'])
+        Route::get('/summary/area', [SalesController::class, 'summaryArea'])
             ->name('summary.area');
 
-        Route::get('/summary/total', [JessController::class, 'summaryTotal'])
+        Route::get('/summary/total', [SalesController::class, 'summaryTotal'])
             ->name('summary.total');
     });
 /*
+
+// Route::prefix('jess')
+//     ->as('jess.')
+//     ->group(function () {
+
+//         // DASHBOARD
+//         Route::get('/dashboard', [JessController::class, 'dashboard'])
+//             ->name('dashboard');
+
+//         // GUDANG
+//         Route::get('/gudang/ontime', [JessController::class, 'gudangOntime'])
+//             ->name('gudang.ontime');
+
+//         Route::get('/gudang/delay', [JessController::class, 'gudangDelay'])
+//             ->name('gudang.delay');
+
+//         // CUSTOMER
+//     Route::get('/customer/ontime',
+//             [JessController::class, 'tujuanOntime'])
+//             ->name('customer.ontime');
+
+//         Route::get('/customer/delay',
+//             [JessController::class, 'tujuanDelay'])
+//             ->name('customer.delay');
+
+//         // BONGKAR
+//         Route::get('/bongkar/ontime', [JessController::class, 'bongkarOntime'])
+//             ->name('bongkar.ontime');
+
+//         Route::get('/bongkar/delay', [JessController::class, 'bongkarDelay'])
+//             ->name('bongkar.delay');
+
+//         // SUMMARY
+//         Route::get('/summary/area', [JessController::class, 'summaryArea'])
+//             ->name('summary.area');
+
+//         Route::get('/summary/total', [JessController::class, 'summaryTotal'])
+//             ->name('summary.total');
+//     });
+// /*
 |--------------------------------------------------------------------------
 | FALLBACK
 |--------------------------------------------------------------------------
 */
+use App\Http\Controllers\LogistikPengiriman2Controller;
 
+// Route::get('/logistik2', [LogistikPengiriman2Controller::class, 'index']);
+// Route::get('/logistik2/{id}', [LogistikPengiriman2Controller::class, 'show']);
+// Route::prefix('pasuruan')->group(function () {
 
+//     Route::get('/admin', [PasuruanController::class,'admin'])
+//         ->name('pasuruan.admin');
+
+//     Route::post('/store', [PasuruanController::class,'store'])
+//         ->name('pasuruan.store');
+
+//     Route::put('/{id}', [PasuruanController::class,'update'])
+//         ->name('pasuruan.update');
+
+//     Route::delete('/{id}', [PasuruanController::class,'destroy'])
+//         ->name('pasuruan.destroy');
+// });
+
+// Pasuruan
+// Route::prefix('pasuruan')->group(function () {
+
+//     Route::get('/data-logistik', [PasuruanController::class, 'dataLogistik'])
+//         ->name('pasuruan.dataLogistik');
+
+//     Route::post('/store', [PasuruanController::class, 'store'])
+//         ->name('pasuruan.store');
+
+//     Route::put('/update/{id}', [PasuruanController::class, 'update'])
+//         ->name('pasuruan.update');
+
+//     Route::get('/destroy/{id}', [PasuruanController::class, 'destroy'])
+//         ->name('pasuruan.destroy');
+
+//     Route::put('/autosave-row/{id}', [PasuruanController::class, 'autosaveRow'])
+//         ->name('pasuruan.autosaveRow');
+// });
+
+Route::prefix('pasuruan')->group(function () {
+
+    // Halaman Admin
+    Route::get('/admin', [PasuruanController::class, 'admin'])
+        ->name('pasuruan.admin');
+
+    // Halaman Data Logistik Pasuruan
+    Route::get('/data-logistik', [PasuruanController::class, 'dataLogistik'])
+        ->name('pasuruan.dataLogistik');
+
+    // CRUD
+    Route::post('/store', [PasuruanController::class, 'store'])
+        ->name('pasuruan.store');
+
+    Route::put('/{id}', [PasuruanController::class, 'update'])
+        ->name('pasuruan.update');
+
+    Route::delete('/{id}', [PasuruanController::class, 'destroy'])
+        ->name('pasuruan.destroy');
+
+    // Autosave
+    Route::put('/autosave-row/{id}', [PasuruanController::class, 'autosaveRow'])
+        ->name('pasuruan.autosaveRow');
+
+    Route::get('/dashboard', [PasuruanController::class, 'dashboard'])
+        ->name('pasuruan.dashboard');
+
+    // IMPORT
+    Route::post('/import', [PasuruanController::class, 'import'])
+        ->name('pasuruan.import');
+
+    // EXPORT
+    Route::get('/export', [PasuruanController::class, 'export'])
+        ->name('pasuruan.export');
+
+    // ARCHIVE
+    Route::post('/archive-all', [PasuruanController::class, 'archiveAll'])
+        ->name('pasuruan.archive');
+
+        Route::post(
+    '/pasuruan/update-transport-laut',
+    [PasuruanController::class, 'updateTransportLaut']
+)->name('pasuruan.updateTransportLaut');
+});
 
 
 Route::fallback(fn() => redirect('/login'));

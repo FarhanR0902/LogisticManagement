@@ -7,51 +7,48 @@ use App\Models\LogistikPengiriman;
 use Maatwebsite\Excel\Concerns\ToModel;
 use Maatwebsite\Excel\Concerns\WithHeadingRow;
 use PhpOffice\PhpSpreadsheet\Shared\Date;
+use Maatwebsite\Excel\Concerns\WithEvents;
+use Maatwebsite\Excel\Events\AfterImport;
 
-class LogistikImport implements ToModel, WithHeadingRow
+class LogistikImport implements ToModel, WithHeadingRow, WithEvents
 {
 
-
     private static $customerMap = null;
-    private static $picMap = null;
 
     public function __construct()
     {
-        // Mapping tujuan -> dist_channel
+        // =====================================================
+        // MASTER DATA: tujuan -> dist_channel, pulau, area, planner, pic monitoring
+        // FIXED: sebelumnya nama tabel salah ketik ('tujuanfilterr', harusnya
+        // 'tujuanfillterr') dan kolom key-nya salah ('name_customer_1',
+        // padahal kolom aslinya bernama 'tujuan'). Karena tabel/kolom itu
+        // tidak match, query sebelumnya selalu gagal/kosong sehingga
+        // dist_channel, area, planner tidak pernah ke-lookup otomatis.
+        //
+        // FIXED juga: tabel pic_monitoring terpisah dihapus karena kolom
+        // Planner & Monitoring ternyata sudah ada di tabel tujuanfillterr
+        // yang sama, jadi cukup 1 query saja.
+        // =====================================================
         if (self::$customerMap === null) {
-            self::$customerMap = DB::table('tujuanfilterr')
+            self::$customerMap = DB::table('tujuanfillterr')
                 ->select(
-                    'name_customer_1',
+                    'tujuan',
                     'dist_channel',
-                    'area'
+                    'pulau',
+                    'area',
+                    'Planner',
+                    'Monitoring'
                 )
-                ->get()
-                ->keyBy(fn($row) => strtolower(trim($row->name_customer_1)));
-        }
-
-        // Mapping tujuan -> pic_monitoring
-        if (self::$picMap === null) {
-            self::$picMap = DB::table('pic_monitoring')
-                ->select('tujuan', 'pic_monitoring')
                 ->get()
                 ->keyBy(fn($row) => strtolower(trim($row->tujuan)));
         }
     }
+
     public function model(array $row)
     {
 
-        // PLANNER
-
-       
-
         // =============================
-        // KACS
-        // =============================
-
-      
-
-        // =============================
-        // SENTUL
+        // SENTUL (GUDANG 2)
         // =============================
 
         $lama_digudang_2 = null;
@@ -79,7 +76,7 @@ class LogistikImport implements ToModel, WithHeadingRow
         }
 
         // =============================
-        // CCIE
+        // CCIE (GUDANG 3)
         // =============================
 
         $lama_digudang_3 = null;
@@ -105,135 +102,166 @@ class LogistikImport implements ToModel, WithHeadingRow
                 $sla_loading_3 = 'H>1';
             }
         }
-        // MONITORING
-        $totalDoCar = $this->cleanNumber($row['total_do_qty_car'] ?? $row['total_do_qty_car'] ?? null);
-        $addtText4 = $this->cleanText($row['addt_text'] ?? null);
+
+        // MONITORING (kolom tambahan)
+        $totalDoCar = $this->cleanNumber($row['total_do_qty_car'] ?? null);
+        $addtText4  = $this->cleanText($row['addt_text'] ?? null);
 
         // ================= DATE =================
-        $rencanaKirim = $this->convertDate($row['rencana_kirim'] ?? null);
+        $rencanaKirim        = $this->convertDate($row['rencana_kirim'] ?? null);
         $tanggalKeluarGudang = $this->convertDate($row['tanggal_keluar_gudang'] ?? null);
-        $tanggalTibaAktual = $this->convertDate($row['tanggal_tiba'] ?? null);
+        $tanggalTibaAktual   = $this->convertDate($row['tanggal_tiba'] ?? null);
         $tanggalNaikLogistik = $this->convertDate($row['tanggal_naik_logistik'] ?? null);
-        $tanggalDptUnit = $this->convertDate($row['tanggal_dpt_unit'] ?? null);
-        $planningLoading = $this->convertDate($row['planning_loading'] ?? null);
-        $tanggalTibaGudang = $this->convertDate($row['tanggal_tiba_di_gudang'] ?? null);
-        $tanggalBongkar = $this->convertDate($row['tanggal_bongkar'] ?? null);
-        $total_do_qty_car = $this->cleanNumber($row['total_do_qty_car'] ?? null);
+        $tanggalDptUnit      = $this->convertDate($row['tanggal_dpt_unit'] ?? null);
+        $planningLoading     = $this->convertDate($row['planning_loading'] ?? null);
+        $tanggalTibaGudang   = $this->convertDate($row['tanggal_tiba_di_gudang'] ?? null);
+        $tanggalBongkar      = $this->convertDate($row['tanggal_bongkar'] ?? null);
 
         // =====================================================
-// SLA DAPAT MOBIL
-// tanggal_dpt_unit -> tanggal_tiba_gudang
-// =====================================================
+        // SLA DAPAT MOBIL
+        // tanggal_dpt_unit -> tanggal_tiba_gudang
+        // =====================================================
 
-$lamaWaktuPencarian = null;
-$slaDapatMobil = null;
+        $lamaWaktuPencarian = null;
+        $slaDapatMobil      = null;
 
-if ($tanggalDptUnit && $tanggalTibaGudang) {
+        if ($tanggalDptUnit && $tanggalTibaGudang) {
 
-    $selisihCariMobil = (int) date_diff(
-        date_create($tanggalDptUnit),
-        date_create($tanggalTibaGudang)
-    )->format('%a');
+            $selisihCariMobil = (int) date_diff(
+                date_create($tanggalDptUnit),
+                date_create($tanggalTibaGudang)
+            )->format('%a');
 
-    $lamaWaktuPencarian = $selisihCariMobil . ' Hari';
+            $lamaWaktuPencarian = $selisihCariMobil . ' Hari';
 
-    $slaDapatMobil = ($selisihCariMobil == 0)
-        ? 'On Time'
-        : 'Delay';
-}
+            $slaDapatMobil = ($selisihCariMobil == 0)
+                ? 'On Time'
+                : 'Delay';
+        }
 
-// =====================================================
-// SLA LOADING
-// tanggal_tiba_gudang -> tanggal_keluar_gudang
-// =====================================================
+        // =====================================================
+        // SLA LOADING
+        // tanggal_tiba_gudang -> tanggal_keluar_gudang
+        // =====================================================
 
-$lamaDigudang = null;
-$slaLoading = null;
+        $lamaDigudang = null;
+        $slaLoading   = null;
 
-if ($tanggalTibaGudang && $tanggalKeluarGudang) {
+        if ($tanggalTibaGudang && $tanggalKeluarGudang) {
 
-    $selisihGudang = (int) date_diff(
-        date_create($tanggalTibaGudang),
-        date_create($tanggalKeluarGudang)
-    )->format('%a');
+            $selisihGudang = (int) date_diff(
+                date_create($tanggalTibaGudang),
+                date_create($tanggalKeluarGudang)
+            )->format('%a');
 
-    $lamaDigudang = $selisihGudang . ' Hari';
+            $lamaDigudang = $selisihGudang . ' Hari';
 
-    $slaLoading = ($selisihGudang == 0)
-        ? 'On Time'
-        : 'Delay';
-}
+            $slaLoading = ($selisihGudang == 0)
+                ? 'On Time'
+                : 'Delay';
+        }
 
         $act_pgi_date = isset($row['act_pgi_date']) && is_numeric($row['act_pgi_date'])
             ? Date::excelToDateTimeObject($row['act_pgi_date'])->format('Y-m-d')
             : null;
-        $custGrp5 = $this->cleanText($row['cust_grp_5_desc'] ?? null);
-        $createdBy = $this->cleanText($row['created_by'] ?? null);
-        $custGrp3 = $this->cleanText($row['cust_grp_3_desc'] ?? null);
-        $shipNo = $this->cleanText($row['ship_no'] ?? null);
-        $route = $this->cleanText($row['route'] ?? null);
-        $mobil = $this->cleanText($row['mobil'] ?? null);
-        $ekpedisi = $this->cleanText($row['ekpedisi'] ?? null);
-  
-        $biayaKirim = $harga->biaya_kirim ?? 0;
-        $pulau = $this->cleanText($row['pulau'] ?? null);
-        $viaKirim = $this->cleanText($row['via_kirim'] ?? $row['via'] ?? null); // fleksibel jika nama header di excel hanya 'via'
-        $custDesc = $this->cleanText($row['cust_desc'] ?? null);
-        // $addtText4 = $this->cleanText($row['addt_text_4'] ?? null);
+
+        $custGrp5     = $this->cleanText($row['cust_grp_5_desc'] ?? null);
+        $custGrp3     = $this->cleanText($row['cust_grp_3_desc'] ?? null);
+        $shipNo       = $this->cleanText($row['ship_no'] ?? null);
+        $ekpedisi     = $this->cleanText($row['ekpedisi'] ?? null);
+        $viaKirim     = $this->cleanText($row['via_kirim'] ?? $row['via'] ?? null); // fleksibel jika header excel hanya 'via'
+        $custDesc     = $this->cleanText($row['cust_desc'] ?? null);
         $serviceAgent = $this->cleanText($row['service_agent'] ?? null);
-        // $totalDoCar = $this->cleanNumber($row['total_do_qty_car'] ?? null);
-        $biayaKirim = $harga->biaya_kirim ?? 0;
 
-        $route      = $harga->route ?? null;
+        // FIXED: sebelumnya $biayaKirim, $route, $mobil diambil dari
+        // $harga->... padahal $harga TIDAK PERNAH didefinisikan di mana pun
+        // (bug fatal, akan melempar "Undefined variable $harga"). Sekarang
+        // diambil langsung dari kolom Excel.
+        $biayaKirim = $this->cleanNumber($row['biaya_kirim_rp'] ?? null);
+        $route      = $this->cleanText($row['route'] ?? null);
+        $mobil      = $this->cleanText($row['mobil'] ?? null);
 
-        $mobil      = $harga->mobil ?? null;
-        $tujuan = $this->cleanText($row['tujuan'] ?? null);
-        // $tujuanKey = strtolower(trim($tujuan));
+        $tujuan    = $this->cleanText($row['tujuan'] ?? null);
         $tujuanKey = preg_replace('/\s+/', ' ', trim(strtolower($tujuan)));
 
+        // =====================================================
+        // LOOKUP MASTER: tujuan -> dist_channel, pulau, area, planner, pic
+        // =====================================================
         $customerData = self::$customerMap[$tujuanKey] ?? null;
-        $picData = self::$picMap[$tujuanKey] ?? null;
 
-        $distChannel = $customerData->dist_channel ?? null;
-        $area = $customerData->area ?? null;
-        $picMonitoring = $picData->pic_monitoring ?? null;
+        $distChannel   = $customerData->dist_channel ?? null;
+        $pulauMaster   = $customerData->pulau ?? null;
+        $area          = $customerData->area ?? null;
+        $plannerMaster = $customerData->Planner ?? null;
+        $picMonitoring = $customerData->Monitoring ?? null;
+
+        // Kolom pulau/planner dari file Excel (dipakai sebagai fallback
+        // kalau tujuan tidak ketemu di master, atau master kosong)
+        $pulauFromFile   = $this->cleanText($row['pulau'] ?? null);
+        $plannerFromFile = $this->cleanText($row['planner'] ?? null);
+
+        $pulau   = $pulauMaster ?: $pulauFromFile;
+        $planner = $plannerMaster ?: $plannerFromFile;
+
         // ================= LEAD TIME =================
-        // $leadTime = (int) filter_var($row['transport_lead_time'] ?? 0, FILTER_SANITIZE_NUMBER_INT);
         $leadTime = is_numeric($row['transport_lead_time'] ?? null)
             ? (int) $row['transport_lead_time']
             : 0;
 
-      
+        // =====================================================
+        // MONITORING (SAMA PERSIS DENGAN CONTROLLER)
+        // =====================================================
 
-        $biayaKirim = $harga->biaya_kirim ?? 0;
+        // ambil tanggal keluar terakhir
+        $keluar = collect([
+            $tanggalKeluarGudang,
+            $this->convertDate($row['tanggal_keluar_gudang_2'] ?? null),
+            $this->convertDate($row['tanggal_keluar_gudang_3'] ?? null),
+        ])
+            ->filter()
+            ->map(fn($d) => strtotime($d))
+            ->max();
 
-        // ================= ESTIMASI TIBA =================
-        $tanggalTibaEstimasi = null;
-        if ($tanggalKeluarGudang && $leadTime >= 0) {
-            $tanggalTibaEstimasi = date('Y-m-d', strtotime($tanggalKeluarGudang . " +{$leadTime} days"));
-        }
+        $tiba = $tanggalTibaAktual
+            ? strtotime($tanggalTibaAktual)
+            : null;
 
+        $bongkar = $tanggalBongkar
+            ? strtotime($tanggalBongkar)
+            : null;
+
+        $leadtime = (int) ($row['transport_lead_time'] ?? 0);
+
+        // ================= ESTIMASI =================
+        $estimasi = $keluar
+            ? strtotime("+{$leadtime} days", $keluar)
+            : null;
 
         // ================= LAMA PERJALANAN =================
-        $lamaPerjalanan = null;
-        if ($tanggalKeluarGudang && $tanggalTibaAktual) {
-            $lamaPerjalanan = date_diff(
-                date_create($tanggalKeluarGudang),
-                date_create($tanggalTibaAktual)
-            )->format('%a');
-        }
+        $lamaPerjalanan = ($keluar && $tiba)
+            ? max(0, floor(($tiba - $keluar) / 86400))
+            : null;
 
         // ================= SLA TIBA =================
-        $slaTiba = null;
-        if ($tanggalTibaAktual && $tanggalTibaEstimasi) {
-            $slaTiba = ($tanggalTibaAktual <= $tanggalTibaEstimasi) ? 'On Time' : 'Delay';
-        }
+        $slaTiba = ($tiba && $estimasi)
+            ? (($tiba <= $estimasi) ? 'On Time' : 'Delay')
+            : '-';
 
-        // =====================================================
-        // 🔥 SLA GUDANG
-        // =====================================================
+        // ================= OVERSTAY =================
+        $overstay = ($tiba && $bongkar)
+            ? max(0, floor(($bongkar - $tiba) / 86400))
+            : null;
 
-      
+        // ================= SLA BONGKAR =================
+        $slaBongkar = ($tiba && $bongkar)
+            ? (($overstay <= 0) ? 'On Time' : 'Delay')
+            : '-';
+
+        // ================= STATUS AKHIR =================
+        $logic = $this->generateStatusAlert($slaTiba, $slaBongkar);
+
+        $statusAkhir     = $logic['status_akhir'];
+        $monitoringAlert = $logic['alert'];
 
         // ================= NORMALISASI KETERSEDIAAN UNIT =================
         $ketersediaanUnit = $this->cleanText($row['ketersediaan_unit'] ?? null);
@@ -259,111 +287,91 @@ if ($tanggalTibaGudang && $tanggalKeluarGudang) {
         ])) {
             $ketersediaanUnit = 'BELUM DAPAT';
         }
-        $route = $this->cleanText($row['route'] ?? null);
-$mobil = $this->cleanText($row['mobil'] ?? null);
 
-        // $tujuan = $this->cleanText($row['tujuan'] ?? null);
+        // CREATE DATE
+        $create_tgl = date('Y-m-d H:i:s');
 
-// CREATE DATE
-$create_tgl = date('Y-m-d H:i:s');
-        // dd($row);
         return new LogistikPengiriman([
 
             // ================= BASIC =================
-            'no' => $this->cleanText($row['no'] ?? null),
-            'create_tgl' => $create_tgl,
-            // 'transport_lead_time' => $this->cleanText($row['transport_lead_time'] ?? null),
+            'no'                  => $this->cleanText($row['no'] ?? null),
+            'create_tgl'          => $create_tgl,
             'transport_lead_time' => $this->cleanNumber($row['transport_lead_time'] ?? null),
-            'planner' => $this->cleanText($row['planner'] ?? null),
-            'no_shipment' => $this->cleanText($row['no_shipment'] ?? null),
-            'tujuan' => $tujuan,
-            'dist_channel' => $distChannel,
-            'area' => $area,
-            'ketersediaan_unit' => $ketersediaanUnit,
-           
-'mobil' => $mobil,
-            
-            // 'route' => $route, INI yg akan diambil dari database route,biaya_kirim, dan mobil
-            'pulau' => $pulau,
-            'route' => $this->cleanText($row['route'] ?? null),
-            'via_kirim' => $viaKirim,
+            'planner'             => $planner,
+            'no_shipment'         => $this->cleanText($row['no_shipment'] ?? null),
+            'tujuan'              => $tujuan,
+            'dist_channel'        => $distChannel,
+            'area'                => $area,
+            'ketersediaan_unit'   => $ketersediaanUnit,
 
-            'mobil' => $mobil,
-            'perubahan_mobil' => $this->cleanText($row['perubahan_mobil'] ?? null),
+            'pulau'      => $pulau,
+            'route'      => $route,
+            'via_kirim'  => $viaKirim,
+            'mobil'      => $mobil,
 
-            'cr' => $this->cleanText($row['cr'] ?? null),
+            'perubahan_mobil'    => $this->cleanText($row['perubahan_mobil'] ?? null),
+            'cr'                 => $this->cleanText($row['cr'] ?? null),
             'kategori_ekspedisi' => $this->cleanText($row['kategori_ekspedisi'] ?? null),
-            'ekpedisi' => $ekpedisi,
-            'nama_driver' => $this->cleanText($row['nama_driver'] ?? null),
-            'no_pol' => $this->cleanText($row['no_pol'] ?? ($row['nopol'] ?? null)),
+            'ekpedisi'           => $ekpedisi,
+            'nama_driver'        => $this->cleanText($row['nama_driver'] ?? null),
+            'no_pol'             => $this->cleanText($row['no_pol'] ?? ($row['nopol'] ?? null)),
 
             'status_pengiriman' => $this->cleanText($row['status'] ?? null),
-            // 'status_akhir' => $this->cleanText($row['status'] ?? null),
 
             // ================= NUMBER =================
             'nilai_muatan' => $this->cleanNumber($row['nilai_muatan_rp'] ?? null),
-            'biaya_kirim' => $this->cleanNumber($row['biaya_kirim_rp'] ?? null),
-            // 'total_do_qty_car' => $totalDoCar,
+            'biaya_kirim'  => $biayaKirim,
 
             // ================= DATE =================
             'tanggal_naik_logistik' => $tanggalNaikLogistik,
-            'rencana_kirim' => $rencanaKirim,
-            'tanggal_dpt_unit' => $tanggalDptUnit,
-            'planning_loading' => $planningLoading,
-            'tanggal_tiba_gudang' => $tanggalTibaGudang,
+            'rencana_kirim'         => $rencanaKirim,
+            'tanggal_dpt_unit'      => $tanggalDptUnit,
+            'planning_loading'      => $planningLoading,
+            'tanggal_tiba_gudang'   => $tanggalTibaGudang,
             'tanggal_keluar_gudang' => $tanggalKeluarGudang,
-            'tanggal_tiba' => $tanggalTibaAktual,
-            'tanggal_bongkar' => $tanggalBongkar,
+            'tanggal_tiba'          => $tanggalTibaAktual,
+            'tanggal_bongkar'       => $tanggalBongkar,
 
             // ================= AUTO =================
-            'tanggal_tiba_estimasi' => $tanggalTibaEstimasi,
-            'lama_perjalanan' => $lamaPerjalanan,
-            'sla_tiba' => $slaTiba,
+            'estimasi_tiba' => $estimasi
+                ? date('Y-m-d', $estimasi)
+                : null,
 
-            // ================= GUDANG pERTAMA Berhasil =================
-        'lama_waktu_pencarian' => $lamaWaktuPencarian,
-'sla_dapat_mobil'      => $slaDapatMobil,
+            'lama_perjalanan'  => $lamaPerjalanan,
+            'sla_tiba'         => $slaTiba,
+            'overstay_days'    => $overstay,
+            'sla_bongkar'      => $slaBongkar,
+            'status_akhir'     => $statusAkhir,
+            'monitoring_alert' => $monitoringAlert,
 
-'lama_digudang'        => $lamaDigudang,
-'sla_loading'          => $slaLoading,
+            // ================= GUDANG PERTAMA =================
+            'lama_waktu_pencarian' => $lamaWaktuPencarian,
+            'sla_dapat_mobil'      => $slaDapatMobil,
 
-            // GudangBaru
-
-            // 'lama_waktu_pencarian' => $lama_waktu_pencarian,
-            // 'sla_dapat_mobil'      => $sla_dapat_mobil,
-
-            // 'lama_digudang'        => $lama_digudang,
-            // 'sla_loading'          => $sla_loading,
-
-            // 'lama_digudang_2'      => $lama_digudang_2,
-            // 'sla_loading_2'        => $sla_loading_2,
-
-            // 'lama_digudang_3'      => $lama_digudang_3,
-            // 'sla_loading_3'        => $sla_loading_3,
+            'lama_digudang' => $lamaDigudang,
+            'sla_loading'   => $slaLoading,
 
             // ================= OTHER =================
-            'status' => $this->cleanText($row['status'] ?? null),
-            'keterangan' => $this->cleanText($row['keterangan'] ?? null),
+            'status'      => $this->cleanText($row['status'] ?? null),
+            'keterangan'  => $this->cleanText($row['keterangan'] ?? null),
 
-            'pic_monitoring' => $picMonitoring,
+            'pic_monitoring'   => $picMonitoring,
             'status_kendaraan' => $this->cleanText($row['status_kendaraan'] ?? null),
-            'monitoring_alert' => $this->cleanText($row['monitoring_alert'] ?? null),
-            'action_required' => $this->cleanText($row['action_required'] ?? null),
+            'action_required'  => $this->cleanText($row['action_required'] ?? null),
 
             'act_urutan_bongkar' => $row['ac_turutan_bongkar'] ?? null,
-            'overstay_days' => $this->cleanText($row['overstay_days'] ?? null),
 
-            'reason_tiba' => $this->cleanText($row['reason_waktu_tiba'] ?? null),
+            'reason_tiba'    => $this->cleanText($row['reason_waktu_tiba'] ?? null),
             'reason_bongkar' => $this->cleanText($row['reason_waktu_bongkar'] ?? null),
 
-            'act_pgi_date' => $act_pgi_date,
+            'act_pgi_date'    => $act_pgi_date,
             'cust_grp_5_desc' => $custGrp5,
-            'created_by'   => $row['created_by'] ?? null,
+            'created_by'      => $this->cleanText($row['created_by'] ?? null),
             'cust_grp_3_desc' => $custGrp3,
-            'ship_no' => $shipNo,
-            'cust_desc' => $custDesc,
-            'addt_text_4' => $addtText4,
-            'service_agent' => $serviceAgent,
+            'ship_no'         => $shipNo,
+            'cust_desc'       => $custDesc,
+            'addt_text_4'     => $addtText4,
+            'service_agent'   => $serviceAgent,
             'total_do_qty_car' => $totalDoCar,
 
             'created_at' => now(),
@@ -371,7 +379,44 @@ $create_tgl = date('Y-m-d H:i:s');
         ]);
     }
 
+    private function generateStatusAlert($sla_tiba, $sla_bongkar)
+    {
+        $sla_tiba    = strtolower(trim($sla_tiba ?? '-'));
+        $sla_bongkar = strtolower(trim($sla_bongkar ?? '-'));
 
+        if ($sla_tiba == '-' || $sla_bongkar == '-') {
+            return [
+                'status_akhir' => '-',
+                'alert' => '-'
+            ];
+        }
+
+        if ($sla_tiba == 'on time' && $sla_bongkar == 'on time') {
+            return [
+                'status_akhir' => 'On Time Total',
+                'alert' => 'Delivered On Time'
+            ];
+        }
+
+        if ($sla_tiba == 'delay' && $sla_bongkar == 'on time') {
+            return [
+                'status_akhir' => 'Delay Perjalanan',
+                'alert' => 'Delay Perjalanan'
+            ];
+        }
+
+        if ($sla_tiba == 'on time' && $sla_bongkar == 'delay') {
+            return [
+                'status_akhir' => 'Delay Pembongkaran',
+                'alert' => 'Delay Pembongkaran'
+            ];
+        }
+
+        return [
+            'status_akhir' => 'Delay Total',
+            'alert' => 'Delivered Delay'
+        ];
+    }
 
     // ================= HELPERS =================
 
@@ -410,5 +455,27 @@ $create_tgl = date('Y-m-d H:i:s');
         $timestamp = strtotime(str_replace('/', '-', trim($value)));
 
         return $timestamp ? date('Y-m-d', $timestamp) : null;
+    }
+
+    public function registerEvents(): array
+    {
+        return [
+            AfterImport::class => function () {
+
+                DB::statement("
+                    UPDATE logistik_pengiriman lp
+                    JOIN (
+                        SELECT
+                            no_shipment,
+                            MAX(biaya_kirim) AS biaya,
+                            SUM(nilai_muatan) AS muatan
+                        FROM logistik_pengiriman
+                        GROUP BY no_shipment
+                    ) x ON lp.no_shipment = x.no_shipment
+                    SET lp.cr = IF(x.muatan = 0, 0, ROUND((x.biaya / x.muatan) * 100, 4))
+                ");
+
+            },
+        ];
     }
 }

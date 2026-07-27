@@ -1,259 +1,304 @@
 @include('template.sidebar')
 
 <!DOCTYPE html>
-<html lang="id">
+<html>
 
 <head>
+    <link rel="stylesheet"
+href="https://cdn.datatables.net/1.13.8/css/jquery.dataTables.min.css">
 
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
+    <meta charset="utf-8">
+    <title>Customer Delay</title>
 
-<title>{{ $title }}</title>
-
-<style>
-
-body{
-    font-family:Arial;
-    background:#f4f6f9;
-    margin:0;
+    <style>
+        .dataTables_wrapper{
+    font-size:13px;
 }
 
-.container{
-    margin-left:260px;
-    padding:20px;
+.dataTables_length,
+.dataTables_filter,
+.dataTables_info,
+.dataTables_paginate{
+    margin:10px 0;
 }
 
-.card{
-    background:white;
-    padding:20px;
-    border-radius:10px;
-    box-shadow:0 2px 10px rgba(0,0,0,0.1);
-    margin-top:15px;
-    overflow-x:auto;
-}
-table{
-    width:100%;
-    border-collapse:collapse;
-    font-size:12px;
-    white-space:nowrap;
-    border:1px solid #ddd;
+.dataTables_filter{
+    float:right;
 }
 
-th{
-    background:#dc3435;
-    color:#fff;
-    padding:8px;
-    text-align:center;
-    position:sticky;
-    top:0;
-    border:1px solid #ddd;
+.dataTables_length{
+    float:left;
 }
 
-td{
-    padding:6px;
-    border:1px solid #ddd;
-    text-align:center;
+.dataTables_wrapper .dataTables_paginate .paginate_button.current{
+    background:#dc3545 !important;
+    color:#fff !important;
+    border:1px solid #dc3545 !important;
 }
 
-.badge-delay{
-    background:#dc3545;
-    color:white;
-    padding:5px 10px;
-    border-radius:5px;
-    font-weight:bold;
+.dataTables_wrapper .dataTables_paginate .paginate_button:hover{
+    background:#bb2d3b !important;
+    color:#fff !important;
 }
+        body{
+            font-family:Arial,sans-serif;
+            background:#f5f5f5;
+            margin:0;
+        }
 
-/* BUTTON */
-.btn{
-    padding:8px 14px;
-    border-radius:6px;
-    text-decoration:none;
-    display:inline-block;
-    font-size:14px;
-    margin-right:5px;
-    border:none;
-    cursor:pointer;
-}
+        .container{
+            width:calc(100% - 250px);
+            margin-left:250px;
+            padding:20px;
+        }
 
-.btn-blue{ background:#007bff; color:#fff; }
-.btn-green{ background:#28a745; color:#fff; }
+        h2{
+            margin-bottom:15px;
+        }
 
-/* FILTER */
-.filter-box{
-    background:#fff;
-    padding:15px;
-    border-radius:10px;
-    box-shadow:0 2px 10px rgba(0,0,0,0.05);
-}
+        .topbar{
+            margin-bottom:15px;
+            display:flex;
+            gap:10px;
+            align-items:center;
+            flex-wrap:wrap;
+        }
 
-select{
-    padding:8px;
-    margin-right:10px;
-    border:1px solid #ccc;
-    border-radius:5px;
-}
+        .btn{
+            display:inline-block;
+            padding:8px 12px;
+            background:#dc3545;
+            color:#fff;
+            text-decoration:none;
+            border-radius:5px;
+            font-size:13px;
+            border:none;
+            cursor:pointer;
+        }
 
-h2{
-    margin-bottom:15px;
-}
+        .btn-success{
+            background:#198754;
+        }
 
-/* RESPONSIVE */
-@media(max-width:768px){
-    .container{ margin-left:0; }
-    table{ display:block; overflow-x:auto; }
-}
+        select{
+            padding:7px;
+            border-radius:5px;
+            border:1px solid #ccc;
+        }
 
-</style>
+        .table-container{
+            overflow-x:auto;
+            background:#fff;
+            border-radius:10px;
+            box-shadow:0 2px 8px rgba(0,0,0,.1);
+        }
 
+        table{
+            width:100%;
+            border-collapse:collapse;
+            white-space:nowrap;
+        }
+
+        th,td{
+            border:1px solid #ddd;
+            padding:8px;
+            text-align:center;
+            font-size:13px;
+        }
+
+        th{
+            background:#dc3545;
+            color:#fff;
+        }
+
+        .status-delay{
+            color:#dc3545;
+            font-weight:bold;
+        }
+
+        .empty{
+            text-align:center;
+            padding:20px;
+        }
+
+        .info-box{
+            background:#fee2e2;
+            padding:12px;
+            border-radius:8px;
+            margin-bottom:15px;
+            font-size:13px;
+            color:#991b1b;
+        }
+    </style>
 </head>
 
 <body>
 
 <div class="container">
 
-<h2>{{ $title }}</h2>
+    <h2>📊 CUSTOMER DELAY</h2>
 
-<!-- FILTER -->
-<div class="filter-box">
-
-<form method="GET" action="{{ url('/sla/delay') }}">
-
-    <select name="bulan">
-        <option value="">Bulan</option>
-        @for($i=1; $i<=12; $i++)
-            @php $val = str_pad($i,2,'0',STR_PAD_LEFT); @endphp
-            <option value="{{ $val }}" {{ request('bulan')==$val?'selected':'' }}>
-                {{ date('F', mktime(0,0,0,$i,1)) }}
-            </option>
-        @endfor
-    </select>
-
-    <select name="tahun">
-        <option value="">Tahun</option>
-        @for($y=2023; $y<=date('Y'); $y++)
-            <option value="{{ $y }}" {{ request('tahun')==$y?'selected':'' }}>
-                {{ $y }}
-            </option>
-        @endfor
-    </select>
-
-    <select name="area">
-        <option value="">Area</option>
-        @foreach($list_area as $a)
-            <option value="{{ $a->area }}" {{ request('area')==$a->area?'selected':'' }}>
-                {{ $a->area }}
-            </option>
-        @endforeach
-    </select>
-
-    <button type="submit" class="btn btn-green">Filter</button>
-
-    <a href="{{ url('/dashboard') }}" class="btn btn-blue">⬅ Dashboard</a>
-
-</form>
-
-</div>
-
-<!-- TABLE -->
-<div class="card">
-
-<table>
-
-<thead>
-
-<tr>
-    <th>No</th>
-    <th>Tanggal Naik Logistik</th>
-    <th>Rencana Kirim</th>
-    <th>Transport Lead Time</th>
-    <th>Planner</th>
-    <th>No Shipment</th>
-    <th>Tujuan</th>
-    <th>Area</th>
-    <th>Ketersediaan Unit</th>
-    <th>Mobil</th>
-    <th>Perubahan Mobil</th>
-    <th>Nilai Muatan</th>
-    <th>Biaya Kirim</th>
-    <th>CR</th>
-    <th>Kategori Ekspedisi</th>
-    <th>Ekspedisi</th>
-    <th>Nama Driver</th>
-    <th>No Pol</th>
-    <!-- <th>Status</th> -->
-    <th>Tgl Dpt Unit</th>
-    <th>Planning Loading</th>
-    <th>Tgl Tiba Gudang</th>
-    <th>Tgl Keluar Gudang</th>
-    <th>Lama Digudang</th>
-    <th>SLA Loading</th>
-    <th>Keterangan</th>
-    <th>Lama Pencarian</th>
-    <th>SLA Mobil</th>
-    <th>Status SLA</th>
-</tr>
-
-</thead>
-
-<tbody>
-
-@if(!empty($list) && count($list) > 0)
-
-@foreach($list as $r)
-
-<tr>
-    <td>{{ $loop->iteration }}</td>
-
-    <td>{{ $r->tanggal_naik_logistik ?? '-' }}</td>
-    <td>{{ $r->rencana_kirim ?? '-' }}</td>
-    <td>{{ $r->transport_lead_time ?? '-' }}</td>
-    <td>{{ $r->planner ?? '-' }}</td>
-    <td>{{ $r->no_shipment ?? '-' }}</td>
-    <td>{{ $r->tujuan ?? '-' }}</td>
-    <td>{{ $r->area ?? '-' }}</td>
-    <td>{{ $r->ketersediaan_unit ?? '-' }}</td>
-    <td>{{ $r->mobil ?? '-' }}</td>
-    <td>{{ $r->perubahan_mobil ?? '-' }}</td>
-    <td>{{ number_format($r->nilai_muatan ?? 0) }}</td>
-    <td>{{ number_format($r->biaya_kirim ?? 0) }}</td>
-    <td>{{ $r->cr ?? '-' }}</td>
-    <td>{{ $r->kategori_ekspedisi ?? '-' }}</td>
-    <td>{{ $r->ekpedisi ?? '-' }}</td>
-    <td>{{ $r->nama_driver ?? '-' }}</td>
-    <td>{{ $r->no_pol ?? '-' }}</td>
    
-    <td>{{ $r->tanggal_dpt_unit ?? '-' }}</td>
-    <td>{{ $r->planning_loading ?? '-' }}</td>
-    <td>{{ $r->tanggal_tiba_gudang ?? '-' }}</td>
-    <td>{{ $r->tanggal_keluar_gudang ?? '-' }}</td>
-    <td>{{ $r->lama_digudang ?? '-' }}</td>
-    <td>{{ $r->sla_ketepatan_loading ?? '-' }}</td>
-    <td>{{ $r->keterangan ?? '-' }}</td>
-    <td>{{ $r->lama_waktu_pencarian ?? '-' }}</td>
-    <td>{{ $r->sla_dapat_mobil ?? '-' }}</td>
+    <div class="table-container">
 
-    <td>
-        <span class="badge-delay">DELAY</span>
-    </td>
-</tr>
+    <table id="tableCustomerDelay" class="display nowrap">
 
-@endforeach
+            <thead>
 
-@else
+            <tr>
 
-<tr>
-    <td colspan="30">Tidak ada data</td>
-</tr>
+                <th>No</th>
+                <th>No Shipment</th>
+                <th>Tanggal Naik</th>
+                <th>Rencana Kirim</th>
+                <th>Lead Time</th>
+                <th>Tujuan</th>
+                <th>Area</th>
+                <th>Ekspedisi</th>
 
-@endif
+                <th>Tanggal Keluar Gudang KACS</th>
+                <th>Tanggal Keluar Gudang SENTUL</th>
+                <th>Tanggal Keluar Gudang CCIE</th>
 
-</tbody>
+                <th>Tanggal Estimasi</th>
+                <th>Tanggal Tiba</th>
 
-</table>
+                <th>SLA Tiba</th>
+                <th>Reason Tiba</th>
+
+            </tr>
+
+            </thead>
+
+            <tbody>
+
+            @forelse($logistik as $i=>$row)
+
+                <tr>
+
+                    <td>{{ $i+1 }}</td>
+
+                    <td>{{ $row->no_shipment }}</td>
+
+                    <td>{{ $row->tanggal_naik_logistik }}</td>
+
+                    <td>{{ $row->rencana_kirim }}</td>
+
+                    <td>{{ $row->transport_lead_time }}</td>
+
+                    <td>{{ $row->tujuan }}</td>
+
+                    <td>{{ $row->area }}</td>
+
+                    <td>{{ $row->ekpedisi }}</td>
+
+                    <td>{{ $row->tanggal_keluar_gudang }}</td>
+
+                    <td>{{ $row->tanggal_keluar_gudang_2 }}</td>
+
+                    <td>{{ $row->tanggal_keluar_gudang_3 }}</td>
+
+                    <td>{{ $row->estimasi_tiba }}</td>
+
+                    <td>{{ $row->tanggal_tiba }}</td>
+
+                    <td>
+                        <span class="status-delay">
+                            {{ $row->sla_tiba }}
+                        </span>
+                    </td>
+
+                    <td>{{ $row->reason_tiba }}</td>
+
+                </tr>
+
+            @empty
+
+                <tr>
+
+                    <td colspan="15" class="empty">
+                        Data Delay tidak ditemukan
+                    </td>
+
+                </tr>
+
+            @endforelse
+
+            </tbody>
+
+        </table>
+
+    </div>
 
 </div>
+<script>
+$(document).ready(function(){
 
-</div>
+    $.fn.dataTable.ext.type.search.html = function(data){
+        return $('<div>').html(data).text();
+    };
 
+    var table = $('#tableCustomerDelay').DataTable({
+
+      scrollX:false,
+autoWidth:false,
+
+        pageLength:10,
+
+        lengthMenu:[
+            [10,25,50,100,-1],
+            [10,25,50,100,"Semua"]
+        ],
+
+        ordering:true,
+        searching:true,
+        paging:true,
+        info:true,
+
+        columnDefs:[
+            {
+                targets:0,
+                orderable:false,
+                searchable:false
+            }
+        ],
+
+        order:[[1,'asc']],
+
+        language:{
+            search:"Cari :",
+            lengthMenu:"Tampilkan _MENU_ data",
+            info:"Menampilkan _START_ sampai _END_ dari _TOTAL_ data",
+            infoEmpty:"Tidak ada data",
+            zeroRecords:"Data tidak ditemukan",
+            paginate:{
+                first:"Awal",
+                last:"Akhir",
+                previous:"<<",
+                next:">>"
+            }
+        }
+
+    });
+
+    table.on('order.dt search.dt draw.dt', function(){
+
+        let start = table.page.info().start;
+
+        table.column(0,{
+            search:'applied',
+            order:'applied'
+        }).nodes().each(function(cell,i){
+
+            cell.innerHTML = start + i + 1;
+
+        });
+
+    }).draw();
+
+});
+</script>
 </body>
 </html>

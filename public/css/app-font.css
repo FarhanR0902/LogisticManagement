@@ -1,0 +1,134 @@
+/* ==========================================================
+   APP-FONT.CSS
+   File override global untuk membesarkan font di semua halaman.
+   Cukup di-include SEKALI di template.sidebar (atau layout utama),
+   otomatis berlaku ke semua view yang @include sidebar itu.
+
+   Taruh file ini di: public/css/app-font.css
+   ========================================================== */
+
+/* ================= BASE ================= */
+body{
+    font-size:16px !important;
+}
+
+/* ================= TABEL ================= */
+table{
+    font-size:16px !important;
+}
+
+table th,
+table td{
+    font-size:16px !important;
+}
+
+/* ================= BADGE / STATUS PILL ================= */
+.badge,
+.badge-status,
+.status-badge,
+.status-ontime,
+.status-delay,
+.status-transit,
+.status-unloading,
+.status-wait{
+    font-size:15px !important;
+    padding:9px 16px !important;
+}
+
+/* ================= FILTER BOX ================= */
+.filter-box input,
+.filter-box select,
+.filter-box button,
+.filter-box a{
+    font-size:16px !important;
+}
+
+/* ================= IMPORT / EXPORT / ARCHIVE BUTTON ================= */
+.import-box input,
+.import-box button,
+.archive-btn,
+.btn-export,
+.btn{
+    font-size:16px !important;
+}
+
+/* ================= HEADING ================= */
+h2{
+    font-size:32px !important;
+}
+
+/* ================= INPUT DI DALAM SEL TABEL (edit-in-table) =================
+   Ini yang paling sering luput: <input>/<select>/<textarea> di dalam <td>
+   punya font-size sendiri yang menimpa parent, jadi harus ditarget langsung. */
+table input[type="text"],
+table input[type="number"],
+table input[type="date"],
+table input[type="email"],
+table select,
+table textarea{
+    font-size:15px !important;
+}
+
+/* ================= BOOTSTRAP FORM (form-control / form-select / label) =================
+   Dipakai di view yang load Bootstrap (modal Add New Shipment, filter Data Planner, dll) */
+.form-control,
+.form-select,
+.form-label,
+.form-horizontal-scroll label,
+.form-horizontal-scroll .form-control{
+    font-size:15px !important;
+}
+
+/* ================= SELECT2 =================
+   Select2 bikin elemen tampilan sendiri yang menggantikan <select> asli secara
+   visual, jadi <select> yang di-CSS langsung nggak akan kelihatan bedanya. */
+.select2-container .select2-selection__rendered,
+.select2-container .select2-selection,
+.select2-results__option,
+.select2-search__field{
+    font-size:15px !important;
+}
+
+/* ================= DATATABLES (bagian yang paling sering luput) ================= */
+.dataTables_wrapper,
+.dataTables_wrapper .dataTables_length,
+.dataTables_wrapper .dataTables_filter,
+.dataTables_wrapper .dataTables_info,
+.dataTables_wrapper .dataTables_paginate{
+    font-size:16px !important;
+}
+
+.dataTables_length select{
+    font-size:16px !important;
+    padding:9px 12px !important;
+}
+
+.dataTables_filter input{
+    font-size:16px !important;
+    padding:9px 14px !important;
+}
+
+.dataTables_paginate .paginate_button{
+    font-size:15px !important;
+    padding:8px 14px !important;
+}
+
+/* ================= RESPONSIVE (tetap terbaca rapi di layar kecil) ================= */
+@media(max-width:768px){
+
+    body{
+        font-size:15px !important;
+    }
+
+    table th,
+    table td{
+        font-size:14px !important;
+    }
+
+    .badge,
+    .badge-status,
+    .status-badge{
+        font-size:13px !important;
+        padding:7px 12px !important;
+    }
+}

@@ -112,7 +112,7 @@ tbody tr:hover{
 
     <div class="topbar">
 
-        <a href="{{ route('sales.dashboard') }}" class="btn btn-primary">
+        <a href="{{ route('manager.dashboard') }}" class="btn btn-primary">
             ⬅ Dashboard
         </a>
 
@@ -136,6 +136,7 @@ tbody tr:hover{
                             <th>Rencana Kirim</th>
                             <th>Lead Time</th>
                             <th>No Shipment</th>
+                            <th>Dist Channel</th>
                             <th>Tujuan</th>
                             <th>Area</th>
                             <th>Ekspedisi</th>
@@ -192,6 +193,7 @@ tbody tr:hover{
                             <td>{{ $row->rencana_kirim ?? '-' }}</td>
                             <td>{{ $row->transport_lead_time ?? 0 }} Hari</td>
                             <td>{{ $row->no_shipment ?? '-' }}</td>
+                            <td>{{ $row->dist_channel }}</td>
                             <td>{{ $row->tujuan ?? '-' }}</td>
                             <td>{{ $row->area ?? '-' }}</td>
                             <td>{{ $row->ekspedisi ?? $row->ekpedisi ?? '-' }}</td>
@@ -208,8 +210,8 @@ tbody tr:hover{
                             <td>{{ $overstay }} Hari</td>
 
                             <td>{{ $row->sla_bongkar ?? '-' }}</td>
-                            <td>{{ $row->reason_bongkar }}</td>
-                            <!-- <td>
+<!-- 
+                            <td>
                                 @if(
                                     strtolower($row->sla_bongkar ?? '') == 'delay'
                                     || strtolower($row->sla_bongkar ?? '') == 'h+1'
@@ -226,6 +228,7 @@ tbody tr:hover{
                                     </span>
                                 @endif
                             </td> -->
+                            <td>{{ $row->reason_bongkar }}</td>
 
                         </tr>
 

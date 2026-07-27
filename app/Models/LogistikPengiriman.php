@@ -79,8 +79,12 @@ class LogistikPengiriman extends Model
     'route',
     'pulau',
     'via_kirim',
+    'estimasi_tiba',
     'shipping_point',
         'created_by',
+        'qty_monitoring',
+        'remarks_qty',
+        'selisih_qty',
         'create_tgl'
     ];
 

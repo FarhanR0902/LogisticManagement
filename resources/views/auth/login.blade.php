@@ -4,9 +4,14 @@
     <title>Login Sistem Logistik</title>
 
     <style>
-  body {
+body {
     font-family: 'Segoe UI', Arial, sans-serif;
-    background: linear-gradient(135deg,#e5e7eb,#f8fafc);
+
+    background: url("https://cimory.com/uploads/banner/image_vFnyWP1700150109.jpg")
+        no-repeat center center fixed;
+
+    background-size: cover;
+
     display: flex;
     justify-content: center;
     align-items: center;
@@ -15,13 +20,21 @@
 
 /* BOX LOGIN */
 .box {
-    background: white;
+    background: url("https://i.pinimg.com/1200x/ef/ee/51/efee5115073880a3555e00bf6bc88253.jpg")
+      /* background: url("https://cimory.com/uploads/products/Product-Banner-(Squeeze-Yogurt-120)---1440x633px_Artboard-4-copy-3.jpg") */
+        no-repeat center center;
+
+    background-size: cover;
+
     padding: 60px;
     border-radius: 20px;
     width: 650px;
-    box-shadow: 0 20px 40px rgba(0,0,0,0.15);
-}
 
+    box-shadow: 0 20px 40px rgba(0,0,0,0.25);
+
+    position: relative;
+    overflow: hidden;
+}
 /* LOGO */
 .logo{
     display:flex;

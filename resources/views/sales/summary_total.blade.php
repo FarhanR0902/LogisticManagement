@@ -59,6 +59,38 @@
         Total Data: {{ $logistik->count() }}
     </div>
 
+
+    <div style="background:#fff;padding:15px;border-radius:10px;margin-bottom:15px;box-shadow:0 4px 10px rgba(0,0,0,0.05);">
+
+    <form method="GET" action="{{ url()->current() }}" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+
+        <!-- DAY -->
+        <input type="date" name="date" value="{{ request('date') }}" style="padding:8px;border:1px solid #ddd;border-radius:6px;">
+
+        <!-- MONTH -->
+        <input type="month" name="month" value="{{ request('month') }}" style="padding:8px;border:1px solid #ddd;border-radius:6px;">
+
+        <!-- YEAR -->
+        <select name="year" style="padding:8px;border:1px solid #ddd;border-radius:6px;">
+            <option value="">-- Year --</option>
+            @for($y = date('Y'); $y >= 2020; $y--)
+                <option value="{{ $y }}" {{ request('year') == $y ? 'selected' : '' }}>
+                    {{ $y }}
+                </option>
+            @endfor
+        </select>
+
+        <button type="submit" style="padding:8px 12px;background:#22c55e;color:#fff;border:none;border-radius:6px;">
+            Filter
+        </button>
+
+        <a href="{{ url()->current() }}" style="padding:8px 12px;background:#ef4444;color:#fff;border-radius:6px;text-decoration:none;">
+            Reset
+        </a>
+
+    </form>
+
+</div>
     <table>
         <thead>
             <tr>

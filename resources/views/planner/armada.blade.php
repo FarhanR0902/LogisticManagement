@@ -4,10 +4,16 @@
 <html lang="id">
 
 <head>
+
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.8/css/jquery.dataTables.min.css">
+
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
     <meta charset="UTF-8">
     <title>Sudah Dapat Armada</title>
 
     <style>
+        
         body{
             font-family: Arial;
             background: #f5f5f5;
@@ -88,6 +94,12 @@
             padding:5px 10px;
             border-radius:20px;
         }
+
+        .highlight-source{
+    background:#fff3cd !important;
+    border:2px solid #ffc107 !important;
+    
+}
     </style>
 </head>
 
@@ -103,42 +115,12 @@
     <h2>🚛 DATA SUDAH DAPAT ARMADA</h2>
 
     <!-- FILTER -->
-    <div class="topbar">
-
-        <a href="{{ url('/dashboard') }}" class="btn btn-blue">
-            ⬅ Dashboard
-        </a>
-
-        <form method="GET" action="{{ url('/armada') }}" style="display:flex; gap:5px;">
-
-            <select name="bulan">
-                <option value="">Bulan</option>
-                @for($i=1;$i<=12;$i++)
-                    <option value="{{ $i }}" {{ $bulan==$i?'selected':'' }}>
-                        {{ date('F', mktime(0,0,0,$i,1)) }}
-                    </option>
-                @endfor
-            </select>
-
-            <select name="tahun">
-                <option value="">Tahun</option>
-                @for($y=2023;$y<=date('Y');$y++)
-                    <option value="{{ $y }}" {{ $tahun==$y?'selected':'' }}>
-                        {{ $y }}
-                    </option>
-                @endfor
-            </select>
-
-            <button class="btn btn-warning">Filter</button>
-
-        </form>
-
-    </div>
+   
 
     <!-- TABLE -->
     <div class="table-container">
 
-        <table>
+        <table id="tableArmada" class="display nowrap">
             <thead>
                 <tr>
                     <th>No</th>
@@ -152,70 +134,147 @@
                     <th>Ekspedisi</th>
                     <th>Lama Pencarian</th>
                     <th>tanggal Dapat Unit</th>
-                    <th>Tanggal Tiba Gudang</th>
+
                     <th>Status</th>
                 </tr>
             </thead>
 
-            <tbody>
+<tbody>
 
-            @forelse($logistik as $i => $row)
+@php
+    $markedShipment = [];
+@endphp
 
-                <tr>
-                    <td>{{ $i+1 }}</td>
-                    <td>{{ $row->no_shipment ?? '-' }}</td>
-                    <td>{{ $row->planner ?? '-' }}</td>
-                    <td>{{ $row->area ?? '-' }}</td>
-                    <td>{{ $row->tujuan ?? '-' }}</td>
-                    <td>{{ $row->rencana_kirim ?? '-' }}</td>
+@forelse($logistik as $row)
 
-               <td>
-    <span class="badge-success">Sudah Dapat</span>
-</td>
+<tr>
 
-                    <td>{{ $row->mobil ?? '-' }}</td>
-                    <td>{{ $row->ekpedisi ?? '-' }}</td>
+    <td></td>
 
-                   {{-- Lama Pencarian --}}
-<td>{{ $row->lama_waktu_pencarian ?? '-' }}</td>
+    <td
+        @if(
+            !empty($row->no_shipment) &&
+            !in_array($row->no_shipment,$markedShipment)
+        )
+            class="highlight-source"
+            @php $markedShipment[] = $row->no_shipment; @endphp
+        @endif
+    >
+        {{ $row->no_shipment ?? '-' }}
+    </td>
 
+    <td>{{ $row->planner ?? '-' }}</td>
+
+    <td>{{ $row->area ?? '-' }}</td>
+
+    <td>{{ $row->tujuan ?? '-' }}</td>
+
+    <td>{{ $row->rencana_kirim ?? '-' }}</td>
 
     <td>
-                        {{ $row->tanggal_dpt_unit
-                            ? date('d-m-Y H:i', strtotime($row->tanggal_dpt_unit))
-                            : '-' }}
-                    </td>
-                    <td>
-                        {{ $row->tanggal_tiba_gudang
-                            ? date('d-m-Y H:i', strtotime($row->tanggal_tiba_gudang))
-                            : '-' }}
-                    </td>
+        <span class="badge-success">
+            Sudah Dapat
+        </span>
+    </td>
 
-                    <td>
-                        @if(($row->lama_pencarian ?? 0) >= 2)
-                            <span class="badge-delay">Delay Armada</span>
-                        @else
-                            <span class="badge-success">Done</span>
-                        @endif
-                    </td>
+    <td>{{ $row->mobil ?? '-' }}</td>
 
-                </tr>
+    <td>{{ $row->ekpedisi ?? '-' }}</td>
 
-            @empty
+    <td>{{ $row->lama_waktu_pencarian ?? '-' }}</td>
 
-                <tr>
-                    <td colspan="12">Data tidak ditemukan</td>
-                </tr>
+    <td>
+        {{ $row->tanggal_dpt_unit
+            ? date('d-m-Y H:i',strtotime($row->tanggal_dpt_unit))
+            : '-' }}
+    </td>
 
-            @endforelse
+    <td>
+        @if(($row->lama_pencarian ?? 0) >= 2)
+            <span class="badge-delay">
+                Delay Armada
+            </span>
+        @else
+            <span class="badge-success">
+                Done
+            </span>
+        @endif
+    </td>
 
-            </tbody>
+</tr>
+
+@empty
+
+<tr>
+    <td colspan="12">
+        Data tidak ditemukan
+    </td>
+</tr>
+
+@endforelse
+
+</tbody>
 
         </table>
 
     </div>
 
 </div>
+<script>
+$(function(){
 
+    var table = $('#tableArmada').DataTable({
+
+       scrollX:false,
+autoWidth:false,
+
+        pageLength:10,
+
+        lengthMenu:[
+            [10,25,50,100,-1],
+            [10,25,50,100,"Semua"]
+        ],
+
+        columnDefs:[
+            {
+                targets:0,
+                searchable:false,
+                orderable:false
+            }
+        ],
+
+        order:[[1,'asc']],
+
+        language:{
+            search:"Cari :",
+            lengthMenu:"Tampilkan _MENU_ data",
+            info:"Menampilkan _START_ sampai _END_ dari _TOTAL_ data",
+            infoEmpty:"Tidak ada data",
+            zeroRecords:"Data tidak ditemukan",
+            paginate:{
+                previous:"<<",
+                next:">>"
+            }
+        }
+
+    });
+
+    table.on('order.dt search.dt draw.dt',function(){
+
+        let start = table.page.info().start;
+
+        table.column(0,{
+            search:'applied',
+            order:'applied'
+        }).nodes().each(function(cell,i){
+
+            cell.innerHTML = start + i + 1;
+
+        });
+
+    }).draw();
+
+});
+</script>
 </body>
 </html>

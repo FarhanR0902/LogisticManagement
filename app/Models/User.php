@@ -20,4 +20,10 @@ class User extends Authenticatable
         'password',
         'remember_token',
     ];
+
+    // OPTIONAL: biar aman kalau role kosong
+    public function getRoleAttribute($value)
+    {
+        return $value ?: 'user';
+    }
 }

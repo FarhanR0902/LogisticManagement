@@ -25,6 +25,7 @@ $dashboard_url = match($role) {
 'cmd' => route('cmd.dashboard'),
 'jess' => route('jess.dashboard'),
 'developer' => route('developer.dashboard'),
+'admin_pasuruan' => route('pasuruan.admin'),
 default => url('/dashboard'),
 };
 
@@ -35,7 +36,7 @@ default => url('/dashboard'),
 */
 $currentRoute = request()->route()->getName() ?? '';
 @endphp
-
+<link rel="stylesheet" href="{{ asset('css/app-font.css') }}">
 <div class="sidebar">
 
     <div class="logo">
@@ -62,8 +63,8 @@ $currentRoute = request()->route()->getName() ?? '';
       
         <li><a href="{{ url('/datalogistik') }}">📋 Full Data Logistik</a></li>
         <li><a href="{{ route('planner.datalogistik') }}">📦 Data Planner</a></li>
-        <li><a href="{{ route('planner.sla.ontime') }}">✅ SLA On Time</a></li>
-        <li><a href="{{ route('planner.sla.delay') }}">❌ SLA Delay</a></li>
+        <li><a href="{{ route('planner.sla.ontime') }}">✅ Sudah Tiba Gudang</a></li>
+        <li><a href="{{ route('planner.sla.delay') }}">❌ Belum Tiba Gudang</a></li>
         <li><a href="{{ route('armada') }}">🚚 Armada Ready</a></li>
          <!-- <li><a href="{{ route('armada.delay') }}">🚚 Armada delay</a></li> -->
   <li><a href="{{ route('planner.belum_armada') }}">⏳ Belum Armada</a></li>
@@ -74,13 +75,53 @@ $currentRoute = request()->route()->getName() ?? '';
         @if($role === 'spvplanner' || $role === 'developer')
 
         <li class="title">SPV PLANNER</li>
- <li> <a href="{{ route('spvplanner.full.dashboard', request()->query()) }}"> 📊 Full Dashboard </a> </li>
+<li>
+    <a href="javascript:void(0)"
+       onclick="toggleSubmenu('dashboardSubmenu', this)"
+       class="submenu-toggle {{ request()->routeIs('spvplanner.dashboard*') ? 'active' : '' }}">
+        <span>📊 Dashboard</span>
+        <i class="arrow {{ request()->routeIs('spvplanner.dashboard*') ? 'open' : '' }}">▾</i>
+    </a>
 
-   <li>
-            <a href="{{ url('/datalogistik') . '?' . http_build_query(request()->query()) }}">
-                📦 Full Data Logistik
+    <ul class="submenu" id="dashboardSubmenu"
+        style="display: {{ request()->routeIs('spvplanner.dashboard*') ? 'block' : 'none' }};">
+
+        <li>
+        <a href="{{ route('spvplanner.full.dashboard') }}"
+   class="{{ request()->routeIs('spvplanner.full.dashboard') ? 'active' : '' }}">
+    🏢 Dashboard Jakarta
+</a>
+        </li>
+
+        <li>
+            <a href="{{ route('spvplanner.dashboard.pasuruan') }}"
+               class="{{ request()->routeIs('spvplanner.dashboard.pasuruan') ? 'active' : '' }}">
+                🏭 Dashboard Pasuruan
             </a>
         </li>
+
+    </ul>
+</li>
+<li>
+    <a href="javascript:void(0)"
+       onclick="toggleSubmenu('dataLogistikSubmenu', this)"
+       class="submenu-toggle {{ request()->routeIs('spvplanner.data*') ? 'active' : '' }}">
+        <span>📋 Data Logistik</span>
+        <i class="arrow {{ request()->routeIs('spvplanner.data*') ? 'open' : '' }}">▾</i>
+    </a>
+
+    <ul class="submenu" id="dataLogistikSubmenu"
+        style="display: {{ request()->routeIs('spvplanner.data*') ? 'block' : 'none' }};">
+<li><a href="{{ route('full.data.logistik') }}">📋 Full Data Logistik</a></li>
+        <li>
+            <a href="{{ route('spvplanner.data.pasuruan') }}"
+               class="{{ request()->routeIs('spvplanner.data.pasuruan') ? 'active' : '' }}">
+                🏭 Full Data Logistik Pasuruan
+            </a>
+        </li>
+
+    </ul>
+</li>
 
         <li>
             <a href="{{ route('spvplanner.datalogistik', request()->query()) }}">
@@ -90,16 +131,21 @@ $currentRoute = request()->route()->getName() ?? '';
 
         <li>
             <a href="{{ route('spvplanner.sla.ontime', request()->query()) }}">
-                ✅ Tiba Di Gudang On Time
+                ✅ Sudah Tiba Di Gudang 
             </a>
         </li>
 
         <li>
             <a href="{{ route('spvplanner.sla.delay', request()->query()) }}">
-                ❌ Tiba Di Gudang Delay
+                ❌ Belum Tiba Di Gudang 
             </a>
         </li>
-
+   <!-- <li>
+        <a href="{{ route('spvplanner.tujuan-filter.index') }}"
+           class="{{ request()->routeIs('spvplanner.tujuan-filter*') ? 'active' : '' }}">
+            🗺️ Master Tujuan &amp; Area
+        </a>
+    </li> -->
         <li>
             <a href="{{ route('spvplanner.armada', request()->query()) }}">
                 🚚 Sudah Dapat Armada
@@ -139,11 +185,60 @@ $currentRoute = request()->route()->getName() ?? '';
         <li class="title">SPV MONITORING</li>
 
 
-        <a>
-<li> <a href="{{ route('spvmonitoring.full.dashboard', request()->query()) }}"> 📊 Full Dashboard </a> </li>
-<a href="{{ url('/datalogistik') . '?' . http_build_query(request()->query()) }}">
-    📦 Full Data Logistik
+ <li>
+    <a href="javascript:void(0)"
+       onclick="toggleSubmenu('dashboardSubmenu', this)"
+       class="submenu-toggle {{ request()->routeIs('spvmonitoring.dashboard*') ? 'active' : '' }}">
+        <span>📊 Dashboard</span>
+        <i class="arrow {{ request()->routeIs('spvmonitoring.dashboard*') ? 'open' : '' }}">▾</i>
+    </a>
+
+    <ul class="submenu" id="dashboardSubmenu"
+        style="display: {{ request()->routeIs('spvmonitoring.dashboard*') ? 'block' : 'none' }};">
+
+    
+        <li>
+        <a href="{{ route('spvplanner.full.dashboard') }}"
+   class="{{ request()->routeIs('spvplanner.full.dashboard') ? 'active' : '' }}">
+    🏢 Dashboard Jakarta
 </a>
+        </li>
+
+        <li>
+            <a href="{{ route('spvmonitoring.dashboard.pasuruan') }}"
+               class="{{ request()->routeIs('spvmonitoring.dashboard.pasuruan') ? 'active' : '' }}">
+                🏭 Dashboard Pasuruan
+            </a>
+        </li>
+
+    </ul>
+</li>
+<li>
+    <a href="javascript:void(0)"
+       onclick="toggleSubmenu('dataLogistikSubmenu', this)"
+       class="submenu-toggle {{ request()->routeIs('spvmonitoring.data*') ? 'active' : '' }}">
+        <span>📋 Data Logistik</span>
+        <i class="arrow {{ request()->routeIs('spvmonitoring.data*') ? 'open' : '' }}">▾</i>
+    </a>
+
+    <ul class="submenu" id="dataLogistikSubmenu"
+        style="display: {{ request()->routeIs('spvmonitoring.data*') ? 'block' : 'none' }};">
+
+         <li>
+            <a href="{{ url('/datalogistik') . '?' . http_build_query(request()->query()) }}">
+                📦 Full Data Logistik
+            </a>
+        </li>
+
+        <li>
+            <a href="{{ route('spvmonitoring.data.pasuruan') }}"
+               class="{{ request()->routeIs('spvmonitoring.data.pasuruan') ? 'active' : '' }}">
+                🏭 Full Data Logistik Pasuruan
+            </a>
+        </li>
+
+    </ul>
+</li>
         <li> <a href="{{ route('spvmonitoring.datalogistik', request()->query()) }}"> 📦 Data Monitoring </a> </li>
         <li> <a href="{{ route('spvmonitoring.sla.ontime', request()->query()) }}"> ✅ SLA Tiba Ontime </a> </li>
         <li> <a href="{{ route('spvmonitoring.sla.delay', request()->query()) }}"> ❌ SLA Tiba Delay </a> </li>
@@ -154,84 +249,123 @@ $currentRoute = request()->route()->getName() ?? '';
         @endif
 
         {{-- ================= MANAGER ================= --}}
-      @if($role === 'manager' || $role === 'developer')
+    {{-- ================= MANAGER ================= --}}
+@if($role === 'manager' || $role === 'developer')
 
-    <a href="{{ url('/datalogistik') }}">📋 Full Data Logistik</a>
+<li class="title">MANAGER MENU</li>
 
+{{-- DASHBOARD DROPDOWN --}}
+<li>
+    <a href="javascript:void(0)"
+       onclick="toggleSubmenu('dashboardSubmenu', this)"
+       class="submenu-toggle {{ request()->routeIs('manager.dashboard*') ? 'active' : '' }}">
+        <span>📊 Dashboard</span>
+        <i class="arrow {{ request()->routeIs('manager.dashboard*') ? 'open' : '' }}">▾</i>
+    </a>
+
+    <ul class="submenu" id="dashboardSubmenu"
+        style="display: {{ request()->routeIs('manager.dashboard*') ? 'block' : 'none' }};">
+        <li>
+            <a href="{{ route('manager.dashboard') }}"
+               class="{{ request()->routeIs('manager.dashboard') && !request()->routeIs('manager.dashboard.pasuruan') ? 'active' : '' }}">
+                🏢 Dashboard Jakarta 
+            </a>
+        </li>
+        <li>
+            <a href="{{ route('manager.dashboard.pasuruan') }}"
+               class="{{ request()->routeIs('manager.dashboard.pasuruan') ? 'active' : '' }}">
+                🏭 Dashboard Pasuruan
+            </a>
+        </li>
+    </ul>
+</li>
+
+{{-- DATA LOGISTIK DROPDOWN --}}
+<li>
+    <a href="javascript:void(0)"
+       onclick="toggleSubmenu('dataLogistikSubmenu', this)"
+       class="submenu-toggle {{ request()->routeIs('manager.data.pasuruan') || request()->is('datalogistik') ? 'active' : '' }}">
+        <span>📋 Data Logistik</span>
+        <i class="arrow {{ request()->routeIs('manager.data.pasuruan') || request()->is('datalogistik') ? 'open' : '' }}">▾</i>
+    </a>
+
+    <ul class="submenu" id="dataLogistikSubmenu"
+        style="display: {{ request()->routeIs('manager.data.pasuruan') || request()->is('datalogistik') ? 'block' : 'none' }};">
+        <li>
+            <a href="{{ url('/datalogistik') }}" class="{{ request()->is('datalogistik') ? 'active' : '' }}">
+                🏢 Full Data Logistik jakarta
+            </a>
+        </li>
+        <li>
+            <a href="{{ route('manager.data.pasuruan') }}" class="{{ request()->routeIs('manager.data.pasuruan') ? 'active' : '' }}">
+                🏭 Full Data Logistik Pasuruan
+            </a>
+        </li>
+    </ul>
+</li>
+
+<li>
     <a href="{{ route('manager.gudang.ontime') }}">
-        🏭 Gudang Ontime
+        🏭 Sudah Tiba Di Gudang
     </a>
+</li>
 
+<li>
     <a href="{{ route('manager.gudang.delay') }}">
-        🚨 Gudang Delay
+        🚨 Belum Tiba Di Gudang
     </a>
+</li>
 
+<li>
     <a href="{{ route('manager.customer.ontime') }}">
         🚚 Customer Ontime
     </a>
+</li>
 
+<li>
     <a href="{{ route('manager.customer.delay') }}">
         ⚠️ Customer Delay
     </a>
+</li>
 
+<li>
     <a href="{{ route('manager.bongkar.ontime') }}">
         📦 Bongkar Ontime
     </a>
+</li>
 
+<li>
     <a href="{{ route('manager.bongkar.delay') }}">
         ⏳ Bongkar Delay
     </a>
+</li>
 
+<li>
     <a href="{{ route('manager.summary.area') }}">
         🗺️ Summary Area
     </a>
+</li>
 
+<li>
     <a href="{{ route('manager.summary.total') }}">
         📑 Summary Total
     </a>
-   
+</li>
 
+<li>
     <a href="{{ url('/storage') }}">
         🗄 Storage Archive
     </a>
-    <li>
-        <a href="{{ route('users.index') }}">
-            👤 View Users
-        </a>
-    </li>
+</li>
 
-
-
-
-        @endif
-
-        {{-- ================= SALES ================= --}}
-        @if($role === 'sales' || $role === 'developer')
-
-        <li class="title">SALES</li>
-
-     <li>
-    <a href="{{ route('sales.datalogistik') }}">
-        📋 Full Data
+<li>
+    <a href="{{ route('users.index') }}">
+        👤 View Users
     </a>
 </li>
-<li class="title">SALES</li>
 
-<li><a href="{{ route('sales.datalogistik') }}">📋 Full Data</a></li>
-
-<li><a href="{{ route('sales.gudang.ontime') }}">✅ Gudang On Time</a></li>
-<li><a href="{{ route('sales.gudang.delay') }}">❌ Gudang Delay</a></li>
-
-<li><a href="{{ route('sales.customer.ontime') }}">✅ Customer On Time</a></li>
-<li><a href="{{ route('sales.customer.delay') }}">❌ Customer Delay</a></li>
-
-<li><a href="{{ route('sales.bongkar.ontime') }}">🚚 Bongkar On Time</a></li>
-<li><a href="{{ route('sales.bongkar.delay') }}">🚚 Bongkar Delay</a></li>
-
-<li><a href="{{ route('sales.summary.area') }}">🌍 Area Summary</a></li>
-        <!-- STORAGE MENU -->
-     
-        @endif
+@endif
+    
 
                 {{-- ================= MANAGER ================= --}}
       @if($role === 'cmd' || $role === 'developer')
@@ -285,59 +419,152 @@ $currentRoute = request()->route()->getName() ?? '';
 
         @endif
 
-           @if($role === 'jess' || $role === 'developer')
+           @if($role === 'sales' || $role === 'developer')
 
-    <a href="{{ url('/datalogistik') }}">📋 Full Data Logistik</a>
-
-    <a href="{{ route('jess.gudang.ontime') }}">
-        🏭 Gudang Ontime
+   <li>
+    <a href="javascript:void(0)"
+       onclick="toggleSubmenu('dashboardSubmenu', this)"
+       class="submenu-toggle {{ request()->routeIs('sales.dashboard*') ? 'active' : '' }}">
+        <span>📊 Dashboard</span>
+        <i class="arrow {{ request()->routeIs('sales.dashboard*') ? 'open' : '' }}">▾</i>
     </a>
 
-    <a href="{{ route('jess.gudang.delay') }}">
-        🚨 Gudang Delay
+    <ul class="submenu" id="dashboardSubmenu"
+        style="display: {{ request()->routeIs('sales.dashboard*') ? 'block' : 'none' }};">
+
+        <li>
+            <a href="{{ route('sales.dashboard') }}"
+               class="{{ request()->routeIs('sales.dashboard') ? 'active' : '' }}">
+                🏢 Dashboard Jakarta
+            </a>
+        </li>
+
+        <li>
+            <a href="{{ route('sales.dashboard.pasuruan') }}"
+               class="{{ request()->routeIs('sales.dashboard.pasuruan') ? 'active' : '' }}">
+                🏭 Dashboard Pasuruan
+            </a>
+        </li>
+
+    </ul>
+</li>
+
+<li>
+    <a href="javascript:void(0)"
+       onclick="toggleSubmenu('dataLogistikSubmenu', this)"
+       class="submenu-toggle {{ request()->routeIs('sales.data*') ? 'active' : '' }}">
+        <span>📋 Data Logistik</span>
+        <i class="arrow {{ request()->routeIs('sales.data*') ? 'open' : '' }}">▾</i>
     </a>
 
-    <a href="{{ route('jess.customer.ontime') }}">
+    <ul class="submenu" id="dataLogistikSubmenu"
+        style="display: {{ request()->routeIs('sales.data*') ? 'block' : 'none' }};">
+
+        <li>
+             <a href="{{ url('/datalogistik') }}" class="{{ request()->is('datalogistik') ? 'active' : '' }}">
+                🏢 Full Data Logistik jakarta
+            </a>
+        </li>
+
+        <li>
+            <a href="{{ route('sales.data.pasuruan') }}"
+               class="{{ request()->routeIs('sales.data.pasuruan') ? 'active' : '' }}">
+                🏭 Full Data Logistik Pasuruan
+            </a>
+        </li>
+
+    </ul>
+</li>
+
+    <a href="{{ route('sales.gudang.ontime') }}">
+        🏭 Sudah Tiba Di Gudang
+    </a>
+
+    <a href="{{ route('sales.gudang.delay') }}">
+        🚨 Belum Tiba Di Gudang
+    </a>
+
+    <a href="{{ route('sales.customer.ontime') }}">
         🚚 Customer Ontime
     </a>
 
-    <a href="{{ route('jess.customer.delay') }}">
+    <a href="{{ route('sales.customer.delay') }}">
         ⚠️ Customer Delay
     </a>
 
-    <a href="{{ route('jess.bongkar.ontime') }}">
+    <a href="{{ route('sales.bongkar.ontime') }}">
         📦 Bongkar Ontime
     </a>
 
-    <a href="{{ route('jess.bongkar.delay') }}">
+    <a href="{{ route('sales.bongkar.delay') }}">
         ⏳ Bongkar Delay
     </a>
 
-    <a href="{{ route('jess.summary.area') }}">
-        🗺️ Summary Area
-    </a>
-
-    <a href="{{ route('jess.summary.total') }}">
-        📑 Summary Total
-    </a>
-   
-
-    <a href="{{ url('/storage') }}">
-        🗄 Storage Archive
-    </a>
-    <li>
-        <a href="{{ route('users.index') }}">
-            👤 View Users
-        </a>
-    </li>
 
 
 
 
         @endif
 
+{{-- ================= PASURUAN ================= --}}
+@if($role === 'admin_pasuruan' || $role === 'developer')
 
-        {{-- ================= ACCOUNT ================= --}}
+<li class="{{ request()->routeIs('pasuruan.dashboard') ? 'active' : '' }}">
+    <a href="{{ route('pasuruan.dashboard') }}">
+        <i class="fas fa-chart-line"></i>
+        <span>Dashboard</span>
+    </a>
+</li>
+
+<li>
+    <a href="{{ route('pasuruan.admin') }}">
+        📝 Data Admin
+    </a>
+</li>
+
+<li>
+    <a href="{{ route('pasuruan.dataLogistik') }}">
+        🚚 Data Logistik
+    </a>
+</li>
+
+<li class="{{ request()->routeIs('pasuruan.gudang.ontime') ? 'active' : '' }}">
+    <a href="{{ route('pasuruan.gudang.ontime') }}">
+        🏭 Sudah Tiba Di Gudang
+    </a>
+</li>
+
+<li class="{{ request()->routeIs('pasuruan.gudang.delay') ? 'active' : '' }}">
+    <a href="{{ route('pasuruan.gudang.delay') }}">
+        🚨 Belum Tiba Di Gudang
+    </a>
+</li>
+
+<li class="{{ request()->routeIs('pasuruan.tujuan.ontime') ? 'active' : '' }}">
+    <a href="{{ route('pasuruan.tujuan.ontime') }}">
+        🚚 Customer Ontime
+    </a>
+</li>
+
+<li class="{{ request()->routeIs('pasuruan.tujuan.delay') ? 'active' : '' }}">
+    <a href="{{ route('pasuruan.tujuan.delay') }}">
+        ⚠️ Customer Delay
+    </a>
+</li>
+
+<li class="{{ request()->routeIs('pasuruan.bongkar.ontime') ? 'active' : '' }}">
+    <a href="{{ route('pasuruan.bongkar.ontime') }}">
+        📦 Bongkar Ontime
+    </a>
+</li>
+
+<li class="{{ request()->routeIs('pasuruan.bongkar.delay') ? 'active' : '' }}">
+    <a href="{{ route('pasuruan.bongkar.delay') }}">
+        ⏳ Bongkar Delay
+    </a>
+</li>
+
+@endif        {{-- ================= ACCOUNT ================= --}}
         <li class="title">ACCOUNT</li>
 
         <li>
@@ -353,136 +580,221 @@ $currentRoute = request()->route()->getName() ?? '';
 </div>
 
 <style>
-    * {
-        margin: 0;
-        padding: 0;
-        box-sizing: border-box;
-        font-family: 'Segoe UI', sans-serif;
-    }
+/* =========================
+   RESET
+========================= */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: 'Segoe UI', sans-serif;
+}
 
-    .sidebar {
-        width: 260px;
-        height: 100vh;
-        position: fixed;
-        top: 0;
-        left: 0;
-        background: linear-gradient(180deg, #0f172a, #111827);
-        padding: 20px 14px;
-        overflow-y: auto;
-        z-index: 999;
-        box-shadow: 5px 0 20px rgba(0, 0, 0, .3);
-    }
+/* =========================
+   SIDEBAR WRAPPER
+========================= */
+.sidebar {
+    width: 260px;
+    height: 100vh;
+    position: fixed;
+    top: 0;
+    left: 0;
 
-    .logo {
-        color: #22c55e;
-        font-size: 20px;
-        font-weight: 800;
-        text-align: center;
-        padding: 12px;
-        border-radius: 12px;
-        background: rgba(34, 197, 94, .08);
-        margin-bottom: 20px;
-    }
+    /* 🔥 CERAH BARU */
+    background: #0040c9;
 
-    .menu {
-        list-style: none;
-    }
+    padding: 20px 14px;
+    overflow-y: auto;
+    z-index: 999;
 
-    .menu li {
-        margin-bottom: 6px;
-    }
+    box-shadow: 4px 0 20px rgba(37, 99, 235, 0.25);
+    transition: all 0.3s ease;
+}
 
-    .title {
-        color: #94a3b8;
-        font-size: 11px;
-        margin: 16px 8px 6px;
-        letter-spacing: 1px;
-    }
+/* =========================
+   LOGO
+========================= */
+.logo {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
 
-    .menu a {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        padding: 11px 12px;
-        border-radius: 10px;
-        text-decoration: none;
-        color: #e5e7eb;
-        font-size: 14px;
-        transition: .25s;
-        position: relative;
-        overflow: hidden;
-    }
+    color: #ffffff;
+    font-size: 18px;
+    font-weight: 700;
 
-    .menu a::before {
-        content: '';
-        position: absolute;
-        left: 0;
-        top: 0;
-        width: 0;
-        height: 100%;
-        background: linear-gradient(90deg, #22c55e, #3b82f6, #8b5cf6);
-        transition: .3s;
-        z-index: -1;
-    }
+    padding: 12px;
+    margin-bottom: 25px;
 
-    .menu a:hover::before {
-        width: 100%;
-    }
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.15);
+    backdrop-filter: blur(8px);
 
-    .menu a:hover {
-        color: #000;
-        transform: translateX(6px);
-    }
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
 
-    .menu a.active {
-        background: linear-gradient(90deg, #22c55e, #3b82f6);
-        color: #000;
-        font-weight: 600;
-    }
+.logo-img {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid #fff;
+}
 
-    .logout-btn {
-        width: 100%;
-        padding: 12px;
-        border: none;
-        border-radius: 10px;
-        background: linear-gradient(90deg, #ef4444, #f97316);
-        color: #fff;
-        font-weight: 700;
-        cursor: pointer;
-    }
+/* =========================
+   MENU
+========================= */
+.menu {
+    list-style: none;
+}
 
-    .logout-btn:hover {
-        transform: scale(1.03);
-    }
+.menu li {
+    margin-bottom: 6px;
+}
 
-    .sidebar::-webkit-scrollbar {
-        width: 6px;
-    }
+.title {
+    color: rgba(255, 255, 255, 0.75);
+    font-size: 11px;
+    margin: 16px 8px 6px;
+    letter-spacing: 1px;
+}
 
-    .sidebar::-webkit-scrollbar-thumb {
-        background: #334155;
-        border-radius: 10px;
-    }
+/* =========================
+   MENU LINK
+========================= */
+.menu a {
+    display: flex;
+    align-items: center;
+    gap: 10px;
 
-    .logo {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        justify-content: center;
-        color: #22c55e;
-        font-size: 18px;
-        font-weight: bold;
-        text-align: center;
-        margin-bottom: 30px;
-        padding-bottom: 15px;
-        border-bottom: 1px solid rgba(255, 255, 255, .1);
-    }
+    padding: 11px 12px;
+    border-radius: 10px;
 
-    .logo-img {
-        width: 38px;
-        height: 38px;
-        border-radius: 50%;
-        object-fit: cover;
-        border: 2px solid #22c55e;
-    }
+    text-decoration: none;
+    color: #ffffff;
+    font-size: 14px;
+
+    position: relative;
+    overflow: hidden;
+
+    transition: all 0.25s ease;
+}
+
+/* hover background glow */
+.menu a::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 0%;
+    height: 100%;
+
+    background: rgba(255, 255, 255, 0.25);
+    transition: 0.3s ease;
+    z-index: 0;
+}
+
+.menu a:hover::before {
+    width: 100%;
+}
+
+.menu a:hover {
+    transform: translateX(6px);
+    color: #0f172a;
+    font-weight: 600;
+}
+
+/* active menu */
+.menu a.active {
+    background: rgba(255, 255, 255, 0.3);
+    color: #0f172a;
+    font-weight: 700;
+}
+
+/* =========================
+   LOGOUT BUTTON
+========================= */
+.logout-btn {
+    width: 100%;
+    padding: 12px;
+    border: none;
+    border-radius: 10px;
+
+    background: linear-gradient(90deg, #ef4444, #f97316);
+    color: #fff;
+    font-weight: 700;
+
+    cursor: pointer;
+    transition: 0.2s ease;
+}
+
+.logout-btn:hover {
+    transform: scale(1.05);
+    opacity: 0.9;
+}
+
+/* =========================
+   SCROLLBAR
+========================= */
+.sidebar::-webkit-scrollbar {
+    width: 6px;
+}
+
+.sidebar::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.4);
+    border-radius: 10px;
+}
+
+.sidebar::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+/* =========================
+   SUBMENU DROPDOWN
+========================= */
+.submenu-toggle {
+    justify-content: space-between;
+}
+
+.submenu-toggle .arrow {
+    font-style: normal;
+    transition: transform 0.25s ease;
+    font-size: 12px;
+}
+
+.submenu-toggle .arrow.open {
+    transform: rotate(180deg);
+}
+
+.menu ul.submenu {
+    list-style: none;
+    padding-left: 0;
+    margin-top: 2px;
+    margin-bottom: 6px;
+}
+
+.menu ul.submenu li {
+    margin-bottom: 4px;
+}
+
+.menu ul.submenu a {
+    padding-left: 32px;
+    font-size: 13px;
+    opacity: 0.92;
+}
 </style>
+
+<script>
+function toggleSubmenu(id, el) {
+    const submenu = document.getElementById(id);
+    const isOpen = submenu.style.display === 'block';
+
+    submenu.style.display = isOpen ? 'none' : 'block';
+
+    const arrow = el.querySelector('.arrow');
+    if (arrow) {
+        arrow.classList.toggle('open', !isOpen);
+    }
+}
+</script>

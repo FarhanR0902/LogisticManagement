@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Models\LogistikPengiriman;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use App\Exports\MonitoringExport;
+use Maatwebsite\Excel\Facades\Excel;
 
 class MonitoringController extends Controller
 {
@@ -14,157 +16,378 @@ class MonitoringController extends Controller
     // DASHBOARD
     // =====================================================
 
-  public function dashboard()
+ public function dashboard()
 {
-    // Total semua data
-    $total_data = DB::table('logistik_pengiriman')->count();
+    $total_data = LogistikPengiriman::count();
 
-    // ─── SLA TIBA ────────────────────────────────────────────
-    // updateMonitoring() menyimpan 'On Time' atau 'Delay'
-    // Hitung realtime dari tanggal (tidak bergantung kolom sla_tiba)
+    // =============================
+    // SLA TIBA
+    // =============================
+    $total_tiba_ontime = LogistikPengiriman::where('sla_tiba', 'On Time')->count();
 
-    $total_tiba_ontime = DB::table('logistik_pengiriman')
-        ->whereNotNull('tanggal_tiba')
-        ->whereNotNull('tanggal_keluar_gudang')
-        ->whereRaw("
-            DATE(tanggal_tiba) <=
-            DATE_ADD(DATE(tanggal_keluar_gudang),
-                INTERVAL transport_lead_time DAY)
-        ")
+    $total_tiba_delay = LogistikPengiriman::where('sla_tiba', 'Delay')->count();
+
+    // =============================
+    // SLA BONGKAR
+    // =============================
+    $total_bongkar_ontime = LogistikPengiriman::where('sla_bongkar', 'On Time')->count();
+
+    $total_bongkar_delay = LogistikPengiriman::where('sla_bongkar', 'Delay')->count();
+
+    // =============================
+    // STATUS AKHIR
+    // =============================
+    $total_ontime_total = LogistikPengiriman::where('status_akhir', 'On Time Total')->count();
+
+    $total_delay_perjalanan = LogistikPengiriman::where('status_akhir', 'Delay Perjalanan')->count();
+
+    $total_delay_pembongkaran = LogistikPengiriman::where('status_akhir', 'Delay Pembongkaran')->count();
+
+    $total_delay_total = LogistikPengiriman::where('status_akhir', 'Delay Total')->count();
+
+    // =============================
+    // ALERT
+    // =============================
+    $delivered_ontime = LogistikPengiriman::where('monitoring_alert', 'Delivered On Time')->count();
+
+    $delivered_delay = LogistikPengiriman::where('monitoring_alert', 'Delivered Delay')->count();
+
+    // =============================
+    // MASIH BELUM SELESAI
+    // =============================
+    $belum_tiba = LogistikPengiriman::whereNull('tanggal_tiba')->count();
+
+    $belum_bongkar = LogistikPengiriman::whereNotNull('tanggal_tiba')
+        ->whereNull('tanggal_bongkar')
         ->count();
 
-    $total_tiba_delay = DB::table('logistik_pengiriman')
-        ->whereNotNull('tanggal_tiba')
-        ->whereNotNull('tanggal_keluar_gudang')
-        ->whereRaw("
-            DATE(tanggal_tiba) >
-            DATE_ADD(DATE(tanggal_keluar_gudang),
-                INTERVAL transport_lead_time DAY)
-        ")
-        ->count();
-
-    $total_final_delay = $total_tiba_delay;
-
-    // ─── SLA BONGKAR ─────────────────────────────────────────
-
-    $total_bongkar_ontime = DB::table('logistik_pengiriman')
-        ->whereNotNull('tanggal_tiba')
-        ->whereNotNull('tanggal_bongkar')
-        ->where('tanggal_bongkar', '!=', '1899-12-31 00:00:00')
-        ->whereRaw("
-            DATEDIFF(DATE(tanggal_bongkar), DATE(tanggal_tiba)) <= 0
-        ")
-        ->count();
-
-    $total_bongkar_delay = DB::table('logistik_pengiriman')
-        ->whereNotNull('tanggal_tiba')
-        ->whereNotNull('tanggal_bongkar')
-        ->where('tanggal_bongkar', '!=', '1899-12-31 00:00:00')
-        ->whereRaw("
-            DATEDIFF(DATE(tanggal_bongkar), DATE(tanggal_tiba)) > 0
-        ")
-        ->count();
-
-    // ─── SUMMARY AREA ────────────────────────────────────────
-
-    $summary_area = DB::table('logistik_pengiriman')
-        ->select('area', DB::raw('COUNT(*) as total'))
-        ->whereNotNull('area')
+    // =============================
+    // SUMMARY AREA
+    // =============================
+    $summary_area = LogistikPengiriman::select(
+            'area',
+            DB::raw('COUNT(*) as total')
+        )
         ->groupBy('area')
         ->orderByDesc('total')
         ->get();
 
     return view('monitoring.dashboard', compact(
         'total_data',
+
         'total_tiba_ontime',
         'total_tiba_delay',
-        'total_final_delay',
+
         'total_bongkar_ontime',
         'total_bongkar_delay',
+
+        'total_ontime_total',
+        'total_delay_perjalanan',
+        'total_delay_pembongkaran',
+        'total_delay_total',
+
+        'delivered_ontime',
+        'delivered_delay',
+
+        'belum_tiba',
+        'belum_bongkar',
+
         'summary_area'
     ));
 }
 
-
-    // =====================================================
-    // DATA MONITORING
-    // =====================================================
+public function export(Request $request)
+{
+    return Excel::download(
+        new MonitoringExport(
+            $request->pic_monitoring,
+            $request->area
+        ),
+        'Monitoring_Logistik.xlsx'
+    );
+}
 
 // public function dataLogistik(Request $request)
 // {
+     
 //     $query = LogistikPengiriman::query();
 
-//     if ($request->pic_monitoring) {
-//         $query->where('pic_monitoring', $request->pic_monitoring);
-//     }
-
-//     if ($request->bulan) {
-//         $query->whereMonth('tanggal_keluar_gudang', $request->bulan);
-//     }
-
-//     if ($request->tahun) {
-//         $query->whereYear('tanggal_keluar_gudang', $request->tahun);
-//     }
-
-//     $logistik = $query->orderBy('id', 'DESC')->get();
-
-//     $picList = LogistikPengiriman::whereNotNull('pic_monitoring')
-//         ->distinct()
-//         ->pluck('pic_monitoring');
-
-//     return view('monitoring.data_monitoring', compact('logistik', 'picList'));
+// if ($request->filled('jenis')) {
+//     $query->where('transportasi', strtoupper($request->jenis));
 // }
+//     // ================= FILTER AREA =================
+//     if ($request->filled('area')) {
+//         $query->where('area', $request->area);
+//     }
+
+//     // ================= FILTER PIC =================
+// if ($request->filled('pic_monitoring')) {
+//     $query->where('pic_monitoring', $request->pic_monitoring);
+// }
+
+//     // ================= FILTER BULAN =================
+//    if ($request->filled('bulan')) {
+//     $query->whereRaw("
+//         MONTH(
+//             GREATEST(
+//                 COALESCE(tanggal_keluar_gudang,'1900-01-01'),
+//                 COALESCE(tanggal_keluar_gudang_2,'1900-01-01'),
+//                 COALESCE(tanggal_keluar_gudang_3,'1900-01-01')
+//             )
+//         ) = ?
+//     ", [$request->bulan]);
+// }
+
+// if ($request->filled('tahun')) {
+//     $query->whereRaw("
+//         YEAR(
+//             GREATEST(
+//                 COALESCE(tanggal_keluar_gudang,'1900-01-01'),
+//                 COALESCE(tanggal_keluar_gudang_2,'1900-01-01'),
+//                 COALESCE(tanggal_keluar_gudang_3,'1900-01-01')
+//             )
+//         ) = ?
+//     ", [$request->tahun]);
+// }
+//     // ================= DATA =================
+//    $logistik = $query
+//     ->orderBy('no_shipment', 'ASC')
+//     ->get();
+//     $logistik = $query
+//     ->orderBy('no_shipment', 'ASC')
+//     ->orderBy('act_urutan_bongkar', 'ASC')
+//     ->get();
+
+// // =====================================================
+// // 🔥 FIX ESTIMASI (ANTI BERUBAH + ANTI SHIFT BUG)
+// // =====================================================
+
+// $lastEstimasiPerShipment = [];
+
+// foreach ($logistik as $r) {
+
+//     $keluar = collect([
+//         $r->tanggal_keluar_gudang,
+//         $r->tanggal_keluar_gudang_2 ?? null,
+//         $r->tanggal_keluar_gudang_3 ?? null,
+//     ])
+//     ->filter()
+//     ->map(fn($d) => strtotime($d))
+//     ->max();
+
+//     $leadtime = (int) $r->transport_lead_time;
+
+//     $key = $r->no_shipment;
+
+//     // =========================
+//     // SHIFT (ANTI QUERY DB)
+//     // =========================
+//     if (!isset($lastEstimasiPerShipment[$key])) {
+//         $shift = 0;
+//     } else {
+//         $shift = 1; // cukup +1 per step (stabil, tidak query DB)
+//     }
+
+//     $leadtimeFinal = $leadtime + $shift;
+
+//     // =========================
+//     // ESTIMASI FINAL
+//     // =========================
+//     if ($keluar) {
+
+//         if (!isset($lastEstimasiPerShipment[$key])) {
+//             $estimasi = strtotime("+{$leadtimeFinal} days", $keluar);
+//         } else {
+//             $estimasi = strtotime("+{$leadtimeFinal} days", $lastEstimasiPerShipment[$key]);
+//         }
+
+//     } else {
+//         $estimasi = null;
+//     }
+
+//     $r->tanggal_estimasi = $estimasi;
+
+//     // simpan anchor (INI YANG BIKIN GA BERUBAH)
+//     $lastEstimasiPerShipment[$key] = $estimasi;
+// }
+
+//     // ================= AREA LIST =================
+//     $areaList = LogistikPengiriman::whereNotNull('area')
+//         ->distinct()
+//         ->pluck('area');
+
+//     // ================= AKURASI TIBA =================
+//     $akurasiTiba = DB::table('akurasi3')
+//         ->distinct()
+//         ->pluck('akurasi_waktu_tiba');
+
+//     // ================= AKURASI BONGKAR =================
+//     $akurasiBongkar = DB::table('akurasi3')
+//         ->distinct()
+//         ->pluck('akurasi_waktu_bongkar');
+//         $picList = LogistikPengiriman::whereNotNull('pic_monitoring')
+//     ->distinct()
+//     ->pluck('pic_monitoring');
+
+//     return view('monitoring.data_monitoring', compact(
+//         'logistik',
+//         'areaList',
+//         'akurasiTiba',
+//         'akurasiBongkar',
+//         'picList'
+//     ));
+// }
+
 
 public function dataLogistik(Request $request)
 {
-     
     $query = LogistikPengiriman::query();
 
-if ($request->filled('jenis')) {
-    $query->where('transportasi', strtoupper($request->jenis));
-}
+    // ================= FILTER JENIS =================
+    if ($request->filled('jenis')) {
+        $query->where('transportasi', strtoupper($request->jenis));
+    }
+
     // ================= FILTER AREA =================
     if ($request->filled('area')) {
         $query->where('area', $request->area);
     }
 
     // ================= FILTER PIC =================
-if ($request->filled('pic_monitoring')) {
-    $query->where('pic_monitoring', $request->pic_monitoring);
-}
+    if ($request->filled('pic_monitoring')) {
+        $query->where('pic_monitoring', $request->pic_monitoring);
+    }
 
     // ================= FILTER BULAN =================
     if ($request->filled('bulan')) {
-        $query->whereMonth('tanggal_keluar_gudang', $request->bulan);
+        $query->whereRaw("
+            MONTH(
+                GREATEST(
+                    COALESCE(tanggal_keluar_gudang,'1900-01-01'),
+                    COALESCE(tanggal_keluar_gudang_2,'1900-01-01'),
+                    COALESCE(tanggal_keluar_gudang_3,'1900-01-01')
+                )
+            ) = ?
+        ", [$request->bulan]);
     }
 
     // ================= FILTER TAHUN =================
     if ($request->filled('tahun')) {
-        $query->whereYear('tanggal_keluar_gudang', $request->tahun);
+        $query->whereRaw("
+            YEAR(
+                GREATEST(
+                    COALESCE(tanggal_keluar_gudang,'1900-01-01'),
+                    COALESCE(tanggal_keluar_gudang_2,'1900-01-01'),
+                    COALESCE(tanggal_keluar_gudang_3,'1900-01-01')
+                )
+            ) = ?
+        ", [$request->tahun]);
     }
+$query->whereNotNull('transport_lead_time');
 
-    // ================= DATA =================
-   $logistik = $query
-    ->orderBy('no_shipment', 'ASC')
-    ->get();
+$query->where(function ($q) {
+    $q->whereNotNull('tanggal_keluar_gudang')
+      ->orWhereNotNull('tanggal_keluar_gudang_2')
+      ->orWhereNotNull('tanggal_keluar_gudang_3');
+});
+    // ================= AMBIL DATA =================
+    $logistik = $query
+        ->orderBy('no_shipment', 'ASC')
+        ->orderBy('act_urutan_bongkar', 'ASC')
+        ->get();
 
-    // ================= AREA LIST =================
+    // =====================================================
+    // HITUNG ESTIMASI BERDASARKAN URUTAN DUPLIKAT SHIPMENT
+    // =====================================================
+
+    // $shipmentCounter = [];
+
+    // foreach ($logistik as $r) {
+
+    //     $shipment = trim($r->no_shipment);
+
+    //     if (!isset($shipmentCounter[$shipment])) {
+    //         $shipmentCounter[$shipment] = 0;
+    //     } else {
+    //         $shipmentCounter[$shipment]++;
+    //     }
+
+    //     $shift = $shipmentCounter[$shipment];
+
+    //     $keluar = collect([
+    //         $r->tanggal_keluar_gudang,
+    //         $r->tanggal_keluar_gudang_2 ?? null,
+    //         $r->tanggal_keluar_gudang_3 ?? null,
+    //     ])
+    //     ->filter()
+    //     ->map(fn($d) => strtotime($d))
+    //     ->max();
+
+    //     $leadtime = (int) ($r->transport_lead_time ?? 0);
+
+    //     $leadtimeFinal = $leadtime + $shift;
+
+    //     if ($keluar) {
+    //         $r->tanggal_estimasi = strtotime(
+    //             "+{$leadtimeFinal} days",
+    //             $keluar
+    //         );
+    //     } else {
+    //         $r->tanggal_estimasi = null;
+    //     }
+    // }
+
+    $grouped = $logistik->groupBy('no_shipment');
+
+foreach ($grouped as $shipment => $items) {
+
+    // ambil estimasi dasar SEKALI per shipment
+    $keluar = $items->flatMap(function ($r) {
+        return [
+            $r->tanggal_keluar_gudang,
+            $r->tanggal_keluar_gudang_2,
+            $r->tanggal_keluar_gudang_3,
+        ];
+    })
+    ->filter()
+    ->map(fn($d) => strtotime($d))
+    ->max();
+
+    $leadtime = (int) ($items->first()->transport_lead_time ?? 0);
+
+    $estimasi = $keluar
+        ? strtotime("+{$leadtime} days", $keluar)
+        : null;
+
+    // assign ke semua row dalam shipment
+ foreach ($items as $r) {
+    $r->tanggal_estimasi = $r->estimasi_tiba
+        ? strtotime($r->estimasi_tiba)
+        : $estimasi;
+}
+}
+
+
+    // ================= LIST AREA =================
     $areaList = LogistikPengiriman::whereNotNull('area')
         ->distinct()
+        ->orderBy('area')
         ->pluck('area');
 
-    // ================= AKURASI TIBA =================
+    // ================= LIST PIC =================
+    $picList = LogistikPengiriman::whereNotNull('pic_monitoring')
+        ->distinct()
+        ->orderBy('pic_monitoring')
+        ->pluck('pic_monitoring');
+
+    // ================= AKURASI =================
     $akurasiTiba = DB::table('akurasi3')
         ->distinct()
         ->pluck('akurasi_waktu_tiba');
 
-    // ================= AKURASI BONGKAR =================
     $akurasiBongkar = DB::table('akurasi3')
         ->distinct()
         ->pluck('akurasi_waktu_bongkar');
-        $picList = LogistikPengiriman::whereNotNull('pic_monitoring')
-    ->distinct()
-    ->pluck('pic_monitoring');
 
     return view('monitoring.data_monitoring', compact(
         'logistik',
@@ -175,14 +398,21 @@ if ($request->filled('pic_monitoring')) {
     ));
 }
 
-
 public function updateMonitoring(Request $request, $id)
 {
-    $logistik = LogistikPengiriman::findOrFail($id);
 
-    $keluar = $logistik->tanggal_keluar_gudang
-        ? strtotime(date('Y-m-d', strtotime($logistik->tanggal_keluar_gudang)))
-        : null;
+
+    $logistik = LogistikPengiriman::findOrFail($id);
+    $oldTanggalTiba = $logistik->tanggal_tiba;
+
+   $keluar = collect([
+    $logistik->tanggal_keluar_gudang,
+    $logistik->tanggal_keluar_gudang_2 ?? null,
+    $logistik->tanggal_keluar_gudang_3 ?? null,
+])
+->filter()
+->map(fn($d) => strtotime($d))
+->max();
 
     $tiba = $request->tanggal_tiba
         ? strtotime(date('Y-m-d', strtotime($request->tanggal_tiba)))
@@ -194,9 +424,17 @@ public function updateMonitoring(Request $request, $id)
 
     $leadtime = (int)($logistik->transport_lead_time ?? 0);
 
-    $estimasi = $keluar
-        ? strtotime("+{$leadtime} days", $keluar)
-        : null;
+    // $estimasi = $keluar
+    //     ? strtotime("+{$leadtime} days", $keluar)
+    //     : null;
+
+    $estimasi = $logistik->estimasi_tiba
+    ? strtotime($logistik->estimasi_tiba)
+    : (
+        $keluar
+            ? strtotime("+{$leadtime} days", $keluar)
+            : null
+    );
 
     $lama_perjalanan = ($keluar && $tiba)
         ? max(0, floor(($tiba - $keluar) / 86400))
@@ -225,9 +463,17 @@ $logistik->monitoring_alert = $logic['alert'];
 $logistik->sla_tiba = $sla_tiba;
 $logistik->sla_bongkar = $sla_bongkar;
 
-$logistik->estimasi_tiba = $estimasi
-    ? date('Y-m-d', $estimasi)
-    : null;
+if (empty($logistik->estimasi_tiba)) {
+
+if (!$logistik->tanggal_bongkar && empty($logistik->estimasi_tiba)) {
+
+    $logistik->estimasi_tiba = $estimasi
+        ? date('Y-m-d', $estimasi)
+        : null;
+
+}
+
+}
 
     $logistik->reason_tiba    = $request->reason_tiba;
 $logistik->reason_bongkar = $request->reason_bongkar;
@@ -240,6 +486,9 @@ $logistik->reason_bongkar = $request->reason_bongkar;
     $logistik->action_required  = $request->action_required;
 
     $logistik->act_urutan_bongkar = $request->act_urutan_bongkar;
+        $logistik->qty_monitoring = $request->qty_monitoring;
+$logistik->selisih_qty = $logistik->total_do_qty_car - $logistik->qty_monitoring;
+                $logistik->remarks_qty = $request->remarks_qty;
 
     $logistik->tanggal_tiba    = $request->tanggal_tiba;
     $logistik->tanggal_bongkar = $request->tanggal_bongkar;
@@ -256,35 +505,54 @@ $logistik->reason_bongkar = $request->reason_bongkar;
     $logistik->created_by        = $request->input('created_by');
     $logistik->total_do_qty_car  = $request->input('total_do_qty_car');
 
-    // =========================
-// TRANSPORT LAUT (NEW)
-// =========================
-$logistik->nama_kapal = $request->nama_kapal ?? 0;
 
-if ($logistik->nama_kapal == 1) {
+if ($request->filled('nama_kapal')) {
 
     $logistik->nama_kapal = $request->nama_kapal;
-
     $logistik->etd = $request->etd;
     $logistik->eta = $request->eta;
     $logistik->atd = $request->atd;
     $logistik->ata = $request->ata;
 
-} else {
-
-    $logistik->nama_kapal = null;
-    $logistik->etd = null;
-    $logistik->eta = null;
-    $logistik->atd = null;
-    $logistik->ata = null;
 }
     $logistik->save();
 
+    
+$shipment = LogistikPengiriman::where(
+    'no_shipment',
+    $logistik->no_shipment
+)->get();
+
+$baseEstimasi = $keluar
+    ? strtotime("+{$leadtime} days", $keluar)
+    : null;
+
+// cari tanggal bongkar terakhir
+$lastBongkar = $shipment
+    ->whereNotNull('tanggal_bongkar')
+    ->max('tanggal_bongkar');
+
+$nextEstimasi = $lastBongkar
+    ? date('Y-m-d', strtotime($lastBongkar . ' +1 day'))
+    : ($baseEstimasi ? date('Y-m-d', $baseEstimasi) : null);
+
+// update hanya yang BELUM TIBA
+foreach ($shipment as $item) {
+
+    // sudah pernah tiba = estimasi dikunci
+    if (!empty($item->tanggal_tiba)) {
+        continue;
+    }
+
+    $item->estimasi_tiba = $nextEstimasi;
+    $item->save();
+}
  return response()->json([
     'status' => 'success',
     'message' => 'Data transport laut berhasil diupdate'
 ]);
 }
+
 
 public function updateTransportLaut(Request $request)
 {
@@ -308,324 +576,93 @@ public function updateTransportLaut(Request $request)
         'message' => 'Data transport laut berhasil diupdate'
     ]);
 }
-//  public function updateMonitoring(Request $request, $id)
-//     {
-        
 
-//         $logistik = LogistikPengiriman::findOrFail($id);
+// private function generateStatusAlert($sla_tiba, $sla_bongkar)
+// {
+//     // normalisasi status
+//     $tibaDelay = ($sla_tiba !== 'On Time' && $sla_tiba !== '-' && $sla_tiba !== null);
+//     $bongkarDelay = ($sla_bongkar !== 'On Time' && $sla_bongkar !== '-' && $sla_bongkar !== null);
 
-//         $keluar = $logistik->tanggal_keluar_gudang
-//             ? strtotime(date('Y-m-d', strtotime($logistik->tanggal_keluar_gudang)))
-//             : null;
+//     // default
+//     $status_akhir = 'In Transit';
+//     $alert = 'Menunggu update';
 
-//         $tiba = $request->tanggal_tiba
-//             ? strtotime(date('Y-m-d', strtotime($request->tanggal_tiba)))
-//             : null;
-
-//         $bongkar = $request->tanggal_bongkar
-//             ? strtotime(date('Y-m-d', strtotime($request->tanggal_bongkar)))
-//             : null;
-
-//         $leadtime = (int)($logistik->transport_lead_time ?? 0);
-
-//         $estimasi = $keluar
-//             ? strtotime("+{$leadtime} days", $keluar)
-//             : null;
-
-//         $lama_perjalanan = ($keluar && $tiba)
-//             ? max(0, floor(($tiba - $keluar) / 86400))
-//             : null;
-
-//         $sla_tiba = ($tiba && $estimasi)
-//             ? (($tiba <= $estimasi) ? 'On Time' : 'Delay')
-//             : '-';
-
-//         $overstay = ($tiba && $bongkar)
-//             ? max(0, floor(($bongkar - $tiba) / 86400))
-//             : null;
-
-//         $sla_bongkar = ($tiba && $bongkar)
-//             ? (($overstay <= 0) ? 'On Time' : 'Delay')
-//             : '-';
-
-//         $logistik->pic_monitoring   = $request->pic_monitoring;
-//         $logistik->status_kendaraan = $request->status_kendaraan;
-//         $logistik->action_required  = $request->action_required;
-//         $logistik->monitoring_alert = $request->monitoring_alert;
-
-//         $logistik->act_urutan_bongkar = $request->act_urutan_bongkar;
-
-//         $logistik->tanggal_tiba    = $request->tanggal_tiba;
-//         $logistik->tanggal_bongkar  = $request->tanggal_bongkar;
-// $logic = $this->generateStatusAlert($sla_tiba, $sla_bongkar);
-
-//         $logistik->overstay_days   = $overstay;
-//         $logistik->lama_perjalanan = $lama_perjalanan;
-
-//         $logistik->reason_tiba     = $request->reason_tiba;
-//         $logistik->reason_bongkar  = $request->reason_bongkar;
-
-//         $logistik->remarks         = $request->remarks;
-
-//         $logistik->act_pgi_date = $request->input('act_pgi_date');
-// $logistik->created_by   = $request->input('created_by');
-// $logistik->total_do_qty_car = $request->input('total_do_qty_car');
-
-
-//         $logistik->save();
-
-//         return response()->json([
-//             'success' => true,
-//             'message' => 'Monitoring berhasil diupdate'
-//         ]);
+//     // 1. ON TIME + ON TIME
+//     if (!$tibaDelay && !$bongkarDelay) {
+//         $status_akhir = 'Delivered On Time';
+//         $alert = 'Delivered On Time';
 //     }
+
+//     // 2. ON TIME + DELAY BONGKAR
+//     elseif (!$tibaDelay && $bongkarDelay) {
+//         $status_akhir = 'Delivered Delay';
+//         $alert = 'Delay di Pembongkaran';
+//     }
+
+//     // 3. DELAY TIBA + ON TIME BONGKAR
+//     elseif ($tibaDelay && !$bongkarDelay) {
+//         $status_akhir = 'Delivered Delay';
+//         $alert = 'Delay di Perjalanan';
+//     }
+
+//     // 4. DELAY KEDUANYA
+//     elseif ($tibaDelay && $bongkarDelay) {
+//         $status_akhir = 'Delivered Delay';
+//         $alert = 'Delay Total (Perjalanan + Pembongkaran)';
+//     }
+
+//     return [
+//         'status_akhir' => $status_akhir,
+//         'alert' => $alert
+//     ];
+// }
 
 private function generateStatusAlert($sla_tiba, $sla_bongkar)
 {
-    // normalisasi status
-    $tibaDelay = ($sla_tiba !== 'On Time' && $sla_tiba !== '-' && $sla_tiba !== null);
-    $bongkarDelay = ($sla_bongkar !== 'On Time' && $sla_bongkar !== '-' && $sla_bongkar !== null);
+    $sla_tiba = strtolower(trim($sla_tiba ?? '-'));
+    $sla_bongkar = strtolower(trim($sla_bongkar ?? '-'));
 
-    // default
-    $status_akhir = 'In Transit';
-    $alert = 'Menunggu update';
-
-    // 1. ON TIME + ON TIME
-    if (!$tibaDelay && !$bongkarDelay) {
-        $status_akhir = 'Delivered On Time';
-        $alert = 'Delivered On Time';
+    // Belum lengkap
+    if ($sla_tiba == '-' || $sla_bongkar == '-') {
+        return [
+            'status_akhir' => '-',
+            'alert' => '-'
+        ];
     }
 
-    // 2. ON TIME + DELAY BONGKAR
-    elseif (!$tibaDelay && $bongkarDelay) {
-        $status_akhir = 'Delivered Delay';
-        $alert = 'Delay di Pembongkaran';
+    // ON TIME + ON TIME
+    if ($sla_tiba == 'on time' && $sla_bongkar == 'on time') {
+
+        return [
+            'status_akhir' => 'On Time Total',
+            'alert' => 'Delivered On Time'
+        ];
     }
 
-    // 3. DELAY TIBA + ON TIME BONGKAR
-    elseif ($tibaDelay && !$bongkarDelay) {
-        $status_akhir = 'Delivered Delay';
-        $alert = 'Delay di Perjalanan';
+    // DELAY PERJALANAN
+    if ($sla_tiba == 'delay' && $sla_bongkar == 'on time') {
+
+        return [
+            'status_akhir' => 'Delay Perjalanan',
+            'alert' => 'Delay Perjalanan'
+        ];
     }
 
-    // 4. DELAY KEDUANYA
-    elseif ($tibaDelay && $bongkarDelay) {
-        $status_akhir = 'Delivered Delay';
-        $alert = 'Delay Total (Perjalanan + Pembongkaran)';
+    // DELAY PEMBONGKARAN
+    if ($sla_tiba == 'on time' && $sla_bongkar == 'delay') {
+
+        return [
+            'status_akhir' => 'Delay Pembongkaran',
+            'alert' => 'Delay Pembongkaran'
+        ];
     }
 
+    // DELAY TOTAL
     return [
-        'status_akhir' => $status_akhir,
-        'alert' => $alert
+        'status_akhir' => 'Delay Total',
+        'alert' => 'Delivered Delay'
     ];
 }
-// public function updateMonitoring(Request $request, $id)
-// {
-//     $logistik = LogistikPengiriman::findOrFail($id);
-
-//     // =========================
-//     // DATA DASAR
-//     // =========================
-//     $keluar = $logistik->tanggal_keluar_gudang
-//         ? strtotime(date('Y-m-d', strtotime($logistik->tanggal_keluar_gudang)))
-//         : null;
-
-//     $tiba = $request->tanggal_tiba
-//         ? strtotime(date('Y-m-d', strtotime($request->tanggal_tiba)))
-//         : null;
-
-//     $bongkar = $request->tanggal_bongkar
-//         ? strtotime(date('Y-m-d', strtotime($request->tanggal_bongkar)))
-//         : null;
-
-//     $leadtime = (int)($logistik->transport_lead_time ?? 0);
-
-//     // =========================
-//     // ESTIMASI
-//     // =========================
-//     $estimasi = $keluar
-//         ? strtotime("+{$leadtime} days", $keluar)
-//         : null;
-
-//     // =========================
-//     // LAMA PERJALANAN (INI YANG KAMU MINTA)
-//     // =========================
-//     $lama_perjalanan = ($keluar && $tiba)
-//         ? floor(($tiba - $keluar) / 86400)
-//         : null;
-
-//     // =========================
-//     // SLA TIBA
-//     // =========================
-//     $sla_tiba = '-';
-
-//     if ($tiba && $estimasi) {
-//         $sla_tiba = ($tiba <= $estimasi) ? 'On Time' : 'Delay';
-//     }
-
-//     // =========================
-//     // OVERSTAY + SLA BONGKAR
-//     // =========================
-//     $overstay = null;
-//     $sla_bongkar = '-';
-
-//     if ($tiba && $bongkar) {
-//         $overstay = max(0, floor(($bongkar - $tiba) / 86400));
-//         $sla_bongkar = ($overstay <= 0) ? 'On Time' : 'Delay';
-//     }
-
-//     // =========================
-//     // SAVE DATABASE (FIXED FULL)
-//     // =========================
-//     $logistik->pic_monitoring   = $request->pic_monitoring; // ✅ FIX
-//     $logistik->status_kendaraan = $request->status_kendaraan;
-//     $logistik->action_required  = $request->action_required;
-//     $logistik->monitoring_alert = $request->monitoring_alert;
-
-//     $logistik->act_urutan_bongkar = $request->act_urutan_bongkar;
-
-//     $logistik->tanggal_tiba    = $request->tanggal_tiba;
-//     $logistik->tanggal_bongkar = $request->tanggal_bongkar;
-
-//     $logistik->sla_tiba       = $sla_tiba;
-//     $logistik->sla_bongkar    = $sla_bongkar;
-
-//     $logistik->overstay_days  = $overstay;
-//     $logistik->lama_perjalanan = $lama_perjalanan; // ✅ FIX INI
-
-//     $logistik->reason_tiba    = $request->reason_tiba;
-//     $logistik->reason_bongkar = $request->reason_bongkar;
-
-//     $logistik->remarks        = $request->remarks;
-
-//     $logistik->save();
-
-//     return response()->json([
-//         'success' => true,
-//         'message' => 'Monitoring berhasil diupdate'
-//     ]);
-// }
-    // UPDATE MONITORING
-    // =====================================================
-// public function updateMonitoring(Request $request, $id)
-// {
-//     $logistik = LogistikPengiriman::findOrFail($id);
-
-//     // =========================
-//     // HITUNG OVERSTAY
-//     // =========================
-//     $overstay = 0;
-
-//     if (!empty($request->tanggal_tiba) && !empty($request->tanggal_bongkar)) {
-
-//         $tiba = strtotime($request->tanggal_tiba);
-//         $bongkar = strtotime($request->tanggal_bongkar);
-
-//         $overstay = floor(($bongkar - $tiba) / 86400);
-
-//         if ($overstay < 0) $overstay = 0;
-//     }
-
-//     // =========================
-//     // HITUNG SLA TIBA (AUTO)
-//     // =========================
-// $keluar = $logistik->tanggal_keluar_gudang
-//     ? strtotime(date('Y-m-d', strtotime($logistik->tanggal_keluar_gudang)))
-//     : null;
-
-// $tiba = $request->tanggal_tiba
-//     ? strtotime(date('Y-m-d', strtotime($request->tanggal_tiba)))
-//     : null;
-//     $estimasi = $estimasi
-//     ? strtotime(date('Y-m-d 00:00:00', $estimasi))
-//     : null;
-
-// $bongkar = $request->tanggal_bongkar
-//     ? strtotime(date('Y-m-d', strtotime($request->tanggal_bongkar)))
-//     : null;
-
-// $leadtime = (int)($logistik->transport_lead_time ?? 0);
-
-// // ================= ESTIMASI =================
-// $estimasi = $keluar
-//     ? strtotime("+$leadtime days", $keluar)
-//     : null;
-
-// // ================= SLA TIBA =================
-// $sla_tiba = '-';
-
-// if ($tiba && $estimasi) {
-//     $sla_tiba = ($tiba <= $estimasi) ? 'On Time' : 'Delay';
-// }
-
-// // ================= OVERSTAY =================
-// $overstay = null;
-
-// if ($tiba && $bongkar) {
-//     $overstay = floor(($bongkar - $tiba) / 86400);
-//     $overstay = max(0, $overstay);
-// }
-
-// // ================= SLA BONGKAR =================
-// $sla_bongkar = '-';
-
-// if ($tiba && $bongkar) {
-//     $sla_bongkar = ($overstay <= 0) ? 'On Time' : 'Delay';
-// }
-
-//     // =========================
-//     // SAVE KE DATABASE (LOGISTIK)
-//     // =========================
-//     $logistik->pic_monitoring     = $request->pic_monitoring;
-//     $logistik->status_kendaraan   = $request->status_kendaraan;
-//     $logistik->monitoring_alert   = $request->monitoring_alert;
-//     $logistik->action_required    = $request->action_required;
-
-//     $logistik->act_urutan_bongkar = $request->act_urutan_bongkar;
-
-//     $logistik->tanggal_tiba       = $request->tanggal_tiba;
-//     $logistik->tanggal_bongkar    = $request->tanggal_bongkar;
-
-//     $logistik->sla_tiba           = $sla_tiba;
-//     $logistik->sla_bongkar        = $sla_bongkar;
-
-//     $logistik->overstay_days      = $overstay;
-
-//     $logistik->reason_tiba        = $request->reason_tiba;
-//     $logistik->reason_bongkar     = $request->reason_bongkar;
-
-//     $logistik->status_akhir       = $request->status_akhir;
-//     $logistik->remarks            = $request->remarks;
-
-//     $logistik->save();
-
-//     return back()->with('success', 'Monitoring & SLA berhasil diupdate');
-// }
-
-
-    // =====================================================
-    // BONGKAR DELAY
-    // =====================================================
-
-//     public function bongkarDelay()
-// {
-//     $logistik = DB::table('logistik_pengiriman')
-//         ->where(function ($q) {
-
-//             $q->whereRaw("LOWER(sla_bongkar) = 'delay'")
-//               ->orWhereRaw("LOWER(sla_bongkar) = 'critical delay'")
-//               ->orWhere('sla_bongkar', 'H+1')
-//               ->orWhere('sla_bongkar', 'H+2')
-//               ->orWhere('sla_bongkar', 'H>2');
-
-//         })
-//         ->get();
-
-//     return view(
-//         'monitoring.bongkar_delay',
-//         compact('logistik')
-//     );
-// }
 
 public function bongkarDelay(Request $request)
 {
@@ -652,45 +689,27 @@ public function bongkarDelay(Request $request)
 }
 
 
-    // =====================================================
-    // BONGKAR ONTIME
-    // =====================================================
-
-//     public function bongkarOntime()
-// {
-//     $logistik = DB::table('logistik_pengiriman')
-//         ->where(function ($q) {
-
-//             $q->whereRaw("LOWER(sla_bongkar) = 'on time'")
-//               ->orWhere('sla_bongkar', 'ONTIME')
-//               ->orWhere('sla_bongkar', 'H+0');
-
-//         })
-//         ->get();
-
-//     return view(
-//         'monitoring.bongkar_ontime',
-//         compact('logistik')
-//     );
-// }
+  
 public function bongkarOntime(Request $request)
 {
     $query = DB::table('logistik_pengiriman')
         ->selectRaw("
             *,
             CASE
-                WHEN overstay_days IS NULL OR overstay_days = 0 THEN 'H+0'
-                WHEN overstay_days = 1 THEN 'H+1'
-                WHEN overstay_days = 2 THEN 'H+2'
-                ELSE 'Critical Delay'
+                WHEN DATEDIFF(DATE(tanggal_bongkar), DATE(tanggal_tiba)) <= 0
+                THEN 'On Time'
+                ELSE 'Delay'
             END AS sla_bongkar
         ")
         ->whereNotNull('tanggal_bongkar')
+        ->whereNotNull('tanggal_tiba')
         ->where('tanggal_bongkar', '!=', '1899-12-31 00:00:00')
-        ->where(function ($q) {
-            $q->whereNull('overstay_days')
-              ->orWhere('overstay_days', 0);
-        });
+        ->whereRaw("
+            DATEDIFF(
+                DATE(tanggal_bongkar),
+                DATE(tanggal_tiba)
+            ) <= 0
+        ");
 
     if ($request->filled('tanggal_bongkar')) {
         $query->whereDate('tanggal_bongkar', $request->tanggal_bongkar);
@@ -700,11 +719,12 @@ public function bongkarOntime(Request $request)
         $query->where('area', $request->area);
     }
 
-    $list = $query->orderByDesc('tanggal_bongkar')->get();
+    $list = $query
+        ->orderByDesc('tanggal_bongkar')
+        ->get();
 
     return view('monitoring.bongkar_ontime', compact('list'));
 }
-
     // =====================================================
     // SLA ONTIME
     // =====================================================
@@ -714,44 +734,28 @@ public function slaOntime(Request $request)
 {
     $query = DB::table('logistik_pengiriman')
         ->selectRaw("
-            *,
+            logistik_pengiriman.*,
+
+            estimasi_tiba AS tanggal_estimasi,
+
             CASE
                 WHEN DATEDIFF(
                     DATE(tanggal_tiba),
-                    DATE_ADD(
-                        DATE(tanggal_keluar_gudang),
-                        INTERVAL transport_lead_time DAY
-                    )
-                ) = 1 THEN 'H+1'
-
-                WHEN DATEDIFF(
-                    DATE(tanggal_tiba),
-                    DATE_ADD(
-                        DATE(tanggal_keluar_gudang),
-                        INTERVAL transport_lead_time DAY
-                    )
-                ) = 2 THEN 'H+2'
-
-                WHEN DATEDIFF(
-                    DATE(tanggal_tiba),
-                    DATE_ADD(
-                        DATE(tanggal_keluar_gudang),
-                        INTERVAL transport_lead_time DAY
-                    )
-                ) > 2 THEN 'Critical Delay'
-
-                ELSE 'On Time'
+                    DATE(estimasi_tiba)
+                ) <= 0
+                THEN 'On Time'
+                ELSE 'Delay'
             END AS sla_tiba
         ")
         ->whereNotNull('tanggal_tiba')
-        ->whereNotNull('tanggal_keluar_gudang')
-        ->whereRaw("
-            DATE(tanggal_tiba) <=
-            DATE_ADD(
-                DATE(tanggal_keluar_gudang),
-                INTERVAL transport_lead_time DAY
-            )
-        ");
+        ->whereNotNull('estimasi_tiba');
+
+    $query->havingRaw("
+        DATEDIFF(
+            DATE(tanggal_tiba),
+            DATE(estimasi_tiba)
+        ) <= 0
+    ");
 
     if ($request->filled('bulan')) {
         $query->whereMonth('tanggal_tiba', $request->bulan);
@@ -765,14 +769,7 @@ public function slaOntime(Request $request)
         ->orderByDesc('tanggal_tiba')
         ->get();
 
-    $list_area = DB::table('logistik_pengiriman')
-        ->select('area')
-        ->whereNotNull('area')
-        ->groupBy('area')
-        ->orderBy('area')
-        ->get();
-
-    return view('monitoring.sla_ontime', compact('logistik', 'list_area'));
+    return view('monitoring.sla_ontime', compact('logistik'));
 }
     // =====================================================
     // SLA DELAY
@@ -780,69 +777,45 @@ public function slaOntime(Request $request)
 
 public function slaDelay(Request $request)
 {
-      $query = DB::table('logistik_pengiriman')
-    ->selectRaw("
-        *,
-        CASE
-            WHEN DATEDIFF(
-                DATE(tanggal_tiba),
-                DATE_ADD(
-                    DATE(tanggal_keluar_gudang),
-                    INTERVAL transport_lead_time DAY
-                )
-            ) = 1 THEN 'H+1'
+    $query = DB::table('logistik_pengiriman')
+        ->selectRaw("
+            logistik_pengiriman.*,
 
-            WHEN DATEDIFF(
-                DATE(tanggal_tiba),
-                DATE_ADD(
-                    DATE(tanggal_keluar_gudang),
-                    INTERVAL transport_lead_time DAY
-                )
-            ) = 2 THEN 'H+2'
+            estimasi_tiba AS tanggal_estimasi,
 
-            WHEN DATEDIFF(
-                DATE(tanggal_tiba),
-                DATE_ADD(
-                    DATE(tanggal_keluar_gudang),
-                    INTERVAL transport_lead_time DAY
-                )
-            ) > 2 THEN 'Critical Delay'
+            CASE
+                WHEN DATEDIFF(
+                    DATE(tanggal_tiba),
+                    DATE(estimasi_tiba)
+                ) > 0
+                THEN 'Delay'
+                ELSE 'On Time'
+            END AS sla_tiba
+        ")
+        ->whereNotNull('tanggal_tiba')
+        ->whereNotNull('estimasi_tiba');
 
-            ELSE 'On Time'
-        END AS sla_tiba
-    ")
-    ->whereNotNull('tanggal_tiba')
-    ->whereNotNull('tanggal_keluar_gudang')
-    ->whereRaw("
-        DATE(tanggal_tiba) >
-        DATE_ADD(
-            DATE(tanggal_keluar_gudang),
-            INTERVAL transport_lead_time DAY
-        )
+    // Hanya tampilkan yang Delay
+    $query->havingRaw("
+        DATEDIFF(
+            DATE(tanggal_tiba),
+            DATE(estimasi_tiba)
+        ) > 0
     ");
 
-if ($request->filled('bulan')) {
-    $query->whereMonth('tanggal_tiba', $request->bulan);
-}
+    if ($request->filled('bulan')) {
+        $query->whereMonth('tanggal_tiba', $request->bulan);
+    }
 
-if ($request->filled('tahun')) {
-    $query->whereYear('tanggal_tiba', $request->tahun);
-}
+    if ($request->filled('tahun')) {
+        $query->whereYear('tanggal_tiba', $request->tahun);
+    }
 
-$logistik = $query
-    ->orderByDesc('tanggal_tiba')
-    ->get();
-
-
-    // area list biar sama kayak ontime
-    $list_area = DB::table('logistik_pengiriman')
-        ->select('area')
-        ->whereNotNull('area')
-        ->groupBy('area')
-        ->orderBy('area')
+    $logistik = $query
+        ->orderByDesc('tanggal_tiba')
         ->get();
 
-    return view('monitoring.sla_delay', compact('logistik', 'list_area'));
+    return view('monitoring.sla_delay', compact('logistik'));
 }
     // =====================================================
     // SUMMARY AREA
@@ -886,3 +859,7 @@ $logistik = $query
         );
     }
 }
+
+
+// $grouped = $logistik->groupBy('no_shipment');
+

@@ -111,6 +111,69 @@ body{
     color:#111827;
 }
 
+/* ================= GAYA KARTU "KLAIM" (mengikuti referensi dashboard klaim
+   asuransi kamu) - dipakai khusus di section Nilai Muatan & CR per Pulau
+   supaya kelihatan bedanya, bukan cuma pakai .total-card yang sama seperti
+   card lain di halaman ini ================= */
+
+.claim-style-row{
+    display:flex;
+    gap:16px;
+    flex-wrap:wrap;
+    margin-bottom:16px;
+}
+
+.claim-style-card{
+    flex:1;
+    min-width:220px;
+    background:#fff;
+    border-radius:20px;
+    padding:20px 24px;
+    box-shadow:0 6px 18px rgba(0,0,0,.06);
+}
+
+.claim-style-card .claim-label{
+    font-size:12px;
+    font-weight:700;
+    color:#374151;
+    letter-spacing:.5px;
+    text-transform:uppercase;
+    margin-bottom:10px;
+}
+
+.claim-style-card .claim-value{
+    font-size:28px;
+    font-weight:800;
+}
+
+.claim-value-dark{color:#111827;}
+.claim-value-green{color:#16a34a;}
+.claim-value-purple{color:#7c3aed;}
+
+.claim-chart-box{
+    background:#fff;
+    border-radius:20px;
+    padding:20px;
+    box-shadow:0 6px 18px rgba(0,0,0,.06);
+    margin-bottom:16px;
+}
+
+.claim-chart-box h4{
+    text-align:center;
+    font-size:15px;
+    color:#111827;
+    margin-bottom:14px;
+}
+
+.claim-chart-wrapper{
+    position:relative;
+    height:340px;
+}
+
+@media(max-width:768px){
+    .claim-style-row{flex-direction:column;}
+}
+
 /* ================= CHART GRID ================= */
 .chart-grid{
     display:grid;
@@ -527,7 +590,91 @@ td{
 
 </div>
 
+<!-- ================= NILAI MUATAN & CR PER PULAU (BARU) ================= -->
+<div class="table-box">
+
+    <h3>🏝️ Nilai Muatan &amp; CR per Pulau</h3>
+
+    {{-- 3 kartu ringkasan gaya "klaim asuransi" (referensi kamu): angka besar
+         berwarna, bukan kotak berwarna. Urutan & warna disamakan persis:
+         CR (hitam, dulunya "Total Klaim Asuransi"), Nilai Muatan (hijau,
+         dulunya "Jumlah Nominal Klaim Asuransi"), Biaya Kirim (ungu,
+         dulunya "Rata-Rata Nominal Klaim Asuransi"). --}}
+    <div class="claim-style-row">
+
+        <div class="claim-style-card">
+            <div class="claim-label">CR</div>
+            <div class="claim-value claim-value-dark">{{ number_format($ratio,2) }}%</div>
+        </div>
+
+        <div class="claim-style-card">
+            <div class="claim-label">Nilai Muatan</div>
+            <div class="claim-value claim-value-green">Rp{{ number_format($totalNilaiMuatan,0,',','.') }}</div>
+        </div>
+
+        <div class="claim-style-card">
+            <div class="claim-label">Biaya Kirim</div>
+            <div class="claim-value claim-value-purple">Rp{{ number_format($totalBiayaKirim,0,',','.') }}</div>
+        </div>
+
+    </div>
+
+    {{-- Chart kombinasi bar + line, style card terpisah dgn judul di tengah,
+         mirip chart "Presentase Klaim Asuransi Bulanan" di referensi kamu:
+         bar biru = Nilai Muatan, line oranye = CR%, sumbu kiri Rp / sumbu
+         kanan %. --}}
+    <div class="claim-chart-box">
+        <h4>📊 Presentase Nilai Muatan &amp; CR per Pulau</h4>
+        <div class="claim-chart-wrapper">
+            <canvas id="chartPulau"></canvas>
+        </div>
+    </div>
+
+    <div style="overflow-x:auto; margin-top:16px;">
+
+    <table>
+        <thead>
+        <tr>
+            <th>No</th>
+            <th>Pulau</th>
+            <th>Shipment</th>
+            <th>Nilai Muatan</th>
+            <th>Biaya Kirim</th>
+            <th>CR (%)</th>
+        </tr>
+        </thead>
+
+        <tbody>
+        @forelse(($summary_pulau ?? collect()) as $key => $p)
+        <tr>
+            <td>{{ $key+1 }}</td>
+            <td style="text-align:left; font-weight:500;">
+                {{ $p->pulau_pasuruan }}
+            </td>
+            <td>{{ $p->total_shipment }}</td>
+            <td style="text-align:right;">
+                Rp {{ number_format($p->total_muatan,0,',','.') }}
+            </td>
+            <td style="text-align:right;">
+                Rp {{ number_format($p->total_biaya,0,',','.') }}
+            </td>
+            <td>{{ number_format($p->cr,2) }}%</td>
+        </tr>
+        @empty
+        <tr>
+            <td colspan="6" style="text-align:center;color:#999;">
+                No data pulau
+            </td>
+        </tr>
+        @endforelse
+        </tbody>
+
+    </table>
+
+    </div>
+
 </div>
+
 <!-- ================= SUMMARY PERSENTASE ================= -->
 <div class="table-box">
 
@@ -619,6 +766,15 @@ td{
     </table>
 
 </div>
+
+</div>
+<!-- ⬆️ FIXED: penutup .container dipindah ke sini (setelah Summary Planner).
+     Sebelumnya </div> penutup .container ada tepat setelah "Summary Tujuan
+     Detail", jadi section "Summary Monitoring (Persentase)" & "Summary
+     Planner" render DI LUAR .container - kehilangan margin-left:250px
+     sehingga ketimpa/numpuk sama sidebar. Sekarang semua section ada di
+     dalam .container. -->
+
 <!-- ================= CHART JS (TETAP PUNYA KAMU) ================= -->
 <script>
 
@@ -687,6 +843,75 @@ new Chart(document.getElementById('chartTujuan'), {
         }]
     },
     options:{responsive:true,maintainAspectRatio:false}
+});
+
+// ================= CHART PULAU (BARU) =================
+// Bar = Nilai Muatan per Pulau (sumbu kiri, Rp)
+// Line = CR (%) per Pulau (sumbu kanan, %)
+// Data dikirim dari PasuruanController::dashboard() -> summary_pulau
+const labelPulau  = @json($label_pulau ?? []);
+const muatanPulau = @json($value_muatan_pulau ?? []);
+const crPulau     = @json($value_cr_pulau ?? []);
+
+new Chart(document.getElementById('chartPulau'), {
+    // FIXED: sebelumnya tidak ada "type" di level root config. Untuk mixed
+    // chart (bar + line dalam 1 canvas), Chart.js tetap butuh type di root
+    // sebagai fallback - kalau tidak ada, chart bisa gagal render sama
+    // sekali (canvas kosong, tanpa error yang kelihatan di halaman).
+    type: 'bar',
+    data: {
+        labels: labelPulau,
+        datasets: [
+            {
+                type: 'bar',
+                label: 'Nilai Muatan (Rp)',
+                data: muatanPulau,
+                backgroundColor: '#3b82f6',
+                yAxisID: 'yMuatan',
+                order: 2
+            },
+            {
+                type: 'line',
+                label: 'CR (%)',
+                data: crPulau,
+                borderColor: '#f59e0b',
+                backgroundColor: '#f59e0b',
+                tension: 0.3,
+                yAxisID: 'yCr',
+                order: 1
+            }
+        ]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: { position: 'top' }
+        },
+        scales: {
+            yMuatan: {
+                type: 'linear',
+                position: 'left',
+                title: { display: true, text: 'Nilai Muatan (Rp)' },
+                ticks: {
+                    callback: function(value) {
+                        return 'Rp ' + Number(value).toLocaleString('id-ID');
+                    }
+                }
+            },
+            yCr: {
+                type: 'linear',
+                position: 'right',
+                title: { display: true, text: 'CR (%)' },
+                grid: { drawOnChartArea: false },
+                ticks: {
+                    callback: function(value) {
+                        return value + '%';
+                    }
+                }
+            }
+        }
+    }
 });
 
 </script>

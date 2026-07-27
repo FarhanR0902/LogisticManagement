@@ -6,6 +6,10 @@
 <html lang="id">
 
 <head>
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.8/css/jquery.dataTables.min.css">
+
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Belum Dapat Armada</title>
@@ -136,6 +140,25 @@
 
         }
 
+        table.dataTable thead th{
+    background:#dc3545 !important;
+    color:#fff !important;
+}
+
+.dataTables_wrapper{
+    font-size:13px;
+}
+
+.dataTables_wrapper .dataTables_filter,
+.dataTables_wrapper .dataTables_length{
+    margin-bottom:10px;
+}
+
+.dataTables_wrapper .dataTables_filter input{
+    padding:5px;
+    width:220px;
+}
+
     </style>
 
 </head>
@@ -223,7 +246,7 @@
     <!-- TABLE -->
     <div class="table-container">
 
-        <table>
+      <table id="tableBelumArmada" class="display nowrap">
 
             <thead>
 
@@ -252,7 +275,7 @@
 
                 <tr>
 
-                    <td>{{ $index + 1 }}</td>
+                    <td></td>
 
                     <td>{{ $row->no_shipment ?? '-' }}</td>
 
@@ -331,6 +354,65 @@
     </div>
 
 </div>
+<script>
+$(document).ready(function(){
+
+    var table = $('#tableBelumArmada').DataTable({
+
+        scrollX:true,
+
+        pageLength:10,
+
+        lengthMenu:[
+            [10,25,50,100,-1],
+            [10,25,50,100,"Semua"]
+        ],
+
+        columnDefs:[
+            {
+                targets:0,
+                orderable:false,
+                searchable:false
+            }
+        ],
+
+        order:[[1,'asc']],
+
+        language:{
+            search:"Cari :",
+            lengthMenu:"Tampilkan _MENU_ data",
+            info:"Menampilkan _START_ sampai _END_ dari _TOTAL_ data",
+            infoEmpty:"Tidak ada data",
+            zeroRecords:"Data tidak ditemukan",
+            paginate:{
+                previous:"<<",
+                next:">>"
+            }
+        }
+
+    });
+
+    table.on('order.dt search.dt draw.dt',function(){
+
+        let start = table.page.info().start;
+
+        table.column(0,{
+            search:'applied',
+            order:'applied'
+        }).nodes().each(function(cell,i){
+
+            cell.innerHTML = start + i + 1;
+
+        });
+
+    }).draw();
+
+});
+</script>
+
+
+
+
 
 </body>
 </html>

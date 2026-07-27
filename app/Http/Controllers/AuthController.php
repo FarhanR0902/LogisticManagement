@@ -67,6 +67,8 @@ class AuthController extends Controller
 
          'cmd' => redirect()->route('cmd.dashboard'),
           'jess' => redirect()->route('jess.dashboard'),
+          'admin_pasuruan' => redirect()->route('pasuruan.dashboard'),
+          'spv_pasuruan' => redirect()->route('spvpasuruan.admin'),
         // 'jess' => redirect('/jess/dashboard'),
 
         default => redirect('/dashboard'),

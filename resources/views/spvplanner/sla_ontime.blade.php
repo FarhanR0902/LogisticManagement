@@ -4,13 +4,20 @@
 <html lang="id">
 
 <head>
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.8/css/jquery.dataTables.min.css">
+
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<title>SLA Tiba Armada DI Gudang - ONTIME</title>
+<title>SLA Tiba Armada Di Gudang</title>
 
 <style>
-
+.highlight-exit{
+    background:#cfe2ff !important;
+    border:2px solid #0d6efd !important;
+}
 body{
     font-family:Arial;
     background:#f4f6f9;
@@ -88,6 +95,47 @@ select{
 .btn-green{background:#28a745;color:#fff}
 .btn-blue{background:#007bff;color:#fff}
 
+.bg-red{
+    background:#f8d7da;
+    color:#721c24;
+}
+.bg-green{
+    background:#d4edda;
+    color:#155724;
+}
+    .highlight-source{
+    background:#fff3cd !important;
+    border:2px solid #ffc107 !important;
+  
+}
+
+.status{
+    padding:4px 8px;
+    border-radius:5px;
+    font-weight:bold;
+    display:inline-block;
+}
+
+.bg-green{
+    background:#d4edda;
+    color:#155724;
+}
+
+.bg-red{
+    background:#f8d7da;
+    color:#721c24;
+}
+.highlight-source{
+    background:#fff3cd !important;
+    border:2px solid #ffc107 !important;
+}
+
+.highlight-exit{
+    background:#cfe2ff !important;
+    border:2px solid #0d6efd !important;
+   
+}
+
 </style>
 
 </head>
@@ -96,52 +144,13 @@ select{
 
 <div class="container">
 
-<h2>🚛 SLA TIBA ARMADA DI GUDANG - ONTIME</h2>
+<h2>🚛 SUDAH TIBA ARMADA DI GUDANG</h2>
 
-<!-- FILTER -->
-<div class="filter-box">
-
-<form method="GET" action="{{ url('/sla/ontime') }}">
-
-<select name="bulan">
-    <option value="">Bulan</option>
-    @for($i=1;$i<=12;$i++)
-        @php $val=str_pad($i,2,'0',STR_PAD_LEFT); @endphp
-        <option value="{{ $val }}" {{ request('bulan')==$val?'selected':'' }}>
-            {{ date('F',mktime(0,0,0,$i,1)) }}
-        </option>
-    @endfor
-</select>
-
-<select name="tahun">
-    <option value="">Tahun</option>
-    @for($y=2023;$y<=date('Y');$y++)
-        <option value="{{ $y }}" {{ request('tahun')==$y?'selected':'' }}>
-            {{ $y }}
-        </option>
-    @endfor
-</select>
-
-<select name="area">
-    <option value="">Area</option>
-    @foreach($list_area as $a)
-        <option value="{{ $a->area }}" {{ request('area')==$a->area?'selected':'' }}>
-            {{ $a->area }}
-        </option>
-    @endforeach
-</select>
-
-<button class="btn btn-green">Filter</button>
-<a href="{{ url('/dashboard') }}" class="btn btn-blue">Dashboard</a>
-
-</form>
-
-</div>
 
 <!-- TABLE -->
 <div class="card">
 
-<table>
+<table id="tableOntime" class="display nowrap">
 
 <thead>
 <tr>
@@ -153,32 +162,38 @@ select{
     <th>No Shipment</th>
     <th>Tujuan</th>
     <th>Area</th>
-    <th>Ketersediaan Unit</th>
+   
     <th>Mobil</th>
-    <th>Perubahan Mobil</th>
+    <!-- <th>Perubahan Mobil</th> -->
     <th>Kategori Ekspedisi</th>
     <th>Ekspedisi</th>
-    <th>Nama Driver</th>
-    <th>No Pol</th>
+    <!-- <th>Nama Driver</th>
+    <th>No Pol</th> -->
     <th>Status</th>
     <th>Tanggal Dapat Unit</th>
     <th>Planning Loading</th>
-    <th>Tanggal Tiba Di Gudang</th>
+    <th>Tanggal Tiba Di Gudang 1</th>
+    <th>Tanggal Tiba Di Gudang 2</th>
+    <th>Tanggal Tiba Di Gudang 3</th>
+    <th>Tanggal Keluar Gudang 1</th>
+    <th>Tanggal Keluar Gudang 2</th>
     <th>Tanggal Keluar Gudang</th>
     <th>Lama Digudang</th>
     <!-- <th>Status Gudang</th> -->
     <th>SLA Ketepatan Loading</th>
-    <th>Keterangan</th>
+    <!-- <th>Keterangan</th> -->
     <th>Lama Waktu Pencarian</th>
     <th>SLA Dapat Mobil</th>
-    <th>Status Akhir</th>
+
 </tr>
 </thead>
 
 <tbody>
 
 @if(!empty($list) && count($list)>0)
-
+@php
+$markedShipment = [];
+@endphp
 @foreach($list as $r)
 <tr>
     <td>{{ $loop->iteration }}</td>
@@ -186,32 +201,92 @@ select{
     <td>{{ $r->rencana_kirim }}</td>
     <td>{{ $r->transport_lead_time }}</td>
     <td>{{ $r->planner }}</td>
-    <td>{{ $r->no_shipment }}</td>
+<td
+    @if(
+        (
+            !empty($r->tanggal_tiba_gudang) ||
+            !empty($r->tanggal_tiba_gudang_2) ||
+            !empty($r->tanggal_tiba_gudang_3)
+        )
+        &&
+        !in_array($r->no_shipment, $markedShipment)
+    )
+        class="highlight-source"
+        @php $markedShipment[] = $r->no_shipment; @endphp
+    @endif
+>
+    {{ $r->no_shipment }}
+</td>
     <td>{{ $r->tujuan }}</td>
     <td>{{ $r->area }}</td>
-    <td>{{ $r->ketersediaan_unit }}</td>
+    <!-- <td>{{ $r->ketersediaan_unit }}</td> -->
     <td>{{ $r->mobil }}</td>
-    <td>{{ $r->perubahan_mobil }}</td>
+    <!-- <td>{{ $r->perubahan_mobil }}</td> -->
     <td>{{ $r->kategori_ekspedisi }}</td>
     <td>{{ $r->ekpedisi }}</td>
-    <td>{{ $r->nama_driver }}</td>
-    <td>{{ $r->no_pol }}</td>
-    <!-- <td>{{ $r->status_pengiriman }}</td> -->
-    <td>{{ $r->tanggal_dpt_unit }}</td>
+    <!-- <td>{{ $r->nama_driver }}</td>
+    <td>{{ $r->no_pol }}</td> -->
+<td>{{ $r->status_pengiriman }}</td>
+
+<td>
+    {{ $r->tanggal_dpt_unit }}
+</td>
     <td>{{ $r->planning_loading }}</td>
-    <td>{{ $r->tanggal_tiba_gudang }}</td>
-    <td>{{ $r->tanggal_keluar_gudang }}</td>
+<td class="{{ ($r->gudang_sla ?? null) == 1 ? 'highlight-source' : '' }}">
+    {{ $r->tanggal_tiba_gudang }}
+
+    @if(($r->gudang_sla ?? null) == 1)
+        <br><small>Tiba Tercepat</small>
+    @endif
+</td>
+
+<td class="{{ ($r->gudang_sla ?? null) == 2 ? 'highlight-source' : '' }}">
+    {{ $r->tanggal_tiba_gudang_2 }}
+
+    @if(($r->gudang_sla ?? null) == 2)
+        <br><small>Tiba Tercepat</small>
+    @endif
+</td>
+
+<td class="{{ ($r->gudang_sla ?? null) == 3 ? 'highlight-source' : '' }}">
+    {{ $r->tanggal_tiba_gudang_3 }}
+
+    @if(($r->gudang_sla ?? null) == 3)
+        <br><small>Tiba Tercepat</small>
+    @endif
+</td>
+   <td class="{{ ($r->gudang_keluar_terakhir ?? null) == 1 ? 'highlight-exit' : '' }}">
+    {{ $r->tanggal_keluar_gudang }}
+
+    @if(($r->gudang_keluar_terakhir ?? null) == 1)
+        <br><small>Keluar Terakhir</small>
+    @endif
+</td>
+
+<td class="{{ ($r->gudang_keluar_terakhir ?? null) == 2 ? 'highlight-exit' : '' }}">
+    {{ $r->tanggal_keluar_gudang_2 }}
+
+    @if(($r->gudang_keluar_terakhir ?? null) == 2)
+        <br><small>Keluar Terakhir</small>
+    @endif
+</td>
+
+<td class="{{ ($r->gudang_keluar_terakhir ?? null) == 3 ? 'highlight-exit' : '' }}">
+    {{ $r->tanggal_keluar_gudang_3 }}
+
+    @if(($r->gudang_keluar_terakhir ?? null) == 3)
+        <br><small>Keluar Terakhir</small>
+    @endif
+</td>
+    
     <td>{{ $r->lama_digudang }}</td>
     <td>{{ $r->status_gudang }}</td>
     <td>{{ $r->sla_loading }}</td>
-    <td>{{ $r->keterangan }}</td>
+    <!-- <td>{{ $r->keterangan }}</td> -->
     <td>{{ $r->lama_waktu_pencarian }}</td>
-    <td>
-        <span class="status">
-            {{ $r->sla_dapat_mobil }}
-        </span>
-    </td>
-    <td>{{ $r->status_akhir }}</td>
+    
+
+   
 </tr>
 @endforeach
 
@@ -230,6 +305,40 @@ select{
 </div>
 
 </div>
+<script>
+$(document).ready(function () {
 
+    $.fn.dataTable.ext.type.search.html = function (data) {
+        return $('<div>').html(data).text();
+    };
+
+    $('#tableOntime').DataTable({
+        scrollX: true,
+        pageLength: 10,
+        lengthMenu: [
+            [10, 25, 50, 100, -1],
+            [10, 25, 50, 100, "Semua"]
+        ],
+        ordering: true,
+        searching: true,
+        paging: true,
+        info: true,
+        language: {
+            search: "Cari :",
+            lengthMenu: "Tampilkan _MENU_ data",
+            info: "Menampilkan _START_ sampai _END_ dari _TOTAL_ data",
+            infoEmpty: "Tidak ada data",
+            zeroRecords: "Data tidak ditemukan",
+            paginate: {
+                first: "Awal",
+                last: "Akhir",
+                next: ">>",
+                previous: "<<"
+            }
+        }
+    });
+
+});
+</script>
 </body>
 </html>

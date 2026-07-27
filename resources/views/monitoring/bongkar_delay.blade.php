@@ -1,176 +1,251 @@
-@extends('layouts.app')
+@include('template.sidebar')
 
-@section('content')
+<!DOCTYPE html>
+<html>
+
+<head>
+
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.8/css/jquery.dataTables.min.css">
+
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
+
+<meta charset="utf-8">
+<title>Bongkar Delay</title>
 
 <style>
-.container-fluid{
+
+table.dataTable thead th{
+    background:#dc3545 !important;
+    color:#fff !important;
+}
+
+.dataTables_wrapper{
+    font-size:13px;
+}
+
+.dataTables_wrapper .dataTables_filter,
+.dataTables_wrapper .dataTables_length{
+    margin-bottom:10px;
+}
+
+.dataTables_wrapper .dataTables_filter input{
+    padding:5px;
+    width:220px;
+}
+
+body{
+    font-family:Arial,sans-serif;
+    background:#f5f5f5;
+    margin:0;
+}
+
+.container{
+    width:calc(100% - 250px);
+    margin-left:250px;
     padding:20px;
 }
 
-h3{
+h2{
     margin-bottom:15px;
-    color:#1e293b;
-    font-weight:600;
 }
 
-.card{
+.table-container{
+    overflow-x:auto;
     background:#fff;
-    border-radius:12px;
-    box-shadow:0 4px 12px rgba(0,0,0,0.08);
-    overflow:hidden;
+    border-radius:10px;
+    box-shadow:0 2px 8px rgba(0,0,0,.1);
 }
-
-.card-body{ padding:15px; }
-
-.table-responsive{ overflow-x:auto; }
 
 table{
     width:100%;
     border-collapse:collapse;
-    font-size:13px;
-}
-
-thead{
-    background:#dc2626;
-    color:#fff;
-}
-
-th, td{
-    padding:10px;
-    border:1px solid #e5e7eb;
-    text-align:center;
     white-space:nowrap;
 }
 
-tbody tr:hover{
-    background:#f9fafb;
+th,td{
+    border:1px solid #ddd;
+    padding:8px;
+    text-align:center;
+    font-size:13px;
 }
 
-.badge{
-    padding:6px 10px;
-    border-radius:6px;
-    font-size:12px;
+th{
+    background:#dc3545;
     color:#fff;
 }
 
-.bg-danger{ background:#ef4444; }
-.bg-warning{ background:#f59e0b; }
+.status-delay{
+    color:#dc3545;
+    font-weight:bold;
+}
+
+.empty{
+    text-align:center;
+    padding:20px;
+}
+
 </style>
 
-<div class="container-fluid">
+</head>
 
-<h3>🚨 Bongkar Delay</h3>
+<body>
 
-<div class="card">
-<div class="card-body">
+<div class="container">
 
-<div class="table-responsive">
+<h2>🚚 BONGKAR DELAY</h2>
 
-<table>
-    <thead>
-        <tr>
-            <th>No</th>
-            <th>Tanggal Naik</th>
-            <th>Rencana Kirim</th>
-            <th>Lead Time</th>
-            <th>No Shipment</th>
-            <th>Tujuan</th>
-            <th>Area</th>
-            <th>Ekspedisi</th>
-            <th>Driver</th>
-            <th>No Pol</th>
-            <th>Urutan</th>
-            <th>Tiba</th>
-            <!-- <th>Perjalanan</th>
-            <th>SLA Tiba</th> -->
-            <th>Bongkar</th>
-            <th>Overstay</th>
-            <th>SLA Bongkar</th>
-            <th>Reason Bongkar</th>
-        </tr>
-    </thead>
+<div class="table-container">
 
-    <tbody>
-    @forelse($list as $key => $r)
+<table id="tableBongkarDelay" class="display nowrap">
 
-        @php
-            // amanin date
-            $tiba = $r->tanggal_tiba ? strtotime($r->tanggal_tiba) : null;
-            $keluar = $r->tanggal_keluar_gudang ? strtotime($r->tanggal_keluar_gudang) : null;
-            $bongkar = $r->tanggal_bongkar ? strtotime($r->tanggal_bongkar) : null;
+<thead>
 
-            // OVERSTAY
-            $overstay = '-';
-            $sla_bongkar = '-';
+<tr>
 
-            if($tiba && $bongkar){
-                $overstay = floor(($bongkar - $tiba) / 86400);
+<th>No</th>
+<th>No Shipment</th>
+<th>Tanggal Naik</th>
+<th>Rencana Kirim</th>
+<th>Lead Time</th>
+<th>Tujuan</th>
+<th>Area</th>
+<th>Ekspedisi</th>
+<th>Urutan Bongkar</th>
+<th>Tanggal Tiba</th>
+<th>Tanggal Bongkar</th>
+<th>Overstay</th>
+<th>SLA Bongkar</th>
+<th>Reason Bongkar</th>
 
-                // 🔥 INI FILTER UTAMA DELAY
-                if($overstay > 0){
-                    $sla_bongkar = 'H+' . $overstay;
-                }else{
-                    $sla_bongkar = 'On Time';
-                }
-            }
-        @endphp
+</tr>
 
-        {{-- 🔥 HANYA DELAY --}}
-        @if($sla_bongkar != 'On Time')
+</thead>
 
-        <tr>
-            <td>{{ $key + 1 }}</td>
-            <td>{{ $r->tanggal_naik_logistik }}</td>
-            <td>{{ $r->rencana_kirim }}</td>
-            <td>{{ $r->transport_lead_time }}</td>
-            <td>{{ $r->no_shipment }}</td>
-            <td>{{ $r->tujuan }}</td>
-            <td>{{ $r->area }}</td>
-            <td>{{ $r->ekpedisi }}</td>
-            <td>{{ $r->nama_driver }}</td>
-            <td>{{ $r->no_pol }}</td>
-            <td>{{ $r->act_urutan_bongkar }}</td>
-            <td>{{ $r->tanggal_tiba }}</td>
-            <!-- <td>
-                {{ $keluar && $tiba ? floor(($tiba-$keluar)/86400) : '-' }}
-            </td> -->
-<!-- 
-            <td>
-                @if($r->sla_tiba == 'On Time')
-                    <span class="badge bg-warning">On Time</span>
-                @else
-                    <span class="badge bg-danger">{{ $r->sla_tiba }}</span>
-                @endif
-            </td> -->
+<tbody>
 
-            <td>{{ $r->tanggal_bongkar }}</td>
-            <td>{{ $overstay }}</td>
+@forelse($list as $row)
 
-            <td>
-                <span class="badge bg-danger">
-                    {{ $sla_bongkar }}
-                </span>
-            </td>
+<tr>
 
-            <td>{{ $r->reason_bongkar }}</td>
-        </tr>
+<td></td>
 
-        @endif
+<td>{{ $row->no_shipment }}</td>
 
-    @empty
-        <tr>
-            <td colspan="18">Tidak ada data delay</td>
-        </tr>
-    @endforelse
-    </tbody>
+<td>{{ $row->tanggal_naik_logistik }}</td>
+
+<td>{{ $row->rencana_kirim }}</td>
+
+<td>{{ $row->transport_lead_time }}</td>
+
+<td>{{ $row->tujuan }}</td>
+
+<td>{{ $row->area }}</td>
+
+<td>{{ $row->ekpedisi }}</td>
+
+<td>{{ $row->act_urutan_bongkar }}</td>
+
+<td>{{ $row->tanggal_tiba }}</td>
+
+<td>{{ $row->tanggal_bongkar }}</td>
+
+<td>{{ $row->overstay_days }}</td>
+
+<td>
+
+@php
+$status = trim($row->sla_bongkar ?? '');
+@endphp
+
+<span class="status-delay">
+    {{ $status }}
+</span>
+
+</td>
+
+<td>{{ $row->reason_bongkar }}</td>
+
+</tr>
+
+@empty
+
+<tr>
+
+<td colspan="14" class="empty">
+Tidak ada data Bongkar Delay
+</td>
+
+</tr>
+
+@endforelse
+
+</tbody>
 
 </table>
 
 </div>
 
 </div>
-</div>
 
-</div>
+<script>
 
-@endsection
+$(function(){
+
+var table=$("#tableBongkarDelay").DataTable({
+
+scrollX:false,
+autoWidth:false,
+
+pageLength:10,
+
+lengthMenu:[
+[10,25,50,100,-1],
+[10,25,50,100,"Semua"]
+],
+
+columnDefs:[
+{
+targets:0,
+orderable:false,
+searchable:false
+}
+],
+
+order:[[1,"asc"]],
+
+language:{
+search:"Cari :",
+lengthMenu:"Tampilkan _MENU_ data",
+info:"Menampilkan _START_ sampai _END_ dari _TOTAL_ data",
+infoEmpty:"Tidak ada data",
+zeroRecords:"Data tidak ditemukan",
+paginate:{
+previous:"<<",
+next:">>"
+}
+}
+
+});
+
+table.on('order.dt search.dt draw.dt',function(){
+
+let start=table.page.info().start;
+
+table.column(0,{
+search:'applied',
+order:'applied'
+}).nodes().each(function(cell,i){
+
+cell.innerHTML=start+i+1;
+
+});
+
+}).draw();
+
+});
+
+</script>
+
+</body>
+</html>

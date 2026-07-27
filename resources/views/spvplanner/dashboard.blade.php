@@ -264,12 +264,11 @@ $delay_rate = $valid_total > 0
     : 0;
     $armada = $armada ?? 0;
     $belum_armada = $belum_armada ?? 0;
-
-    $ontime_rate = $total_data > 0
+$tiba_rate = $total_data > 0
     ? round(($ontime / $total_data) * 100, 2)
     : 0;
 
-    $delay_rate = $total_data > 0
+$belum_tiba_rate = $total_data > 0
     ? round(($delay / $total_data) * 100, 2)
     : 0;
 
@@ -295,7 +294,7 @@ $delay_rate = $valid_total > 0
 
     <a href="{{ url('/datalogistik') }}">
         <div class="kpi blue">
-            <h4>Total Shipment</h4>
+            <h4>Total Armada</h4>
             <h2>{{ $total_data }}</h2>
         </div>
     </a>
@@ -316,14 +315,14 @@ $delay_rate = $valid_total > 0
 
     <a href="{{ route('planner.sla.ontime') }}">
         <div class="kpi orange">
-            <h4>SLA On Time</h4>
+            <h4>Sudah Tiba Di Gudang</h4>
             <h2>{{ $ontime }}</h2>
         </div>
     </a>
 
-    <a href="{{ route('armada.delay') }}">
+    <a href="{{ route('planner.sla.delay') }}">
         <div class="kpi red">
-            <h4>SLA Delay</h4>
+            <h4>Belum Tiba Di Gudang</h4>
             <h2>{{ $delay }}</h2>
         </div>
     </a>
@@ -391,7 +390,7 @@ $delay_rate = $valid_total > 0
             <!-- SLA -->
             <div class="chart-card">
 
-                <h3>📊 SLA Performance</h3>
+                <h3>📊 SLA Performance Tiba Gudang</h3>
 
                 <div class="chart-wrapper">
                     <canvas id="slaChart"></canvas>
@@ -433,15 +432,15 @@ $delay_rate = $valid_total > 0
                 <tbody>
 
                     <tr>
-                        <td>On Time</td>
-                        <td>{{ $ontime }}</td>
-                        <td>{{ $ontime_rate }}%</td>
+                    <td>Sudah Tiba Gudang</td>
+<td>{{ $ontime }}</td>
+<td>{{ $tiba_rate }}%</td>
                     </tr>
 
                     <tr>
-                        <td>Delay</td>
-                        <td>{{ $delay }}</td>
-                        <td>{{ $delay_rate }}%</td>
+                     <td>Belum Tiba Gudang</td>
+<td>{{ $delay }}</td>
+<td>{{ $belum_tiba_rate }}%</td>
                     </tr>
 
                     <tr>
@@ -478,24 +477,22 @@ $delay_rate = $valid_total > 0
 
                 <tbody>
 
-                    @forelse($summary_area as $key => $s)
-
-                    <tr>
-                        <td>{{ $key+1 }}</td>
-                        <td>{{ $s->area }}</td>
-                        <td>{{ $s->total }}</td>
-                        <td>
-                            <a href="{{ route('monitoring.summary.area.detail', ['area' => $s->area]) }}">
-                                Detail
-                            </a>
-                        </td>
-                    </tr>
-
-                    @empty
-                    <tr>
-                        <td colspan="4">Tidak ada data</td>
-                    </tr>
-                    @endforelse
+       @forelse($summary_area as $area => $total)
+<tr>
+    <td>{{ $loop->iteration }}</td>
+    <td>{{ $area ?: '-' }}</td>
+    <td>{{ $total }}</td>
+    <td>
+        <a href="{{ route('monitoring.summary.area.detail', ['area' => $area]) }}">
+            Detail
+        </a>
+    </td>
+</tr>
+@empty
+<tr>
+    <td colspan="4">Tidak ada data</td>
+</tr>
+@endforelse
 
                 </tbody>
             </table>
@@ -511,7 +508,7 @@ $delay_rate = $valid_total > 0
     new Chart(document.getElementById('slaChart'), {
         type: 'bar',
         data: {
-            labels: ['On Time', 'Delay'],
+            labels: ['Sudah Tiba Di Gudang', 'Belum Tiba Di Gudang'],
             datasets: [{
                 label: 'Shipment',
                 data: [{{ $ontime }}, {{ $delay }}],
@@ -548,39 +545,55 @@ $delay_rate = $valid_total > 0
     });
 
     /* ================= ARMADA CHART ================= */
-    new Chart(document.getElementById('armadaChart'), {
-        type: 'doughnut',
-        data: {
-            labels: ['Ready', 'Pending'],
-            datasets: [{
-                data: [{{ $armada }}, {{ $belum_armada }}],
-                backgroundColor: ['#3b82f6', '#8b5cf6']
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: { position: 'bottom' },
-                tooltip: {
-                    callbacks: {
-                        label: function(context) {
-                            let total = {{ $armada }} + {{ $belum_armada }};
-                            let pct = total > 0 ? ((context.raw / total) * 100).toFixed(1) : 0;
-                            return `${context.labels} : ${context.raw} (${pct}%)`;
-                        }
+  new Chart(document.getElementById('armadaChart'), {
+    type: 'doughnut',
+    data: {
+        labels: ['Ready', 'Pending'],
+        datasets: [{
+            data: [{{ $armada }}, {{ $belum_armada }}],
+            backgroundColor: ['#3b82f6', '#8b5cf6']
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: {
+                position: 'bottom'
+            },
+            tooltip: {
+                callbacks: {
+                    label: function(context) {
+
+                        let total =
+                            Number({{ $armada }}) +
+                            Number({{ $belum_armada }});
+
+                        let pct = total > 0
+                            ? ((context.raw / total) * 100).toFixed(1)
+                            : 0;
+
+                        return `${context.label}: ${context.raw} (${pct}%)`;
                     }
                 }
-            },
-            onClick: function(evt, e) {
-                if (e.length) {
-                    let index = e[0].index;
-                    if (index === 0) window.location.href = "{{ url('/planner/armada') }}";
-                    if (index === 1) window.location.href = "{{ url('/planner/belum-armada') }}";
-                }
+            }
+        },
+        onClick: function(evt, elements) {
+
+            if (!elements.length) return;
+
+            let index = elements[0].index;
+
+            if (index === 0) {
+                window.location.href = "{{ url('/planner/armada') }}";
+            }
+
+            if (index === 1) {
+                window.location.href = "{{ url('/planner/belum-armada') }}";
             }
         }
-    });
+    }
+});
 </script>
 </body>
 

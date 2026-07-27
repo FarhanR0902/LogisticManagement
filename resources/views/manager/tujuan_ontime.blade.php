@@ -4,10 +4,33 @@
 <html>
 
 <head>
+
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.8/css/jquery.dataTables.min.css">
+
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
     <meta charset="utf-8">
-    <title>Data On Time Customer</title>
+    <title>Customer On Time</title>
 
     <style>
+        table.dataTable thead th{
+    background:#28a745 !important;
+    color:#fff !important;
+}
+
+.dataTables_wrapper{
+    font-size:13px;
+}
+
+.dataTables_wrapper .dataTables_filter,
+.dataTables_wrapper .dataTables_length{
+    margin-bottom:10px;
+}
+
+.dataTables_wrapper .dataTables_filter input{
+    padding:5px;
+    width:220px;
+}
         body {
             font-family: Arial, sans-serif;
             background: #f5f5f5;
@@ -33,22 +56,25 @@
         }
 
         .btn {
+            display: inline-block;
             padding: 8px 12px;
+            background: #007bff;
+            color: white;
+            text-decoration: none;
             border-radius: 5px;
             font-size: 13px;
-            text-decoration: none;
             border: none;
             cursor: pointer;
         }
 
-        .btn-primary {
-            background: #007bff;
-            color: #fff;
-        }
-
         .btn-success {
             background: #28a745;
-            color: #fff;
+        }
+
+        select {
+            padding: 7px;
+            border-radius: 5px;
+            border: 1px solid #ccc;
         }
 
         .table-container {
@@ -77,19 +103,22 @@
             color: white;
         }
 
+        .status-ontime {
+            color: green;
+            font-weight: bold;
+        }
+
         .empty {
             text-align: center;
             padding: 20px;
         }
 
-        .badge-green {
-            color: green;
-            font-weight: bold;
-        }
-
-        .badge-red {
-            color: red;
-            font-weight: bold;
+        .info-box {
+            background: #e0f2fe;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            font-size: 13px;
         }
     </style>
 </head>
@@ -98,24 +127,19 @@
 
     <div class="container">
 
-        <h2>📊 DATA ON TIME CUSTOMER</h2>
+        <h2>📊 CUSTOMER ON TIME</h2>
 
-        <div class="topbar">
-            <a href="{{ url('/monitoring/dashboard') }}" class="btn btn-primary">
-                ⬅ Dashboard
-            </a>
+       
 
-            <a href="{{ url('/export') }}" class="btn btn-success">
-                📥 Export
-            </a>
-        </div>
-
+   
+        <!-- TABLE -->
         <div class="table-container">
 
-            <table>
+      <table id="tableCustomerOnTime" class="display nowrap">
 
                 <thead>
                     <tr>
+
                         <th>No</th>
                         <th>No Shipment</th>
                         <th>Tanggal Naik</th>
@@ -124,13 +148,13 @@
                         <th>Tujuan</th>
                         <th>Area</th>
                         <th>Ekspedisi</th>
-                        <th>Driver</th>
-                        <th>No Polisi</th>
-                        <th>Tanggal Keluar Gudang</th>
-                        <th>Tgl Estimasi Tiba</th>
+                        <!-- <th>Driver</th>
+                        <th>No Polisi</th> -->
+                        <th>Tanggal keluar gudang KACS</th>
+                         <th>Tanggal keluar gudang SENTUL</th>
+                          <th>Tanggal keluar gudang CCIE</th>
+                        <th>Tanggal estimasi </th>
                         <th>Tanggal Tiba</th>
-                        <th>Lama Perjalanan (Hari)</th>
-
                         <th>SLA Tiba</th>
                         <th>Reason Tiba</th>
 
@@ -139,62 +163,50 @@
 
                 <tbody>
 
-@forelse($logistik as $i => $row)
-
-                    @php
-                    $keluar = $row->tanggal_keluar_gudang
-                    ? strtotime($row->tanggal_keluar_gudang)
-                    : strtotime($row->rencana_kirim);
-
-                    $tiba = $row->tanggal_tiba
-                    ? strtotime($row->tanggal_tiba)
-                    : null;
-
-                    $lead = (int) $row->transport_lead_time;
-
-                    $estimasi = $keluar ? strtotime("+$lead days", $keluar) : null;
-
-                    $lama_perjalanan = ($keluar && $tiba)
-                    ? max(0, floor(($tiba - $keluar) / 86400))
-                    : 0;
-
-                    $estimasi_show = $estimasi ? date('Y-m-d', $estimasi) : '-';
-                    @endphp
+                    @forelse($logistik as $i => $row)
 
                     <tr>
-                        <td>{{ $i + 1 }}</td>
-                        <td>{{ $row->no_shipment }}</td>
-                        <td>{{ $row->tanggal_naik_logistik }}</td>
-                        <td>{{ $row->rencana_kirim }}</td>
-                        <td>{{ $row->transport_lead_time }}</td>
-                        <td>{{ $row->tujuan }}</td>
-                        <td>{{ $row->area }}</td>
-                        <td>{{ $row->ekpedisi }}</td>
-                        <td>{{ $row->nama_driver }}</td>
-                        <td>{{ $row->no_pol }}</td>
-                        <td>{{ $row->tanggal_keluar_gudang ?? '-' }}</td>
-                        <td>{{ $estimasi_show }}</td>
-                        <td>{{ $row->tanggal_tiba ?? '-' }}</td>
 
-                        <td>{{ $lama_perjalanan }}</td>
+                        <td>{{ $i + 1 }}</td>
+
+                        <td>{{ $row->no_shipment }}</td>
+
+                        <td>{{ $row->tanggal_naik_logistik }}</td>
+
+                        <td>{{ $row->rencana_kirim }}</td>
+
+                        <td>{{ $row->transport_lead_time }}</td>
+
+                        <td>{{ $row->tujuan }}</td>
+
+                        <td>{{ $row->area }}</td>
+
+                        <td>{{ $row->ekpedisi }}</td>
+
+                        <!-- <td>{{ $row->nama_driver }}</td>
+
+                        <td>{{ $row->no_pol }}</td> -->
+                        
+                         <td>{{ $row->tanggal_keluar_gudang}}</td>
+                          <td>{{ $row->tanggal_keluar_gudang_2}}</td>
+                           <td>{{ $row->tanggal_keluar_gudang_3}}</td>
+                         <td>{{ $row->estimasi_tiba }}</td>
+                        <td>{{ $row->tanggal_tiba }}</td>
 
                         <td>
-@if(in_array(strtolower($row->sla_tiba), ['on time', 'h+0']))
-                            <span class="badge-green">{{ $row->sla_tiba }}</span>
-                            @else
-                            <span class="badge-red">{{ $row->sla_tiba }}</span>
-                            @endif
+                            <span class="status-ontime">
+                                {{ $row->sla_tiba }}
+                            </span>
                         </td>
-                       <td>{{ $row->reason_tiba }}</td>
-
+                        <td>{{ $row->reason_tiba }}</td>
 
                     </tr>
 
                     @empty
 
                     <tr>
-                        <td colspan="15" class="empty">
-                            Data tidak ditemukan
+                        <td colspan="13" class="empty">
+                            Data On Time tidak ditemukan
                         </td>
                     </tr>
 
@@ -207,7 +219,60 @@
         </div>
 
     </div>
+<script>
+$(document).ready(function(){
 
+    var table = $('#tableCustomerOnTime').DataTable({
+
+       scrollX:false,
+        autoWidth:false,
+
+        pageLength: 10,
+
+        lengthMenu: [
+            [10,25,50,100,-1],
+            [10,25,50,100,"Semua"]
+        ],
+
+        columnDefs: [{
+            targets: 0,
+            orderable: false,
+            searchable: false
+        }],
+
+        order: [[1,'asc']],
+
+        language: {
+            search: "Cari :",
+            lengthMenu: "Tampilkan _MENU_ data",
+            info: "Menampilkan _START_ sampai _END_ dari _TOTAL_ data",
+            infoEmpty: "Tidak ada data",
+            zeroRecords: "Data tidak ditemukan",
+            paginate: {
+                previous: "<<",
+                next: ">>"
+            }
+        }
+
+    });
+
+    table.on('order.dt search.dt draw.dt', function () {
+
+        let start = table.page.info().start;
+
+        table.column(0, {
+            search:'applied',
+            order:'applied'
+        }).nodes().each(function(cell, i){
+
+            cell.innerHTML = start + i + 1;
+
+        });
+
+    }).draw();
+
+});
+</script>
 </body>
 
 </html>

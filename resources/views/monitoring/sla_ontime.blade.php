@@ -4,10 +4,33 @@
 <html>
 
 <head>
+
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.8/css/jquery.dataTables.min.css">
+
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
     <meta charset="utf-8">
-    <title>Data On Time</title>
+    <title>Customer On Time</title>
 
     <style>
+        table.dataTable thead th{
+    background:#28a745 !important;
+    color:#fff !important;
+}
+
+.dataTables_wrapper{
+    font-size:13px;
+}
+
+.dataTables_wrapper .dataTables_filter,
+.dataTables_wrapper .dataTables_length{
+    margin-bottom:10px;
+}
+
+.dataTables_wrapper .dataTables_filter input{
+    padding:5px;
+    width:220px;
+}
         body {
             font-family: Arial, sans-serif;
             background: #f5f5f5;
@@ -104,79 +127,15 @@
 
     <div class="container">
 
-        <h2>📊 DATA ON TIME</h2>
+        <h2>📊 CUSTOMER ON TIME</h2>
 
        
 
-        <div class="topbar">
-
-            <a href="{{ url('/monitoring/dashboard') }}" class="btn">
-                ⬅ Dashboard
-            </a>
-
-            <a href="{{ url('/export') }}" class="btn btn-success">
-                📥 Export
-            </a>
-
-            <!-- FILTER -->
-            <form method="GET">
-
-                <!-- BULAN -->
-                <select name="bulan">
-
-                    <option value="">
-                        Semua Bulan
-                    </option>
-
-                    @for($m=1;$m<=12;$m++)
-
-                        @php
-                        $bln=str_pad($m,2,'0',STR_PAD_LEFT);
-                        @endphp
-
-                        <option value="{{ $bln }}"
-                        {{ request('bulan') == $bln ? 'selected' : '' }}>
-
-                        {{ $bln }}
-
-                        </option>
-
-                        @endfor
-
-                </select>
-
-                <!-- TAHUN -->
-                <select name="tahun">
-
-                    <option value="">
-                        Semua Tahun
-                    </option>
-
-                    @for($y=date('Y');$y>=2020;$y--)
-
-                    <option value="{{ $y }}"
-                        {{ request('tahun') == $y ? 'selected' : '' }}>
-
-                        {{ $y }}
-
-                    </option>
-
-                    @endfor
-
-                </select>
-
-                <button type="submit" class="btn">
-                    🔍 Filter
-                </button>
-
-            </form>
-
-        </div>
-
+   
         <!-- TABLE -->
         <div class="table-container">
 
-            <table>
+      <table id="tableCustomerOnTime" class="display nowrap">
 
                 <thead>
                     <tr>
@@ -189,8 +148,12 @@
                         <th>Tujuan</th>
                         <th>Area</th>
                         <th>Ekspedisi</th>
-                        <th>Driver</th>
-                        <th>No Polisi</th>
+                        <!-- <th>Driver</th>
+                        <th>No Polisi</th> -->
+                        <th>Tanggal keluar gudang KACS</th>
+                         <th>Tanggal keluar gudang SENTUL</th>
+                          <th>Tanggal keluar gudang CCIE</th>
+                        <th>Tanggal estimasi </th>
                         <th>Tanggal Tiba</th>
                         <th>SLA Tiba</th>
                         <th>Reason Tiba</th>
@@ -220,10 +183,14 @@
 
                         <td>{{ $row->ekpedisi }}</td>
 
-                        <td>{{ $row->nama_driver }}</td>
+                        <!-- <td>{{ $row->nama_driver }}</td>
 
-                        <td>{{ $row->no_pol }}</td>
-
+                        <td>{{ $row->no_pol }}</td> -->
+                        
+                         <td>{{ $row->tanggal_keluar_gudang}}</td>
+                          <td>{{ $row->tanggal_keluar_gudang_2}}</td>
+                           <td>{{ $row->tanggal_keluar_gudang_3}}</td>
+                         <td>{{ $row->estimasi_tiba }}</td>
                         <td>{{ $row->tanggal_tiba }}</td>
 
                         <td>
@@ -252,7 +219,60 @@
         </div>
 
     </div>
+<script>
+$(document).ready(function(){
 
+    var table = $('#tableCustomerOnTime').DataTable({
+
+       scrollX:false,
+        autoWidth:false,
+
+        pageLength: 10,
+
+        lengthMenu: [
+            [10,25,50,100,-1],
+            [10,25,50,100,"Semua"]
+        ],
+
+        columnDefs: [{
+            targets: 0,
+            orderable: false,
+            searchable: false
+        }],
+
+        order: [[1,'asc']],
+
+        language: {
+            search: "Cari :",
+            lengthMenu: "Tampilkan _MENU_ data",
+            info: "Menampilkan _START_ sampai _END_ dari _TOTAL_ data",
+            infoEmpty: "Tidak ada data",
+            zeroRecords: "Data tidak ditemukan",
+            paginate: {
+                previous: "<<",
+                next: ">>"
+            }
+        }
+
+    });
+
+    table.on('order.dt search.dt draw.dt', function () {
+
+        let start = table.page.info().start;
+
+        table.column(0, {
+            search:'applied',
+            order:'applied'
+        }).nodes().each(function(cell, i){
+
+            cell.innerHTML = start + i + 1;
+
+        });
+
+    }).draw();
+
+});
+</script>
 </body>
 
 </html>

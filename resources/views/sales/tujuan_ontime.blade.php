@@ -2,206 +2,216 @@
 
 <!DOCTYPE html>
 <html>
+
 <head>
     <meta charset="utf-8">
     <title>Data On Time Customer</title>
 
     <style>
-        body{
-            font-family:Arial, sans-serif;
-            background:#f5f5f5;
-            margin:0;
+        body {
+            font-family: Arial, sans-serif;
+            background: #f5f5f5;
+            margin: 0;
         }
 
-        .container{
-            width:calc(100% - 250px);
-            margin-left:250px;
-            padding:20px;
+        .container {
+            width: calc(100% - 250px);
+            margin-left: 250px;
+            padding: 20px;
         }
 
-        h2{
-            margin-bottom:15px;
+        h2 {
+            margin-bottom: 15px;
         }
 
-        .topbar{
-            margin-bottom:15px;
-            display:flex;
-            gap:10px;
-            align-items:center;
-            flex-wrap:wrap;
+        .topbar {
+            margin-bottom: 15px;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
         }
 
-        .btn{
-            display:inline-block;
-            padding:8px 12px;
-            background:#007bff;
-            color:white;
-            text-decoration:none;
-            border-radius:5px;
-            font-size:13px;
-            border:none;
-            cursor:pointer;
+        .btn {
+            padding: 8px 12px;
+            border-radius: 5px;
+            font-size: 13px;
+            text-decoration: none;
+            border: none;
+            cursor: pointer;
         }
 
-        .btn-success{
-            background:#28a745;
+        .btn-primary {
+            background: #007bff;
+            color: #fff;
         }
 
-        .table-container{
-            overflow-x:auto;
-            background:#fff;
-            border-radius:10px;
-            box-shadow:0 2px 8px rgba(0,0,0,0.1);
+        .btn-success {
+            background: #28a745;
+            color: #fff;
         }
 
-        table{
-            width:100%;
-            border-collapse:collapse;
-            white-space:nowrap;
+        .table-container {
+            overflow-x: auto;
+            background: #fff;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
         }
 
-        th,td{
-            border:1px solid #ddd;
-            padding:8px;
-            text-align:center;
-            font-size:13px;
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            white-space: nowrap;
         }
 
-        th{
-            background:#28a745;
-            color:white;
+        th,
+        td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: center;
+            font-size: 13px;
         }
 
-        .status-ontime{
-            color:green;
-            font-weight:bold;
+        th {
+            background: #28a745;
+            color: white;
         }
 
-        .empty{
-            text-align:center;
-            padding:20px;
+        .empty {
+            text-align: center;
+            padding: 20px;
+        }
+
+        .badge-green {
+            color: green;
+            font-weight: bold;
+        }
+
+        .badge-red {
+            color: red;
+            font-weight: bold;
         }
     </style>
 </head>
 
 <body>
 
-<div class="container">
+    <div class="container">
 
-    <h2>📊 DATA ON TIME CUSTOMER</h2>
+        <h2>📊 DATA ON TIME CUSTOMER</h2>
 
-    <div class="topbar">
+        <div class="topbar">
+            <a href="{{ url('/monitoring/dashboard') }}" class="btn btn-primary">
+                ⬅ Dashboard
+            </a>
 
-        <a href="{{ url('/monitoring/dashboard') }}" class="btn">
-            ⬅ Dashboard
-        </a>
+            <a href="{{ url('/export') }}" class="btn btn-success">
+                📥 Export
+            </a>
+        </div>
 
-        <a href="{{ url('/export') }}" class="btn btn-success">
-            📥 Export
-        </a>
+        <div class="table-container">
 
-    </div>
+            <table>
 
-    <!-- TABLE -->
-    <div class="table-container">
+                <thead>
+                    <tr>
+                        <th>No</th>
+                        <th>No Shipment</th>
+                        <th>Dist Channel</th>
+                        <th>Tanggal Naik</th>
+                        <th>Rencana Kirim</th>
+                        <th>Lead Time</th>
+                        <th>Tujuan</th>
+                        <th>Area</th>
+                        <th>Ekspedisi</th>
+                        <th>Driver</th>
+                        <th>No Polisi</th>
+                        <th>Tanggal Keluar Gudang</th>
+                        <th>Tgl Estimasi Tiba</th>
+                        <th>Tanggal Tiba</th>
+                        <th>Lama Perjalanan (Hari)</th>
 
-        <table>
+                        <th>SLA Tiba</th>
+                        <th>Reason Tiba</th>
 
-            <thead>
-                <tr>
+                    </tr>
+                </thead>
 
-                    <th>No</th>
-                    <th>No Shipment</th>
-                    <th>Tanggal Naik</th>
-                    <th>Rencana Kirim</th>
-                    <th>Lead Time</th>
-                    <th>Tujuan</th>
-                    <th>Area</th>
-                    <th>Ekspedisi</th>
-                    <th>Driver</th>
-                    <th>No Polisi</th>
+                <tbody>
 
-                    <th>Tiba Estimasi</th>
-                    <th>Tanggal Tiba</th>
+@forelse($logistik as $i => $row)
 
-                    <!-- 🔥 TAMBAHAN -->
-                    <th>Lama Perjalanan (Hari)</th>
+                    @php
+                    $keluar = $row->tanggal_keluar_gudang
+                    ? strtotime($row->tanggal_keluar_gudang)
+                    : strtotime($row->rencana_kirim);
 
-                    <th>SLA Tiba</th>
-                    <th>Reason Tiba</th>
+                    $tiba = $row->tanggal_tiba
+                    ? strtotime($row->tanggal_tiba)
+                    : null;
 
-                </tr>
-            </thead>
+                    $lead = (int) $row->transport_lead_time;
 
-            <tbody>
-
-            @forelse($logistik as $i => $row)
-
-                @php
-                    $keluar = $row->tanggal_keluar_gudang 
-                        ? strtotime($row->tanggal_keluar_gudang)
-                        : strtotime($row->rencana_kirim);
-
-                    $tiba = $row->tanggal_tiba 
-                        ? strtotime($row->tanggal_tiba)
-                        : null;
+                    $estimasi = $keluar ? strtotime("+$lead days", $keluar) : null;
 
                     $lama_perjalanan = ($keluar && $tiba)
-                        ? max(0, floor(($tiba - $keluar) / 86400))
-                        : 0;
-                @endphp
+                    ? max(0, floor(($tiba - $keluar) / 86400))
+                    : 0;
 
-                <tr>
+                    $estimasi_show = $estimasi ? date('Y-m-d', $estimasi) : '-';
+                    @endphp
 
-                    <td>{{ $i + 1 }}</td>
-                    <td>{{ $row->no_shipment }}</td>
-                    <td>{{ $row->tanggal_naik_logistik }}</td>
-                    <td>{{ $row->rencana_kirim }}</td>
-                    <td>{{ $row->transport_lead_time }}</td>
-                    <td>{{ $row->tujuan }}</td>
-                    <td>{{ $row->area }}</td>
-                    <td>{{ $row->ekpedisi }}</td>
-                    <td>{{ $row->nama_driver }}</td>
-                    <td>{{ $row->no_pol }}</td>
+                    <tr>
+                        <td>{{ $i + 1 }}</td>
+                        <td>{{ $row->no_shipment }}</td>
+                        <td>{{ $row->dist_channel }}</td>
+                        <td>{{ $row->tanggal_naik_logistik }}</td>
+                        <td>{{ $row->rencana_kirim }}</td>
+                        <td>{{ $row->transport_lead_time }}</td>
+                        <td>{{ $row->tujuan }}</td>
+                        <td>{{ $row->area }}</td>
+                        <td>{{ $row->ekpedisi }}</td>
+                        <td>{{ $row->nama_driver }}</td>
+                        <td>{{ $row->no_pol }}</td>
+                        <td>{{ $row->tanggal_keluar_gudang ?? '-' }}</td>
+                       <td>
+    {{ $row->estimasi_tiba ? date('d-m-Y', strtotime($row->estimasi_tiba)) : '-' }}
+</td>
+                        <td>{{ $row->tanggal_tiba ?? '-' }}</td>
 
-                    <td>
-                        {{ $row->tanggal_tiba_estimasi ?? '-' }}
-                    </td>
+                        <td>{{ $lama_perjalanan }}</td>
 
-                    <td>
-                        {{ $row->tanggal_tiba ?? '-' }}
-                    </td>
+                        <td>
+@if(in_array(strtolower($row->sla_tiba), ['on time', 'h+0']))
+                            <span class="badge-green">{{ $row->sla_tiba }}</span>
+                            @else
+                            <span class="badge-red">{{ $row->sla_tiba }}</span>
+                            @endif
+                        </td>
+                       <td>{{ $row->reason_tiba }}</td>
 
-                    <!-- 🔥 OUTPUT LAMA PERJALANAN -->
-                    <td>
-                        {{ $lama_perjalanan }} Hari
-                    </td>
 
-                    <td>
-                        <span class="status-ontime">
-                            {{ $row->sla_tiba }}
-                        </span>
-                    </td>
-                    <td>{{ $row->reason_tiba }}</td>
-                </tr>
+                    </tr>
 
-            @empty
+                    @empty
 
-                <tr>
-                    <td colspan="14" class="empty">
-                        Data On Time tidak ditemukan
-                    </td>
-                </tr>
+                    <tr>
+                        <td colspan="15" class="empty">
+                            Data tidak ditemukan
+                        </td>
+                    </tr>
 
-            @endforelse
+                    @endforelse
 
-            </tbody>
+                </tbody>
 
-        </table>
+            </table>
+
+        </div>
 
     </div>
 
-</div>
-
 </body>
+
 </html>

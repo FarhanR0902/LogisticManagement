@@ -66,6 +66,9 @@ $role = strtolower(trim($user->role ?? ''));
 
         'mp' => redirect()->route('mp.dashboard'),
         'jess' => redirect()->route('jess.dashboard'),
+           'sales' => redirect()->route('sales.dashboard'),
+           'admin_pasuruan' => redirect()->route('pasuruan.admin'),
+           'spv_pasuruan' => redirect()->route('spvpasuruan.admin'),
 
    
 

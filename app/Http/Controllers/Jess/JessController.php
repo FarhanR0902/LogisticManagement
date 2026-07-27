@@ -422,61 +422,354 @@ $list_area = $list_area_query
     | GUDANG ONTIME
     |--------------------------------------------------------------------------
     */
+private function hitungSla($request)
+{
 
+
+    $data = [
+        'lama_waktu_pencarian' => null,
+        'sla_dapat_mobil'      => null,
+        'status_pengiriman'    => null,
+
+        'lama_digudang'        => null,
+        'status_gudang'        => null,
+        'sla_loading'          => null,
+
+        'lama_digudang_2'      => null,
+        'status_gudang_2'      => null,
+        'sla_loading_2'        => null,
+
+        'lama_digudang_3'      => null,
+        'status_gudang_3'      => null,
+        'sla_loading_3'        => null,
+    ];
+
+    // =====================================================
+    // FUNCTION HITUNG SELISIH (NO CARBON)
+    // =====================================================
+
+
+
+    $hitungSelisih = function ($start, $end) {
+
+        if (!$start || !$end) return null;
+
+        $awal  = new \DateTime($start);
+        $akhir = new \DateTime($end);
+
+        if ($akhir < $awal) {
+            return [
+                'text' => '0 Menit',
+                'days' => 0,
+                'hours' => 0,
+                'minutes' => 0,
+                'seconds' => 0
+            ];
+        }
+
+        $selisih = $akhir->getTimestamp() - $awal->getTimestamp();
+
+        $days    = floor($selisih / 86400);
+        $hours   = floor(($selisih % 86400) / 3600);
+        $minutes = floor(($selisih % 3600) / 60);
+
+        $text = '';
+
+        if ($days > 0) {
+            $text .= $days . ' Hari ';
+        }
+
+        if ($hours > 0) {
+            $text .= $hours . ' Jam ';
+        }
+
+        $text .= $minutes . ' Menit';
+
+        return [
+            'text'    => trim($text),
+            'days'    => $days,
+            'hours'   => $hours,
+            'minutes' => $minutes
+        ];
+    };
+
+    // =====================================================
+    // AMBIL TIBA GUDANG TERCEPAT (GLOBAL)
+    // =====================================================
+    $tibaGudang = collect([
+        $request->tanggal_tiba_gudang,
+        $request->tanggal_tiba_gudang_2,
+        $request->tanggal_tiba_gudang_3,
+    ])->filter()->sort()->first();
+
+    // =====================================================
+// 1. SLA DAPAT MOBIL (pakai rencana_kirim)
+// =====================================================
+// 1. SLA DAPAT MOBIL (FIX: dari rencana kirim ke tanggal dpt unit)
+// =====================================================
+// INI sla lama pencarian yg sebelum area
+// $start = $request->rencana_kirim
+//     ? date('Y-m-d H:i:s', strtotime($request->rencana_kirim))
+//     : null;
+
+// $end = $request->tanggal_dpt_unit
+//     ? date('Y-m-d H:i:s', strtotime($request->tanggal_dpt_unit))
+//     : null;
+
+// $diff = $hitungSelisih($start, $end);
+
+// // WAJIB selalu di-set (biar tidak stuck nilai lama)
+// $data['lama_waktu_pencarian'] = $diff['text'] ?? null;
+
+// // SLA LOGIC (pakai tanggal saja: sama hari masih On Time)
+// if ($start && $end) {
+
+//     $tanggalRencana = date('Y-m-d', strtotime($start));
+//     $tanggalDptUnit = date('Y-m-d', strtotime($end));
+
+//     if ($tanggalDptUnit > $tanggalRencana) {
+//         $data['sla_dapat_mobil']   = 'Delay';
+//         $data['status_pengiriman'] = 'Terlambat';
+//     } else {
+//         $data['sla_dapat_mobil']   = 'On Time';
+//         $data['status_pengiriman'] = 'Sudah Dapat';
+//     }
+
+// } else {
+//     $data['sla_dapat_mobil']   = null;
+//     $data['status_pengiriman'] = null;
+// }
+
+// setelah area
+
+// =====================================================
+// 1. SLA DAPAT MOBIL
+// =====================================================
+
+$start = $request->rencana_kirim
+    ? date('Y-m-d H:i:s', strtotime($request->rencana_kirim))
+    : null;
+
+$end = $request->tanggal_dpt_unit
+    ? date('Y-m-d H:i:s', strtotime($request->tanggal_dpt_unit))
+    : null;
+
+$diff = $hitungSelisih($start, $end);
+
+$data['lama_waktu_pencarian'] = $diff['text'] ?? null;
+
+if ($start && $end) {
+
+    $area = strtoupper(trim($request->area ?? ''));
+
+    // Hitung berdasarkan TANGGAL saja (abaikan jam)
+    $tanggalRencana = strtotime(date('Y-m-d', strtotime($start)));
+    $tanggalDptUnit = strtotime(date('Y-m-d', strtotime($end)));
+
+    $selisihHari = floor(
+        ($tanggalDptUnit - $tanggalRencana) / 86400
+    );
+
+    // Tentukan batas SLA
+    if ($area == 'JABODETABEK' || $area == 'JABODEBEK') {
+
+        // H+0
+        $batasHari = 0;
+
+    } elseif ($area == 'JAWA_BARAT') {
+
+        // H+1
+        $batasHari = 1;
+
+    } else {
+
+        // Semua area lainnya H+2
+        $batasHari = 2;
+
+    }
+
+    if ($selisihHari > $batasHari) {
+
+        $data['sla_dapat_mobil']   = 'Delay';
+        $data['status_pengiriman'] = 'Terlambat';
+
+    } else {
+
+        $data['sla_dapat_mobil']   = 'On Time';
+        $data['status_pengiriman'] = 'Sudah Dapat';
+
+    }
+
+} else {
+
+    $data['sla_dapat_mobil']   = null;
+    $data['status_pengiriman'] = null;
+
+}    // =====================================================
+    // 2. GUDANG 1
+    // =====================================================
+// =====================================================
+// 2. GUDANG 1
+// =====================================================
+if ($request->planning_loading && $request->tanggal_tiba_gudang) {
+
+    $diff = $hitungSelisih(
+        $request->planning_loading,
+        $request->tanggal_tiba_gudang
+    );
+
+
+
+    if ($diff) {
+
+        $data['lama_digudang'] = $diff['text'];
+
+        if ($diff['days'] > 0) {
+            $data['status_gudang'] = 'Delay';
+            $data['sla_loading']   = 'H+' . $diff['days'];
+            
+        } else {
+            $data['status_gudang'] = 'On Time';
+            $data['sla_loading']   = 'Sesuai SLA';
+        }
+    }
+}
+
+// =====================================================
+// 3. GUDANG 2
+// =====================================================
+if ($request->planning_loading_2 && $request->tanggal_tiba_gudang_2) {
+
+    $diff = $hitungSelisih(
+        $request->planning_loading_2,
+        $request->tanggal_tiba_gudang_2
+    );
+
+    if ($diff) {
+
+        $data['lama_digudang_2'] = $diff['text'];
+
+        if ($diff['days'] > 0) {
+            $data['status_gudang_2'] = 'Delay';
+            $data['sla_loading_2']   = 'H+' . $diff['days'];
+        } else {
+            $data['status_gudang_2'] = 'On Time';
+            $data['sla_loading_2']   = 'Sesuai SLA';
+        }
+    }
+}
+
+// =====================================================
+// 4. GUDANG 3
+// =====================================================
+if ($request->planning_loading_3 && $request->tanggal_tiba_gudang_3) {
+
+    $diff = $hitungSelisih(
+        $request->planning_loading_3,
+        $request->tanggal_tiba_gudang_3
+    );
+
+    if ($diff) {
+
+        $data['lama_digudang_3'] = $diff['text'];
+
+        if ($diff['days'] > 0) {
+            $data['status_gudang_3'] = 'Delay';
+            $data['sla_loading_3']   = 'H+' . $diff['days'];
+        } else {
+            $data['status_gudang_3'] = 'On Time';
+            $data['sla_loading_3']   = 'Sesuai SLA';
+        }
+    }
+}
+
+    return $data;
+}
 
 public function gudangOntime(Request $request)
 {
     $query = DB::table('logistik_pengiriman');
 
+    // Filter dist channel
     $this->filterByDistChannel($query);
 
+    // Sudah tiba minimal salah satu gudang
     $query->where(function ($q) {
-        $q->where('sla_loading', 'H+0')
-          ->orWhere('sla_loading', 'On Time')
-          ->orWhere('sla_loading', 'ONTIME');
+        $q->whereNotNull('tanggal_tiba_gudang')
+          ->orWhereNotNull('tanggal_tiba_gudang_2')
+          ->orWhereNotNull('tanggal_tiba_gudang_3');
     });
 
+    // Filter bulan, area, tahun
     $this->applyFilter($query, $request);
 
-    $logistik = $query
-        ->orderByDesc('tanggal_tiba_gudang')
+    $list = $query
+        ->orderByDesc(DB::raw("
+            COALESCE(
+                tanggal_tiba_gudang,
+                tanggal_tiba_gudang_2,
+                tanggal_tiba_gudang_3
+            )
+        "))
         ->get();
 
     $list_area = $this->getArea();
 
-    return view('jess.sla_ontime', compact('logistik', 'list_area'));
+    return view('jess.sla_ontime', compact(
+        'list',
+        'list_area'
+    ));
 }
-
-
     /*
     |--------------------------------------------------------------------------
     | GUDANG DELAY
     |--------------------------------------------------------------------------
     */
 
-  public function gudangDelay(Request $request)
+ public function gudangDelay(Request $request)
 {
     $query = DB::table('logistik_pengiriman');
 
+    // Filter sesuai Dist Channel user
     $this->filterByDistChannel($query);
 
+    // Sudah ada rencana kirim
+    $query->whereNotNull('rencana_kirim')
+          ->whereRaw("TRIM(rencana_kirim) <> ''");
+
+    // Sudah dapat unit
+    $query->whereNotNull('tanggal_dpt_unit')
+          ->whereRaw("TRIM(tanggal_dpt_unit) <> ''");
+
+    // Belum tiba di gudang sama sekali
     $query->where(function ($q) {
-        $q->where('sla_loading', 'H+1')
-          ->orWhere('sla_loading', 'H+2')
-          ->orWhere('sla_loading', 'H>2')
-          ->orWhere('sla_loading', 'Delay')
-          ->orWhere('sla_loading', 'Critical Delay');
+        $q->whereNull('tanggal_tiba_gudang')
+          ->orWhereRaw("TRIM(tanggal_tiba_gudang) = ''");
     });
 
+    $query->where(function ($q) {
+        $q->whereNull('tanggal_tiba_gudang_2')
+          ->orWhereRaw("TRIM(tanggal_tiba_gudang_2) = ''");
+    });
+
+    $query->where(function ($q) {
+        $q->whereNull('tanggal_tiba_gudang_3')
+          ->orWhereRaw("TRIM(tanggal_tiba_gudang_3) = ''");
+    });
+
+    // Filter area, bulan, tahun, dll
     $this->applyFilter($query, $request);
 
-    $logistik = $query
-        ->orderByDesc('tanggal_tiba_gudang')
+    $list = $query
+        ->orderByDesc('tanggal_dpt_unit')
         ->get();
 
     $list_area = $this->getArea();
 
-    return view('jess.sla_delay', compact('logistik', 'list_area'));
+    return view('jess.sla_delay', compact(
+        'list',
+        'list_area'
+    ));
 }
 
     /*
@@ -493,27 +786,30 @@ public function tujuanOntime(Request $request)
 
     $query->selectRaw("
         *,
+        estimasi_tiba AS tanggal_estimasi,
         CASE
             WHEN DATEDIFF(
                 DATE(tanggal_tiba),
-                DATE_ADD(DATE(tanggal_keluar_gudang), INTERVAL transport_lead_time DAY)
-            ) <= 0 THEN 'On Time'
+                DATE(estimasi_tiba)
+            ) <= 0
+            THEN 'On Time'
             ELSE 'Delay'
         END AS sla_tiba
     ")
     ->whereNotNull('tanggal_tiba')
-    ->whereNotNull('tanggal_keluar_gudang')
-    ->whereNotNull('transport_lead_time')
+    ->whereNotNull('estimasi_tiba')
     ->whereRaw("
         DATEDIFF(
             DATE(tanggal_tiba),
-            DATE_ADD(DATE(tanggal_keluar_gudang), INTERVAL transport_lead_time DAY)
+            DATE(estimasi_tiba)
         ) <= 0
     ");
 
     $this->applyFilter($query, $request);
 
-    $logistik = $query->orderByDesc('tanggal_tiba')->get();
+    $logistik = $query
+        ->orderByDesc('tanggal_tiba')
+        ->get();
 
     $list_area = $this->getArea();
 
@@ -522,48 +818,26 @@ public function tujuanOntime(Request $request)
 
 public function tujuanDelay(Request $request)
 {
-    $query = DB::table('logistik_pengiriman');
+    $query = DB::table('logistik_pengiriman')
+        ->whereRaw("LOWER(TRIM(sla_tiba)) = 'delay'");
 
+    // Filter sesuai dist_channel user yang login
     $this->filterByDistChannel($query);
 
-    $query->selectRaw("
-        *,
-        CASE
-            WHEN DATEDIFF(
-                DATE(tanggal_tiba),
-                DATE_ADD(DATE(tanggal_keluar_gudang), INTERVAL transport_lead_time DAY)
-            ) = 1 THEN 'H+1'
-
-            WHEN DATEDIFF(
-                DATE(tanggal_tiba),
-                DATE_ADD(DATE(tanggal_keluar_gudang), INTERVAL transport_lead_time DAY)
-            ) = 2 THEN 'H+2'
-
-            WHEN DATEDIFF(
-                DATE(tanggal_tiba),
-                DATE_ADD(DATE(tanggal_keluar_gudang), INTERVAL transport_lead_time DAY)
-            ) > 2 THEN 'Critical Delay'
-
-            ELSE 'On Time'
-        END AS sla_tiba
-    ")
-    ->whereNotNull('tanggal_tiba')
-    ->whereNotNull('tanggal_keluar_gudang')
-    ->whereNotNull('transport_lead_time')
-    ->whereRaw("
-        DATEDIFF(
-            DATE(tanggal_tiba),
-            DATE_ADD(DATE(tanggal_keluar_gudang), INTERVAL transport_lead_time DAY)
-        ) > 0
-    ");
-
+    // Filter tanggal, area, dll
     $this->applyFilter($query, $request);
 
-    $logistik = $query->orderByDesc('tanggal_tiba')->get();
+    $logistik = $query
+        ->orderBy('no_shipment')
+        ->orderBy('estimasi_tiba')
+        ->get();
 
     $list_area = $this->getArea();
 
-    return view('jess.tujuan_delay', compact('logistik', 'list_area'));
+    return view('jess.tujuan_delay', compact(
+        'logistik',
+        'list_area'
+    ));
 }
     /*
     |--------------------------------------------------------------------------

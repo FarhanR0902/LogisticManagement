@@ -32,11 +32,12 @@
             padding: 20px;
         }
 
-        .title {
-            font-size: 24px;
-            font-weight: bold;
-            margin-bottom: 20px;
-        }
+      .title {
+    font-size: 24px;
+    font-weight: bold;
+    margin-bottom: 20px;
+    color: #111827; /* atau #000 */
+}
 
         .card {
             background: #fff;
@@ -659,6 +660,9 @@
         opacity:1;
     }
 } */
+    .blue{
+    background:#2563eb;
+}
     </style>
 
 </head>
@@ -677,6 +681,7 @@
                         <h5 class="modal-title">Shipment Laut</h5>
                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
+           
 
                     <div class="modal-body">
                         <div class="row">
@@ -685,11 +690,11 @@
                                 <label>No Shipment</label>
                                 <select name="no_shipment" class="form-select searchable">
                                     <option value="">Pilih Shipment</option>
-                                    @foreach($logistik as $r)
-                                    <option value="{{ $r->no_shipment }}">
-                                        {{ $r->no_shipment }} - {{ $r->tujuan }}
-                                    </option>
-                                    @endforeach
+                                   @foreach($logistik->unique('no_shipment') as $r)
+<option value="{{ $r->no_shipment }}">
+    {{ $r->no_shipment }} - {{ $r->tujuan }}
+</option>
+@endforeach
                                 </select>
                             </div>
 
@@ -731,6 +736,7 @@
             </div>
         </div>
     </div>
+    
     <!-- <div id="notifBox" style="
     position:fixed;
     top:20px;
@@ -755,6 +761,7 @@
     <!-- TOAST POPUP -->
     <div class="toast-container" id="toastContainer"></div>
 
+
     <!-- PANEL LIST NOTIF (SEARCHABLE) -->
 
     <div class="container-fluid px-3">
@@ -767,7 +774,15 @@
         <div class="title">🚚 DATA MONITORING</div>
 
         <div class="toast-container" id="toastContainer"></div>
-        <div id="notifBox" style="
+                 <div class="mb-3">
+<a href="{{ route('monitoring.export', [
+    'pic_monitoring' => request('pic_monitoring'),
+    'area' => request('area')
+]) }}" class="btn btn-success">
+    Export Excel
+</a>
+</div>
+        <!-- <div id="notifBox" style="
 position:fixed;
 top:20px;
 right:20px;
@@ -782,7 +797,7 @@ z-index:9999;
 ">
             <h4 style="margin-bottom:10px;"> Estimasi Tiba ⚠️ </h4>
             <div id="notifContent"></div>
-        </div>
+        </div> -->
 
 
 
@@ -849,7 +864,7 @@ z-index:9999;
         <div class="card">
 
             <!-- 🔥 TARUH DI SINI -->
-
+<!-- 
             <div id="notifBox" style="
 position:fixed;
 top:20px;
@@ -865,7 +880,7 @@ z-index:9999;
 ">
                 <h4 style="margin-bottom:10px;"> Estimasi Tiba ⚠️</h4>
                 <div id="notifContent"></div>
-            </div>
+            </div> -->
             <table id="tableMonitoring" class="display nowrap">
                 <thead>
                     <tr>
@@ -884,13 +899,13 @@ z-index:9999;
                         <th>Ekspedisi</th>
 
                         <th class="editable">PIC</th>
-                        <th class="editable">Nama Kapal</th>
-
-                        <th>ETD</th>
-                        <th>ETA</th>
+                   
                         <th class="editable">Status</th>
                         <th class="editable">Action</th>
-                        <th class="editable">Total DO Qty</th>
+                         <th>Total DO Qty</th>
+                        <th class="editable">Total DO Qty Actual</th>
+                          <th>Selisih Qty</th>
+                        <th class="editable">Reason Qty</th>
                         <th class="editable">Urutan</th>
                         <!-- READONLY -->
 
@@ -904,8 +919,7 @@ z-index:9999;
                         <!-- READONLY -->
                         <th>Keluar</th>
                         <th>Estimasi</th>
-                        <th>ATD</th>
-                        <th>ATA</th>
+                       
 
                         <!-- EDITABLE -->
                         <th class="editable">Tiba</th>
@@ -928,6 +942,12 @@ z-index:9999;
                         <th class="editable">Reason Tiba</th>
                         <th class="editable">Reason Bongkar</th>
                         <th class="editable">Remarks</th>
+                             <th class="editable">Nama Kapal</th>
+
+                        <th>ETD</th>
+                        <th>ETA</th>
+                         <th>ATD</th>
+                        <th>ATA</th>
 
 
 
@@ -938,105 +958,122 @@ z-index:9999;
                 </thead>
 
                 <tbody>
-                    @foreach($logistik as $r)
+             @foreach($logistik as $r)
+          @php
 
-                    @php
+          $sla_tiba = $r->sla_tiba ?? '-';
+$sla_bongkar = $r->sla_bongkar ?? '-';
+$overstay = $r->overstay_days ?? '-';
+$lama_perjalanan = $r->lama_perjalanan ?? '-';
+$status_akhir = $r->status_akhir ?? '-';
+// =========================
+// 1. KELUAR GUDANG TERAKHIR
+// =========================
+$keluarTimestamp = collect([
+    $r->tanggal_keluar_gudang,
+    $r->tanggal_keluar_gudang_2,
+    $r->tanggal_keluar_gudang_3,
+])
+->filter()
+->map(function ($d) {
+    return strtotime($d);
+})
+->max();
 
-                    $keluar = $r->tanggal_keluar_gudang
-                    ? strtotime(date('Y-m-d', strtotime($r->tanggal_keluar_gudang)))
-                    : null;
+$keluar = $keluarTimestamp ?: null;
 
-                    $tiba = $r->tanggal_tiba
-                    ? strtotime(date('Y-m-d', strtotime($r->tanggal_tiba)))
-                    : null;
+// =========================
+// 2. TIBA
+// =========================
+$tiba = $r->tanggal_tiba
+    ? strtotime($r->tanggal_tiba)
+    : null;
 
-                    $bongkar = $r->tanggal_bongkar
-                    ? strtotime(date('Y-m-d', strtotime($r->tanggal_bongkar)))
-                    : null;
+// =========================
+// 3. LAMA PERJALANAN
+// =========================
+$lama_perjalanan = '-';
 
-                    $leadtime = (int)$r->transport_lead_time;
+if ($tiba && $keluar) {
+    $lama_perjalanan = floor(($tiba - $keluar) / 86400);
+}
 
-                    $estimasi = $keluar
-                    ? strtotime("+{$leadtime} days", $keluar)
-                    : null;
+// =========================
+// 4. ESTIMASI TIBA
+// =========================
+
+   
+// =========================
+// 4. ESTIMASI TIBA (DATABASE)
+// =========================
+
+$estimasi = !empty($r->estimasi_tiba)
+    ? strtotime($r->estimasi_tiba)
+    : null;
+
+$estimasi_show = $estimasi
+    ? date('d-m-Y', $estimasi)
+    : '-';
+$alert = '-';
+$alertClass = '';
+$alertText = '';
+
+if (!$r->tanggal_tiba && $estimasi) {
+
+    $today = strtotime(date('Y-m-d'));
+    $hariSisa = floor(($estimasi - $today) / 86400);
+
+    if ($hariSisa < 0) {
+        $alertText = 'OVERDUE';
+        $alertClass = 'red';
+    } elseif ($hariSisa == 0) {
+        $alertText = 'H-0';
+        $alertClass = 'red';
+    } elseif ($hariSisa == 1) {
+        $alertText = 'H-1';
+        $alertClass = 'red';
+    } elseif ($hariSisa == 2) {
+        $alertText = 'H-2';
+        $alertClass = 'orange';
+    } elseif ($hariSisa == 3) {
+        $alertText = 'H-3';
+        $alertClass = 'orange';
+    } elseif ($hariSisa <= 7) {
+        $alertText = 'H-' . $hariSisa;
+        $alertClass = 'blue';
+    } else {
+        $alertText = 'ON TRACK';
+        $alertClass = 'green';
+    }
+
+    $alert = $alertText;
+}
+// =========================
+// 5. SLA TIBA
+// =========================
+// =========================
+// 5. SLA TIBA
+// =========================
+
+$sla_tiba = $r->sla_tiba;
+
+// =========================
+//$sla_bongkar = $r->sla_bongkar;
+@endphp
+                      <tr
+    class="{{ ($alert ?? '') == 'H-1' ? 'highlight-row' : '' }}"
+    data-id="{{ $r->id }}"
+    data-shipment="{{ $r->no_shipment }}"
+    data-keluar="{{ $keluar ? date('Y-m-d', $keluar) : '' }}">
+                     <td>
+    {{ $keluar 
+        ? date('d-m-Y ', $keluar) 
+        : '-' }}
+</td>
 
 
-                    /*
-                    |--------------------------------------------------------------------------
-                    | SLA TIBA
-                    |--------------------------------------------------------------------------
-                    */
 
-                    $lama = '-';
-                    $sla_tiba = '-';
-
-                    if($tiba){
-
-                    $lama = floor(
-                    ($tiba - $keluar) / 86400
-                    );
-
-                    $selisihTiba = floor(
-                    ($tiba - $estimasi) / 86400
-                    );
-
-                    if($selisihTiba <= 0){
-
-                        $sla_tiba='On Time' ;
-
-                        }else{
-
-                        $sla_tiba='H+' . $selisihTiba;
-
-                        }
-
-                        }
-
-
-                        /*
-                        |--------------------------------------------------------------------------
-                        | SLA BONGKAR
-                        |--------------------------------------------------------------------------
-                        */
-
-                        $overstay='-' ;
-                        $sla_bongkar='-' ;
-
-                        if($tiba && $bongkar){
-
-                        $overstay=floor(
-                        ($bongkar - $tiba) / 86400
-                        );
-
-                        if($overstay <=0){
-
-                        $sla_bongkar='On Time' ;
-
-                        }else{
-
-                        $sla_bongkar='H+' . $overstay;
-
-                        }
-
-                        }
-                        @endphp
-                        <tr
-                        data-id="{{ $r->id }}"
-                        data-shipment="{{ $r->no_shipment }}"
-                        data-keluar="{{ $r->tanggal_keluar_gudang ? date('Y-m-d', strtotime($r->tanggal_keluar_gudang)) : '' }}">
-                       <td>
-                            {{ $r->tanggal_keluar_gudang
-            ? date('d-m-Y H:i', strtotime($r->tanggal_keluar_gudang))
-            : '-' }}
-                        </td>
-
-
-
-                        <td>
-                            <input type="date"
-                                name="act_pgi_date"
-                                value="{{ $r->act_pgi_date ? date('Y-m-d', strtotime($r->act_pgi_date)) : '' }}">
-                        </td>
+                       <td>{{ $r->create_tgl ? \Carbon\Carbon::parse($r->create_tgl)->format('d/m/Y H:i') : '-' }}</td>
 
                         <td>{{ $r->dist_channel }}</td>
 
@@ -1056,19 +1093,7 @@ z-index:9999;
                             <input type="text" name="pic_monitoring"
                                 value="{{ $r->pic_monitoring }}">
                         </td>
-                        <td>{{ $r->nama_kapal }}</td>
-
-                        <td>
-                            <input type="date"
-                                name="ETD"
-                                value="{{ $r->etd ? date('Y-m-d', strtotime($r->etd)) : '' }}">
-                        </td>
-
-                        <td>
-                            <input type="date"
-                                name="ETA"
-                                value="{{ $r->eta ? date('Y-m-d', strtotime($r->eta)) : '' }}">
-                        </td>
+                       
 
                         <td>
                             <select name="status_kendaraan" class="form-select status-select">
@@ -1083,15 +1108,42 @@ z-index:9999;
                                 </option>
                             </select>
                         </td>
-                        <td>
-                            <input type="text" name="action_required"
-                                value="{{ $r->action_required }}">
-                        </td>
+                     <td>
+    @if($r->tanggal_tiba)
+
+        <span class="badge green">
+            ✅ TIBA
+        </span>
+
+    @else
+
+        <span class="badge {{ $alertClass }}">
+            {{ $alert }}
+        </span>
+
+    @endif
+</td>
 
                         <td>
                             <input type="number"
                                 name="total_do_qty_car"
                                 value="{{ $r->total_do_qty_car }}">
+                        </td>
+                                  <td>
+                            <input type="number"
+                                name="qty_monitoring"
+                                value="{{ $r->qty_monitoring }}">
+                        </td>
+                            <td>
+    <input type="number"
+           name="selisih_qty"
+           value="{{ $r->selisih_qty }}"
+           readonly>
+</td>
+                                  <td>
+                            <input type="text"
+                                name="remarks_qty"
+                                value="{{ $r->remarks_qty }}">
                         </td>
 
                         <td>
@@ -1100,34 +1152,16 @@ z-index:9999;
                                 value="{{ $r->act_urutan_bongkar }}">
                         </td>
 
-                        <td>
-                            {{ $r->tanggal_keluar_gudang
-            ? date('d-m-Y H:i', strtotime($r->tanggal_keluar_gudang))
-            : '-' }}
-                        </td>
-
-                        <td class="estimasi-tiba"
-                            data-shipment="{{ $r->no_shipment }}"
-                            data-tujuan="{{ $r->tujuan }}"
-                            data-estimasi="{{ $estimasi ? date('Y-m-d',$estimasi) : '' }}">
-
-                            {{ $estimasi
-        ? date('d-m-Y', $estimasi)
+                      <td>
+    {{ $keluar 
+        ? date('d-m-Y H:i', $keluar) 
         : '-' }}
+</td>
 
-                        </td>
-
-                        <td>
-                            <input type="date"
-                                name="ATD"
-                                value="{{ $r->atd ? date('Y-m-d', strtotime($r->atd)) : '' }}">
-                        </td>
-
-                        <td>
-                            <input type="date"
-                                name="ATA"
-                                value="{{ $r->ata ? date('Y-m-d', strtotime($r->ata)) : '' }}">
-                        </td>
+                  <td>
+    {{ $r->estimasi_tiba ? date('d-m-Y', strtotime($r->estimasi_tiba)) : '-' }}
+</td>
+                       
                         <td>
                             <input type="datetime-local"
                                 name="tanggal_tiba"
@@ -1135,8 +1169,8 @@ z-index:9999;
                 ? date('Y-m-d\TH:i', strtotime($r->tanggal_tiba))
                 : '' }}">
                         </td>
+<td>{{ $lama_perjalanan }}</td>
 
-                        <td>{{ $lama }}</td>
 
                         <td>
 
@@ -1168,7 +1202,7 @@ z-index:9999;
                 : '' }}">
                         </td>
 
-                        <td>{{ $overstay }}</td>
+                       <td>{{ $r->overstay_days ?? '-' }}</td>
 
                         <td>
 
@@ -1239,6 +1273,34 @@ z-index:9999;
                                 value="{{ $r->remarks }}">
                         </td>
 
+                           <td>
+                            <input type="text" name="nama_kapal"
+                                value="{{ $r->nama_kapal }}">
+                        </td>
+
+                        <td>
+                            <input type="date"
+                                name="ETD"
+                                value="{{ $r->etd ? date('Y-m-d', strtotime($r->etd)) : '' }}">
+                        </td>
+
+                        <td>
+                            <input type="date"
+                                name="ETA"
+                                value="{{ $r->eta ? date('Y-m-d', strtotime($r->eta)) : '' }}">
+                        </td>
+                         <td>
+                            <input type="date"
+                                name="ATD"
+                                value="{{ $r->atd ? date('Y-m-d', strtotime($r->atd)) : '' }}">
+                        </td>
+
+                        <td>
+                            <input type="date"
+                                name="ATA"
+                                value="{{ $r->ata ? date('Y-m-d', strtotime($r->ata)) : '' }}">
+                        </td>
+
 
                         <td>
                             <span class="save-status"></span>
@@ -1260,1229 +1322,373 @@ z-index:9999;
                 </tbody>
             </table>
 
-            <script>
-                let table;
-                let notif = [];
-                let notifTimer = null;
-                
+           <script>
+    let table;
+    let notif = [];
+    let notifTimer = null;
+    let notifShown = false;
+    let saveTimer;
 
-                $(document).ready(function() {
+    $(document).ready(function() {
+        // Inisialisasi DataTable
+        table = $('#tableMonitoring').DataTable({
+            scrollX: true,
+            scrollCollapse: true,
+            autoWidth: false,
+            fixedHeader: true,
+            pageLength: 10,
+            orderCellsTop: true,
+            ordering: true,
+            columnDefs: [
+                { width: "120px", targets: [0, 1, 2, 6, 9] },
+                { width: "140px", targets: [3, 8] },
+                { width: "350px", targets: 4 },
+                { width: "150px", targets: [5, 20] },
+                { width: "80px", targets: [7, 14, 21] },
+                { width: "180px", targets: [10, 13, 18, 19] },
+                { width: "70px", targets: 11 },
+                { width: "90px", targets: 12 },
+                { width: "100px", targets: [15, 16, 17] }
+            ]
+        });
 
-                    table = $('#tableMonitoring').DataTable({
+        // Custom Filter Tanggal Import
+        var importTglFilter = '';
+        $('#filterImportTgl').on('change', function() {
+            importTglFilter = $(this).val();
+            table.draw();
+        });
 
-                        scrollX: true,
-                        scrollCollapse: true,
-                        autoWidth: false,
-                        fixedHeader: true,
-                        pageLength: 10,
-                        orderCellsTop: true,
-                        ordering: true,
+        // Custom Filter Tanggal Keluar Gudang
+        $('#filterKeluarGudangTgl').on('change', function() {
+            table.draw();
+        });
 
-                        columnDefs: [
+        $.fn.dataTable.ext.search.push(function(settings, data, dataIndex) {
+            var rowNode = table.row(dataIndex).node();
+            
+            // Logika Filter Import
+            if (importTglFilter !== '') {
+                var importTglRow = $(rowNode).attr('data-import') || '';
+                if (importTglRow !== importTglFilter) return false;
+            }
+
+            // Logika Filter Keluar Gudang
+            let filterDate = $('#filterKeluarGudangTgl').val();
+            let tanggalKeluar = $(rowNode).attr('data-keluar');
+            if (filterDate && tanggalKeluar !== filterDate) return false;
+
+            return true;
+        });
+
+        // Inisialisasi Select2 Global & Modal
+        $('.filter-box .searchable').select2({ width: '180px' });
+        $('#shipModal .searchable').select2({
+            width: '100%',
+            dropdownParent: $('#shipModal')
+        });
+
+        // Submit Form Modal
+        $('#shipModal form').on('submit', function(e) {
+            e.preventDefault();
+            $.ajax({
+                url: $(this).attr('action'),
+                type: 'POST',
+                data: $(this).serialize(),
+                success: function(res) {
+                    $('#shipModal').modal('hide');
+                    $('#shipModal form')[0].reset();
+                    alert(res.message);
+                    location.reload();
+                },
+                error: function(err) {
+                    alert('Gagal update data');
+                }
+            });
+        });
+
+        // Jalankan Notifikasi Pertama Kali
+        generateNotif(true);
+        setInterval(generateNotif, 1000000n); // refresh tiap 1 menit
+
+        table.on('draw', function () {
+            generateNotif(false);
+        });
+
+        // Warna Input Tanggal
+        updateDateColor();
+    });
 
 
+    // Menghitung Notifikasi
+function generateNotif(showPopup = true) {
 
-                            {
-                                width: "120px",
-                                targets: 0
-                            },
-                            {
-                                width: "120px",
-                                targets: 1
-                            },
-                            {
-                                width: "120px",
-                                targets: 2
-                            },
-                            {
-                                width: "140px",
-                                targets: 3
-                            },
-                            {
-                                width: "350px",
-                                targets: 4
-                            },
-                            {
-                                width: "150px",
-                                targets: 5
-                            },
-                            {
-                                width: "120px",
-                                targets: 6
-                            },
-                            {
-                                width: "80px",
-                                targets: 7
-                            },
-                            {
-                                width: "140px",
-                                targets: 8
-                            },
-                            {
-                                width: "120px",
-                                targets: 9
-                            },
-                            {
-                                width: "180px",
-                                targets: 10
-                            },
-                            {
-                                width: "70px",
-                                targets: 11
-                            },
-                            {
-                                width: "90px",
-                                targets: 12
-                            },
-                            {
-                                width: "180px",
-                                targets: 13
-                            },
-                            {
-                                width: "80px",
-                                targets: 14
-                            },
-                            {
-                                width: "100px",
-                                targets: 15
-                            },
-                            {
-                                width: "100px",
-                                targets: 16
-                            },
-                            {
-                                width: "100px",
-                                targets: 17
-                            },
-                            {
-                                width: "180px",
-                                targets: 18
-                            },
-                            {
-                                width: "180px",
-                                targets: 19
-                            },
-                            {
-                                width: "150px",
-                                targets: 20
-                            },
-                            {
-                                width: "80px",
-                                targets: 21
-                            }
-
-                        ]
-
-                    });
-
-                    $('.searchable-select').select2({
-                        width: '100%',
-                        placeholder: 'Pilih Reason',
-                        allowClear: true
-                    });
-
-                    table.columns.adjust().draw();
-
-                    $('#shipModal form').on('submit', function(e) {
-                        e.preventDefault();
-
-                        $.ajax({
-                            url: $(this).attr('action'),
-                            type: 'POST',
-                            data: $(this).serialize(),
-
-                            success: function(res) {
-
-                                console.log(res);
-
-                                // tutup modal
-                                $('#shipModal').modal('hide');
-
-                                // reset form
-                                $('#shipModal form')[0].reset();
-
-                                // notif sederhana
-                                alert(res.message);
-
-                                // optional refresh data table
-                                location.reload();
-                            },
-
-                            error: function(err) {
-                                console.log(err.responseText);
-                                alert('Gagal update data');
-                            }
-                        });
-                    });
-                    // =====================
-                    // FILTER TANGGAL IMPORT
-                    // =====================
-                    var importTglFilter = '';
-
-                    $('#filterImportTgl').on('change', function() {
-                        importTglFilter = $(this).val();
-                        table.draw();
-                    });
-
-                    $.fn.dataTable.ext.search.push(function(settings, data, dataIndex) {
-                        var rowNode = table.row(dataIndex).node();
-
-                        if (importTglFilter !== '') {
-                            var importTglRow = $(rowNode).attr('data-import') || '';
-                            if (importTglRow !== importTglFilter) {
-                                return false;
-                            }
-                        }
-
-                        return true;
-                    });
-                    let notif = [];
-
-                    // function generateNotifEstimasi() {
-
-                    //     console.log('=== GENERATE NOTIF ===');
-
-                    //     notif = [];
-
-                    //     console.log(
-                    //         'Jumlah Row:',
-                    //         $('#tableMonitoring tbody tr').length
-                    //     );
-
-                    // notif = [];
-
-                    // let shipment = row.attr('data-shipment');
-
-                    // let tanggalKeluar = row.attr('data-keluar');
-
-                    // if (!tanggalKeluar) {
-                    //     return;
-                    // }
-
-                    // let today = new Date();
-                    // today.setHours(0,0,0,0);
-
-                    // let keluarDate = new Date(tanggalKeluar + 'T00:00:00');
-                    // keluarDate.setHours(0,0,0,0);
-
-                    // let umurKeluar = Math.floor(
-                    //     (today - keluarDate) /
-                    //     (1000 * 60 * 60 * 24)
-                    // );
-
-                    // if (umurKeluar > 30) {
-                    //     return;
-                    // }
-
-                    // console.log('Shipment:', shipment);
-
-                    // let el = row.find('.estimasi-tiba');
-                    // let estimasiText = el.data('estimasi');
-
-                    // if (!estimasiText) {
-                    //     return;
-                    // }
-
-                    // let tujuan = row.find('td:eq(5)').text().trim();
-
-                    // let tanggalBongkar =
-                    //     row.find('[name="tanggal_bongkar"]').val();
-
-                    // if (tanggalBongkar) {
-                    //     return;
-                    // }
-
-                    // let estDate = new Date(
-                    //     estimasiText + 'T00:00:00'
-                    // );
-
-                    // estDate.setHours(0,0,0,0);
-
-                    // let diff = Math.floor(
-                    //     (estDate - today) /
-                    //     (1000 * 60 * 60 * 24)
-                    // );
-
-                    // console.log('Diff:', diff);
-                    //     // tampilkan semua yang belum bongkar
-                    //     if (diff <= 30) {
-
-                    //         notif.push({
-                    //             shipment: shipment,
-                    //             tujuan: tujuan,
-                    //             estimasi: estimasiText,
-                    //             diff: diff
-                    //         });
-
-                    //         console.log('MASUK NOTIF');
-                    //     }
-
-                    // }
-
-                    // console.log('TOTAL NOTIF:', notif.length);
-                    // console.log('NOTIF AKHIR:', notif);
-
-                    // renderToastNotif();
-function generateNotif(showPopup = true) {  
     notif = [];
 
     table.rows().every(function () {
 
         let row = $(this.node());
-        let tujuan = row.find('td:eq(5)').text().trim();
+
         let shipment = row.data('shipment');
         let estimasi = row.find('.estimasi-tiba').data('estimasi');
+        let tujuan = row.find('.estimasi-tiba').data('tujuan');
         let tanggalTiba = row.find('[name="tanggal_tiba"]').val();
 
         if (!shipment || !estimasi) return;
-        if (tanggalTiba && tanggalTiba.trim() !== '') {
-    return;
-}
+
+        // Sudah tiba = tidak notif
+        if (tanggalTiba && tanggalTiba.trim() !== '') return;
 
         let estDate = new Date(estimasi + 'T00:00:00');
+
         let today = new Date();
         today.setHours(0,0,0,0);
 
-        let diff = Math.ceil((estDate - today) / (1000 * 60 * 60 * 24));
+        let diff = Math.ceil(
+            (estDate - today) /
+            (1000 * 60 * 60 * 24)
+        );
 
-        if (diff >= 0 && diff <= 10) {
-            notif.push({
-                shipment,
-                tujuan,
-                estimasi,
-                diff
-            });
+        // Hanya notif di hari tertentu
+        if (![7,5,3,2,1].includes(diff)) return;
+
+        let level = 'followup';
+
+        if (diff <= 3) {
+            level = 'urgent';
         }
+
+        if (diff === 1) {
+            level = 'critical';
+        }
+
+        notif.push({
+            shipment,
+            tujuan,
+            estimasi,
+            diff,
+            level
+        });
     });
 
     renderNotifList("", showPopup);
 }
-table.on('draw', function () {
-    generateNotif(false);
-});
 
-let notifShown = false;
-
-function renderNotifList(filter = "", showPopup = true) {
-
-    let html = "";
-
-    notif
-        .filter(i =>
-            String(i.shipment || '')
-                .toLowerCase()
-                .includes(String(filter || '').toLowerCase())
-        )
-        .forEach(i => {
-
-      html += `
-<div class="notif-item"
-    data-shipment="${i.shipment}"
-    style="
-        padding:12px 14px;
-        border-radius:10px;
-        margin-bottom:10px;
-        cursor:pointer;
-        background: linear-gradient(135deg, #111827, #1f2937);
-        border: 1px solid rgba(255,255,255,0.06);
-        transition: all 0.2s ease;
-    ">
-
-    <div style="display:flex; justify-content:space-between; align-items:center;">
-        <b style="color:#ffffff; font-size:14px; letter-spacing:0.3px;">
-            🚚 ${i.shipment}
-        </b>
-
-        <span style="
-            font-size:11px;
-            padding:4px 8px;
-            border-radius:999px;
-            background:${i.diff <= 1 ? '#dc2626' : '#f59e0b'};
-            color:white;
-            font-weight:600;
-        ">
-            H-${i.diff}
-        </span>
-    </div>
-
-    <div style="
-        margin-top:6px;
-        font-size:12px;
-        color:#cbd5e1;
-    ">
-        📦 Estimasi: <b style="color:#fff">${i.estimasi}</b>
-    </div>
-    
-    
-<div style="
-    margin-top:4px;
-    font-size:12px;
-    color:#cbd5e1;
-">
-    📍 Tujuan: <b style="color:#fff">${i.tujuan}</b>
-</div>
-
-    <div style="
-        margin-top:4px;
-        font-size:11px;
-        color:#94a3b8;
-    ">
-        Klik untuk lihat detail shipment →
-    </div>
-</div>
-`;
-        });
-
-    $('#notifContent').html(html);
-
-   if (notif.length > 0 && showPopup && !notifShown) {
-
-    notifShown = true;
-
-    $('#notifBox').stop(true,true).fadeIn();
-
-    notifTimer = setTimeout(() => {
-
-        $('#notifBox').fadeOut(300);
-
-        notifShown = false; // <-- reset
-
-    }, 5000);
-}
-}
-$(document).on('click', '.notif-item', function () {
-
-    $('#notifBox').fadeOut(200);
-
-    let shipment = String($(this).data('shipment') || '');
-
-    table.search('').columns().search('');
-
-    table.column(4).search('^' + shipment + '$', true, false).draw();
-
-});
-$(document).ready(function () {
-    generateNotif();
-
-    setTimeout(() => {
-        generateNotif();
-    }, 1000);
-});
-
-function renderNotifLsist(filter = "") {
-    let html = "";
-
-    notif
-        .filter(i => i.shipment.toLowerCase().includes(filter.toLowerCase()))
-        .forEach(i => {
-
-            html += `
-            <div class="notif-item" data-shipment="${i.shipment}">
-                <b>${i.shipment}</b><br>
-                Estimasi: ${i.estimasi}<br>
-                <small>H-${i.diff}</small>
-            </div>
-        `;
-        });
-
-    $('#notifContent').html(html);
-}
-
-$('#notifSearch').on('keyup', function () {
-    renderNotisfList($(this).val());
-});
-
-$(document).ready(function () {
-    generateNotif();
-
-    // optional refresh tiap 1 menit
-    setInterval(generateNotif, 60000);
-});
-
-//                     function generateNotifEstimasi() {
-
-//                         console.log('=== GENERATE NOTIF ===');
-
-//                         notif = [];
-
-//                         console.log(
-//                             'HTML Row:',
-//                             $('#tableMonitoring tbody tr').length
-//                         );
-
-//                         console.log(
-//                             'DataTable Row:',
-//                             table.rows().count()
-//                         );
-
-//                         table.rows().every(function() {
-
-//                             let row = $(this.node());
-
-//                             let shipment = row.attr('data-shipment');
-
-//                             let tanggalKeluar = row.attr('data-keluar');
-
-//                             if (!tanggalKeluar) {
-//                                 return;
-//                             }
-
-//                             let today = new Date();
-//                             today.setHours(0, 0, 0, 0);
-
-//                             let keluarDate = new Date(
-//                                 tanggalKeluar + 'T00:00:00'
-//                             );
-
-//                             keluarDate.setHours(0, 0, 0, 0);
-
-//                             let umurKeluar = Math.floor(
-//                                 (today - keluarDate) /
-//                                 (1000 * 60 * 60 * 24)
-//                             );
-
-//                             // hanya shipment yg keluar <= 30 hari
-//                             if (umurKeluar > 30) {
-//                                 return;
-//                             }
-
-//                             console.log('Shipment:', shipment);
-
-//                             let el = row.find('.estimasi-tiba');
-
-//                             let estimasiText = el.data('estimasi');
-
-//                             if (!estimasiText) {
-//                                 return;
-//                             }
-
-//                             let tujuan = row.find('td:eq(5)').text().trim();
-
-//                             let tanggalBongkar =
-//                                 row.find('[name="tanggal_bongkar"]').val();
-
-//                             if (tanggalBongkar) {
-//                                 return;
-//                             }
-
-//                             let estDate = new Date(
-//                                 estimasiText + 'T00:00:00'
-//                             );
-
-//                             estDate.setHours(0, 0, 0, 0);
-
-//                             let diff = Math.floor(
-//                                 (estDate - today) /
-//                                 (1000 * 60 * 60 * 24)
-//                             );
-
-//                             console.log('Diff:', diff);
-
-//                             if (diff <= 30) {
-
-//                                 notif.push({
-//                                     shipment,
-//                                     tujuan,
-//                                     estimasi: estimasiText,
-//                                     diff
-//                                 });
-
-//                                 console.log('MASUK NOTIF');
-//                             }
-
-//                         });
-
-//                         console.log('TOTAL NOTIF:', notif.length);
-//                         console.log('NOTIF AKHIR:', notif);
-
-//                         renderToastNotif();
-//                     }
-
-//                     function renderToastNotif() {
-
-//                         $('#toastContainer').html('');
-
-//                         notif.forEach(function(item) {
-
-//                             let cls = '';
-//                             let icon = '📦';
-//                             let title = 'FOLLOW UP';
-
-//                             if (item.diff <= 7) {
-//                                 cls = 'urgent';
-//                                 icon = '🚨';
-//                                 title = 'URGENT';
-//                             }
-
-//                             if (item.diff === 1) {
-//                                 cls = 'h1';
-//                                 icon = '🔥';
-//                                 title = 'H-1 ALERT';
-//                             }
-
-//                             let toast = $(`
-//             <div class="notif-toast ${cls}"
-//                  data-shipment="${item.shipment}">
-
-//                 <div class="notif-top">
-//                     <div class="notif-icon">${icon}</div>
-
-//                     <div>
-//                         <div class="notif-title">${title}</div>
-//                         <div class="notif-sub">Klik untuk buka shipment</div>
-//                     </div>
-//                 </div>
-
-//                 <div class="notif-body">
-//                     <div>Shipment : <b>${item.shipment}</b></div>
-//                     <div>Tujuan : ${item.tujuan}</div>
-//                     <div>ETA : ${item.estimasi} (H-${item.diff})</div>
-//                 </div>
-
-//                 <div class="notif-progress"></div>
-
-//             </div>
-//         `);
-
-//                             $('#toastContainer').append(toast);
-
-//                             setTimeout(() => {
-//                                 toast.fadeOut(500, function() {
-//                                     $(this).remove();
-//                                 });
-//                             }, 5000);
-
-//                         });
-//                     }
-//                     console.log('TOTAL NOTIF:', notif.length);
-//                     // HAPUS DUA FUNGSI CLICK LAMA KAMU, GANTI DENGAN INI:
-//               $(document).on('click', '.notif-toast', function () {
-
-//     let shipment = $(this).data('shipment');
-//     if (!shipment) return;
-
-//     table.search(shipment).draw();
-
-//     setTimeout(() => {
-
-//         let targetRow = $('tr[data-shipment="' + shipment + '"]');
-
-//         if (!targetRow.length) return;
-
-//         $('.highlight-row').removeClass('highlight-row');
-//         targetRow.addClass('highlight-row');
-
-//         $('html, body').animate({
-//             scrollTop: targetRow.offset().top - 150
-//         }, 500);
-
-//     }, 300);
-// });
-
-
-
-//                     $(document).ready(function() {
-
-//                         generateNotifEstimasi();
-
-//                         // refresh real-time
-//                         setInterval(function() {
-//                             generateNotifEstimasi();
-//                         }, 60000);
-
-//                     });
-
-
-
-                    //  let notif = [];
-
-
-
-                    //                     let notif = [];
-
-                    // $('.estimasi-tiba').each(function() {
-
-                    //     let shipment = $(this).data('shipment');
-                    //     let tujuan = $(this).data('tujuan');
-                    //     let estimasi = $(this).data('estimasi');
-
-                    //     if (!estimasi) return;
-
-                    //     let row = $(this).closest('tr');
-
-                    //     let tanggalTiba = row.find('[name="tanggal_tiba"]').val();
-                    //     let tanggalBongkar = row.find('[name="tanggal_bongkar"]').val();
-
-                    //     if (tanggalBongkar) return;
-
-                    //     let estDate = new Date(estimasi + "T00:00:00");
-                    //     let today = new Date();
-
-                    //     estDate.setHours(0, 0, 0, 0);
-                    //     today.setHours(0, 0, 0, 0);
-
-                    //     let diff = Math.floor(
-                    //         (estDate - today) / (1000 * 60 * 60 * 24)
-                    //     );
-
-                    //     if (diff <= 30 && diff >= 0) {
-
-                    //         notif.push({
-                    //             shipment,
-                    //             tujuan,
-                    //             estimasi,
-                    //             diff
-                    //         });
-
-                    //     }
-
-                    // });
-
-
-                    // // =========================
-                    // // TOAST POPUP (KANAN ATAS)
-                    // // =========================
-
-                    // if (notif.length > 0) {
-
-                    //     notif.forEach(item => {
-
-                    //         let color = "#f59e0b";
-                    //         let label = "⚠ FOLLOW UP";
-
-                    //         if (item.diff <= 7) {
-                    //             color = "#ef4444";
-                    //             label = "🚨 URGENT";
-                    //         }
-
-                    //         if (item.diff === 1) {
-                    //             label = "🔥 H-1 ALERT";
-                    //         }
-
-                    //         let html = `
-                    // <div class="toast toast-shipment"
-                    //      data-shipment="${item.shipment}"
-                    //      style="border-left:5px solid ${color};cursor:pointer">
-
-                    //     <strong>${label}</strong>
-                    //     No Shipment: ${item.shipment}<br>
-                    //     <small>Estimasi: ${item.estimasi} (H-${item.diff})</small>
-
-                    //     <div style="margin-top:5px;color:#60a5fa">
-                    //         Klik untuk buka data
-                    //     </div>
-                    // </div>
-                    // `;
-
-                    //         $('#toastContainer').append(html);
-
-                    //     });
-
-                    //     setTimeout(() => {
-
-                    //         $('.toast').fadeOut(300, function() {
-                    //             $(this).remove();
-                    //         });
-
-                    //     }, 8000);
-                    // }
-
-
-                    // // =====================================
-                    // // KLIK TOAST → SCROLL KE ROW
-                    // // =====================================
-
-                    // $(document).on('click', '.toast-shipment', function() {
-
-                    //     let shipment = $(this).data('shipment');
-
-                    //     let targetRow = $('tr[data-shipment="' + shipment + '"]');
-
-                    //     if (targetRow.length) {
-
-                    //         $('html, body').animate({
-                    //             scrollTop: targetRow.offset().top - 150
-                    //         }, 600);
-
-                    //         $('.highlight-row').removeClass('highlight-row');
-
-                    //         targetRow.addClass('highlight-row');
-
-                    //         setTimeout(() => {
-                    //             targetRow.removeClass('highlight-row');
-                    //         }, 5000);
-
-                    //     }
-
-                    // });
-
-
-                    // =====================================
-                    // KLIK TOAST → SEARCH DATATABLE
-                    // =====================================
-
-
-
-
-                    // =====================================
-                    // PANEL LIST NOTIF
-                    // =====================================
-
-                    // function renderToastNotif() {
-
-                    //     $('#toastContainer').html('');
-
-                    //     if (notif.length === 0) {
-                    //         return;
-                    //     }
-
-                    //     notif.forEach(item => {
-
-                    //         let color = "#f59e0b";
-                    //         let label = "⚠ FOLLOW UP";
-
-                    //         if (item.diff <= 7) {
-                    //             color = "#ef4444";
-                    //             label = "🚨 URGENT";
-                    //         }
-
-                    //         if (item.diff === 1) {
-                    //             color = "#dc2626";
-                    //             label = "🔥 H-1 ALERT";
-                    //         }
-
-                    //         let html = `
-                    //             <div class="toast toast-shipment"
-                    //                  data-shipment="${item.shipment}"
-                    //                  style="border-left:5px solid ${color};cursor:pointer">
-
-                    //                 <strong>${label}</strong>
-
-                    //                 Shipment :
-                    //                 ${item.shipment}<br>
-
-                    //                 Tujuan :
-                    //                 ${item.tujuan}<br>
-
-                    //                 <small>
-                    //                     ETA : ${item.estimasi}
-                    //                     (H-${item.diff})
-                    //                 </small>
-
-                    //             </div>
-                    //         `;
-
-                    //         $('#toastContainer').append(html);
-                    //     });
-
-                    // }
-
-                    // if (notif.length > 0) {
-
-                    //     let html = "";
-
-                    //     notif.forEach((item, i) => {
-                    //         html += `
-                    //             <div style="margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid #374151;">
-                    //                 ${i+1}. ${item.replace(/\n/g, "<br>")}
-                    //             </div>
-                    //         `;
-                    //     });
-
-                    //     $('#notifContent').html(html);
-                    //     $('#notifBox').fadeIn();
-
-                    // }
-                    // setTimeout(() => {
-                    //     $('#notifBox').fadeOut();
-                    // }, 10000);
-
-                });
-
-                // function saveRow(id) {
-
-                //     let row = $('tr[data-id="' + id + '"]');
-
-                //     let data = {
-
-                //         pic_monitoring: row.find('[name="pic_monitoring"]').val(),
-                //         status_kendaraan: row.find('[name="status_kendaraan"]').val(),
-                //         action_required: row.find('[name="action_required"]').val(),
-                //         act_urutan_bongkar: row.find('[name="act_urutan_bongkar"]').val(),
-                //         tanggal_tiba: row.find('[name="tanggal_tiba"]').val(),
-                //         tanggal_bongkar: row.find('[name="tanggal_bongkar"]').val(),
-                //         // monitoring_alert: row.find('[name="monitoring_alert"]').val(),
-                //         reason_tiba: row.find('[name="reason_tiba"]').val(),
-                //         reason_bongkar: row.find('[name="reason_bongkar"]').val(),
-                //         remarks: row.find('[name="remarks"]').val(),
-                //         act_pgi_date: row.find('[name="act_pgi_date"]').val(),
-                //         created_by: row.find('[name="created_by"]').val(),
-                //         total_do_qty_car: row.find('[name="total_do_qty_car"]').val()
-
-                //     };
-
-                //     $.ajax({
-
-                //         url: '/spvmonitoring/update/' + id,
-
-                //         type: 'POST',
-
-                //         data: {
-                //             _token: '{{ csrf_token() }}',
-                //             _method: 'PUT',
-                //             ...data
-                //         },
-
-                //         beforeSend: function() {
-
-                //             row.find('.save-btn')
-                //                 .prop('disabled', true)
-                //                 .text('Saving...');
-
-                //         },
-
-                //         success: function() {
-
-                //             row.find('.save-btn')
-                //                 .prop('disabled', false)
-                //                 .text('SAVE');
-
-                //             alert('✅ Data berhasil disimpan');
-
-                //             location.reload();
-
-                //         },
-
-                //         error: function(xhr) {
-
-                //             row.find('.save-btn')
-                //                 .prop('disabled', false)
-                //                 .text('SAVE');
-
-                //             console.log(xhr.responseText);
-
-                //             alert('❌ Gagal menyimpan data');
-
-                //         }
-
-                //     });
-
-                // }
-
-                // let notif = [];
-
-                // function generateNotifEstimasi() {
-
-                //     notif = [];
-
-                //     $('#tableMonitoring tbody tr').each(function () {
-
-                //         let row = $(this);
-
-                //         let shipment = row.data('shipment');
-
-                //         let tujuan = row.find('td:eq(5)').text().trim();
-
-                //         let estimasiText = row.find('.estimasi-tiba').data('estimasi');
-
-                //         if (!estimasiText) return;
-
-                //         let tanggalBongkar = row.find('[name="tanggal_bongkar"]').val();
-
-                //         if (tanggalBongkar) return;
-
-                //         let estDate = new Date(estimasiText);
-                //         let today = new Date();
-
-                //         estDate.setHours(0,0,0,0);
-                //         today.setHours(0,0,0,0);
-
-                //         let diff = Math.floor(
-                //             (estDate - today) / 86400000
-                //         );
-
-                //         if(diff >= 0 && diff <= 30){
-
-                //             notif.push({
-                //                 shipment,
-                //                 tujuan,
-                //                 estimasi: estimasiText,
-                //                 diff
-                //             });
-
-                //         }
-
-                //     });
-
-                //     renderToastNotif();
-                // }
-
-                // function renderToastNotif() {
-
-                //     $('#toastContainer').html('');
-
-                //     notif.forEach(item => {
-
-                //         let color = '#f59e0b';
-                //         let label = '⚠ FOLLOW UP';
-
-                //         if(item.diff <= 7){
-                //             color = '#ef4444';
-                //             label = '🚨 URGENT';
-                //         }
-
-                //         if(item.diff === 1){
-                //             label = '🔥 H-1 ALERT';
-                //         }
-
-                //         $('#toastContainer').append(`
-                //             <div class="toast toast-shipment"
-                //                  data-shipment="${item.shipment}"
-                //                  style="border-left:5px solid ${color};cursor:pointer">
-
-                //                 <strong>${label}</strong>
-                //                 No Shipment: ${item.shipment}<br>
-                //                 <small>Estimasi: ${item.estimasi} (H-${item.diff})</small>
-
-                //             </div>
-                //         `);
-
-                //     });
-
-                // }
-                function saveRow(id) {
-
-                    let row = $('tr[data-id="' + id + '"]');
-
-                    $.ajax({
-
-                        url: '/monitoring/update/' + id,
-                        type: 'POST',
-
-                        data: {
-                            _token: '{{ csrf_token() }}',
-                            _method: 'PUT',
-
-                            pic_monitoring: row.find('[name="pic_monitoring"]').val(),
-                            status_kendaraan: row.find('[name="status_kendaraan"]').val(),
-                            action_required: row.find('[name="action_required"]').val(),
-
-                            act_urutan_bongkar: row.find('[name="act_urutan_bongkar"]').val(),
-
-                            tanggal_tiba: row.find('[name="tanggal_tiba"]').val(),
-                            tanggal_bongkar: row.find('[name="tanggal_bongkar"]').val(),
-
-                            reason_tiba: row.find('[name="reason_tiba"]').val(),
-                            reason_bongkar: row.find('[name="reason_bongkar"]').val(),
-
-                            remarks: row.find('[name="remarks"]').val(),
-
-                            act_pgi_date: row.find('[name="act_pgi_date"]').val(),
-                            created_by: row.find('[name="created_by"]').val(),
-                            total_do_qty_car: row.find('[name="total_do_qty_car"]').val()
-                        },
-
-                        beforeSend: function() {
-
-                            row.find('.save-btn')
-                                .prop('disabled', true)
-                                .text('Saving...');
-
-                            row.find('.save-status')
-                                .html('⏳ Saving...');
-
-                        },
-
-                        success: function(response) {
-
-                            console.log(response);
-
-                            row.find('.save-btn')
-                                .prop('disabled', false)
-                                .text('SAVE');
-
-                            row.find('.save-status')
-                                .html('✅ Saved');
-
-                            setTimeout(function() {
-                                row.find('.save-status').html('');
-                            }, 2000);
-
-                        },
-
-                        error: function(xhr) {
-
-                            row.find('.save-btn')
-                                .prop('disabled', false)
-                                .text('SAVE');
-
-                            row.find('.save-status')
-                                .html('❌ Error');
-
-                            console.log(xhr.responseJSON);
-                            console.log(xhr.responseText);
-
-                        }
-
-                    });
-
-                }
-
-                /*
-                |--------------------------------------------------------------------------
-                | AUTO SAVE
-                |--------------------------------------------------------------------------
-                */
-                let saveTimer;
-
-                $(document).on(
-                    'change',
-                    '#tableMonitoring input, #tableMonitoring select',
-                    function() {
-
-                        let row = $(this).closest('tr');
-                        let id = row.data('id');
-
-                        console.log('AUTO SAVE:', id);
-
-                        clearTimeout(saveTimer);
-
-                        saveTimer = setTimeout(function() {
-                            saveRow(id);
-                        }, 500);
-
-                    }
-                );
-
-                /*
-                |--------------------------------------------------------------------------
-                | SELECT2
-                |--------------------------------------------------------------------------
-                */
-                $(document).ready(function() {
-
-                    // FILTER DI ATAS TABLE
-                    $('.filter-box .searchable').select2({
-                        width: '180px'
-                    });
-
-                    // SELECT DALAM MODAL
-                    $('#shipModal .searchable').select2({
-                        width: '100%',
-                        dropdownParent: $('#shipModal')
-                    });
-
-                });
-
-                // function generateNotifEstimasi() {
-
-                //     console.log('MASUK FUNCTION');
-
-                //     notif = [];
-
-                //     console.log(
-                //         'Jumlah Row:',
-                //         $('#tableMonitoring tbody tr').length
-                //     );
-
-                //     $('#tableMonitoring tbody tr').each(function () {
-
-                //         let row = $(this);
-
-                //         console.log(
-                //             'Shipment:',
-                //             row.attr('data-shipment')
-                //         );
-
-                //     });
-
-                // }
-
-                // $(document).ready(function () {
-
-                //     generateNotifEstimasi();
-
-                // });
-                function updateDateColor() {
-
-                    $('#tableMonitoring input[type="date"], #tableMonitoring input[type="datetime-local"]').each(function() {
-
-                        if ($(this).val() && $(this).val().trim() !== '') {
-
-                            $(this)
-                                .removeClass('input-empty')
-                                .addClass('input-filled');
-
-                        } else {
-
-                            $(this)
-                                .removeClass('input-filled')
-                                .addClass('input-empty');
-                        }
-
-                    });
-                }
-
-                // pertama kali load
-                $(document).ready(function() {
-                    updateDateColor();
-                });
-
-                // saat user ubah tanggal
-                $(document).on('change',
-                    '#tableMonitoring input[type="date"], #tableMonitoring input[type="datetime-local"]',
-                    function() {
-                        updateDateColor();
-                    }
-                );
-
-
-                $(document).ready(function() {
-
-                    $.fn.dataTable.ext.search.push(function(settings, data, dataIndex) {
-
-                        let filterDate = $('#filterKeluarGudangTgl').val();
-
-                        let row = table.row(dataIndex).node();
-                        let tanggalKeluar = $(row).attr('data-keluar');
-
-                        if (!filterDate) return true;
-                        if (!tanggalKeluar) return false;
-
-                        return tanggalKeluar === filterDate;
-                    });
-
-                    $('#filterKeluarGudangTgl').on('change', function() {
-                        table.draw();
-                    });
-
-                });
-
-                function initReasonSelect() {
-
-    $('.searchable-select').each(function () {
-
-        if ($(this).hasClass('select2-hidden-accessible')) {
-            $(this).select2('destroy');
+    // Render HTML Notifikasi ke dalam box
+    function renderNotifList(filter = "", showPopup = true) {
+        let html = "";
+        notif
+            .filter(i => String(i.shipment || '').toLowerCase().includes(String(filter || '').toLowerCase()))
+            .forEach(i => {
+                html += `
+                <div class="notif-item" data-shipment="${i.shipment}" style="padding:12px 14px; border-radius:10px; margin-bottom:10px; cursor:pointer; background: linear-gradient(135deg, #111827, #1f2937); border: 1px solid rgba(255,255,255,0.06); transition: all 0.2s ease;">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <b style="color:#ffffff; font-size:14px; letter-spacing:0.3px;">🚚 ${i.shipment}</b>
+                        <span style="font-size:11px; padding:4px 8px; border-radius:999px; background:${i.diff <= 1 ? '#dc2626' : '#f59e0b'}; color:white; font-weight:600;">H${i.diff === 1 ? 'BESOK' : 'H-' + i.diff}</span>
+                    </div>
+                    <div style="margin-top:6px; font-size:12px; color:#cbd5e1;">📦 Estimasi: <b style="color:#fff">${i.estimasi}</b></div>
+                    <div style="margin-top:4px; font-size:12px; color:#cbd5e1;">📍 Tujuan: <b style="color:#fff">${i.tujuan}</b></div>
+                    <div style="margin-top:4px; font-size:11px; color:#94a3b8;">Klik untuk lihat detail shipment →</div>
+                </div>`;
+            });
+
+        $('#notifContent').html(html);
+
+        if (notif.length > 0 && showPopup && !notifShown) {
+            notifShown = true;
+            $('#notifBox').stop(true,true).fadeIn();
+            clearTimeout(notifTimer);
+            notifTimer = setTimeout(() => {
+                $('#notifBox').fadeOut(300);
+                notifShown = false;
+            }, 5000);
         }
+    }
 
-        $(this).select2({
-            width: 'resolve',
-            placeholder: 'Pilih Reason',
-            allowClear: true
+    // Filter list notifikasi berdasarkan keyup (Typo 'renderNotisfList' diperbaiki di sini)
+    $('#notifSearch').on('keyup', function () {
+        renderNotifList($(this).val(), false);
+    });
+
+    // Event klik list notif untuk filter DataTable
+    $(document).on('click', '.notif-item', function () {
+        $('#notifBox').fadeOut(200);
+        let shipment = String($(this).data('shipment') || '');
+        table.search('').columns().search('');
+        table.column(4).search('^' + shipment + '$', true, false).draw();
+    });
+
+    // Fungsi Save Row Ajax
+    function saveRow(id) {
+        let row = $('tr[data-id="' + id + '"]');
+        $.ajax({
+            url: '/monitoring/update/' + id,
+            type: 'POST',
+            data: {
+                _token: '{{ csrf_token() }}',
+                _method: 'PUT',
+                pic_monitoring: row.find('[name="pic_monitoring"]').val(),
+                status_kendaraan: row.find('[name="status_kendaraan"]').val(),
+                action_required: row.find('[name="action_required"]').val(),
+                act_urutan_bongkar: row.find('[name="act_urutan_bongkar"]').val(),
+                tanggal_tiba: row.find('[name="tanggal_tiba"]').val(),
+                tanggal_bongkar: row.find('[name="tanggal_bongkar"]').val(),
+                reason_tiba: row.find('[name="reason_tiba"]').val(),
+                reason_bongkar: row.find('[name="reason_bongkar"]').val(),
+                remarks: row.find('[name="remarks"]').val(),
+                act_pgi_date: row.find('[name="act_pgi_date"]').val(),
+                total_do_qty_car: row.find('[name="total_do_qty_car"]').val(),
+                    qty_monitoring: row.find('[name="qty_monitoring"]').val(),
+    selisih_qty: row.find('[name="selisih_qty"]').val(),
+    remarks_qty: row.find('[name="remarks_qty"]').val(),
+            },
+            beforeSend: function() {
+                row.find('.save-btn').prop('disabled', true).text('Saving...');
+                row.find('.save-status').html('⏳ Saving...');
+            },
+            success: function(response) {
+                row.find('.save-btn').prop('disabled', false).text('SAVE');
+                row.find('.save-status').html('✅ Saved');
+                setTimeout(function() { row.find('.save-status').html(''); }, 2000);
+            },
+            error: function(xhr) {
+                row.find('.save-btn').prop('disabled', false).text('SAVE');
+                row.find('.save-status').html('❌ Error');
+            }
         });
+    }
+
+    // Auto Save saat input berubah
+    $(document).on('change', '#tableMonitoring input, #tableMonitoring select', function() {
+        let row = $(this).closest('tr');
+        let id = row.data('id');
+        clearTimeout(saveTimer);
+        saveTimer = setTimeout(function() {
+            saveRow(id);
+        }, 500);
     });
-}
+    $(document).on('input', '[name="total_do_qty_car"], [name="qty_monitoring"]', function () {
 
-$(document).ready(function () {
+    let row = $(this).closest('tr');
 
-    initReasonSelect();
+    let total = parseFloat(row.find('[name="total_do_qty_car"]').val()) || 0;
+    let qty   = parseFloat(row.find('[name="qty_monitoring"]').val()) || 0;
 
-    table.on('draw.dt', function () {
-        initReasonSelect();
-    });
+    row.find('[name="selisih_qty"]').val(total - qty);
 
 });
-            </script>
+
+    // Fungsi warna input tanggal kosong/berisi
+    function updateDateColor() {
+        $('#tableMonitoring input[type="date"], #tableMonitoring input[type="datetime-local"]').each(function() {
+            if ($(this).val() && $(this).val().trim() !== '') {
+                $(this).removeClass('input-empty').addClass('input-filled');
+            } else {
+                $(this).removeClass('input-filled').addClass('input-empty');
+            }
+        });
+    }
+
+    $(document).on('change', '#tableMonitoring input[type="date"], #tableMonitoring input[type="datetime-local"]', function() {
+        updateDateColor();
+    });
+
+    // Re-init Select2 pada kolom Reason setiap kali Table di-render ulang (pagination / sorting)
+    function initReasonSelect() {
+        $('.searchable-select').each(function () {
+            if ($(this).hasClass('select2-hidden-accessible')) {
+                $(this).select2('destroy');
+            }
+            $(this).select2({
+                width: 'resolve',
+                placeholder: 'Pilih Reason',
+                allowClear: true
+            });
+        });
+    }
+
+    $(document).ready(function () {
+        initReasonSelect();
+        table.on('draw.dt', function () {
+            initReasonSelect();
+        });
+    });
+</script>
 
 </html>
+
+<!-- $leadtime = (int) $r->transport_lead_time;
+
+$estimasi = $keluar
+    ? strtotime("+{$leadtime} days", $keluar)
+    : null; -->
+
+    <!--  $leadtime = (int) $r->transport_lead_time;
+
+// Ambil jumlah tanggal tiba unik untuk shipment yang sama
+$adaYangSudahTiba = DB::table('logistik_pengiriman')
+    ->where('no_shipment', $r->no_shipment)
+    ->whereNotNull('tanggal_tiba')
+    ->exists();
+
+// Kalau baris ini sendiri sudah tiba,
+// pakai leadtime normal
+if ($r->tanggal_tiba) {
+
+    $leadtimeFinal = $leadtime;
+
+} else {
+
+    $leadtimeFinal = $leadtime + $adaYangSudahTiba;
+}
+
+$estimasi = $keluar
+    ? strtotime("+{$leadtimeFinal} days", $keluar)
+    : null; -->
+    <!-- $leadtime = (int) $r->transport_lead_time;
+
+// cek apakah shipment sudah pernah “shift”
+$shifted = DB::table('logistik_pengiriman')
+    ->where('no_shipment', $r->no_shipment)
+    ->whereNotNull('tanggal_tiba')
+    ->exists();
+
+/*
+    LOGIC FIX:
+    - pertama kali belum ada shift → normal
+    - setelah ada input pertama → shift +1 TETAP
+    - tidak reset walaupun input ke-2 / ke-3 masuk
+*/
+
+$leadtimeFinal = $leadtime;
+
+if ($shifted) {
+    $leadtimeFinal = $leadtime + 1;
+}
+
+$estimasi = $keluar
+    ? strtotime("+{$leadtimeFinal} days", $keluar)
+    : null;
+ -->
+
+
+ <!-- 
+$leadtime = (int) $r->transport_lead_time;
+
+// hitung berapa STEP yang sudah “terisi sebelum baris ini”
+$shift = DB::table('logistik_pengiriman')
+    ->where('no_shipment', $r->no_shipment)
+    ->whereNotNull('tanggal_tiba');
+
+if (!is_null($r->act_urutan_bongkar)) {
+    $shift->where('act_urutan_bongkar', '<', $r->act_urutan_bongkar);
+}
+
+$shift = $shift->count();
+
+$leadtimeFinal = $leadtime + $shift;
+
+$estimasi = $keluar
+    ? strtotime("+{$leadtimeFinal} days", $keluar)
+    : null;
+ -->
