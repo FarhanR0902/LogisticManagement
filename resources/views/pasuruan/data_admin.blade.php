@@ -981,9 +981,12 @@
                 </form>
                 @endforeach
 
-                <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
-                <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-                <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+                <!-- FIXED: jQuery, Bootstrap JS, dan DataTables JS SEBELUMNYA
+                     dimuat DUA KALI (sekali di <head>, sekali lagi di sini).
+                     Memuat jQuery dua kali mereset instance $ global dan bisa
+                     memicu perilaku aneh (event/plugin registrasi ganda).
+                     Cukup select2 JS yang belum dimuat sebelumnya, jadi hanya
+                     itu yang dipertahankan di sini. -->
                 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
             </div>
 
@@ -1010,6 +1013,15 @@
                         if (!teks) return 0;
                         let bersih = String(teks).replace(/[^0-9]/g, '');
                         return parseFloat(bersih) || 0;
+                    }
+
+                    // FIXED: helper baru untuk normalisasi nilai filter (Planner/Area)
+                    // supaya perbandingan tidak lagi strict-sensitive terhadap
+                    // spasi berlebih atau perbedaan huruf besar/kecil antara
+                    // opsi dropdown ($planners/$areas) dan value asli yang
+                    // tersimpan di kolom input tabel.
+                    function normalizeFilterVal(v) {
+                        return (v || '').toString().replace(/\s+/g, ' ').trim().toLowerCase();
                     }
 
                     function jalankanMaskingRupiahTabel() {
@@ -1228,6 +1240,13 @@
                         }],
 
                        initComplete: function() {
+                            // FIXED (CRITICAL BUG): sebelumnya callback ini
+                            // memakai variabel luar `table`, yang PADA SAAT
+                            // initComplete jalan, boleh jadi belum ter-assign
+                            // sepenuhnya. `this.api()` selalu aman dipakai
+                            // karena tidak bergantung pada timing assignment
+                            // variabel `table` di luar.
+                            var apiRef = this.api();
                             setTimeout(function() {
                                 jalankanMaskingRupiahTabel();
                                 initSelect2RowLevel();
@@ -1238,7 +1257,7 @@
                                 // ("header geser-geser"). columns.adjust()
                                 // memaksa DataTables menghitung ulang & menyamakan
                                 // lebar header dengan body.
-                                table.columns.adjust();
+                                apiRef.columns.adjust();
                             }, 0);
 
                             // ================================================
@@ -1278,11 +1297,28 @@
                         drawCallback: function() {
                             jalankanMaskingRupiahTabel();
                             initSelect2RowLevel();
-                            // FIXED: sama seperti initComplete — tiap kali paging
-                            // memicu select2 baru di-init untuk baris yang baru
-                            // muncul, resync lebar header/body lagi supaya tidak
-                            // geser.
-                            table.columns.adjust();
+                            // FIXED (CRITICAL BUG — ini penyebab utama filter
+                            // Planner/Area/Tgl Import "tidak berfungsi"):
+                            // drawCallback dipanggil DataTables secara SINKRON
+                            // saat draw PERTAMA KALI, yaitu masih di DALAM proses
+                            // pemanggilan `$('#tablePlanner').DataTable({...})`
+                            // itu sendiri — SEBELUM baris `var table = ...` di
+                            // luar sempat selesai assignment. Akibatnya waktu
+                            // drawCallback pertama kali jalan, variabel `table`
+                            // masih undefined, `table.columns.adjust()` melempar
+                            // TypeError, dan exception ini MENGHENTIKAN seluruh
+                            // sisa kode di dalam $(document).ready(...) —
+                            // termasuk semua registrasi event filter Planner,
+                            // Area, dan custom search (ext.search.push) yang
+                            // posisinya ada SETELAH blok DataTable() ini. Itulah
+                            // kenapa dropdown filter kelihatan ada tapi milih
+                            // opsi tidak ngefek sama sekali: handler-nya memang
+                            // tidak pernah kepasang.
+                            //
+                            // Fix: gunakan `this.api()` yang selalu tersedia
+                            // sejak awal di dalam callback DataTables, tidak
+                            // bergantung pada timing assignment variabel luar.
+                            this.api().columns.adjust();
                         }
                     });
 
@@ -1390,6 +1426,18 @@ function formatRupiah(angka) {
                     // search bawaan DataTables yang sudah dimatikan di atas —
                     // ini yang membuat search sekarang bisa membaca ISI SEMUA
                     // input/select di baris, bukan cuma text kosong di <td>.
+                    //
+                    // FIXED (bug filter Planner/Area/Tgl Import tidak berfungsi):
+                    // 1) Filter Planner & Area sebelumnya pakai perbandingan
+                    //    strict (!==) tanpa normalisasi -> gagal match kalau ada
+                    //    spasi ekstra / beda huruf besar-kecil antara opsi
+                    //    dropdown dan value asli di kolom tabel. Sekarang pakai
+                    //    normalizeFilterVal() di kedua sisi.
+                    // 2) Filter Tgl Import sebelumnya membiarkan baris yang
+                    //    created_at-nya kosong ('-') LOLOS tanpa dicek sama
+                    //    sekali saat filter aktif -> hasil filter kelihatan
+                    //    salah/campur. Sekarang baris tanpa tanggal langsung
+                    //    dibuang (return false) saat createTglFilter aktif.
                     $.fn.dataTable.ext.search.push(function(settings, data, dataIndex) {
                         if (settings.nTable.id !== 'tablePlanner') return true;
 
@@ -1422,16 +1470,16 @@ function formatRupiah(angka) {
                             if (textAll.indexOf(globalKeyword) === -1) return false;
                         }
 
-                        // FILTER PLANNER
+                        // FILTER PLANNER — dinormalisasi (trim + lowercase + spasi rapat)
                         if (plannerFilter !== '') {
-                            var plannerValue = (node.find('input[name="planner_pasuruan"]').val() || '').trim();
-                            if (plannerValue !== plannerFilter) return false;
+                            var plannerValue = normalizeFilterVal(node.find('input[name="planner_pasuruan"]').val());
+                            if (plannerValue !== normalizeFilterVal(plannerFilter)) return false;
                         }
 
-                        // FILTER AREA
+                        // FILTER AREA — dinormalisasi (trim + lowercase + spasi rapat)
                         if (areaFilter !== '') {
-                            var areaValue = (node.find('input[name="area_pasuruan"]').val() || '').trim();
-                            if (areaValue !== areaFilter) return false;
+                            var areaValue = normalizeFilterVal(node.find('input[name="area_pasuruan"]').val());
+                            if (areaValue !== normalizeFilterVal(areaFilter)) return false;
                         }
 
                         // FILTER REASON WAKTU TIBA
@@ -1446,15 +1494,23 @@ function formatRupiah(angka) {
                             if (reasonBongkarValue !== reasonBongkarFilter) return false;
                         }
 
-                        // FILTER CREATE TGL (kolom pertama, format d/m/Y H:i)
+                        // FILTER CREATE TGL (kolom pertama, format d/m/Y)
+                        // FIXED: baris tanpa tanggal ('-' atau kosong) sekarang
+                        // DIBUANG saat filter aktif, bukan otomatis lolos.
                         if (createTglFilter !== '') {
                             var createTglText = (data[0] || '').trim();
-                            if (createTglText !== '-') {
-                                var parts = createTglText.split(' ')[0].split('/');
-                                if (parts.length === 3) {
-                                    var tanggalRow = parts[2] + '-' + parts[1] + '-' + parts[0];
-                                    if (tanggalRow !== createTglFilter) return false;
-                                }
+
+                            if (createTglText === '-' || createTglText === '') {
+                                return false;
+                            }
+
+                            var parts = createTglText.split(' ')[0].split('/');
+                            if (parts.length === 3) {
+                                var tanggalRow = parts[2] + '-' + parts[1] + '-' + parts[0];
+                                if (tanggalRow !== createTglFilter) return false;
+                            } else {
+                                // format tanggal tidak dikenali -> jangan diloloskan
+                                return false;
                             }
                         }
 
