@@ -431,7 +431,7 @@ Export Excel
 
 
         <!-- HAPUS SEMUA -->
-    <form action="{{ route('pasuruan.archive') }}"
+    <form action="{{ route('spvplanner.archive') }}"
       method="POST"
             onsubmit="return confirm('Pindahkan semua data ke Storage?')"
             class="archive-form">
@@ -820,9 +820,9 @@ font-size: 16px;
 
                     <th>Lama Waktu Pencarian</th>
                     <th>SLA Dapat Mobil</th>
-                    <th>Planning Loading KACS</th>
-                    <th>Tanggal Tiba KACS</th>
-                    <th>Tanggal Keluar KACS</th>
+                    <th>Planning Loading Pasuruan</th>
+                    <th>Tanggal Tiba Pasuruan</th>
+                    <th>Tanggal Keluar Pasuruan</th>
 
 
 
@@ -851,6 +851,7 @@ font-size: 16px;
 
                     <th>SLA Tiba</th>
                     <th>Tanggal Bongkar</th>
+                    <th>Status Bongkar</th>
                     <th>Overstay</th>
                     <th>SLA Bongkar</th>
                     <th>Reason Tiba</th>
@@ -1113,31 +1114,11 @@ else {
                         <td>{{ $r->total_do_pasuruan }}</td>
                         <!-- <td>{{ $r->perubahan_mobil_pasuruan }}</td> -->
 
-                        <td>Rp {{ number_format($r->nilai_muatan_pasuruan, 0, ',', '.') }}</td>
-                        <td>Rp {{ number_format($r->biaya_kirim_pasuruan, 0, ',', '.') }}</td>
+                     <td>Rp {{ number_format($r->nilai_muatan_pasuruan, 0, ',', '.') }}</td>
+<td>Rp {{ number_format($r->biaya_kirim_pasuruan, 0, ',', '.') }}</td>
 
-<td>
-
-@if($isDuplicate)
-
-<span class="badge badge-duplicate">
-    Duplicate No Shipment {{ $shipment }}
-    @if($jumlahData>1)
-        ({{ $jumlahData }} Data)
-    @endif
-</span>
-
-@elseif($cr > 0)
-
-<span class="cr-value">
-    {{ number_format($cr,4,',','.') }}%
-</span>
-
-@else
-
-<span class="text-muted">-</span>
-
-@endif
+<td class="cr-cell">
+    <span class="text-muted">-</span>
 </td>
                         <td>
                             @php
@@ -1380,6 +1361,48 @@ else {
         ? date('d-m-Y h:i A', strtotime($r->tanggal_bongkar_pasuruan))
         : '-' }}
 </td>
+<td class="text-center">
+    @php
+        if (!empty($r->tanggal_bongkar_pasuruan)) {
+
+            // Kalau tanggal bongkar sudah diisi
+            $statusBongkar = 'Telah Bongkar';
+            $statusBongkarClass = 'green';
+
+        } elseif (!empty($r->tanggal_tiba_pasuruan)) {
+
+            // Kalau sudah tiba tapi belum bongkar
+            $tanggalTiba = strtotime(
+                date('Y-m-d', strtotime($r->tanggal_tiba_pasuruan))
+            );
+
+            $hariIni = strtotime(date('Y-m-d'));
+
+            $selisihHari = floor(
+                ($hariIni - $tanggalTiba) / 86400
+            );
+
+            $selisihHari = max(0, $selisihHari);
+
+            $statusBongkar = 'H+' . $selisihHari;
+
+            if ($selisihHari == 0) {
+                $statusBongkarClass = 'orange';
+            } else {
+                $statusBongkarClass = 'red';
+            }
+
+        } else {
+
+            $statusBongkar = '-';
+            $statusBongkarClass = 'gray';
+        }
+    @endphp
+
+    <span class="badge status-bongkar {{ $statusBongkarClass }}">
+        {{ $statusBongkar }}
+    </span>
+</td>
                         <td>
 @php
     $overstayText = '';
@@ -1530,13 +1553,128 @@ else {
     </div>
 
 
-    <script>
+  <script>
 $(document).ready(function() {
 
     let table = $('#tableLogistik').DataTable({
         scrollX: true,
         pageLength: 10,
-        autoWidth: false
+        autoWidth: false,
+
+        // =========================================================
+        // DRAW CALLBACK: Hitung CR Berdasarkan Muatan Gabungan per Shipment
+        // =========================================================
+        "drawCallback": function(settings) {
+            let api = this.api();
+            let shipmentGroups = {};
+
+            // -----------------------------------------------------
+            // PASS 1: Hitung Total Nilai Muatan & MAX Biaya Kirim per No Shipment
+            // -----------------------------------------------------
+            api.rows({ search: 'applied' }).every(function(rowIdx, tableLoop, rowLoop) {
+                let data = this.data();
+                let node = this.node();
+
+                let noShipment = data[4] ? data[4].trim() : '';
+
+                let cellsRp = [];
+                $(node).find('td').each(function() {
+                    if ($(this).text().includes('Rp')) {
+                        cellsRp.push($(this));
+                    }
+                });
+
+                let rawNilaiMuatan = cellsRp.length >= 2
+                    ? cellsRp[0].text().trim()
+                    : $(node).find('td').eq(12).text().trim();
+
+                let nilaiMuatan = parseFloat(rawNilaiMuatan.replace(/[^0-9]/g, "")) || 0;
+
+                if (noShipment && noShipment !== '-' && noShipment !== '') {
+
+                    if (!shipmentGroups[noShipment]) {
+                        shipmentGroups[noShipment] = {
+                            totalMuatan: 0,
+                            totalBiaya: 0,
+                            totalRow: 0
+                        };
+                    }
+
+                    let rawBiaya = cellsRp.length >= 2
+                        ? cellsRp[1].text().trim()
+                        : $(node).find('td').eq(13).text().trim();
+
+                    let biayaMurni = parseFloat(rawBiaya.replace(/[^0-9]/g, "")) || 0;
+
+                    shipmentGroups[noShipment].totalMuatan += nilaiMuatan;
+
+                    // MAX biaya kirim (bukan SUM), karena biaya_kirim sama untuk semua baris shipment yang sama
+                    shipmentGroups[noShipment].totalBiaya = Math.max(
+                        shipmentGroups[noShipment].totalBiaya,
+                        biayaMurni
+                    );
+
+                    shipmentGroups[noShipment].totalRow++;
+                }
+            });
+
+            // -----------------------------------------------------
+            // PASS 2: Tulis hasil CR ke tiap baris (halaman aktif saja)
+            // -----------------------------------------------------
+            api.rows({ page: 'current', search: 'applied' }).every(function(rowIdx, tableLoop, rowLoop) {
+                let data = this.data();
+                let node = this.node();
+                let noShipment = data[4] ? data[4].trim() : '';
+
+                let cellsRp = [];
+                $(node).find('td').each(function() {
+                    if ($(this).text().includes('Rp')) {
+                        cellsRp.push($(this));
+                    }
+                });
+
+                let cellMuatan = cellsRp.length >= 2 ? cellsRp[0] : $(node).find('td').eq(12);
+                let cellBiaya  = cellsRp.length >= 2 ? cellsRp[1] : $(node).find('td').eq(13);
+                let cellCR     = cellsRp.length >= 2 ? cellsRp[1].next('td') : $(node).find('td').eq(14);
+
+                let costRatio = 0;
+
+                if (noShipment && noShipment !== '-' && noShipment !== '' && shipmentGroups[noShipment]) {
+
+                    let totalMuatan = shipmentGroups[noShipment].totalMuatan;
+                    let totalBiaya  = shipmentGroups[noShipment].totalBiaya;
+
+                    let nilaiMuatanBaris = parseFloat(
+                        cellMuatan.text().trim().replace(/[^0-9]/g, "")
+                    ) || 0;
+
+                    if (totalMuatan > 0 && nilaiMuatanBaris > 0) {
+                        let totalCR = (totalBiaya / totalMuatan) * 100;
+                        let kontribusi = nilaiMuatanBaris / totalMuatan;
+                        costRatio = kontribusi * totalCR;
+                    }
+
+                    cellCR.html(costRatio > 0
+                        ? '<span class="cr-value">' + costRatio.toFixed(4).replace('.', ',') + '%</span>'
+                        : '<span class="text-muted">0,0000%</span>'
+                    );
+
+                } else {
+
+                    let nilaiMuatanMurni = parseFloat(cellMuatan.text().trim().replace(/[^0-9]/g, "")) || 0;
+                    let biayaMurni = parseFloat(cellBiaya.text().trim().replace(/[^0-9]/g, "")) || 0;
+
+                    if (nilaiMuatanMurni > 0) {
+                        costRatio = (biayaMurni / nilaiMuatanMurni) * 100;
+                    }
+
+                    cellCR.html(costRatio > 0
+                        ? '<span class="cr-value">' + costRatio.toFixed(4).replace('.', ',') + '%</span>'
+                        : '<span class="text-muted">-</span>'
+                    );
+                }
+            });
+        }
     });
 
     // ==========================================
@@ -1572,9 +1710,9 @@ $(document).ready(function() {
                 }
             }
 
-            // 2. FILTER PLANNER (Kolom 3) -> DIPERBAIKI SESUAI URUTAN TH
+            // 2. FILTER PLANNER (Kolom 3)
             let rawPlanner  = data[3] ? data[3] : '';
-            let dataPlanner = $('<div>').html(rawPlanner).text().trim(); // hapus tag html / spasi ekstra jika ada
+            let dataPlanner = $('<div>').html(rawPlanner).text().trim();
             if (filterPlanner && dataPlanner !== filterPlanner) {
                 return false;
             }
@@ -1640,13 +1778,12 @@ $('#btnExportExcel').on('click', function(e) {
     if (filterMonth)   params.append('month', filterMonth);
     if (filterYear)    params.append('year', filterYear);
 
-    let baseUrl = "{{ route('spvplanner.export.pasuruan') }}";
+    let baseUrl = "{{ route('pasuruan.export') }}";
     let finalUrl = params.toString() ? (baseUrl + '?' + params.toString()) : baseUrl;
 
     window.location.href = finalUrl;
 });
 </script>
-
 </body>
 
 </html>

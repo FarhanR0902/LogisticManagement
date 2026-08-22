@@ -14,39 +14,62 @@ class PasuruanImport implements ToModel, WithHeadingRow, WithEvents
 {
     private static $customerMap = null;
 
+    // =====================================================
+    // $tarifByRoute: dikelompokkan per ROUTE, supaya bisa matching
+    // Route + Ekpedisi (exact) + Mobil (prefix match, karena kolom
+    // Mobil di Excel sering kepotong dibanding yang lengkap di
+    // master_harga). Structure:
+    // [ normalized_route => Collection of {ekpedisi, mobil, biaya_kirim} ]
+    // =====================================================
+    private static $tarifByRoute = null;
+
+    // Nama tabel master tarif di database
+    private const TARIF_TABLE = 'tarif_pengiriman';
+
     public function __construct()
     {
         // =====================================================
-        // MASTER DATA: tujuan -> dist_channel, pulau, area, planner, pic monitoring
-        //
-        // FIXED: sebelumnya nama tabel salah ketik ('tujuanfilterr',
-        // harusnya 'tujuanfillterr') dan kolom key-nya salah
-        // ('name_customer_1', padahal kolom aslinya bernama 'tujuan').
-        //
-        // FIXED juga: tabel pic_monitoring terpisah dihapus karena kolom
-        // Planner & Monitoring sudah ada di tabel tujuanfillterr yang sama.
+        // MASTER DATA: tujuan -> dist_channel, pulau, area, planner,
+        // pic monitoring, biaya_kuli.
         //
         // PENTING - FILTER Div = 'Pasuruan':
-        // Tabel tujuanfillterr berisi data gabungan dari BEBERAPA divisi
-        // (mis. 'HO Meruya' dan 'Pasuruan'). Nama tujuan yang SAMA bisa
-        // muncul di div yang berbeda dengan planner/PIC yang berbeda pula.
-        // Karena import ini khusus untuk data Pasuruan, query master WAJIB
-        // difilter where('Div', 'Pasuruan') dulu sebelum di-keyBy(tujuan),
-        // supaya tidak ke-lookup planner/PIC milik divisi lain yang salah.
+        // Tabel tujuanfillterr berisi data gabungan dari BEBERAPA divisi.
+        // Nama tujuan yang SAMA bisa muncul di div yang berbeda dengan
+        // planner/PIC/biaya_kuli yang berbeda pula. Karena import ini
+        // khusus untuk data Pasuruan, query master WAJIB difilter
+        // where('Div', 'Pasuruan') dulu sebelum di-keyBy(tujuan).
         // =====================================================
         if (self::$customerMap === null) {
             self::$customerMap = DB::table('tujuanfillterr')
                 ->select(
                     'tujuan',
                     'dist_channel',
+                    'transport_lead_time',
                     'pulau',
                     'area',
                     'Planner',
+                    'biaya_kuli',
                     'Monitoring'
                 )
                 ->where('Div', 'Pasuruan')
                 ->get()
                 ->keyBy(fn($row) => strtolower(trim($row->tujuan)));
+        }
+
+        // =====================================================
+        // MASTER HARGA: route -> daftar kandidat (ekpedisi, mobil, biaya_kirim)
+        //
+        // Matching dilakukan per Route (grouped), lalu di dalam grup itu
+        // dicocokkan Ekpedisi (exact match kalau Excel terisi) dan Mobil
+        // (PREFIX MATCH, karena kolom Mobil di file Excel sering kepotong
+        // dibanding yang lengkap di master_harga, mis. "Contnr 40 Ft Re"
+        // vs "Contnr 40 Ft Reefer").
+        // =====================================================
+        if (self::$tarifByRoute === null) {
+            self::$tarifByRoute = DB::table(self::TARIF_TABLE)
+                ->select('ekpedisi', 'route', 'mobil', 'biaya_kirim')
+                ->get()
+                ->groupBy(fn($row) => $this->normalize($row->route));
         }
     }
 
@@ -94,25 +117,36 @@ class PasuruanImport implements ToModel, WithHeadingRow, WithEvents
         $noPol              = $this->cleanText($row['no_pol_pasuruan'] ?? null);
         $namaDriver         = $this->cleanText($row['nama_driver_pasuruan'] ?? null);
 
-        // Nilai pulau/planner/pic dari file Excel (dipakai sebagai fallback
-        // kalau tujuan tidak ketemu di master tujuanfillterr, atau master
-        // kosong untuk field tersebut)
-        $pulauFromFile        = $this->cleanText($row['pulau_pasuruan'] ?? null);
-        $plannerFromFile      = $this->cleanText($row['planner_pasuruan'] ?? null);
-        $picMonitoringExcel   = $this->cleanText($row['pic_monitoring_pasuruan'] ?? null);
+        // Nilai pulau/planner/pic dari file Excel (fallback kalau tujuan
+        // tidak ketemu di master tujuanfillterr, atau master kosong)
+        $pulauFromFile      = $this->cleanText($row['pulau_pasuruan'] ?? null);
+        $plannerFromFile    = $this->cleanText($row['planner_pasuruan'] ?? null);
+        $picMonitoringExcel = $this->cleanText($row['pic_monitoring_pasuruan'] ?? null);
 
         // ================= NUMBER =================
-        $leadTime          = (int) $this->cleanNumber($row['transport_lead_time_pasuruan'] ?? 0);
+      $leadTimeFromFile  = (int) $this->cleanNumber($row['transport_lead_time_pasuruan'] ?? 0);
         $nilaiMuatan       = $this->cleanNumber($row['nilai_muatan_pasuruan'] ?? null);
-        $biayaKirim        = $this->cleanNumber($row['biaya_kirim_pasuruan'] ?? null);
         $totalDo           = $this->cleanNumber($row['total_do_pasuruan'] ?? null);
         $actualDeliveryQty = $this->cleanNumber($row['actual_delivery_quantity_pasuruan'] ?? null);
         $actUrutanBongkar  = $this->cleanNumber($row['act_urutan_bongkar_pasuruan'] ?? null);
         $qtyMonitoring     = $this->cleanNumber($row['qty_monitoring_pasuruan'] ?? null);
 
         // =====================================================
+        // BIAYA KIRIM: lookup ke master_harga berdasarkan Route (exact,
+        // setelah normalisasi), Ekpedisi (exact match kalau Excel terisi),
+        // dan Mobil (PREFIX MATCH). Fallback ke nilai "Biaya Kirim" dari
+        // Excel kalau tidak ada yang cocok. SAMA PERSIS seperti logic
+        // biaya_kirim di LogistikImport.
+        // =====================================================
+        $tarifRow   = $this->findTarif($route, $ekspedisi, $mobil);
+        $biayaKirim = $tarifRow
+            ? $this->cleanNumberTarif($tarifRow->biaya_kirim)
+            : $this->cleanNumber($row['biaya_kirim_pasuruan'] ?? null);
+
+        // =====================================================
         // LOOKUP MASTER (SUDAH DIFILTER Div = 'Pasuruan' DI CONSTRUCTOR)
-        // tujuan -> dist_channel, pulau, area, planner, pic monitoring
+        // tujuan -> dist_channel, pulau, area, planner, pic monitoring,
+        // biaya_kuli
         // =====================================================
         $tujuanKey = preg_replace('/\s+/', ' ', trim(strtolower($tujuan ?? '')));
 
@@ -123,12 +157,19 @@ class PasuruanImport implements ToModel, WithHeadingRow, WithEvents
         $pulauMaster   = $customerData->pulau ?? null;
         $plannerMaster = $customerData->Planner ?? null;
         $picMaster     = $customerData->Monitoring ?? null;
+        $biayaKuli     = $customerData->biaya_kuli ?? null;
+        $leadTimeMaster  = $customerData->transport_lead_time ?? null;
+        // NB: biaya_kirim TIDAK diambil dari sini — sudah benar dari
+        // findTarif() di atas (tabel tarif_pengiriman, bukan tujuanfillterr).
 
         // Prioritaskan data master (khusus div Pasuruan), fallback ke
         // kolom Excel kalau tujuan tidak ketemu / master kosong
         $pulau         = $pulauMaster ?: $pulauFromFile;
         $planner       = $plannerMaster ?: $plannerFromFile;
         $picMonitoring = $picMaster ?: $picMonitoringExcel;
+        $leadTime = ($leadTimeMaster !== null && $leadTimeMaster !== '')
+    ? (int) $leadTimeMaster
+    : $leadTimeFromFile;      
 
         // ================= NORMALISASI KETERSEDIAAN UNIT =================
         if ($ketersediaanUnit === null || $ketersediaanUnit === '' || $ketersediaanUnit === '-') {
@@ -189,7 +230,6 @@ class PasuruanImport implements ToModel, WithHeadingRow, WithEvents
 
         // =====================================================
         // ESTIMASI TIBA, LAMA PERJALANAN, SLA TIBA, OVERSTAY, SLA BONGKAR
-        // (logic disamain persis kaya generateMonitoringPasuruan() di controller)
         // =====================================================
         $keluar  = $tanggalKeluarGudang ? strtotime($tanggalKeluarGudang) : null;
         $tiba    = $tanggalTiba ? strtotime($tanggalTiba) : null;
@@ -273,6 +313,7 @@ class PasuruanImport implements ToModel, WithHeadingRow, WithEvents
 
             'nilai_muatan_pasuruan'         => $nilaiMuatan,
             'biaya_kirim_pasuruan'          => $biayaKirim,
+            'biaya_kuli_pasuruan'           => $biayaKuli,
             'cr_pasuruan'                   => $cr,
 
             'kategori_ekspedisi_pasuruan'   => $kategoriEkspedisi,
@@ -304,7 +345,7 @@ class PasuruanImport implements ToModel, WithHeadingRow, WithEvents
             'action_required_pasuruan'       => $actionRequired,
 
             'estimasi_tiba_pasuruan'         => $estimasi ? date('Y-m-d', $estimasi) : null,
-            'tanggal_tiba_estimasi_pasuruan' => $estimasi ? date('Y-m-d', $estimasi) : null,
+            'tanggal_estimasi_pasuruan'      => $estimasi ? date('Y-m-d', $estimasi) : null,
 
             'lama_perjalanan_pasuruan'       => $lamaPerjalanan,
             'sla_tiba_pasuruan'              => $slaTiba,
@@ -409,6 +450,109 @@ class PasuruanImport implements ToModel, WithHeadingRow, WithEvents
 
         return $timestamp ? date('Y-m-d', $timestamp) : null;
     }
+
+    /**
+     * Normalisasi umum untuk string: hapus NBSP, seragamkan spasi di
+     * sekitar tanda "-", collapse spasi ganda, lowercase.
+     * Dipakai untuk Route.
+     */
+    private function normalize(?string $value): string
+    {
+        $value = (string) $value;
+        $value = str_replace("\xC2\xA0", ' ', $value);   // NBSP -> spasi biasa
+        $value = preg_replace('/\s*-\s*/', '-', $value); // "A - B" -> "A-B"
+        $value = preg_replace('/\s+/', ' ', trim($value));
+
+        return strtolower($value);
+    }
+
+    /**
+     * Normalisasi khusus untuk Mobil: sama seperti normalize(), tapi
+     * TANPA menyentuh tanda "-". Cukup rapikan spasi & lowercase.
+     */
+    private function normalizeMobil(?string $value): string
+    {
+        $value = (string) $value;
+        $value = str_replace("\xC2\xA0", ' ', $value);
+        $value = preg_replace('/\s+/', ' ', trim($value));
+
+        return strtolower($value);
+    }
+
+    /**
+     * Cari baris tarif yang paling cocok untuk kombinasi Route + Ekpedisi
+     * + Mobil dari Excel.
+     *
+     * 1. Ambil semua kandidat di master_harga dengan Route yang sama.
+     * 2. Kalau Ekpedisi dari Excel terisi, WAJIB cocok persis dengan
+     *    Ekpedisi di master_harga.
+     * 3. Mobil dicocokkan dengan PREFIX MATCH (mobil master harus diawali
+     *    mobil dari Excel, karena kolom Excel sering kepotong).
+     * 4. Kalau Ekpedisi Excel kosong / tidak ada yang cocok persis,
+     *    fallback: abaikan syarat Ekpedisi, cukup Route + Mobil prefix.
+     */
+    private function findTarif(?string $route, ?string $ekpedisi, ?string $mobil)
+    {
+        $routeKey    = $this->normalize($route);
+        $mobilExcel  = $this->normalizeMobil($mobil);
+        $ekpedisiKey = $ekpedisi !== null ? $this->normalize($ekpedisi) : '';
+
+        $candidates = self::$tarifByRoute[$routeKey] ?? null;
+
+        logger()->info('FIND TARIF PASURUAN', [
+            'route' => $route,
+            'routeKey' => $routeKey,
+            'ekpedisi' => $ekpedisi,
+            'ekpedisiKey' => $ekpedisiKey,
+            'mobil' => $mobil,
+            'mobilExcel' => $mobilExcel,
+            'candidate_count' => $candidates ? $candidates->count() : 0,
+        ]);
+
+        if (!$candidates || $mobilExcel === '') {
+            return null;
+        }
+
+        if ($ekpedisiKey !== '') {
+            $strict = $candidates->first(function ($row) use ($ekpedisiKey, $mobilExcel) {
+                $mobilMaster = $this->normalizeMobil($row->mobil);
+                return $this->normalize($row->ekpedisi) === $ekpedisiKey
+                    && str_starts_with($mobilMaster, $mobilExcel);
+            });
+
+            if ($strict) {
+                return $strict;
+            }
+        }
+
+        return $candidates->first(function ($row) use ($mobilExcel) {
+            $mobilMaster = $this->normalizeMobil($row->mobil);
+            return str_starts_with($mobilMaster, $mobilExcel);
+        });
+    }
+
+    /**
+     * Kolom biaya_kirim di master_harga formatnya "8,500,000"
+     * (koma = pemisah ribuan).
+     */
+ private function cleanNumberTarif($value): float
+{
+    if ($value === null || $value === '' || $value == '-') return 0;
+
+    $value = (string) $value;
+    $value = str_replace(['Rp', 'rp', ' '], '', $value);
+
+    if (strpos($value, ',') !== false && strpos($value, '.') !== false) {
+        // Ada titik DAN koma -> titik = ribuan, koma = desimal
+        $value = str_replace('.', '', $value);
+        $value = str_replace(',', '.', $value);
+    } else {
+        // Cuma titik ATAU cuma koma -> anggap keduanya pemisah ribuan
+        $value = str_replace(['.', ','], '', $value);
+    }
+
+    return is_numeric($value) ? (float) $value : 0;
+}
 
     public function registerEvents(): array
     {

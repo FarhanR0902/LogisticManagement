@@ -58,10 +58,10 @@ $currentRoute = request()->route()->getName() ?? '';
         {{-- ================= PLANNER ================= --}}
         @if($role === 'planner' || $role === 'developer')
 
-        <li class="title">PLANNER MENU</li>
+      
 
       
-        <li><a href="{{ url('/datalogistik') }}">📋 Full Data Logistik</a></li>
+        <li><a href="{{ url('/datalogistik') }}">📋 Full Data Logistik Jakarta</a></li>
         <li><a href="{{ route('planner.datalogistik') }}">📦 Data Planner</a></li>
         <li><a href="{{ route('planner.sla.ontime') }}">✅ Sudah Tiba Gudang</a></li>
         <li><a href="{{ route('planner.sla.delay') }}">❌ Belum Tiba Gudang</a></li>
@@ -74,7 +74,7 @@ $currentRoute = request()->route()->getName() ?? '';
         {{-- ================= SPV PLANNER ================= --}}
         @if($role === 'spvplanner' || $role === 'developer')
 
-        <li class="title">SPV PLANNER</li>
+      
 <li>
     <a href="javascript:void(0)"
        onclick="toggleSubmenu('dashboardSubmenu', this)"
@@ -102,6 +102,25 @@ $currentRoute = request()->route()->getName() ?? '';
 
     </ul>
 </li>
+
+ <li class="nav-item">
+        <a href="{{ route('spvplanner.tarif.index') }}"
+           class="nav-link">
+
+            <i class="nav-icon fas fa-money-bill-wave"></i>
+
+            <p>
+                Tarif Pengiriman
+            </p>
+
+        </a>
+    </li>
+ <li class="nav-item">
+    <a href="{{ route('spvplanner.tujuan.index') }}"
+       class="{{ request()->routeIs('spvplanner.tujuan.*') ? 'active' : '' }}">
+        <span>📍 Tujuan Filter</span>
+    </a>
+</li>
 <li>
     <a href="javascript:void(0)"
        onclick="toggleSubmenu('dataLogistikSubmenu', this)"
@@ -112,7 +131,7 @@ $currentRoute = request()->route()->getName() ?? '';
 
     <ul class="submenu" id="dataLogistikSubmenu"
         style="display: {{ request()->routeIs('spvplanner.data*') ? 'block' : 'none' }};">
-<li><a href="{{ route('full.data.logistik') }}">📋 Full Data Logistik</a></li>
+<li><a href="{{ route('full.data.logistik') }}">📋 Full Data Logistik Jakarta</a></li>
         <li>
             <a href="{{ route('spvplanner.data.pasuruan') }}"
                class="{{ request()->routeIs('spvplanner.data.pasuruan') ? 'active' : '' }}">
@@ -140,12 +159,7 @@ $currentRoute = request()->route()->getName() ?? '';
                 ❌ Belum Tiba Di Gudang 
             </a>
         </li>
-   <!-- <li>
-        <a href="{{ route('spvplanner.tujuan-filter.index') }}"
-           class="{{ request()->routeIs('spvplanner.tujuan-filter*') ? 'active' : '' }}">
-            🗺️ Master Tujuan &amp; Area
-        </a>
-    </li> -->
+ 
         <li>
             <a href="{{ route('spvplanner.armada', request()->query()) }}">
                 🚚 Sudah Dapat Armada
@@ -165,11 +179,11 @@ $currentRoute = request()->route()->getName() ?? '';
         {{-- ================= MONITORING ================= --}}
         @if($role === 'monitoring' || $role === 'developer')
 
-        <li class="title">MONITORING</li>
+       
 
      
 
-        <li><a href="{{ url('/datalogistik') }}">📋 Full Data</a></li>
+        <li><a href="{{ url('/datalogistik') }}">📋 Full Data Logistik Jakarta</a></li>
         <li><a href="{{ route('monitoring.datalogistik') }}">🚚 Data Monitoring</a></li>
         <li><a href="{{ route('monitoring.sla.ontime') }}">✅ Customer On Time</a></li>
         <li><a href="{{ route('monitoring.sla.delay') }}">❌ Customer Delay</a></li>
@@ -182,7 +196,7 @@ $currentRoute = request()->route()->getName() ?? '';
         {{-- ================= SPV MONITORING ================= --}}
         @if($role === 'spvmonitoring' || $role === 'developer')
 
-        <li class="title">SPV MONITORING</li>
+     
 
 
  <li>
@@ -198,8 +212,8 @@ $currentRoute = request()->route()->getName() ?? '';
 
     
         <li>
-        <a href="{{ route('spvplanner.full.dashboard') }}"
-   class="{{ request()->routeIs('spvplanner.full.dashboard') ? 'active' : '' }}">
+        <a href="{{ route('spvmonitoring.full.dashboard') }}"
+   class="{{ request()->routeIs('spvmonitoring.full.dashboard') ? 'active' : '' }}">
     🏢 Dashboard Jakarta
 </a>
         </li>
@@ -212,6 +226,13 @@ $currentRoute = request()->route()->getName() ?? '';
         </li>
 
     </ul>
+</li>
+
+ <li class="nav-item">
+    <a href="{{ route('spvmonitoring.tujuan.index') }}"
+       class="{{ request()->routeIs('spvmonitoring.tujuan.*') ? 'active' : '' }}">
+        <span>📍 Tujuan Filter</span>
+    </a>
 </li>
 <li>
     <a href="javascript:void(0)"
@@ -226,7 +247,7 @@ $currentRoute = request()->route()->getName() ?? '';
 
          <li>
             <a href="{{ url('/datalogistik') . '?' . http_build_query(request()->query()) }}">
-                📦 Full Data Logistik
+                📦 Full Data Logistik Jakarta
             </a>
         </li>
 
@@ -252,7 +273,7 @@ $currentRoute = request()->route()->getName() ?? '';
     {{-- ================= MANAGER ================= --}}
 @if($role === 'manager' || $role === 'developer')
 
-<li class="title">MANAGER MENU</li>
+
 
 {{-- DASHBOARD DROPDOWN --}}
 <li>
@@ -370,7 +391,7 @@ $currentRoute = request()->route()->getName() ?? '';
                 {{-- ================= MANAGER ================= --}}
       @if($role === 'cmd' || $role === 'developer')
 
-    <a href="{{ url('/datalogistik') }}">📋 Full Data Logistik</a>
+    <a href="{{ url('/datalogistik') }}">📋 Full Data Logistik Jakarta</a>
 
     <a href="{{ route('cmd.gudang.ontime') }}">
         🏭 Gudang Ontime
@@ -565,7 +586,7 @@ $currentRoute = request()->route()->getName() ?? '';
 </li>
 
 @endif        {{-- ================= ACCOUNT ================= --}}
-        <li class="title">ACCOUNT</li>
+    
 
         <li>
             <form method="POST" action="{{ url('/logout') }}">

@@ -258,14 +258,14 @@
         }
 
         .highlight-row td {
-            background: #fef08a !important;
+            background: #f90303 !important;
             animation: blinkRow 1s infinite alternate;
         }
 
         .highlight-row {
-            background-color: #fff3cd !important;
+            background-color: #d32c0f !important;
             /* Warna kuning latar soft */
-            border: 2px solid #ffc107 !important;
+            border: 2px solid #ff0202 !important;
             /* Garis pinggir penanda */
             transition: background-color 0.4s ease;
         }
@@ -636,7 +636,7 @@
         }
 
         .highlight-row td {
-            background: #fde68a !important;
+            background: #ff4000 !important;
             animation: pulseRow .8s infinite alternate;
         }
 
@@ -674,7 +674,7 @@
         <div class="modal-dialog modal-lg">
             <div class="modal-content">
 
-                <form action="/spvmonitoring/update-transport-laut" method="POST">
+                <form action="/monitoring/update-transport-laut" method="POST">
                     @csrf
 
                     <div class="modal-header">
@@ -775,10 +775,12 @@
 
         <div class="toast-container" id="toastContainer"></div>
                  <div class="mb-3">
-    <a href="{{ route('spvmonitoring.export') }}"
-       class="btn btn-success">
-        📥 Export Excel
-    </a>
+<a href="{{ route('monitoring.export', [
+    'pic_monitoring' => request('pic_monitoring'),
+    'area' => request('area')
+]) }}" class="btn btn-success">
+    Export Excel
+</a>
 </div>
         <!-- <div id="notifBox" style="
 position:fixed;
@@ -803,7 +805,7 @@ z-index:9999;
 
         {{-- FILTER --}}
         <div class="filter-box">
-            <form method="GET" action="{{ route('spvmonitoring.datalogistik') }}" class="d-flex align-items-center gap-2 flex-wrap">
+            <form method="GET" action="{{ route('monitoring.datalogistik') }}" class="d-flex align-items-center gap-2 flex-wrap">
 
                 <select class="searchable" name="pic_monitoring" onchange="this.form.submit()">
                     <option value="">PIC Monitoring</option>
@@ -839,7 +841,7 @@ z-index:9999;
 
                 {{-- TOMBOL RESET FILTER AKAN MUNCUL HANYA JIKA ADA SALAH SATU FILTER YANG AKTIF --}}
                 @if(request('pic_monitoring') || request('area') || request('bulan') || request('tahun'))
-                <a href="{{ route('spvmonitoring.datalogistik') }}" class="btn btn-secondary btn-sm d-flex align-items-center gap-1" style="height: 38px; padding: 0 15px;">
+                <a href="{{ route('monitoring.datalogistik') }}" class="btn btn-secondary btn-sm d-flex align-items-center gap-1" style="height: 38px; padding: 0 15px;">
                     🔄 Reset Filter
                 </a>
                 @endif
@@ -902,7 +904,10 @@ z-index:9999;
                         <th class="editable">Action</th>
                          <th>Total DO Qty</th>
                         <th class="editable">Total DO Qty Actual</th>
+                         <th class="editable">Biaya Kuli</th>
+                          <th>hasil kuli</th>
                           <th>Selisih Qty</th>
+
                         <th class="editable">Reason Qty</th>
                         <th class="editable">Urutan</th>
                         <!-- READONLY -->
@@ -928,6 +933,7 @@ z-index:9999;
 
                         <!-- EDITABLE -->
                         <th class="editable">Bongkar</th>
+<th>Status Bongkar</th>
 
                         <!-- READONLY -->
                         <th>Overstay</th>
@@ -1057,20 +1063,56 @@ $sla_tiba = $r->sla_tiba;
 
 // =========================
 //$sla_bongkar = $r->sla_bongkar;
+
+
+    // =========================
+    // STATUS BONGKAR
+    // =========================
+
+    $statusBongkar = '-';
+    $statusBongkarClass = '';
+
+    if ($r->tanggal_bongkar) {
+
+        // Kalau tanggal bongkar sudah diinput
+        $statusBongkar = 'Sudah Bongkar';
+        $statusBongkarClass = 'green';
+
+    } elseif ($r->tanggal_tiba) {
+
+        // Kalau sudah tiba tapi belum bongkar
+        $tanggalTiba = strtotime(date('Y-m-d', strtotime($r->tanggal_tiba)));
+        $today = strtotime(date('Y-m-d'));
+
+        $hariBongkar = floor(($today - $tanggalTiba) / 86400);
+
+        $statusBongkar = 'Pending Bongkar H+' . max(0, $hariBongkar);
+
+        // Warna status
+        if ($hariBongkar == 0) {
+            $statusBongkarClass = 'orange';
+        } elseif ($hariBongkar == 1) {
+            $statusBongkarClass = 'red';
+        } else {
+            $statusBongkarClass = 'red';
+        }
+    }
+
 @endphp
                       <tr
-    class="{{ ($alert ?? '') == 'H-1' ? 'highlight-row' : '' }}"
+    class="{{ ($alert ?? '') == 'H-1' ?  : '' }}"
     data-id="{{ $r->id }}"
     data-shipment="{{ $r->no_shipment }}"
     data-keluar="{{ $keluar ? date('Y-m-d', $keluar) : '' }}">
                      <td>
     {{ $keluar 
-        ? date('d-m-Y H:i', $keluar) 
+        ? date('d-m-Y ', $keluar) 
         : '-' }}
 </td>
 
 
-  <td>{{ $r->create_tgl ? \Carbon\Carbon::parse($r->create_tgl)->format('d/m/Y H:i') : '-' }}</td>
+
+                       <td>{{ $r->create_tgl ? \Carbon\Carbon::parse($r->create_tgl)->format('d/m/Y H:i') : '-' }}</td>
 
                         <td>{{ $r->dist_channel }}</td>
 
@@ -1121,16 +1163,24 @@ $sla_tiba = $r->sla_tiba;
     @endif
 </td>
 
-                        <td>
-                            <input type="number"
-                                name="total_do_qty_car"
-                                value="{{ $r->total_do_qty_car }}">
-                        </td>
+                      <td>{{ $r->total_do_qty_car }}</td>
                                   <td>
                             <input type="number"
                                 name="qty_monitoring"
                                 value="{{ $r->qty_monitoring }}">
                         </td>
+                        <td>
+    <input type="number"
+           name="biaya_kuli"
+           value="{{ $r->biaya_kuli }}">
+</td>
+
+<td>
+    <input type="text"
+           name="total_biaya_kuli"
+           value="Rp {{ number_format($r->total_biaya_kuli ?? 0, 0, ',', '.') }}"
+           readonly>
+</td>
                             <td>
     <input type="number"
            name="selisih_qty"
@@ -1198,6 +1248,15 @@ $sla_tiba = $r->sla_tiba;
                 ? date('Y-m-d\TH:i', strtotime($r->tanggal_bongkar))
                 : '' }}">
                         </td>
+                   <td>
+    @if($statusBongkar != '-')
+        <span class="badge {{ $statusBongkarClass }}">
+            {{ $statusBongkar }}
+        </span>
+    @else
+        -
+    @endif
+</td>
 
                        <td>{{ $r->overstay_days ?? '-' }}</td>
 
@@ -1326,28 +1385,34 @@ $sla_tiba = $r->sla_tiba;
     let notifShown = false;
     let saveTimer;
 
-    $(document).ready(function() {
-        // Inisialisasi DataTable
-        table = $('#tableMonitoring').DataTable({
-            scrollX: true,
-            scrollCollapse: true,
-            autoWidth: false,
-            fixedHeader: true,
-            pageLength: 10,
-            orderCellsTop: true,
-            ordering: true,
-            columnDefs: [
-                { width: "120px", targets: [0, 1, 2, 6, 9] },
-                { width: "140px", targets: [3, 8] },
-                { width: "350px", targets: 4 },
-                { width: "150px", targets: [5, 20] },
-                { width: "80px", targets: [7, 14, 21] },
-                { width: "180px", targets: [10, 13, 18, 19] },
-                { width: "70px", targets: 11 },
-                { width: "90px", targets: 12 },
-                { width: "100px", targets: [15, 16, 17] }
-            ]
-        });
+     table = $('#tableMonitoring').DataTable({
+        scrollX: true,
+        scrollCollapse: true,
+        autoWidth: false,
+        fixedHeader: true,
+        pageLength: 10,
+        lengthMenu: [10, 25, 50, 100],
+        orderCellsTop: true,
+        ordering: true,
+        deferRender: true,
+        language: {
+            search: "Cari:",
+            lengthMenu: "Tampilkan _MENU_ data",
+            info: "Menampilkan _START_ - _END_ dari _TOTAL_ data",
+            paginate: { previous: "«", next: "»" }
+        },
+        columnDefs: [
+            { width: "120px", targets: [0, 1, 2, 6, 9] },
+            { width: "140px", targets: [3, 8] },
+            { width: "350px", targets: 4 },
+            { width: "150px", targets: [5, 20] },
+            { width: "80px", targets: [7, 14, 21] },
+            { width: "180px", targets: [10, 13, 18, 19] },
+            { width: "70px", targets: 11 },
+            { width: "90px", targets: 12 },
+            { width: "100px", targets: [15, 16, 17] }
+        ]
+    });
 
         // Custom Filter Tanggal Import
         var importTglFilter = '';
@@ -1416,6 +1481,7 @@ $sla_tiba = $r->sla_tiba;
         updateDateColor();
     });
 
+
     // Menghitung Notifikasi
 function generateNotif(showPopup = true) {
 
@@ -1470,6 +1536,23 @@ function generateNotif(showPopup = true) {
     renderNotifList("", showPopup);
 }
 
+function formatRupiah(angka) {
+    return 'Rp ' + Number(angka).toLocaleString('id-ID');
+}
+
+$(document).on('input', 'input[name="qty_monitoring"], input[name="biaya_kuli"]', function () {
+
+    let row = $(this).closest('tr');
+
+    let qty = parseInt(row.find('input[name="qty_monitoring"]').val()) || 0;
+    let biaya = parseInt(row.find('input[name="biaya_kuli"]').val()) || 0;
+
+    let total = qty * biaya;
+
+    row.find('input[name="total_biaya_kuli"]').val(formatRupiah(total));
+
+});
+
     // Render HTML Notifikasi ke dalam box
     function renderNotifList(filter = "", showPopup = true) {
         let html = "";
@@ -1501,6 +1584,7 @@ function generateNotif(showPopup = true) {
         }
     }
 
+
     // Filter list notifikasi berdasarkan keyup (Typo 'renderNotisfList' diperbaiki di sini)
     $('#notifSearch').on('keyup', function () {
         renderNotifList($(this).val(), false);
@@ -1518,7 +1602,7 @@ function generateNotif(showPopup = true) {
     function saveRow(id) {
         let row = $('tr[data-id="' + id + '"]');
         $.ajax({
-            url: '/spvmonitoring/update/' + id,
+            url: '/monitoring/update/' + id,
             type: 'POST',
             data: {
                 _token: '{{ csrf_token() }}',
@@ -1536,6 +1620,8 @@ function generateNotif(showPopup = true) {
                 total_do_qty_car: row.find('[name="total_do_qty_car"]').val(),
                     qty_monitoring: row.find('[name="qty_monitoring"]').val(),
     selisih_qty: row.find('[name="selisih_qty"]').val(),
+      biaya_kuli: row.find('[name="biaya_kuli"]').val(),
+    //   total_biaya_kuli: row.find('[name="total_biaya_kuli"]').val(),/
     remarks_qty: row.find('[name="remarks_qty"]').val(),
             },
             beforeSend: function() {
@@ -1612,79 +1698,3 @@ function generateNotif(showPopup = true) {
 </script>
 
 </html>
-
-<!-- $leadtime = (int) $r->transport_lead_time;
-
-$estimasi = $keluar
-    ? strtotime("+{$leadtime} days", $keluar)
-    : null; -->
-
-    <!--  $leadtime = (int) $r->transport_lead_time;
-
-// Ambil jumlah tanggal tiba unik untuk shipment yang sama
-$adaYangSudahTiba = DB::table('logistik_pengiriman')
-    ->where('no_shipment', $r->no_shipment)
-    ->whereNotNull('tanggal_tiba')
-    ->exists();
-
-// Kalau baris ini sendiri sudah tiba,
-// pakai leadtime normal
-if ($r->tanggal_tiba) {
-
-    $leadtimeFinal = $leadtime;
-
-} else {
-
-    $leadtimeFinal = $leadtime + $adaYangSudahTiba;
-}
-
-$estimasi = $keluar
-    ? strtotime("+{$leadtimeFinal} days", $keluar)
-    : null; -->
-    <!-- $leadtime = (int) $r->transport_lead_time;
-
-// cek apakah shipment sudah pernah “shift”
-$shifted = DB::table('logistik_pengiriman')
-    ->where('no_shipment', $r->no_shipment)
-    ->whereNotNull('tanggal_tiba')
-    ->exists();
-
-/*
-    LOGIC FIX:
-    - pertama kali belum ada shift → normal
-    - setelah ada input pertama → shift +1 TETAP
-    - tidak reset walaupun input ke-2 / ke-3 masuk
-*/
-
-$leadtimeFinal = $leadtime;
-
-if ($shifted) {
-    $leadtimeFinal = $leadtime + 1;
-}
-
-$estimasi = $keluar
-    ? strtotime("+{$leadtimeFinal} days", $keluar)
-    : null;
- -->
-
-
- <!-- 
-$leadtime = (int) $r->transport_lead_time;
-
-// hitung berapa STEP yang sudah “terisi sebelum baris ini”
-$shift = DB::table('logistik_pengiriman')
-    ->where('no_shipment', $r->no_shipment)
-    ->whereNotNull('tanggal_tiba');
-
-if (!is_null($r->act_urutan_bongkar)) {
-    $shift->where('act_urutan_bongkar', '<', $r->act_urutan_bongkar);
-}
-
-$shift = $shift->count();
-
-$leadtimeFinal = $leadtime + $shift;
-
-$estimasi = $keluar
-    ? strtotime("+{$leadtimeFinal} days", $keluar)
-    : null;
- -->

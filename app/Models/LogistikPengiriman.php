@@ -85,6 +85,8 @@ class LogistikPengiriman extends Model
         'qty_monitoring',
         'remarks_qty',
         'selisih_qty',
+        'biaya_kuli',
+        'total_biaya_kuli',
         'create_tgl'
     ];
 

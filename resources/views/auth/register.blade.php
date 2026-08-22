@@ -190,13 +190,18 @@ button:hover{
 
         <div class="form-group">
             <label>Nama Lengkap</label>
-            <input type="text" name="name" placeholder="Masukkan nama">
+            <input type="text" name="name" placeholder="Masukkan nama" value="{{ old('name') }}">
         </div>
 
         <div class="form-group">
             <label>Username</label>
-            <input type="text" name="username" placeholder="Masukkan username">
+            <input type="text" name="username" placeholder="Masukkan username" value="{{ old('username') }}">
         </div>
+
+        <!-- <div class="form-group">
+            <label>Email</label>
+            <input type="email" name="email" placeholder="Masukkan email" value="{{ old('email') }}">
+        </div> -->
 
         <div class="form-group">
             <label>Password</label>
@@ -207,27 +212,16 @@ button:hover{
             <label>Role</label>
             <select name="role" id="role">
                 <option value="">-- Pilih Role --</option>
-                <option value="planner">Planner</option>
-                 <option value="admin_pasuruan">Pasuruan</option>
-                <option value="monitoring">Monitoring</option>
+                <option value="planner">Planner Jakarta</option>
+                 <option value="admin_pasuruan">Pasuruan </option>
+                <option value="monitoring">Monitoring Jakarta</option>
                 <option value="manager">Manager</option>
-                <option value="developer">Developer</option>
-                <option value="spvplanner">SPV Planner</option>
-                <option value="spvmonitoring">SPV Monitoring</option>
-                <option value="sales">Sales</option>
+  
+                <option value="spvplanner">SPV Planner Jakarta</option>
+                <option value="spvmonitoring">SPV Monitoring Jakarta</option>
+                <!-- <option value="sales">Sales</option> -->
             </select>
         </div>
-
-        <!-- <div class="form-group">
-            <label>Dist Channel (Opsional)</label>
-            <select name="dist_channel" id="dist_channel">
-                <option value="">-- Tidak Menggunakan Dist Channel --</option>
-
-                @foreach($distChannels as $channel)
-                    <option value="{{ $channel }}">{{ $channel }}</option>
-                @endforeach
-            </select>
-        </div> -->
 
 <div class="form-group" id="dist_channel_group" style="display:none;">
     <label>Dist Channel</label>

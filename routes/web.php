@@ -2,14 +2,16 @@
 
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Auth;
-use App\Http\Controllers\TujuanFilterController;
+use Illuminate\Foundation\Auth\EmailVerificationRequest;
+use Illuminate\Http\Request;
+
 
 /*
 |--------------------------------------------------------------------------
 | CONTROLLER
 |--------------------------------------------------------------------------
 */
-
+use App\Http\Controllers\Spv\TarifPengirimanController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\LogistikController;
 use App\Http\Controllers\Planner\PlannerController;
@@ -22,6 +24,7 @@ use App\Http\Controllers\Developer\DeveloperController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\StorageController;
 use App\Http\Controllers\Cmd\CmdController;
+use App\Http\Controllers\Spv\TujuanFilterController;
 use App\Http\Controllers\Sales\SalesController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\SummaryController;
@@ -49,7 +52,29 @@ Route::post('/logout', function () {
     request()->session()->invalidate();
     request()->session()->regenerateToken();
     return redirect('/login');
-});
+})->name('logout');
+/*
+|--------------------------------------------------------------------------
+| EMAIL VERIFICATION
+|--------------------------------------------------------------------------
+*/
+
+// Halaman "cek email kamu"
+Route::get('/email/verify', function () {
+    return view('auth.verify-email');
+})->middleware('auth')->name('verification.notice');
+
+// Link yang diklik dari email
+Route::get('/email/verify/{id}/{hash}', function (EmailVerificationRequest $request) {
+    $request->fulfill(); // otomatis tandai email_verified_at
+    return redirect('/login')->with('success', 'Email berhasil diverifikasi, silakan login.');
+})->middleware(['auth', 'signed'])->name('verification.verify');
+
+// Tombol "kirim ulang email verifikasi"
+Route::post('/email/verification-notification', function (Request $request) {
+    $request->user()->sendEmailVerificationNotification();
+    return back()->with('message', 'Link verifikasi baru sudah dikirim!');
+})->middleware(['auth', 'throttle:6,1'])->name('verification.send');
 
 /*
 |--------------------------------------------------------------------------
@@ -80,8 +105,8 @@ Route::prefix('planner')->group(function () {
 
     Route::get('/dashboard', [PlannerController::class, 'dashboard'])
         ->name('planner.dashboard');
-        Route::post('/planner/store', [PlannerController::class, 'store'])
-    ->name('planner.store');
+    Route::post('/planner/store', [PlannerController::class, 'store'])
+        ->name('planner.store');
 
     Route::get('/sla-ontime', [PlannerController::class, 'slaOntime'])
         ->name('planner.sla.ontime');
@@ -91,31 +116,30 @@ Route::prefix('planner')->group(function () {
 
     Route::get('/armada', [PlannerController::class, 'armada'])
         ->name('armada');
-        Route::get('/armada-delay', [PlannerController::class, 'armadaDelay'])
+    Route::get('/armada-delay', [PlannerController::class, 'armadaDelay'])
         ->name('armada.delay');
- Route::get('/planner/belum-armada', [PlannerController::class, 'belumArmada'])
-    ->name('planner.belum_armada');
+    Route::get('/planner/belum-armada', [PlannerController::class, 'belumArmada'])
+        ->name('planner.belum_armada');
 
-   Route::get('/planner/export', [PlannerController::class, 'exportPlanner'])
-    ->name('planner.export');
+    Route::get('/planner/export', [PlannerController::class, 'exportPlanner'])
+        ->name('planner.export');
 
     // Route::get('/data', [PlannerController::class, 'index'])
     //     ->name('index');
-Route::get('/data', [PlannerController::class, 'dataLogistik'])
-    ->name('planner.data');
+    Route::get('/data', [PlannerController::class, 'dataLogistik'])
+        ->name('planner.data');
     Route::put('/update/{id}', [PlannerController::class, 'update'])
         ->name('planner.update');
-Route::get('/planner/delete/{id}', [PlannerController::class, 'delete'])
-    ->name('planner.delete');
-    
+    Route::get('/planner/delete/{id}', [PlannerController::class, 'delete'])
+        ->name('planner.delete');
 
-Route::post(
-    '/planner/update-gudang23',
-    [PlannerController::class, 'updateGudang23']
-)->name('planner.updateGudang23');
 
-Route::post('/planner/autosave-row/{id}', [PlannerController::class, 'autosaveRow']);
+    Route::post(
+        '/planner/update-gudang23',
+        [PlannerController::class, 'updateGudang23']
+    )->name('planner.updateGudang23');
 
+    Route::post('/autosave-row/{id}', [PlannerController::class, 'autosaveRow']);
 });
 
 /*
@@ -125,7 +149,7 @@ Route::post('/planner/autosave-row/{id}', [PlannerController::class, 'autosaveRo
 */
 
 
-   
+
 Route::get(
     '/planner/data-logistik',
     [PlannerController::class, 'dataLogistik']
@@ -144,14 +168,15 @@ Route::put('/monitoring/update/{id}', [MonitoringController::class, 'updateMonit
 
 Route::prefix('monitoring')->group(function () {
     Route::post('/monitoring/update-transport-laut', [MonitoringController::class, 'updateTransportLaut']);
-    Route::post('/update-transport-laut', 
+    Route::post(
+        '/update-transport-laut',
         [MonitoringController::class, 'updateTransportLaut']
     )->name('monitoring.update-transport-laut');
 
     Route::get('/dashboard', [MonitoringController::class, 'dashboard'])
         ->name('monitoring.dashboard');
 
-  
+
     // ================= SLA =================
     Route::get('/sla-ontime', [MonitoringController::class, 'slaOntime'])
         ->name('monitoring.sla.ontime');
@@ -173,25 +198,6 @@ Route::prefix('monitoring')->group(function () {
     Route::get('/monitoring/summary-area/detail', [MonitoringController::class, 'summaryAreaDetail'])
         ->name('monitoring.summary.area.detail');
 });
-
-// Route::prefix('monitoring')->group(function () { (sebelum monitoring baru)
-
-//     Route::get('/dashboard', [MonitoringController::class, 'dashboard'])
-//         ->name('monitoring.dashboard');
-
-//     Route::get('/sla-ontime', [MonitoringController::class, 'slaOntime'])
-//         ->name('monitoring.sla.ontime');
-
-//     Route::get('/sla-delay', [MonitoringController::class, 'slaDelay'])
-//         ->name('monitoring.sla.delay');
-
-//     // ================= BONGKAR =================
-//     Route::get('/bongkar/ontime', [MonitoringController::class, 'bongkarOntime'])
-//         ->name('monitoring.bongkar.ontime');
-
-//     Route::get('/bongkar/delay', [MonitoringController::class, 'bongkarDelay'])
-//         ->name('monitoring.bongkar.delay');
-// });
 
 Route::prefix('manager')->group(function () {
     Route::get('/dashboard', [ManagerController::class, 'dashboard'])
@@ -225,11 +231,11 @@ Route::prefix('manager')->group(function () {
     Route::get('/summary-area', [ManagerController::class, 'summaryArea'])
         ->name('manager.summary.area');
 
-       Route::get('/dashboard-pasuruan', [ManagerController::class, 'dashboardPasuruan'])
+    Route::get('/dashboard-pasuruan', [ManagerController::class, 'dashboardPasuruan'])
         ->name('manager.dashboard.pasuruan');
 
-     Route::get('/manager/data-logistik-pasuruan', [ManagerController::class, 'dataLogistikPasuruan'])
-    ->name('manager.data.pasuruan');
+    Route::get('/manager/data-logistik-pasuruan', [ManagerController::class, 'dataLogistikPasuruan'])
+        ->name('manager.data.pasuruan');
 });
 
 Route::get('/pasuruan/gudang/ontime', [PasuruanController::class, 'gudangOntimePasuruan'])
@@ -249,66 +255,12 @@ Route::get('/pasuruan/bongkar/ontime', [PasuruanController::class, 'bongkarOntim
 
 Route::get('/pasuruan/bongkar/delay', [PasuruanController::class, 'bongkarDelayPasuruan'])
     ->name('pasuruan.bongkar.delay');
-/*
-|--------------------------------------------------------------------------
-| MANAGER (AUTH REQUIRED)
-|--------------------------------------------------------------------------
-*/
-
-// Route::middleware(['auth'])->prefix('manager')->group(function () {
-
-//     Route::get('/dashboard', [ManagerController::class, 'dashboard'])
-//         ->name('manager.dashboard');
-
-//     Route::get('/gudang', [ManagerController::class, 'gudang'])
-//         ->name('manager.gudang');
-
-//     Route::get('/gudang/ontime', [ManagerController::class, 'gudangOnTime'])
-//         ->name('manager.gudang.ontime');
-
-//     Route::get('/gudang/delay', [ManagerController::class, 'gudangDelay'])
-//         ->name('manager.gudang.delay');
-
-//     Route::get('/customer', [ManagerController::class, 'customer'])
-//         ->name('manager.customer');
-
-//     Route::get('/customer/ontime', [ManagerController::class, 'customerOnTime'])
-//         ->name('manager.customer.ontime');
-
-//     Route::get('/customer/delay', [ManagerController::class, 'customerDelay'])
-//         ->name('manager.customer.delay');
-
-//     Route::get('/bongkar', [ManagerController::class, 'bongkar'])
-//         ->name('manager.bongkar');
-
-//     Route::get('/bongkar/ontime', [ManagerController::class, 'bongkarOnTime'])
-//         ->name('manager.bongkar.ontime');
-
-//     Route::get('/bongkar/delay', [ManagerController::class, 'bongkarDelay'])
-//         ->name('manager.bongkar.delay');
-
-//     Route::get('/summary-area', [ManagerController::class, 'summaryArea'])
-//         ->name('manager.summary.area');
-
-//     Route::get('/summary-total', [ManagerController::class, 'summaryTotal'])
-//         ->name('manager.summary.total');
-
-//     Route::get('/planner', [ManagerController::class, 'planner'])
-//         ->name('manager.planner');
-
-//     Route::get('/monitoring', [ManagerController::class, 'monitoring'])
-//         ->name('manager.monitoring');
-
-// });
 
 /*
 |--------------------------------------------------------------------------
 | USER
 |--------------------------------------------------------------------------
 */
-
-// ================= SALES =================
-
 
 Route::get('/logistik/edit/{id}', [LogistikController::class, 'edit']);
 Route::post('/logistik/update/{id}', [LogistikController::class, 'update']);
@@ -325,17 +277,17 @@ Route::post(
 
 
 Route::prefix('sales')->name('sales.')->group(function () {
-Route::get('/summary-area', [SalesController::class, 'summaryArea'])
-    ->name('sales.summary.area');
+    Route::get('/summary-area', [SalesController::class, 'summaryArea'])
+        ->name('sales.summary.area');
     Route::get(
-    '/summary-area/{area}',
-    [SalesController::class, 'summaryAreaDetail']
-)->name('summary.area.detail');
-   Route::get('/dashboard-pasuruan', [SalesController::class, 'dashboardPasuruan'])
-    ->name('dashboard.pasuruan');
+        '/summary-area/{area}',
+        [SalesController::class, 'summaryAreaDetail']
+    )->name('summary.area.detail');
+    Route::get('/dashboard-pasuruan', [SalesController::class, 'dashboardPasuruan'])
+        ->name('dashboard.pasuruan');
 
-Route::get('/data-logistik-pasuruan', [SalesController::class, 'dataLogistikPasuruan'])
-    ->name('data.pasuruan');
+    Route::get('/data-logistik-pasuruan', [SalesController::class, 'dataLogistikPasuruan'])
+        ->name('data.pasuruan');
     // GUDANG
     Route::get('/gudang/ontime', [SalesController::class, 'gudangOntime'])
         ->name('gudang.ontime');
@@ -363,6 +315,21 @@ Route::get('/data-logistik-pasuruan', [SalesController::class, 'dataLogistikPasu
 
     Route::get('/sales/customer/ontime', [SalesController::class, 'ontime'])
         ->name('customer.ontime');
+
+        Route::get('/pasuruan/gudang/ontime', [SalesController::class, 'gudangOntimePasuruan'])
+        ->name('pasuruan.gudang.ontime');
+    Route::get('/pasuruan/gudang/delay', [SalesController::class, 'gudangDelayPasuruan'])
+        ->name('pasuruan.gudang.delay');
+    Route::get('/pasuruan/tujuan/ontime', [SalesController::class, 'tujuanOntimePasuruan'])
+        ->name('pasuruan.tujuan.ontime');
+    Route::get('/pasuruan/tujuan/delay', [SalesController::class, 'tujuanDelayPasuruan'])
+        ->name('pasuruan.tujuan.delay');
+    Route::get('/pasuruan/bongkar/ontime', [SalesController::class, 'bongkarOntimePasuruan'])
+        ->name('pasuruan.bongkar.ontime');
+    Route::get('/pasuruan/bongkar/delay', [SalesController::class, 'bongkarDelayPasuruan'])
+        ->name('pasuruan.bongkar.delay');
+    Route::get('/pasuruan/summary-area', [SalesController::class, 'summaryAreaPasuruan'])
+        ->name('pasuruan.summary.area');
 });
 
 Route::middleware(['auth'])->prefix('spvplanner')->group(function () {
@@ -372,23 +339,24 @@ Route::middleware(['auth'])->prefix('spvplanner')->group(function () {
 
     Route::get('/dashboard-full', [SpvPlannerController::class, 'dashboardFull'])
         ->name('spvplanner.dashboard.full');
+ Route::get('tujuan-filter', [TujuanFilterController::class, 'index'])->name('tujuan.index');
+       Route::get('tujuan-filter', [TujuanFilterController::class, 'index'])->name('spvplanner.tujuan.index');
+Route::get('tujuan-filter/create', [TujuanFilterController::class, 'create'])->name('spvplanner.tujuan.create');
+Route::post('tujuan-filter', [TujuanFilterController::class, 'store'])->name('spvplanner.tujuan.store');
+Route::get('tujuan-filter/{id}/edit', [TujuanFilterController::class, 'edit'])->name('spvplanner.tujuan.edit');
+Route::put('tujuan-filter/{id}', [TujuanFilterController::class, 'update'])->name('spvplanner.tujuan.update');
+Route::delete('tujuan-filter/{id}', [TujuanFilterController::class, 'destroy'])->name('spvplanner.tujuan.destroy');
+Route::post('tujuan-filter/import', [TujuanFilterController::class, 'import'])->name('spvplanner.tujuan.import');
 
-    Route::prefix('tujuan-filter')->name('spvplanner.tujuan-filter.')->group(function () {
-    Route::get('/', [TujuanFilterController::class, 'index'])->name('index');
-    Route::post('/', [TujuanFilterController::class, 'store'])->name('store');
-    Route::put('/{tujuanFilter}', [TujuanFilterController::class, 'update'])->name('update');
-    Route::delete('/{tujuanFilter}', [TujuanFilterController::class, 'destroy'])->name('destroy');
-    Route::post('/import', [TujuanFilterController::class, 'import'])->name('import');
-});
 
-            Route::get('/spvplanner/dashboard', [SpvPlannerController::class, 'dashboard'])
+    Route::get('/spvplanner/dashboard', [SpvPlannerController::class, 'dashboard'])
         ->name('spvplanner.dashboard');
 
     // Dashboard Pasuruan
     Route::get('/spvplanner/dashboard-pasuruan', [SpvPlannerController::class, 'dashboardPasuruan'])
         ->name('spvplanner.dashboard.pasuruan');
 
-            Route::post('/import-pasuruan', [SpvPlannerController::class, 'importPasuruan'])
+    Route::post('/import-pasuruan', [SpvPlannerController::class, 'importPasuruan'])
         ->name('spvplanner.import.pasuruan');
 
     Route::get('/export-pasuruan', [SpvPlannerController::class, 'exportPasuruan'])
@@ -402,10 +370,10 @@ Route::middleware(['auth'])->prefix('spvplanner')->group(function () {
     Route::get('/spvplanner/data-logistik-pasuruan', [SpvPlannerController::class, 'dataLogistikPasuruan'])
         ->name('spvplanner.data.pasuruan');
 
-Route::post('/spvplanner/store', [SpvPlannerController::class, 'store'])
-    ->name('spvplanner.store');
-     Route::put('spvplanner/update/{id}', [SpvPlannerController::class, 'update'])
-    ->name('spvplanner.update');
+    Route::post('/spvplanner/store', [SpvPlannerController::class, 'store'])
+        ->name('spvplanner.store');
+    Route::put('spvplanner/update/{id}', [SpvPlannerController::class, 'update'])
+        ->name('spvplanner.update');
     Route::get('/datalogistik', [SpvPlannerController::class, 'dataLogistik'])
         ->name('spvplanner.datalogistik');
 
@@ -423,18 +391,44 @@ Route::post('/spvplanner/store', [SpvPlannerController::class, 'store'])
 
     Route::get('/belum-armada', [SpvPlannerController::class, 'belumArmada'])
         ->name('spvplanner.belum.armada');
-      Route::delete('/delete/{id}', [SpvPlannerController::class, 'delete'])
-    ->name('spvplanner.delete');
+    Route::delete('/delete/{id}', [SpvPlannerController::class, 'delete'])
+        ->name('spvplanner.delete');
     Route::get(
         '/full-data-logistik',
         [SpvPlannerController::class, 'fullDataLogistik']
     )->name('full.data.logistik');
     Route::get('/full-data-logistik', [SpvPlannerController::class, 'fullDataLogistik'])
-    ->name('full.data.logistik');
+        ->name('full.data.logistik');
     Route::post(
-    '/spvplanner/update-gudang23',
-    [PlannerController::class, 'updateGudang23']
-)->name('spvplanner.updateGudang23');
+        '/spvplanner/update-gudang23',
+        [PlannerController::class, 'updateGudang23']
+    )->name('spvplanner.updateGudang23');
+    Route::post('/archive', [SpvPlannerController::class, 'archive'])
+        ->name('spvplanner.archive');
+    Route::get(
+        '/data-logistik-pasuruan',
+        [SpvPlannerController::class, 'dataLogistikPasuruan']
+    )->name('data.pasuruan');
+Route::get('/tarif-pengiriman', [TarifPengirimanController::class, 'index'])
+    ->name('spvplanner.tarif.index');
+
+  Route::post('/tarif-pengiriman', [TarifPengirimanController::class, 'store'])
+    ->name('spvplanner.tarif.store');
+
+Route::get('/tarif-pengiriman/create', [TarifPengirimanController::class, 'create'])
+    ->name('spvplanner.tarif.create');
+
+Route::get('/tarif-pengiriman/{id}/edit', [TarifPengirimanController::class, 'edit'])
+    ->name('spvplanner.tarif.edit');
+
+Route::put('/tarif-pengiriman/{id}', [TarifPengirimanController::class, 'update'])
+    ->name('spvplanner.tarif.update');
+
+Route::delete('/tarif-pengiriman/{id}', [TarifPengirimanController::class, 'destroy'])
+    ->name('spvplanner.tarif.destroy');
+
+
+
 });
 Route::middleware(['auth'])
     ->prefix('spvmonitoring')
@@ -446,11 +440,20 @@ Route::middleware(['auth'])
         )->name('spvmonitoring.update');
         Route::get('/dashboard', [SpvMonitoringController::class, 'dashboard'])
             ->name('dashboard');
-            
+
 
 
         Route::get('/datalogistik', [SpvMonitoringController::class, 'dataLogistik'])
             ->name('datalogistik');
+
+       Route::get('tujuan-filter', [TujuanFilterController::class, 'index'])->name('tujuan.index');
+Route::get('tujuan-filter/create', [TujuanFilterController::class, 'create'])->name('tujuan.create');
+Route::post('tujuan-filter', [TujuanFilterController::class, 'store'])->name('tujuan.store');
+Route::get('tujuan-filter/{id}/edit', [TujuanFilterController::class, 'edit'])->name('tujuan.edit');
+Route::put('tujuan-filter/{id}', [TujuanFilterController::class, 'update'])->name('tujuan.update');
+Route::delete('tujuan-filter/{id}', [TujuanFilterController::class, 'destroy'])->name('tujuan.destroy');
+Route::post('tujuan-filter/import', [TujuanFilterController::class, 'import'])->name('tujuan.import');
+
 
         Route::get('/sla-ontime', [SpvMonitoringController::class, 'slaOntime'])
             ->name('sla.ontime');
@@ -472,35 +475,6 @@ Route::middleware(['auth'])
             [SpvMonitoringController::class, 'fullDataLogistik']
         )->name('full.data.logistik');
     });
-
-// Route::middleware(['auth', 'role:developer'])->group(function () {
-
-//     Route::get('/developer/dashboard', [DeveloperController::class, 'dashboard'])
-//         ->name('developer.dashboard');
-
-//     Route::get('/developer/planner', [DeveloperController::class, 'dataLogistik'])
-//         ->name('developer.planner');
-
-//     Route::get('/developer/monitoring', fn () => redirect()->route('monitoring.dashboard'))
-//         ->name('developer.monitoring');
-
-//     Route::get('/developer/manager', fn () => redirect()->route('manager.dashboard'))
-//         ->name('developer.manager');
-
-//     Route::get('/developer/spvplanner', fn () => redirect()->route('spvplanner.dashboard'))
-//         ->name('developer.spvplanner');
-
-//     Route::get('/developer/spvmonitoring', fn () => redirect()->route('spvmonitoring.dashboard'))
-//         ->name('developer.spvmonitoring');
-
-//     Route::get('/developer/sales', fn () => redirect()->route('sales.dashboard'))
-//         ->name('developer.sales');
-
-//         Route::get(
-//     '/sales/customer/ontime',
-//     [SalesController::class, 'ontime']
-// );
-
 
 Route::prefix('developer')->group(function () {
 
@@ -600,22 +574,11 @@ Route::delete(
 Route::put('/spvmonitoring/update/{id}', [SpvMonitoringController::class, 'update'])
     ->name('spvmonitoring.update');
 
-// Route::get('/spvmonitoring/dashboard', [SPVMonitoringController::class, 'dashboardspvmonitoring'])
-//     ->name('spvmonitoring.dashboardspvmonitoring');
+Route::get('/spvmonitoring/dashboard-pasuruan', [SpvMonitoringController::class, 'dashboardPasuruan'])
+    ->name('spvmonitoring.dashboard.pasuruan');
 
-// ================= SPV PLANNER =================
-// Route::get('/spvplanner/dashboard', [SPVPlannerController::class, 'dashboardspvplanner'])
-//     ->name('spvplanner.dashboardspvplanner');
-    Route::get('/spvmonitoring/dashboard-pasuruan', [SpvMonitoringController::class, 'dashboardPasuruan'])
-        ->name('spvmonitoring.dashboard.pasuruan');
-
-    // Data Logistik Jakarta
-    // Route::get('/spvmonitoring/data-logistik', [SpvMonitoringController::class, 'dataLogistik'])
-    //     ->name('spvmonitoring.data');
-
-    // Data Logistik Pasuruan
-    Route::get('/spvmonitoring/data-logistik-pasuruan', [SpvMonitoringController::class, 'dataLogistikPasuruan'])
-        ->name('spvmonitoring.data.pasuruan');
+Route::get('/spvmonitoring/data-logistik-pasuruan', [SpvMonitoringController::class, 'dataLogistikPasuruan'])
+    ->name('spvmonitoring.data.pasuruan');
 
 
 Route::prefix('cmd')->name('cmd.')->group(function () {
@@ -652,7 +615,6 @@ Route::prefix('cmd')->name('cmd.')->group(function () {
 
     Route::get('/summary/total', [CmdController::class, 'summaryTotal'])
         ->name('summary.total');
-
 });
 
 
@@ -674,12 +636,16 @@ Route::prefix('sales')
             ->name('gudang.delay');
 
         // CUSTOMER
-    Route::get('/customer/ontime',
-            [SalesController::class, 'tujuanOntime'])
+        Route::get(
+            '/customer/ontime',
+            [SalesController::class, 'tujuanOntime']
+        )
             ->name('customer.ontime');
 
-        Route::get('/customer/delay',
-            [SalesController::class, 'tujuanDelay'])
+        Route::get(
+            '/customer/delay',
+            [SalesController::class, 'tujuanDelay']
+        )
             ->name('customer.delay');
 
         // BONGKAR
@@ -696,88 +662,14 @@ Route::prefix('sales')
         Route::get('/summary/total', [SalesController::class, 'summaryTotal'])
             ->name('summary.total');
     });
+
 /*
-
-// Route::prefix('jess')
-//     ->as('jess.')
-//     ->group(function () {
-
-//         // DASHBOARD
-//         Route::get('/dashboard', [JessController::class, 'dashboard'])
-//             ->name('dashboard');
-
-//         // GUDANG
-//         Route::get('/gudang/ontime', [JessController::class, 'gudangOntime'])
-//             ->name('gudang.ontime');
-
-//         Route::get('/gudang/delay', [JessController::class, 'gudangDelay'])
-//             ->name('gudang.delay');
-
-//         // CUSTOMER
-//     Route::get('/customer/ontime',
-//             [JessController::class, 'tujuanOntime'])
-//             ->name('customer.ontime');
-
-//         Route::get('/customer/delay',
-//             [JessController::class, 'tujuanDelay'])
-//             ->name('customer.delay');
-
-//         // BONGKAR
-//         Route::get('/bongkar/ontime', [JessController::class, 'bongkarOntime'])
-//             ->name('bongkar.ontime');
-
-//         Route::get('/bongkar/delay', [JessController::class, 'bongkarDelay'])
-//             ->name('bongkar.delay');
-
-//         // SUMMARY
-//         Route::get('/summary/area', [JessController::class, 'summaryArea'])
-//             ->name('summary.area');
-
-//         Route::get('/summary/total', [JessController::class, 'summaryTotal'])
-//             ->name('summary.total');
-//     });
-// /*
 |--------------------------------------------------------------------------
 | FALLBACK
 |--------------------------------------------------------------------------
 */
+
 use App\Http\Controllers\LogistikPengiriman2Controller;
-
-// Route::get('/logistik2', [LogistikPengiriman2Controller::class, 'index']);
-// Route::get('/logistik2/{id}', [LogistikPengiriman2Controller::class, 'show']);
-// Route::prefix('pasuruan')->group(function () {
-
-//     Route::get('/admin', [PasuruanController::class,'admin'])
-//         ->name('pasuruan.admin');
-
-//     Route::post('/store', [PasuruanController::class,'store'])
-//         ->name('pasuruan.store');
-
-//     Route::put('/{id}', [PasuruanController::class,'update'])
-//         ->name('pasuruan.update');
-
-//     Route::delete('/{id}', [PasuruanController::class,'destroy'])
-//         ->name('pasuruan.destroy');
-// });
-
-// Pasuruan
-// Route::prefix('pasuruan')->group(function () {
-
-//     Route::get('/data-logistik', [PasuruanController::class, 'dataLogistik'])
-//         ->name('pasuruan.dataLogistik');
-
-//     Route::post('/store', [PasuruanController::class, 'store'])
-//         ->name('pasuruan.store');
-
-//     Route::put('/update/{id}', [PasuruanController::class, 'update'])
-//         ->name('pasuruan.update');
-
-//     Route::get('/destroy/{id}', [PasuruanController::class, 'destroy'])
-//         ->name('pasuruan.destroy');
-
-//     Route::put('/autosave-row/{id}', [PasuruanController::class, 'autosaveRow'])
-//         ->name('pasuruan.autosaveRow');
-// });
 
 Route::prefix('pasuruan')->group(function () {
 
@@ -818,10 +710,10 @@ Route::prefix('pasuruan')->group(function () {
     Route::post('/archive-all', [PasuruanController::class, 'archiveAll'])
         ->name('pasuruan.archive');
 
-        Route::post(
-    '/pasuruan/update-transport-laut',
-    [PasuruanController::class, 'updateTransportLaut']
-)->name('pasuruan.updateTransportLaut');
+    Route::post(
+        '/pasuruan/update-transport-laut',
+        [PasuruanController::class, 'updateTransportLaut']
+    )->name('pasuruan.updateTransportLaut');
 });
 
 

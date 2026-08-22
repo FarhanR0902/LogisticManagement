@@ -1,267 +1,430 @@
 <!DOCTYPE html>
-    <html lang="id">
+<html lang="id">
 
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-        <title>DATA LOGISTIK</title>
+    <title>DATA LOGISTIK</title>
 
-        <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
 
-        <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
-        <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
+    <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
 
-        <style>
-            body {
-                font-family: 'Segoe UI', Arial, sans-serif;
-                background: #f1f5f9;
-                margin: 0;
-                color: #1e293b;
-                font-size: 16px;
-            }
+    <style>
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            background: #f1f5f9;
+            margin: 0;
+            color: #1e293b;
+            font-size: 16px;
+        }
 
-            /* ================= CONTAINER ================= */
+        /* ================= CONTAINER ================= */
+
+        .container {
+            margin-left: 260px;
+            padding: 30px;
+        }
+
+        h2 {
+            font-size: 34px;
+            font-weight: 700;
+            margin-bottom: 20px;
+            color: #0f172a;
+        }
+
+        /* ================= CARD ================= */
+
+        .card {
+            background: #fff;
+            padding: 20px;
+            border-radius: 16px;
+            overflow: auto;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, .08);
+        }
+
+        /* ================= TABLE ================= */
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 16px;
+        }
+
+        th {
+            background: #03c03c;
+            color: #fff;
+            padding: 16px 14px;
+            white-space: nowrap;
+            font-size: 16px;
+            font-weight: 600;
+            text-align: center;
+            border: 1px solid #dbeafe;
+        }
+
+        td {
+            padding: 14px 12px;
+            border: 1px solid #e2e8f0;
+            white-space: nowrap;
+            text-align: left;
+            vertical-align: middle;
+            font-size: 16px;
+        }
+
+        /* Zebra */
+
+        tbody tr:nth-child(even) {
+            background: #f8fafc;
+        }
+
+        tbody tr:hover {
+            background: #dbeafe;
+            transition: .2s;
+        }
+
+        /* ================= FILTER ================= */
+
+        .filter-box {
+            background: #fff;
+            padding: 20px;
+            border-radius: 16px;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, .08);
+            margin-bottom: 20px;
+        }
+
+        .filter-box form {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .filter-box input,
+        .filter-box select {
+            padding: 13px 16px;
+            border: 1px solid #cbd5e1;
+            border-radius: 10px;
+            font-size: 16px;
+            min-width: 190px;
+            outline: none;
+        }
+
+        .filter-box input:focus,
+        .filter-box select:focus {
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, .15);
+        }
+
+        .filter-box button {
+            padding: 13px 20px;
+            background: #22c55e;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .filter-box button:hover {
+            background: #16a34a;
+        }
+
+        .filter-box a {
+            padding: 13px 20px;
+            background: #ef4444;
+            color: white;
+            border-radius: 10px;
+            text-decoration: none;
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .filter-box a:hover {
+            background: #dc2626;
+        }
+
+        /* ================= IMPORT BOX ================= */
+
+        .import-box {
+            background: #fff;
+            padding: 20px;
+            border-radius: 16px;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, .08);
+            margin-bottom: 20px;
+        }
+
+        .import-box form {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .import-box input[type=file] {
+            padding: 13px;
+            border: 2px dashed #cbd5e1;
+            border-radius: 10px;
+            background: #f8fafc;
+            font-size: 16px;
+        }
+
+        .import-box input[type=file]:hover {
+            border-color: #2563eb;
+        }
+
+        .import-box button {
+            padding: 13px 20px;
+            border: none;
+            border-radius: 10px;
+            background: linear-gradient(135deg, #3b82f6, #2563eb);
+            color: white;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .import-box button:hover {
+            transform: translateY(-2px);
+        }
+
+        /* ================= ARCHIVE BUTTON ================= */
+
+        .archive-form {
+            margin: 20px 0;
+        }
+
+        .archive-btn {
+            background: linear-gradient(135deg, #2563eb, #1d4ed8);
+            color: white;
+            border: none;
+            padding: 15px 26px;
+            border-radius: 12px;
+            font-size: 17px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: .3s;
+        }
+
+        .archive-btn:hover {
+            transform: translateY(-2px);
+        }
+
+        /* ================= BADGE ================= */
+
+        .badge {
+            padding: 9px 16px;
+            border-radius: 20px;
+            color: white;
+            font-size: 15px;
+            font-weight: 600;
+            display: inline-block;
+        }
+
+        .green {
+            background: #22c55e;
+        }
+
+        .red {
+            background: #ef4444;
+        }
+
+        .gray {
+            background: #64748b;
+        }
+
+        .orange {
+            background: #f97316;
+        }
+
+        .blue {
+            background: #2563eb;
+        }
+
+        .yellow {
+            background: #facc15;
+            color: #000;
+        }
+
+        .badge-mp {
+            background: #16a34a;
+        }
+
+        .badge-cmd {
+            background: #2563eb;
+        }
+
+        .badge-jess {
+            background: #f59e0b;
+        }
+
+        .badge-default {
+            background: #64748b;
+        }
+
+        .badge-green {
+            background: #22c55e;
+        }
+
+        .badge-red {
+            background: #ef4444;
+        }
+
+        .badge-gray {
+            background: #64748b;
+        }
+
+        .badge-orange {
+            background: #f97316;
+        }
+
+        .bg-success {
+            background: #22c55e !important;
+        }
+
+        .bg-warning {
+            background: #ef4444 !important;
+            color: #ffffff !important;
+        }
+
+        .bg-secondary {
+            background: #64748b !important;
+        }
+
+        /* ================= SMALL COLUMN ================= */
+
+        .col-small {
+            width: 110px !important;
+            min-width: 110px !important;
+            max-width: 130px !important;
+            font-size: 15px;
+            text-align: center;
+        }
+
+        /* ================= DATATABLE ================= */
+
+        .dataTables_wrapper {
+            font-size: 16px;
+        }
+
+        .dataTables_filter input {
+            padding: 9px 14px !important;
+            border-radius: 8px !important;
+            font-size: 16px !important;
+        }
+
+        .dataTables_length select {
+            padding: 7px 12px !important;
+            font-size: 16px !important;
+        }
+
+        /* ================= RESPONSIVE ================= */
+
+        @media(max-width:768px) {
 
             .container {
-                margin-left: 260px;
-                padding: 30px;
+                margin-left: 0;
+                padding: 15px;
             }
 
             h2 {
-                font-size: 34px;
-                font-weight: 700;
-                margin-bottom: 20px;
-                color: #0f172a;
+                font-size: 26px;
             }
-
-            /* ================= CARD ================= */
-
-            .card {
-                background: #fff;
-                padding: 20px;
-                border-radius: 16px;
-                overflow: auto;
-                box-shadow: 0 4px 20px rgba(0, 0, 0, .08);
-            }
-
-            /* ================= TABLE ================= */
 
             table {
-                width: 100%;
-                border-collapse: collapse;
-                font-size: 16px;
+                font-size: 15px;
             }
 
             th {
-                background: #03c03c;
-                color: #fff;
-                padding: 16px 14px;
-                white-space: nowrap;
-                font-size: 16px;
-                font-weight: 600;
-                text-align: center;
-                border: 1px solid #dbeafe;
+                font-size: 15px;
+                padding: 12px;
             }
 
             td {
-                padding: 14px 12px;
-                border: 1px solid #e2e8f0;
-                white-space: nowrap;
-                text-align: left;
-                vertical-align: middle;
-                font-size: 16px;
+                font-size: 15px;
+                padding: 10px;
             }
 
-            /* Zebra */
-
-            tbody tr:nth-child(even) {
-                background: #f8fafc;
-            }
-
-            tbody tr:hover {
-                background: #dbeafe;
-                transition: .2s;
-            }
-
-            /* ================= FILTER ================= */
-
-            .filter-box {
-                background: #fff;
-                padding: 20px;
-                border-radius: 16px;
-                box-shadow: 0 4px 16px rgba(0, 0, 0, .08);
-                margin-bottom: 20px;
-            }
-
-            .filter-box form {
-                display: flex;
-                gap: 12px;
-                flex-wrap: wrap;
-                align-items: center;
+            .filter-box form,
+            .import-box form {
+                flex-direction: column;
+                align-items: stretch;
             }
 
             .filter-box input,
-            .filter-box select {
-                padding: 13px 16px;
-                border: 1px solid #cbd5e1;
-                border-radius: 10px;
-                font-size: 16px;
-                min-width: 190px;
-                outline: none;
-            }
-
-            .filter-box input:focus,
-            .filter-box select:focus {
-                border-color: #3b82f6;
-                box-shadow: 0 0 0 3px rgba(59, 130, 246, .15);
-            }
-
-            .filter-box button {
-                padding: 13px 20px;
-                background: #22c55e;
-                color: white;
-                border: none;
-                border-radius: 10px;
-                font-size: 16px;
-                font-weight: 600;
-                cursor: pointer;
-            }
-
-            .filter-box button:hover {
-                background: #16a34a;
-            }
-
-            .filter-box a {
-                padding: 13px 20px;
-                background: #ef4444;
-                color: white;
-                border-radius: 10px;
-                text-decoration: none;
-                font-size: 16px;
-                font-weight: 600;
-            }
-
-            .filter-box a:hover {
-                background: #dc2626;
-            }
-
-            /* ================= IMPORT BOX ================= */
-
-            .import-box {
-                background: #fff;
-                padding: 20px;
-                border-radius: 16px;
-                box-shadow: 0 4px 16px rgba(0, 0, 0, .08);
-                margin-bottom: 20px;
-            }
-
-            .import-box form {
-                display: flex;
-                gap: 12px;
-                align-items: center;
-                flex-wrap: wrap;
-            }
-
-            .import-box input[type=file] {
-                padding: 13px;
-                border: 2px dashed #cbd5e1;
-                border-radius: 10px;
-                background: #f8fafc;
-                font-size: 16px;
-            }
-
-            .import-box input[type=file]:hover {
-                border-color: #2563eb;
-            }
-
+            .filter-box select,
+            .filter-box button,
             .import-box button {
-                padding: 13px 20px;
-                border: none;
-                border-radius: 10px;
-                background: linear-gradient(135deg, #3b82f6, #2563eb);
-                color: white;
-                font-size: 16px;
-                font-weight: 600;
-                cursor: pointer;
+                width: 100%;
             }
+        }
 
-            .import-box button:hover {
-                transform: translateY(-2px);
-            }
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 9px 16px;
+            border-radius: 999px;
+            font-size: 15px;
+            font-weight: 700;
+            color: #fff;
+            letter-spacing: .3px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, .15);
+        }
 
-            /* ================= ARCHIVE BUTTON ================= */
+        /* Hijau */
+        .badge-success {
+            background: linear-gradient(135deg, #16a34a, #22c55e);
+        }
 
+        /* Kuning */
+        .badge-warning {
+            background: linear-gradient(135deg, #f59e0b, #fbbf24);
+            color: #222;
+        }
+
+        /* Biru */
+        .badge-info {
+            background: linear-gradient(135deg, #2563eb, #3b82f6);
+        }
+
+        /* Merah */
+        .badge-danger {
+            background: linear-gradient(135deg, #dc2626, #ef4444);
+        }
+
+        /* Abu */
+        .badge-secondary {
+            background: linear-gradient(135deg, #00e5ff, #9ca3af);
+        }
+    </style>
+</head>
+
+<body>
+
+    @include('template.sidebar')
+
+    <div class="container">
+
+        <h2>📦 DATA LOGISTIK</h2>
+
+
+
+        <a href="#" id="btnExportExcel" class="btn-export">
+            <i class="fa fa-file-excel"></i>
+            Export Excel
+        </a>
+
+        <!-- FILTER -->
+
+
+        <!-- HAPUS SEMUA -->
+
+        <style>
             .archive-form {
                 margin: 20px 0;
-            }
-
-            .archive-btn {
-                background: linear-gradient(135deg, #2563eb, #1d4ed8);
-                color: white;
-                border: none;
-                padding: 15px 26px;
-                border-radius: 12px;
-                font-size: 17px;
-                font-weight: 600;
-                cursor: pointer;
-                transition: .3s;
-            }
-
-            .archive-btn:hover {
-                transform: translateY(-2px);
-            }
-
-            /* ================= BADGE ================= */
-
-            .badge {
-                padding: 9px 16px;
-                border-radius: 20px;
-                color: white;
-                font-size: 15px;
-                font-weight: 600;
-                display: inline-block;
-            }
-
-            .green {
-                background: #22c55e;
-            }
-
-            .red {
-                background: #ef4444;
-            }
-
-            .gray {
-                background: #64748b;
-            }
-
-            .orange {
-                background: #f97316;
-            }
-
-            .blue {
-                background: #2563eb;
-            }
-
-            .yellow {
-                background: #facc15;
-                color: #000;
-            }
-
-            .badge-mp {
-                background: #16a34a;
-            }
-
-            .badge-cmd {
-                background: #2563eb;
-            }
-
-            .badge-jess {
-                background: #f59e0b;
-            }
-
-            .badge-default {
-                background: #64748b;
             }
 
             .badge-green {
@@ -273,766 +436,659 @@
             }
 
             .badge-gray {
-                background: #64748b;
+                background: #6b7280;
             }
 
             .badge-orange {
                 background: #f97316;
             }
 
-            .bg-success {
-                background: #22c55e !important;
-            }
-
-            .bg-warning {
-                background: #ef4444 !important;
-                color: #ffffff !important;
-            }
-
-            .bg-secondary {
-                background: #64748b !important;
-            }
-
-            /* ================= SMALL COLUMN ================= */
-
-            .col-small {
-                width: 110px !important;
-                min-width: 110px !important;
-                max-width: 130px !important;
-                font-size: 15px;
-                text-align: center;
-            }
-
-            /* ================= DATATABLE ================= */
-
-            .dataTables_wrapper {
+            .archive-btn {
+                background: linear-gradient(135deg, #2563eb, #1d4ed8);
+                color: white;
+                border: none;
+                padding: 13px 24px;
+                border-radius: 12px;
                 font-size: 16px;
-            }
-
-            .dataTables_filter input {
-                padding: 9px 14px !important;
-                border-radius: 8px !important;
-                font-size: 16px !important;
-            }
-
-            .dataTables_length select {
-                padding: 7px 12px !important;
-                font-size: 16px !important;
-            }
-
-            /* ================= RESPONSIVE ================= */
-
-            @media(max-width:768px) {
-
-                .container {
-                    margin-left: 0;
-                    padding: 15px;
-                }
-
-                h2 {
-                    font-size: 26px;
-                }
-
-                table {
-                    font-size: 15px;
-                }
-
-                th {
-                    font-size: 15px;
-                    padding: 12px;
-                }
-
-                td {
-                    font-size: 15px;
-                    padding: 10px;
-                }
-
-                .filter-box form,
-                .import-box form {
-                    flex-direction: column;
-                    align-items: stretch;
-                }
-
-                .filter-box input,
-                .filter-box select,
-                .filter-box button,
-                .import-box button {
-                    width: 100%;
-                }
-            }
-
-            .badge {
+                font-weight: 600;
+                cursor: pointer;
+                transition: 0.3s ease;
+                box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
                 display: inline-flex;
                 align-items: center;
-                gap: 6px;
-                padding: 9px 16px;
-                border-radius: 999px;
-                font-size: 15px;
-                font-weight: 700;
-                color: #fff;
-                letter-spacing: .3px;
-                box-shadow: 0 2px 8px rgba(0, 0, 0, .15);
+                gap: 8px;
             }
 
-            /* Hijau */
-            .badge-success {
-                background: linear-gradient(135deg, #16a34a, #22c55e);
+            .archive-btn:hover {
+                transform: translateY(-2px);
+                background: linear-gradient(135deg, #1d4ed8, #1e40af);
+                box-shadow: 0 8px 18px rgba(37, 99, 235, 0.35);
             }
 
-            /* Kuning */
-            .badge-warning {
-                background: linear-gradient(135deg, #f59e0b, #fbbf24);
-                color: #222;
+            .archive-btn:active {
+                transform: scale(0.98);
             }
 
-            /* Biru */
-            .badge-info {
-                background: linear-gradient(135deg, #2563eb, #3b82f6);
+            .badge.gray {
+                background: #9ca3af;
             }
 
-            /* Merah */
-            .badge-danger {
-                background: linear-gradient(135deg, #dc2626, #ef4444);
+            .badge.blue {
+                background: #3b82f6;
             }
 
-            /* Abu */
-            .badge-secondary {
-                background: linear-gradient(135deg, #00e5ff, #9ca3af);
+            .badge.yellow {
+                background: #facc15;
+                color: #000;
             }
-        </style>
-    </head>
 
-    <body>
+            .badge.orange {
+                background: #f97316;
+            }
 
-        @include('template.sidebar')
+            .badge.success {
+                background: #028e31;
+            }
 
-        <div class="container">
+            /* ================= DATATABLES XL ================= */
 
-            <h2>📦 DATA LOGISTIK</h2>
+            .dataTables_wrapper {
+                font-size: 17px !important;
+            }
 
-        
+            .dataTables_wrapper .dataTables_length,
+            .dataTables_wrapper .dataTables_filter,
+            .dataTables_wrapper .dataTables_info,
+            .dataTables_wrapper .dataTables_paginate {
+                font-size: 17px !important;
+                font-weight: 500;
+            }
 
-    <a href="#" id="btnExportExcel" class="btn-export">
-    <i class="fa fa-file-excel"></i>
-    Export Excel
-</a>
+            /* Show entries */
+            .dataTables_length select {
+                font-size: 17px !important;
+                padding: 11px 16px !important;
+                min-width: 100px;
+                height: 46px;
+            }
 
-            <!-- FILTER -->
+            /* Search box */
+            .dataTables_filter input {
+                font-size: 17px !important;
+                padding: 11px 16px !important;
+                min-width: 300px;
+                height: 46px;
+                border-radius: 10px !important;
+            }
 
+            /* Info text */
+            .dataTables_info {
+                font-size: 17px !important;
+                padding-top: 16px !important;
+            }
 
-            <!-- HAPUS SEMUA -->
-        \
-            <style>
-                .archive-form {
-                    margin: 20px 0;
-                }
+            /* Pagination */
+            .dataTables_paginate .paginate_button {
+                font-size: 16px !important;
+                padding: 9px 16px !important;
+                margin: 0 3px !important;
+                border-radius: 8px !important;
+            }
 
-                .badge-green {
-                    background: #22c55e;
-                }
+            /* Table font lebih besar */
+            #tableLogistik td {
+                font-size: 16px !important;
+            }
 
-                .badge-red {
-                    background: #ef4444;
-                }
+            #tableLogistik th {
+                font-size: 16px !important;
+            }
 
-                .badge-gray {
-                    background: #6b7280;
-                }
+            /* Badge ikut membesar */
+            .badge,
+            .badge-status {
+                font-size: 15px !important;
+                padding: 9px 14px !important;
+            }
 
-                .badge-orange {
-                    background: #f97316;
-                }
-
-                .archive-btn {
-                    background: linear-gradient(135deg, #2563eb, #1d4ed8);
-                    color: white;
-                    border: none;
-                    padding: 13px 24px;
-                    border-radius: 12px;
-                    font-size: 16px;
-                    font-weight: 600;
-                    cursor: pointer;
-                    transition: 0.3s ease;
-                    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
-                    display: inline-flex;
-                    align-items: center;
-                    gap: 8px;
-                }
-
-                .archive-btn:hover {
-                    transform: translateY(-2px);
-                    background: linear-gradient(135deg, #1d4ed8, #1e40af);
-                    box-shadow: 0 8px 18px rgba(37, 99, 235, 0.35);
-                }
-
-                .archive-btn:active {
-                    transform: scale(0.98);
-                }
-
-                .badge.gray {
-                    background: #9ca3af;
-                }
-
-                .badge.blue {
-                    background: #3b82f6;
-                }
-
-                .badge.yellow {
-                    background: #facc15;
-                    color: #000;
-                }
-
-                .badge.orange {
-                    background: #f97316;
-                }
-
-                .badge.success {
-                    background: #028e31;
-                }
-
-                /* ================= DATATABLES XL ================= */
+            /* Responsive */
+            @media (min-width: 1600px) {
 
                 .dataTables_wrapper {
-                    font-size: 17px !important;
+                    font-size: 18px !important;
                 }
 
-                .dataTables_wrapper .dataTables_length,
-                .dataTables_wrapper .dataTables_filter,
-                .dataTables_wrapper .dataTables_info,
-                .dataTables_wrapper .dataTables_paginate {
-                    font-size: 17px !important;
-                    font-weight: 500;
-                }
-
-                /* Show entries */
-                .dataTables_length select {
-                    font-size: 17px !important;
-                    padding: 11px 16px !important;
-                    min-width: 100px;
-                    height: 46px;
-                }
-
-                /* Search box */
-                .dataTables_filter input {
-                    font-size: 17px !important;
-                    padding: 11px 16px !important;
-                    min-width: 300px;
-                    height: 46px;
-                    border-radius: 10px !important;
-                }
-
-                /* Info text */
-                .dataTables_info {
-                    font-size: 17px !important;
-                    padding-top: 16px !important;
-                }
-
-                /* Pagination */
-                .dataTables_paginate .paginate_button {
-                    font-size: 16px !important;
-                    padding: 9px 16px !important;
-                    margin: 0 3px !important;
-                    border-radius: 8px !important;
-                }
-
-                /* Table font lebih besar */
                 #tableLogistik td {
-                    font-size: 16px !important;
+                    font-size: 17px !important;
                 }
 
                 #tableLogistik th {
-                    font-size: 16px !important;
+                    font-size: 17px !important;
                 }
 
-                /* Badge ikut membesar */
-                .badge,
-                .badge-status {
-                    font-size: 15px !important;
-                    padding: 9px 14px !important;
+                .dataTables_filter input {
+                    min-width: 360px;
                 }
+            }
 
-                /* Responsive */
-                @media (min-width: 1600px) {
+            .badge-green {
+                background: #22c55e;
+                color: white;
+            }
 
-                    .dataTables_wrapper {
-                        font-size: 18px !important;
-                    }
+            .badge-blue {
+                background: #3b82f6;
+                color: white;
+            }
 
-                    #tableLogistik td {
-                        font-size: 17px !important;
-                    }
+            .badge-orange {
+                background: #f97316;
+                color: white;
+            }
 
-                    #tableLogistik th {
-                        font-size: 17px !important;
-                    }
+            .badge-red {
+                background: #ef4444;
+                color: white;
+            }
 
-                    .dataTables_filter input {
-                        min-width: 360px;
-                    }
-                }
+            .badge-purple {
+                background: #8b5cf6;
+                color: white;
+            }
 
-                .badge-green {
-                    background: #22c55e;
-                    color: white;
-                }
+            .badge-pink {
+                background: #ec4899;
+                color: white;
+            }
 
-                .badge-blue {
-                    background: #3b82f6;
-                    color: white;
-                }
+            .badge-cyan {
+                background: #06b6d4;
+                color: white;
+            }
 
-                .badge-orange {
-                    background: #f97316;
-                    color: white;
-                }
+            .badge-yellow {
+                background: #eab308;
+                color: black;
+            }
 
-                .badge-red {
-                    background: #ef4444;
-                    color: white;
-                }
+            .badge-status {
+                padding: 9px 14px;
+                border-radius: 20px;
+                font-size: 15px;
+                font-weight: 600;
+                display: inline-block;
+            }
 
-                .badge-purple {
-                    background: #8b5cf6;
-                    color: white;
-                }
+            .status-belum {
+                background: #ef4444;
+                color: white;
+            }
 
-                .badge-pink {
-                    background: #ec4899;
-                    color: white;
-                }
+            .status-perjalanan {
+                background: #f59e0b;
+                color: white;
+            }
 
-                .badge-cyan {
-                    background: #06b6d4;
-                    color: white;
-                }
+            .status-sudah {
+                background: #22c55e;
+                color: white;
+            }
 
-                .badge-yellow {
-                    background: #eab308;
-                    color: black;
-                }
+            .status-default {
+                background: #64748b;
+                color: white;
+            }
 
-                .badge-status {
-                    padding: 9px 14px;
-                    border-radius: 20px;
-                    font-size: 15px;
-                    font-weight: 600;
-                    display: inline-block;
-                }
+            .status-badge {
+                display: inline-block;
+                padding: 9px 16px;
+                border-radius: 20px;
+                font-size: 15px;
+                font-weight: 700;
+                text-align: center;
+                line-height: 1.3;
+                min-width: 180px;
+                color: #fff;
+            }
 
-                .status-belum {
-                    background: #ef4444;
-                    color: white;
-                }
+            .status-transit {
+                background: #2563eb;
+                /* Biru */
+            }
 
-                .status-perjalanan {
-                    background: #f59e0b;
-                    color: white;
-                }
+            .status-unloading {
+                background: #f59e0b;
+                /* Orange */
+                color: #fff;
+            }
 
-                .status-sudah {
-                    background: #22c55e;
-                    color: white;
-                }
+            .status-ontime {
+                background: #16a34a;
+                /* Hijau */
+            }
 
-                .status-default {
-                    background: #64748b;
-                    color: white;
-                }
+            .status-delay {
+                background: #dc2626;
+                /* Merah */
+            }
 
-                .status-badge {
-                    display: inline-block;
-                    padding: 9px 16px;
-                    border-radius: 20px;
-                    font-size: 15px;
-                    font-weight: 700;
-                    text-align: center;
-                    line-height: 1.3;
-                    min-width: 180px;
-                    color: #fff;
-                }
+            .status-ontime {
+                background: linear-gradient(135deg, #16a34a, #22c55e);
+            }
 
-                .status-transit {
-                    background: #2563eb;
-                    /* Biru */
-                }
+            .status-delay {
+                background: linear-gradient(135deg, #dc2626, #ef4444);
+            }
 
-                .status-unloading {
-                    background: #f59e0b;
-                    /* Orange */
-                    color: #fff;
-                }
+            .status-wait {
+                background: linear-gradient(135deg, #6b7280, #9ca3af);
+            }
 
-                .status-ontime {
-                    background: #16a34a;
-                    /* Hijau */
-                }
+            .btn-export {
+                display: inline-flex;
+                align-items: center;
+                gap: 8px;
 
-                .status-delay {
-                    background: #dc2626;
-                    /* Merah */
-                }
+                padding: 12px 20px;
 
-                .status-ontime {
-                    background: linear-gradient(135deg, #16a34a, #22c55e);
-                }
+                background: #198754;
+                color: #fff !important;
 
-                .status-delay {
-                    background: linear-gradient(135deg, #dc2626, #ef4444);
-                }
+                border: none;
+                border-radius: 8px;
 
-                .status-wait {
-                    background: linear-gradient(135deg, #6b7280, #9ca3af);
-                }
+                font-size: 16px;
+                font-weight: 600;
 
-                .btn-export {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
+                text-decoration: none;
+                cursor: pointer;
 
-    padding: 12px 20px;
+                transition: all .25s ease;
+                box-shadow: 0 3px 10px rgba(25, 135, 84, .25);
+            }
 
-    background: #198754;
-    color: #fff !important;
+            .btn-export:hover {
+                background: #157347;
+                color: #fff !important;
 
-    border: none;
-    border-radius: 8px;
+                transform: translateY(-2px);
+                box-shadow: 0 6px 15px rgba(25, 135, 84, .35);
+            }
 
-    font-size: 16px;
-    font-weight: 600;
+            .btn-export:active {
+                transform: scale(.98);
+            }
 
-    text-decoration: none;
-    cursor: pointer;
-
-    transition: all .25s ease;
-    box-shadow: 0 3px 10px rgba(25, 135, 84, .25);
+            .btn-export i {
+                font-size: 18px;
+            }
+            .gray {
+    background: #9ca3af;
 }
+        </style>
 
-.btn-export:hover {
-    background: #157347;
-    color: #fff !important;
+        <div class="filter-box">
 
-    transform: translateY(-2px);
-    box-shadow: 0 6px 15px rgba(25, 135, 84, .35);
-}
+            <form id="filterForm" method="GET" action="{{ url('/datalogistik') }}">
 
-.btn-export:active {
-    transform: scale(.98);
-}
+                <select id="filterArea" name="area" onchange="this.form.submit()">
+                    <option value="">Semua Area</option>
+                    @foreach($areaList as $a)
+                    <option value="{{ $a }}" {{ request('area') == $a ? 'selected' : '' }}>
+                        {{ $a }}
+                    </option>
+                    @endforeach
+                </select>
 
-.btn-export i {
-    font-size: 18px;
-}
-            </style>
+                <input
+                    type="date"
+                    id="filterDate"
+                    name="date"
+                    value="{{ request('date') }}"
+                    onchange="this.form.submit()">
 
-         <div class="filter-box">
+                <select id="filterMonth" name="month" onchange="this.form.submit()">
+                    <option value="">Semua Bulan</option>
+                    @for($i=1;$i<=12;$i++)
+                        <option value="{{ $i }}" {{ request('month') == $i ? 'selected' : '' }}>
+                        {{ $i }}
+                        </option>
+                        @endfor
+                </select>
 
-<form id="filterForm" method="GET" action="{{ url('/datalogistik') }}">
+                <select id="filterYear" name="year" onchange="this.form.submit()">
+                    <option value="">Semua Tahun</option>
 
-    <select id="filterArea" name="area" onchange="this.form.submit()">
-        <option value="">Semua Area</option>
-        @foreach($areaList as $a)
-            <option value="{{ $a }}" {{ request('area') == $a ? 'selected' : '' }}>
-                {{ $a }}
-            </option>
-        @endforeach
-    </select>
-
-    <input
-        type="date"
-        id="filterDate"
-        name="date"
-        value="{{ request('date') }}"
-        onchange="this.form.submit()"
-    >
-
-    <select id="filterMonth" name="month" onchange="this.form.submit()">
-        <option value="">Semua Bulan</option>
-        @for($i=1;$i<=12;$i++)
-            <option value="{{ $i }}" {{ request('month') == $i ? 'selected' : '' }}>
-                {{ $i }}
-            </option>
-        @endfor
-    </select>
-
-    <select id="filterYear" name="year" onchange="this.form.submit()">
-        <option value="">Semua Tahun</option>
-
-        @php
-            $startYear = 2023;
-            $endYear = date('Y') + 1;
-        @endphp
-
-        @for($i=$startYear;$i<=$endYear;$i++)
-            <option value="{{ $i }}" {{ request('year') == $i ? 'selected' : '' }}>
-                {{ $i }}
-            </option>
-        @endfor
-    </select>
-
-</form>
-
-</div>
-            <table id="tableLogistik" class="display nowrap">
-
-                <thead>
-                    <tr>
-
-                        <th>Tanggal Naik Logistik</th>
-                        <th>Rencana Kirim</th>
-                        <th class="col-small">Lead Time</th>
-                            <th>Nama Driver</th>
-                                <th>No Pol</th>
-                        <th>Planner</th>
-                        <th>No Shipment</th>
-                        <th>Update Posisi Mobil</th>
-                        <th>Dist Channel</th>
-                        <th>Tujuan</th>
-                        <th>Area</th>
-                        <th>Ketersediaan Unit</th>
-                        <th>Mobil</th>
-                        <th>Delivery Quantity</th>
-                        <!-- <th>Perubahan Mobil</th> -->
-                        <th>Nilai Muatan</th>
-                        <th>Biaya Kirim</th>
-                        <th>CR</th>
-                        <th>Kategori Ekspedisi</th>
-                        <th>Ekspedisi</th>
-
-                        <th>Tanggal Dapat Unit</th>
-
-
-
-                        <th>Lama Waktu Pencarian</th>
-                        <th>SLA Dapat Mobil</th>
-                        <th>Planning Loading KACS</th>
-                        <th>Tanggal Tiba KACS</th>
-                        <th>Tanggal Keluar KACS</th>
-                        <th>Lama Di KACS</th>
-                        <th>Status KACS</th>
-                        <th>SLA Loading</th>
-                        <th>Planning Loading Sentul</th>
-                        <th>Tanggal Tiba Sentul</th>
-                        <!-- <th>Planning Loading 2</th> -->
-                        <th>Tanggal Keluar Sentul</th>
-                        <th>Lama Di Sentul</th>
-                        <th>SLA Loading Sentul</th>
-                        <th>Status Sentul</th>
-                        <th>Planning Loading CCIE</th>
-
-                        <th>Tanggal Tiba CCIE</th>
-                        <!-- <th>Planning Loading 3</th> -->
-                        <th>Tanggal Keluar CCIE</th>
-                        <th>Lama Di CCIE</th>
-                        <th>SLA Loading CCIE</th>
-                        <th>Status CCIE</th>
-
-
-
-
-                        <th>PIC Monitoring</th>
-                        <th>Nama Kapal</th>
-                        <th>ETD</th>
-                        <th>ETA</th>
-                        <th>Monitoring Alert</th>
-                        <th>Alert</th>
-
-
-                        <th class="col-small">Urutan Bongkar</th>
-
-                        <th>Actual Delivery Quantity</th>
-                        <th>Selsih quantity</th>
-                        <th>Reason Selisih Quantity</th>
-                        <th>Act PGI Date</th>
-
-                        <!-- <th>Created By</th> -->
-                        <th>ATD</th>
-                        <th>ATA</th>
-                        <th>Tanggal Estimasi</th>
-                        <th>Tanggal Tiba</th>
-                        <th>Lama Perjalanan</th>
-
-                        <th>SLA Tiba</th>
-                        <th>Tanggal Bongkar</th>
-                        <th>Overstay</th>
-                        <th>SLA Bongkar</th>
-                        <th>Reason Tiba</th>
-                        <th>Reason Bongkar</th>
-                        <th>Status Akhir</th>
-
-                        <th>Status Alert</th>
-
-                        <th>Remarks</th>
-                        <th>Route</th>
-                        <th>Shipping Point</th>
-                        <th>Pulau</th>
-                        <th>Via Kirim</th>
-
-
-                    </tr>
-                </thead>
-
-                <tbody>
                     @php
-                    function badgeSLA($sla)
-                    {
-                    $sla = trim((string)$sla);
-
-                    if ($sla === '' || $sla === '-' || $sla === 'null') {
-                    return '<span class="badge badge-gray">-</span>';
-                    }
-
-                    $slaLower = strtolower($sla);
-
-                    // Sesuai SLA / On Time
-                    if (
-                    in_array($slaLower, [
-                    'sesuai sla',
-                    'on time',
-                    'ontime',
-                    'h+0'
-                    ])
-                    ) {
-                    return '<span class="badge badge-green">'.$sla.'</span>';
-                    }
-
-                    // H+1
-                    if (preg_match('/^h\+1$/i', $sla)) {
-                    return '<span class="badge badge-orange">'.$sla.'</span>';
-                    }
-
-                    // H+2 dst
-                    if (preg_match('/^h\+\d+$/i', $sla)) {
-                    return '<span class="badge badge-red">'.$sla.'</span>';
-                    }
-
-                    return '<span class="badge badge-gray">'.$sla.'</span>';
-                    }
+                    $startYear = 2023;
+                    $endYear = date('Y') + 1;
                     @endphp
-                    @foreach($logistik as $r)
 
-                    @php
+                    @for($i=$startYear;$i<=$endYear;$i++)
+                        <option value="{{ $i }}" {{ request('year') == $i ? 'selected' : '' }}>
+                        {{ $i }}
+                        </option>
+                        @endfor
+                </select>
 
-                    // ================= NORMALISASI TANGGAL =================
+            </form>
 
-                    $datesKeluar = [
-                    $r->tanggal_keluar_gudang,
-                    $r->tanggal_keluar_gudang_2,
-                    $r->tanggal_keluar_gudang_3,
-                    ];
+        </div>
+        <table id="tableLogistik" class="display nowrap">
 
-                    $keluar = collect($datesKeluar)
-                    ->filter(function ($t) {
-                    return !empty($t) && $t != 'mm/dd/yyyy';
-                    })
-                    ->map(function ($t) {
-                    return strtotime($t);
-                    })
-                    ->max();
+            <thead>
+                <tr>
 
-                    $tiba = (!empty($r->tanggal_tiba) && $r->tanggal_tiba != 'mm/dd/yyyy')
-                    ? strtotime(date('Y-m-d', strtotime($r->tanggal_tiba)))
-                    : null;
+                    <th>Tanggal Naik Logistik</th>
+                    <th>Rencana Kirim</th>
+                    <th class="col-small">Lead Time</th>
+                    <th>Nama Driver</th>
+                    <th>No Pol</th>
+                    <th>Planner</th>
+                    <th>No Shipment</th>
+                    <th>Update Posisi Mobil</th>
+                    <th>Dist Channel</th>
+                    <th>Tujuan</th>
+                    <th>Area</th>
+                    <th>Ketersediaan Unit</th>
+                    <th>Mobil</th>
+                    <th>Delivery Quantity</th>
+                    <!-- <th>Perubahan Mobil</th> -->
+                    <th>Nilai Muatan</th>
+                    <th>Biaya Kirim</th>
+                    <th>CR</th>
+                    <th>Kategori Ekspedisi</th>
+                    <th>Ekspedisi</th>
 
-                    $bongkar = (!empty($r->tanggal_bongkar) && $r->tanggal_bongkar != 'mm/dd/yyyy')
-                    ? strtotime(date('Y-m-d', strtotime($r->tanggal_bongkar)))
-                    : null;
+                    <th>Tanggal Dapat Unit</th>
 
-                    // ================= LEADTIME =================
-                    $leadtime = is_numeric($r->transport_lead_time)
-                    ? (int) $r->transport_lead_time
-                    : 0;
-                    // ================= ESTIMASI TIBA =================
 
-                    $estimasi = $r->estimasi_tiba
-                    ? strtotime($r->estimasi_tiba)
-                    : null;
 
-                    $estimasi_show = $estimasi
-                    ? date('d-m-Y', $estimasi)
-                    : '-';
+                    <th>Lama Waktu Pencarian</th>
+                    <th>SLA Dapat Mobil</th>
+                    <th>Planning Loading KACS</th>
+                    <th>Tanggal Tiba KACS</th>
+                    <th>Tanggal Keluar KACS</th>
+                    <th>Lama Di KACS</th>
+                    <th>Status KACS</th>
+                    <th>SLA Loading</th>
+                    <th>Planning Loading Sentul</th>
+                    <th>Tanggal Tiba Sentul</th>
+                    <!-- <th>Planning Loading 2</th> -->
+                    <th>Tanggal Keluar Sentul</th>
+                    <th>Lama Di Sentul</th>
+                    <th>SLA Loading Sentul</th>
+                    <th>Status Sentul</th>
+                    <th>Planning Loading CCIE</th>
 
-                    // ================= LAMA PERJALANAN =================
-                    $lama_perjalanan = ($keluar && $tiba)
-                    ? max(0, ceil(($tiba - $keluar) / 86400))
-                    : null;
+                    <th>Tanggal Tiba CCIE</th>
+                    <!-- <th>Planning Loading 3</th> -->
+                    <th>Tanggal Keluar CCIE</th>
+                    <th>Lama Di CCIE</th>
+                    <th>SLA Loading CCIE</th>
+                    <th>Status CCIE</th>
 
-                    // ================= SLA TIBA =================
-                    $sla_tiba = '-';
 
-                    if ($tiba && $estimasi) {
-                    $sla_tiba = ($tiba
-                    <= $estimasi) ? 'On Time' : 'Delay' ;
-                        }
 
-                        //=================OVERSTAY BONGKAR=================// RULE:
-                        // 0 hari=ON TIME
-                        //>0 hari = DELAY
-                    $over_bongkar = null;
 
-                    if ($tiba && $bongkar) {
-                    $over_bongkar = max(0, ceil(($bongkar - $tiba) / 86400));
+                    <th>PIC Monitoring</th>
+                    <th>Nama Kapal</th>
+                    <th>ETD</th>
+                    <th>ETA</th>
+                    <th>Monitoring Alert</th>
+                    <th>Alert</th>
+
+
+                    <th class="col-small">Urutan Bongkar</th>
+
+                    <th>Actual Delivery Quantity</th>
+                    <th>Biaya Kuli</th>
+                    <th>Total Biaya Kuli</th>
+                    <th>Selsih quantity</th>
+                    <th>Reason Selisih Quantity</th>
+                    <th>Act PGI Date</th>
+
+                    <!-- <th>Created By</th> -->
+                    <th>ATD</th>
+                    <th>ATA</th>
+                    <th>Tanggal Estimasi</th>
+                    <th>Tanggal Tiba</th>
+                    <th>Lama Perjalanan</th>
+
+                    <th>SLA Tiba</th>
+                    <th>Tanggal Bongkar</th>
+                    <th>Status Bongkar</th>
+                    <th>Overstay</th>
+                    <th>SLA Bongkar</th>
+                    <th>Reason Tiba</th>
+                    <th>Reason Bongkar</th>
+                    <th>Status Akhir</th>
+
+                    <th>Status Alert</th>
+
+                    <th>Remarks</th>
+                    <th>Route</th>
+                    <th>Shipping Point</th>
+                    <th>Pulau</th>
+                    <th>Via Kirim</th>
+                    <th>Estimasi Tiba Di Customer</th>
+                    <th>Ontime/Delay Admin</th>
+
+
+                </tr>
+            </thead>
+
+            <tbody>
+                @php
+                function badgeSLA($sla)
+                {
+                $sla = trim((string)$sla);
+
+                if ($sla === '' || $sla === '-' || $sla === 'null') {
+                return '<span class="badge badge-gray">-</span>';
+                }
+
+                $slaLower = strtolower($sla);
+
+                // Sesuai SLA / On Time
+                if (
+                in_array($slaLower, [
+                'sesuai sla',
+                'on time',
+                'ontime',
+                'h+0'
+                ])
+                ) {
+                return '<span class="badge badge-green">'.$sla.'</span>';
+                }
+
+                // H+1
+                if (preg_match('/^h\+1$/i', $sla)) {
+                return '<span class="badge badge-orange">'.$sla.'</span>';
+                }
+
+                // H+2 dst
+                if (preg_match('/^h\+\d+$/i', $sla)) {
+                return '<span class="badge badge-red">'.$sla.'</span>';
+                }
+
+                return '<span class="badge badge-gray">'.$sla.'</span>';
+                }
+                @endphp
+                @foreach($logistik as $r)
+
+                @php
+
+                // ================= NORMALISASI TANGGAL =================
+
+                $datesKeluar = [
+                $r->tanggal_keluar_gudang,
+                $r->tanggal_keluar_gudang_2,
+                $r->tanggal_keluar_gudang_3,
+                ];
+
+                $keluar = collect($datesKeluar)
+                ->filter(function ($t) {
+                return !empty($t) && $t != 'mm/dd/yyyy';
+                })
+                ->map(function ($t) {
+                return strtotime($t);
+                })
+                ->max();
+
+                $tiba = (!empty($r->tanggal_tiba) && $r->tanggal_tiba != 'mm/dd/yyyy')
+                ? strtotime(date('Y-m-d', strtotime($r->tanggal_tiba)))
+                : null;
+
+                $bongkar = (!empty($r->tanggal_bongkar) && $r->tanggal_bongkar != 'mm/dd/yyyy')
+                ? strtotime(date('Y-m-d', strtotime($r->tanggal_bongkar)))
+                : null;
+
+                // ================= LEADTIME =================
+                $leadtime = is_numeric($r->transport_lead_time)
+                ? (int) $r->transport_lead_time
+                : 0;
+                // ================= ESTIMASI TIBA =================
+
+                $estimasi = $r->estimasi_tiba
+                ? strtotime($r->estimasi_tiba)
+                : null;
+
+                $estimasi_show = $estimasi
+                ? date('d-m-Y', $estimasi)
+                : '-';
+
+                // ================= LAMA PERJALANAN =================
+                $lama_perjalanan = ($keluar && $tiba)
+                ? max(0, ceil(($tiba - $keluar) / 86400))
+                : null;
+
+                // ================= SLA TIBA =================
+                $sla_tiba = '-';
+
+                if ($tiba && $estimasi) {
+                $sla_tiba = ($tiba
+                <= $estimasi) ? 'On Time' : 'Delay' ;
                     }
 
-                    // ================= SLA BONGKAR =================
-                    $sla_bongkar = '-';
+                    //=================OVERSTAY BONGKAR=================// RULE:
+                    // 0 hari=ON TIME
+                    //>0 hari = DELAY
+                $over_bongkar = null;
 
-                    if ($tiba && $bongkar) {
-                    $sla_bongkar = ($over_bongkar <= 0)
+                if ($tiba && $bongkar) {
+                $over_bongkar = max(0, ceil(($bongkar - $tiba) / 86400));
+                }
+
+            /////estimasiadmn
+    $estimasiAdmin = null;
+
+    if (!empty($r->rencana_kirim)) {
+        $estimasiAdmin = \Carbon\Carbon::parse($r->rencana_kirim)
+            ->addDays((int) ($r->transport_lead_time ?? 0));
+
+        // Area Jawa Barat tambah 1 hari
+        if (strtolower(trim($r->area ?? '')) == 'jawa barat') {
+            $estimasiAdmin->addDay();
+        }
+    }
+
+    $statusEstimasiAdmin = '-';
+
+
+                // ================= SLA BONGKAR =================
+                $sla_bongkar = '-';
+
+                if ($tiba && $bongkar) {
+                $sla_bongkar = ($over_bongkar <= 0)
+                    ? 'On Time'
+                    : 'Delay' ;
+                    }
+
+                    //=================ALERT ESTIMASI=================$alert='-' ;
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | SUDAH DELIVER
+                    |--------------------------------------------------------------------------
+                    */
+                    if ($r->sla_bongkar == 'Delay') {
+
+                    $alert = 'DELAY DELIVERY';
+
+                    } elseif ($r->sla_bongkar == 'On Time') {
+
+                    $alert = 'AMAN';
+
+                    }
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | BELUM DELIVER
+                    |--------------------------------------------------------------------------
+                    */
+                    elseif ($estimasi) {
+
+                    $today = strtotime(date('Y-m-d'));
+                    $selisih = ceil(($estimasi - $today) / 86400);
+
+                    if ($selisih < 0) {
+
+                        $alert='TERLAMBAT' ;
+
+                        } elseif ($selisih <=2) {
+
+                        $alert='WARNING H-2' ;
+
+                        } else {
+
+                        $alert='AMAN' ;
+
+                        }
+                        }
+                        //=================================// ESTIMASI TIBA ADMIN
+                        //=================================$estimasiAdmin=null;
+
+                        if (!empty($r->rencana_kirim) && !empty($r->transport_lead_time)) {
+
+                        $estimasiAdmin = \Carbon\Carbon::parse($r->rencana_kirim)
+                        ->addDays((int) $r->transport_lead_time);
+                        }
+
+                        // =================================
+                        // SLA ADMIN
+                        // =================================
+
+                        $statusEstimasiAdmin = '-';
+
+                        if ($estimasiAdmin && !empty($r->tanggal_tiba)) {
+
+                        // Sudah tiba -> bandingkan tanggal tiba vs estimasi
+                        $tanggalTiba = \Carbon\Carbon::parse($r->tanggal_tiba);
+
+                        $statusEstimasiAdmin =
+                        $tanggalTiba->lte($estimasiAdmin)
                         ? 'On Time'
-                        : 'Delay' ;
+                        : 'Delay';
+
+                        } elseif ($estimasiAdmin && empty($r->tanggal_tiba)) {
+
+                        // Belum tiba -> cek apakah hari ini sudah lewat estimasi
+                        $statusEstimasiAdmin =
+                        now()->startOfDay()->gt($estimasiAdmin->copy()->startOfDay())
+                        ? 'Delay'
+                        : 'Belum Tiba';
                         }
+                        @endphp
 
-                        //=================ALERT ESTIMASI=================$alert='-' ;
-
-                        /*
-                        |--------------------------------------------------------------------------
-                        | SUDAH DELIVER
-                        |--------------------------------------------------------------------------
-                        */
-                        if ($r->sla_bongkar == 'Delay') {
-
-                        $alert = 'DELAY DELIVERY';
-
-                        } elseif ($r->sla_bongkar == 'On Time') {
-
-                        $alert = 'AMAN';
-
-                        }
-
-                        /*
-                        |--------------------------------------------------------------------------
-                        | BELUM DELIVER
-                        |--------------------------------------------------------------------------
-                        */
-                        elseif ($estimasi) {
-
-                        $today = strtotime(date('Y-m-d'));
-                        $selisih = ceil(($estimasi - $today) / 86400);
-
-                        if ($selisih < 0) {
-
-                            $alert='TERLAMBAT' ;
-
-                            } elseif ($selisih <=2) {
-
-                            $alert='WARNING H-2' ;
-
-                            } else {
-
-                            $alert='AMAN' ;
-
-                            }
-                            }
-                            @endphp
-
-                            <tr>
+                        <tr>
 
 
                             <td>{{ $r->tanggal_naik_logistik ? date('d-m-Y', strtotime($r->tanggal_naik_logistik)) : '-' }}</td>
                             <td>{{ $r->rencana_kirim ? date('d-m-Y', strtotime($r->rencana_kirim)) : '-' }}</td>
                             <td>{{ $r->transport_lead_time }}</td>
-                                 <td>{{ $r->nama_driver }}</td>
-                                      <td>{{ $r->no_pol }}</td>
+                            <td>{{ $r->nama_driver }}</td>
+                            <td>{{ $r->no_pol }}</td>
                             <td>{{ $r->planner }}</td>
                             <td>{{ $r->no_shipment }}</td>
                             <td>
@@ -1059,116 +1115,116 @@
                                 // =========================
 
                                 $gudang = collect([
-    [
-        'nama'     => 'KACS',
-        'planning' => $r->planning_loading,
-        'tiba'     => $r->tanggal_tiba_gudang,
-        'keluar'   => $r->tanggal_keluar_gudang,
-    ],
-    [
-        'nama'     => 'SENTUL',
-        'planning' => $r->planning_loading_2,
-        'tiba'     => $r->tanggal_tiba_gudang_2,
-        'keluar'   => $r->tanggal_keluar_gudang_2,
-    ],
-    [
-        'nama'     => 'CCIE',
-        'planning' => $r->planning_loading_3,
-        'tiba'     => $r->tanggal_tiba_gudang_3,
-        'keluar'   => $r->tanggal_keluar_gudang_3,
-    ],
-])
+                                [
+                                'nama' => 'KACS',
+                                'planning' => $r->planning_loading,
+                                'tiba' => $r->tanggal_tiba_gudang,
+                                'keluar' => $r->tanggal_keluar_gudang,
+                                ],
+                                [
+                                'nama' => 'SENTUL',
+                                'planning' => $r->planning_loading_2,
+                                'tiba' => $r->tanggal_tiba_gudang_2,
+                                'keluar' => $r->tanggal_keluar_gudang_2,
+                                ],
+                                [
+                                'nama' => 'CCIE',
+                                'planning' => $r->planning_loading_3,
+                                'tiba' => $r->tanggal_tiba_gudang_3,
+                                'keluar' => $r->tanggal_keluar_gudang_3,
+                                ],
+                                ])
 
-// hanya gudang yang punya planning
-->filter(function ($g) {
-    return !empty($g['planning']);
-})
+                                // hanya gudang yang punya planning
+                                ->filter(function ($g) {
+                                return !empty($g['planning']);
+                                })
 
-// urut berdasarkan planning paling awal
-->sortBy(function ($g) {
-    return strtotime($g['planning']);
-})
+                                // urut berdasarkan planning paling awal
+                                ->sortBy(function ($g) {
+                                return strtotime($g['planning']);
+                                })
 
-->values();
+                                ->values();
 
-$adaPlanningGudang = $gudang->count() > 0;
+                                $adaPlanningGudang = $gudang->count() > 0;
 
-$statusGudang = null;
+                                $statusGudang = null;
 
-foreach ($gudang as $g) {
+                                foreach ($gudang as $g) {
 
-    // masih menuju gudang
-    if (empty($g['tiba'])) {
+                                // masih menuju gudang
+                                if (empty($g['tiba'])) {
 
-        $statusGudang = [
-            'status' => 'PERJALANAN KE ' . $g['nama'],
-            'badge'  => 'yellow'
-        ];
+                                $statusGudang = [
+                                'status' => 'PERJALANAN KE ' . $g['nama'],
+                                'badge' => 'yellow'
+                                ];
 
-        break;
-    }
+                                break;
+                                }
 
-    // sedang di gudang
-    if (!empty($g['tiba']) && empty($g['keluar'])) {
+                                // sedang di gudang
+                                if (!empty($g['tiba']) && empty($g['keluar'])) {
 
-        $statusGudang = [
-            'status' => 'DI GUDANG ' . $g['nama'],
-            'badge'  => 'blue'
-        ];
+                                $statusGudang = [
+                                'status' => 'DI GUDANG ' . $g['nama'],
+                                'badge' => 'blue'
+                                ];
 
-        break;
-    }
-}
+                                break;
+                                }
+                                }
 
-$tibaAkhir    = $r->tanggal_tiba;
-$bongkarAkhir = $r->tanggal_bongkar;
+                                $tibaAkhir = $r->tanggal_tiba;
+                                $bongkarAkhir = $r->tanggal_bongkar;
 
-if (empty($dpt)) {
+                                if (empty($dpt)) {
 
-    // belum dapat armada
-    $status = 'MENCARI UNIT';
-    $badge  = 'red';
+                                // belum dapat armada
+                                $status = 'MENCARI UNIT';
+                                $badge = 'red';
 
-}
-elseif (!$adaPlanningGudang && empty($tibaAkhir)) {
+                                }
+                                elseif (!$adaPlanningGudang && empty($tibaAkhir)) {
 
-    // belum ada planning gudang sama sekali
-    $status = 'PERJALANAN KE GUDANG';
-    $badge  = 'orange';
+                                // belum ada planning gudang sama sekali
+                                $status = 'PERJALANAN KE GUDANG';
+                                $badge = 'orange';
 
-}
-elseif ($statusGudang) {
+                                }
+                                elseif ($statusGudang) {
 
-    // masih proses di gudang
-    $status = $statusGudang['status'];
-    $badge  = $statusGudang['badge'];
+                                // masih proses di gudang
+                                $status = $statusGudang['status'];
+                                $badge = $statusGudang['badge'];
 
-}
-elseif (empty($tibaAkhir)) {
+                                }
+                                elseif (empty($tibaAkhir)) {
 
-    // semua gudang selesai, menuju tujuan
-    $status = 'PERJALANAN KE TUJUAN';
-    $badge  = 'yellow';
+                                // semua gudang selesai, menuju tujuan
+                                $status = 'PERJALANAN KE TUJUAN';
+                                $badge = 'yellow';
 
-}
-elseif (!empty($tibaAkhir) && !empty($bongkarAkhir)) {
+                                }
+                                elseif (!empty($tibaAkhir) && !empty($bongkarAkhir)) {
 
-    $status = 'SUDAH SELESAI';
-    $badge  = 'green';
+                                $status = 'SUDAH SELESAI';
+                                $badge = 'green';
 
-}
-elseif (!empty($tibaAkhir)) {
+                                }
+                                elseif (!empty($tibaAkhir)) {
 
-    $status = 'SUDAH TIBA TUJUAN';
-    $badge  = 'success';
+                                $status = 'SUDAH TIBA TUJUAN';
+                                $badge = 'success';
 
-}
-else {
+                                }
+                                else {
 
-    $status = '-';
-    $badge  = 'gray';
+                                $status = '-';
+                                $badge = 'gray';
 
-}
+                                }
                                 $sla_tiba = $r->sla_tiba ?? '-';
                                 $sla_bongkar = $r->sla_bongkar ?? '-';
                                 $overstay = $r->overstay_days ?? '-';
@@ -1264,57 +1320,127 @@ else {
 
 
                                 // =========================
-                                // 4. ESTIMASI TIBA (DATABASE)
-                                // =========================
+// =========================
+// 4. ESTIMASI TIBA (DATABASE)
+// =========================
 
-                                $estimasi = !empty($r->estimasi_tiba)
-                                ? strtotime($r->estimasi_tiba)
-                                : null;
+// -------------------------
+// CEK APAKAH MASIH MENUJU GUDANG BERIKUTNYA
+// (planning/tiba di suatu gudang keisi, tapi keluar_gudang gudang itu belum)
+// -------------------------
+$gudangCycles = [
+    ['planning' => $r->planning_loading,   'tiba' => $r->tanggal_tiba_gudang,   'keluar' => $r->tanggal_keluar_gudang],
+    ['planning' => $r->planning_loading_2, 'tiba' => $r->tanggal_tiba_gudang_2, 'keluar' => $r->tanggal_keluar_gudang_2],
+    ['planning' => $r->planning_loading_3, 'tiba' => $r->tanggal_tiba_gudang_3, 'keluar' => $r->tanggal_keluar_gudang_3],
+];
 
-                                $estimasi_show = $estimasi
-                                ? date('d-m-Y', $estimasi)
-                                : '-';
-                                $alert = '-';
-                                $alertClass = '';
-                                $alertText = '';
 
-                                if (!$r->tanggal_tiba && $estimasi) {
 
-                                $today = strtotime(date('Y-m-d'));
-                                $hariSisa = floor(($estimasi - $today) / 86400);
+$estimasi = !empty($r->estimasi_tiba)
+? strtotime($r->estimasi_tiba)
+: null;
 
-                                if ($hariSisa < 0) {
-                                    $alertText='OVERDUE' ;
-                                    $alertClass='red' ;
-                                    } elseif ($hariSisa==0) {
-                                    $alertText='H-0' ;
-                                    $alertClass='red' ;
-                                    } elseif ($hariSisa==1) {
-                                    $alertText='H-1' ;
-                                    $alertClass='red' ;
-                                    } elseif ($hariSisa==2) {
-                                    $alertText='H-2' ;
-                                    $alertClass='orange' ;
-                                    } elseif ($hariSisa==3) {
-                                    $alertText='H-3' ;
-                                    $alertClass='orange' ;
-                                    } elseif ($hariSisa <=7) {
-                                    $alertText='H-' . $hariSisa;
-                                    $alertClass='blue' ;
-                                    } else {
-                                    $alertText='ON TRACK' ;
-                                    $alertClass='green' ;
-                                    }
+$alert = '-';
+$alertClass = '';
+$alertText = '';
+if ($statusGudang) {
 
-                                    $alert=$alertText;
-                                    }
-                                    //=========================// 5. SLA TIBA
+    // =========================
+    // MASIH PROSES GUDANG
+    // ESTIMASI = STATUS GUDANG
+    // =========================
+
+    $estimasi_show = $statusGudang['status'];
+
+    $alertClass = 'gray';
+    $alert = '-';
+
+} else {
+
+    // =========================
+    // SEMUA GUDANG SUDAH SELESAI
+    // ESTIMASI TANGGAL MUNCUL
+    // =========================
+
+    $estimasi_show = $estimasi
+        ? date('d-m-Y', $estimasi)
+        : '-';
+
+    if (!$r->tanggal_tiba && $estimasi) {
+
+        $today = strtotime(date('Y-m-d'));
+        $hariSisa = floor(($estimasi - $today) / 86400);
+
+         if ($hariSisa < 0) {
+    $alertText = 'Pending Tiba  H+' . abs($hariSisa);
+    $alertClass = 'red';
+} elseif ($hariSisa==0) {
+        } elseif ($hariSisa == 1) {
+
+            $alertText = 'H-1';
+            $alertClass = 'red';
+
+        } elseif ($hariSisa == 2) {
+
+            $alertText = 'H-2';
+            $alertClass = 'orange';
+
+        } elseif ($hariSisa == 3) {
+
+            $alertText = 'H-3';
+            $alertClass = 'orange';
+
+        } elseif ($hariSisa <= 7) {
+
+            $alertText = 'H-' . $hariSisa;
+            $alertClass = 'blue';
+
+        } else {
+
+            $alertText = 'ON TRACK';
+            $alertClass = 'green';
+        }
+
+        $alert = $alertText;
+    }
+}                                    //=========================// 5. SLA TIBA
                                     //=========================//=========================// 5. SLA TIBA
                                     //=========================$sla_tiba=$r->sla_tiba;
 
                                     // =========================
                                     //$sla_bongkar = $r->sla_bongkar;
+
+                                    $statusBongkar = '-';
+                                    $statusBongkarClass = '';
+
+                                    if ($r->tanggal_bongkar) {
+
+                                    // Kalau tanggal bongkar sudah diinput
+                                    $statusBongkar = 'Sudah Bongkar';
+                                    $statusBongkarClass = 'green';
+
+                                    } elseif ($r->tanggal_tiba) {
+
+                                    // Kalau sudah tiba tapi belum bongkar
+                                    $tanggalTiba = strtotime(date('Y-m-d', strtotime($r->tanggal_tiba)));
+                                    $today = strtotime(date('Y-m-d'));
+
+                                    $hariBongkar = floor(($today - $tanggalTiba) / 86400);
+
+                                    $statusBongkar = 'Pending Bongkar H+' . max(0, $hariBongkar);
+
+                                    // Warna status
+                                    if ($hariBongkar == 0) {
+                                    $statusBongkarClass = 'orange';
+                                    } elseif ($hariBongkar == 1) {
+                                    $statusBongkarClass = 'red';
+                                    } else {
+                                    $statusBongkarClass = 'red';
+                                    }
+                                    }
+
                                     @endphp
+
 
                                     <span class="badge {{ $badge }}">
                                         {{ $status }}
@@ -1648,20 +1774,33 @@ else {
                             <td>{{ $r->act_urutan_bongkar }}</td>
 
                             <td>{{ $r->qty_monitoring }}</td>
+                            <td>
+                                {{ $r->biaya_kuli
+        ? 'Rp ' . number_format($r->biaya_kuli, 0, ',', '.')
+        : ''
+    }}
+                            </td>
+                            <td>
+                                {{ $r->total_biaya_kuli
+        ? 'Rp ' . number_format($r->total_biaya_kuli, 0, ',', '.')
+        : ''
+    }}
+                            </td>
                             <td>{{ $r->selisih_qty }}</td>
                             <td>{{ $r->remarks_qty }}</td>
-                            <td>{{ $r->act_pgi_date ? date('d-m-Y  ', strtotime($r->act_pgi_date)) : '-' }}</td>
+                            <td>{{ $r->create_tgl ? \Carbon\Carbon::parse($r->create_tgl)->format('d/m/Y H:i') : '-' }}</td>
 
 
                             <!-- <td>{{ $r->created_by ?? '-' }}</td> -->
                             <td>{{ $r->atd }}</td>
                             <td>{{ $r->ata }}</td>
                             <td>{{ $estimasi_show }}</td>
-                          <td>
-    {{ $r->tanggal_tiba
+
+                            <td>
+                                {{ $r->tanggal_tiba
         ? date('d-m-Y h:i A', strtotime($r->tanggal_tiba))
         : '-' }}
-</td>
+                            </td>
 
                             <td>
                                 {{ !empty($lama_perjalanan) ? $lama_perjalanan . ' Hari' : '-' }}
@@ -1689,11 +1828,20 @@ else {
                                 @endif
 
                             </td>
-                           <td>
-    {{ $r->tanggal_bongkar
+                            <td>
+                                {{ $r->tanggal_bongkar
         ? date('d-m-Y h:i A', strtotime($r->tanggal_bongkar))
         : '-' }}
-</td>
+                            </td>
+                            <td>
+                                @if($statusBongkar != '-')
+                                <span class="badge {{ $statusBongkarClass }}">
+                                    {{ $statusBongkar }}
+                                </span>
+                                @else
+                                -
+                                @endif
+                            </td>
                             <td>{{ $over_bongkar }} Hari</td>
                             <td>
 
@@ -1818,26 +1966,51 @@ else {
                             </td>
                             <td>{{ $r->pulau }}</td>
                             <td>{{ $r->via_kirim }}</td>
+                            <td>
+                                {{ $estimasiAdmin ? $estimasiAdmin->format('d-m-Y') : '-' }}
+                            </td>
+
+                            <td>
+                                @if($statusEstimasiAdmin == 'On Time')
+                                <span class="badge green">
+                                    On Time
+                                </span>
+
+                                @elseif($statusEstimasiAdmin == 'Delay')
+                                <span class="badge red">
+                                    Delay
+                                </span>
+
+                                @elseif($statusEstimasiAdmin == 'Belum Tiba')
+                                <span class="badge orange">
+                                    Belum Tiba
+                                </span>
+
+                                @else
+                                <span class="badge gray">
+                                    -
+                                </span>
+                                @endif
+                            </td>
 
 
 
 
 
 
+                        </tr>
 
-                            </tr>
+                        @endforeach
 
-                            @endforeach
+            </tbody>
 
-                </tbody>
+        </table>
 
-            </table>
-
-        </div>
-        </div>
+    </div>
+    </div>
 
 
-        <!-- <script>
+    <!-- <script>
             $(document).ready(function() {
 
                 let table = $('#tableLogistik').DataTable({
@@ -1904,245 +2077,319 @@ else {
             });
         </script> -->
 
-        <script>
-            $(document).ready(function() {
+    <script>
+        $(document).ready(function() {
 
-                let table = $('#tableLogistik').DataTable({
-                    scrollX: true,
-                    pageLength: 10,
-                    autoWidth: false,
+            let table = $('#tableLogistik').DataTable({
+                scrollX: true,
+                pageLength: 10,
+                autoWidth: false,
 
-                    // =========================================================
-                    // DRAW CALLBACK: Otomatis Hitung CR Berdasarkan Muatan Gabungan
-                    // =========================================================
-                    "drawCallback": function(settings) {
-                        let api = this.api();
-                        let shipmentGroups = {}; // Tempat menampung akumulasi TOTAL NILAI MUATAN
+                // =========================================================
+                // DRAW CALLBACK: Otomatis Hitung CR Berdasarkan Muatan Gabungan
+                // =========================================================
+                "drawCallback": function(settings) {
+                    let api = this.api();
+                    let shipmentGroups = {}; // Tempat menampung akumulasi TOTAL NILAI MUATAN
 
-                        // -----------------------------------------------------
-                        // PASS 1: Hitung Total Nilai Muatan per No Shipment
-                        // -----------------------------------------------------
-                        api.rows({
+                    // -----------------------------------------------------
+                    // PASS 1: Hitung Total Nilai Muatan per No Shipment
+                    // -----------------------------------------------------
+                    api.rows({
 
-                            search: 'applied'
-                        }).every(function(rowIdx, tableLoop, rowLoop) {
-                            let data = this.data();
-                            let node = this.node();
+                        search: 'applied'
+                    }).every(function(rowIdx, tableLoop, rowLoop) {
+                        let data = this.data();
+                        let node = this.node();
 
-                            // 1. Ambil No Shipment dari data array DataTables (Index 5)
-                            let noShipment = data[4] ? data[4].trim() : '';
+                        // 1. Ambil No Shipment dari data array DataTables (Index 5)
+                        let noShipment = data[6] ? data[6].trim() : '';
 
-                            // 2. DETEKSI OTOMATIS KOLOM RP
-                            let rawNilaiMuatan = "";
-                            let cellsRp = [];
+                        // 2. DETEKSI OTOMATIS KOLOM RP
+                        let rawNilaiMuatan = "";
+                        let cellsRp = [];
 
-                            // Cari semua td di baris ini yang mengandung teks "Rp"
-                            $(node).find('td').each(function() {
-                                if ($(this).text().includes('Rp')) {
-                                    cellsRp.push($(this));
-                                }
-                            });
+                        // Cari semua td di baris ini yang mengandung teks "Rp"
+                        $(node).find('td').each(function() {
+                            if ($(this).text().includes('Rp')) {
+                                cellsRp.push($(this));
+                            }
+                        });
 
-                            // Ambil text Nilai Muatan (Kolom Rp Pertama)
+                        // Ambil text Nilai Muatan (Kolom Rp Pertama)
+                        if (cellsRp.length >= 2) {
+                            rawNilaiMuatan = cellsRp[0].text().trim();
+                        } else {
+                            rawNilaiMuatan = $(node).find('td').eq(9).text().trim(); // Fallback index 9
+                        }
+
+                        // 3. BERSIHKAN ANGKA MUATAN
+                        let cleanNilaiMuatan = rawNilaiMuatan.replace(/[^0-9]/g, "");
+                        let nilaiMuatan = parseFloat(cleanNilaiMuatan) || 0;
+
+                        // Akumulasikan Nilai Muatan jika No Shipment valid
+                        if (noShipment && noShipment !== '-' && noShipment !== '') {
+                            if (!shipmentGroups[noShipment]) {
+
+                                shipmentGroups[noShipment] = {
+
+                                    totalMuatan: 0,
+
+                                    totalBiaya: 0,
+
+                                    totalRow: 0
+
+                                };
+
+                            }
+                            let rawBiaya = "";
+
                             if (cellsRp.length >= 2) {
-                                rawNilaiMuatan = cellsRp[0].text().trim();
+                                rawBiaya = cellsRp[1].text().trim();
                             } else {
-                                rawNilaiMuatan = $(node).find('td').eq(9).text().trim(); // Fallback index 9
+                                rawBiaya = $(node).find('td').eq(10).text().trim();
                             }
 
-                            // 3. BERSIHKAN ANGKA MUATAN
-                            let cleanNilaiMuatan = rawNilaiMuatan.replace(/[^0-9]/g, "");
-                            let nilaiMuatan = parseFloat(cleanNilaiMuatan) || 0;
+                            let biayaMurni = parseFloat(rawBiaya.replace(/[^0-9]/g, "")) || 0;
 
-                            // Akumulasikan Nilai Muatan jika No Shipment valid
-                            if (noShipment && noShipment !== '-' && noShipment !== '') {
-                                if (!shipmentGroups[noShipment]) {
-                                    shipmentGroups[noShipment] = {
-                                        totalMuatan: 0,
-                                        totalBiaya: 0
-                                    };
-                                }
-                                let rawBiaya = "";
-
-                                if (cellsRp.length >= 2) {
-                                    rawBiaya = cellsRp[1].text().trim();
-                                } else {
-                                    rawBiaya = $(node).find('td').eq(10).text().trim();
-                                }
-
-                                let biayaMurni = parseFloat(rawBiaya.replace(/[^0-9]/g, "")) || 0;
-                                shipmentGroups[noShipment].totalMuatan += nilaiMuatan;
-                                shipmentGroups[noShipment].totalBiaya += biayaMurni;
-                            }
-
-                        });
-
-                        // Helper internal untuk memformat angka kembali ke Rupiah saat render teks td
-                        function formatKeRupiahText(angka) {
-                            return 'Rp ' + String(angka).replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+                            shipmentGroups[noShipment].totalMuatan += nilaiMuatan;
+                            // ambil MAX biaya_kirim, bukan SUM, karena biaya_kirim sama untuk semua baris shipment yang sama
+                            shipmentGroups[noShipment].totalBiaya = Math.max(
+                                shipmentGroups[noShipment].totalBiaya,
+                                biayaMurni
+                            );
                         }
 
-                        // -----------------------------------------------------
-                        // PASS 2: Cetak Hasil & Hitung Cost Ratio Per Baris
-                        // -----------------------------------------------------
-                        api.rows({
-                            page: 'current',
-                            search: 'applied'
-                        }).every(function(rowIdx, tableLoop, rowLoop) {
-                            let data = this.data();
-                            let node = this.node();
-                            let noShipment = data[4] ? data[4].trim() : '';
+                        shipmentGroups[noShipment].totalRow++;
 
-                            let cellsRp = [];
-                            $(node).find('td').each(function() {
-                                if ($(this).text().includes('Rp')) {
-                                    cellsRp.push($(this));
-                                }
-                            });
+                    });
 
-                            let cellMuatan = cellsRp.length >= 2 ? cellsRp[0] : $(node).find('td').eq(9);
-                            let cellBiaya = cellsRp.length >= 2 ? cellsRp[1] : $(node).find('td').eq(10);
-                            let cellCR = cellsRp.length >= 2 ? cellsRp[1].next('td') : $(node).find('td').eq(11);
-                          
-                            // Ambil Biaya Kirim asli di baris ini apa adanya (tidak digabung/tidak diubah)
+
+
+                    // Helper internal untuk memformat angka kembali ke Rupiah saat render teks td
+                    function formatKeRupiahText(angka) {
+                        return 'Rp ' + String(angka).replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+                    }
+
+                    // -----------------------------------------------------
+                    // -----------------------------------------------------
+                    // PASS 2: Cetak Hasil (SAMA SEPERTI DATA PLANNER)
+                    // Hanya baris PERTAMA per No Shipment yang tampil CR hasil
+                    // grouping (SUM muatan, MAX biaya). Baris duplikat berikutnya
+                    // untuk shipment yang sama otomatis 0.0000%.
+                    // -----------------------------------------------------
+                    let seenShipment = {};
+
+                    api.rows({
+                        page: 'current',
+                        search: 'applied'
+                    }).every(function(rowIdx, tableLoop, rowLoop) {
+                        let data = this.data();
+                        let node = this.node();
+                        let noShipment = data[6] ? data[6].trim() : '';
+
+                        let cellsRp = [];
+                        $(node).find('td').each(function() {
+                            if ($(this).text().includes('Rp')) {
+                                cellsRp.push($(this));
+                            }
+                        });
+
+                        let cellMuatan = cellsRp.length >= 2 ? cellsRp[0] : $(node).find('td').eq(9);
+                        let cellBiaya = cellsRp.length >= 2 ? cellsRp[1] : $(node).find('td').eq(10);
+                        let cellCR = cellsRp.length >= 2 ? cellsRp[1].next('td') : $(node).find('td').eq(11);
+
+                        let costRatio = 0;
+
+                        if (noShipment && noShipment !== '-' && noShipment !== '' && shipmentGroups[noShipment]) {
+
+                            // Ambil hasil GROUPING (SUM muatan, MAX biaya) → SAMA untuk semua baris shipment ini
+                            let totalMuatan = shipmentGroups[noShipment].totalMuatan;
+                            let totalBiaya = shipmentGroups[noShipment].totalBiaya;
+
+                            let nilaiMuatanBaris =
+                                parseFloat(
+                                    cellMuatan.text().trim().replace(/[^0-9]/g, "")
+                                ) || 0;
+
+                            if (totalMuatan > 0 && nilaiMuatanBaris > 0) {
+
+                                // CR shipment total
+                                let totalCR = (totalBiaya / totalMuatan) * 100;
+
+                                // kontribusi muatan customer
+                                let kontribusi =
+                                    nilaiMuatanBaris / totalMuatan;
+
+                                // final kontribusi CR
+                                costRatio = kontribusi * totalCR;
+
+                            }
+
+                            cellCR.html(costRatio > 0 ?
+                                '<span class="text-primary font-weight-bold" style="color:#0056b3;font-weight:bold;">' + costRatio.toFixed(4) + '%</span>' :
+                                '<span class="text-muted" style="color:#9e9e9e;font-size:11px;">0.0000%</span>'
+                            );
+
+                        } else {
+
+                            // Tidak ada No Shipment (atau gagal grouping) → hitung per baris sendiri
+                            let nilaiMuatanMurni = parseFloat(cellMuatan.text().trim().replace(/[^0-9]/g, "")) || 0;
                             let biayaMurni = parseFloat(cellBiaya.text().trim().replace(/[^0-9]/g, "")) || 0;
-                            let costRatio = 0;
 
-                            if (noShipment && noShipment !== '-' && noShipment !== '') {
-                                // Ambil hasil akumulasi total muatan dari PASS 1
-                                let totalMuatan = shipmentGroups[noShipment].totalMuatan;
-                                let totalBiaya = shipmentGroups[noShipment].totalBiaya;
-
-                                if (totalMuatan > 0) {
-                                    costRatio = (totalBiaya / totalMuatan) * 100;
-                                }
-
-                                // Cetak ke kolom CR
-                                if (costRatio > 0) {
-                                    cellCR.html('<span class="text-primary font-weight-bold" style="color: #0056b3; font-weight: bold;">' + costRatio.toFixed(4) + '%</span>');
-                                } else {
-                                    // Jika baris ini biaya kirimnya 0 atau kosong, maka CR otomatis 0.0000%
-                                    cellCR.html('<span class="text-muted" style="color: #9e9e9e; font-size: 11px;">0.0000%</span>');
-                                }
-
-                            } else {
-                                // KONDISI JIKA TIDAK ADA NO SHIPMENT (DATA NORMAL)
-                                let nilaiMuatanMurni = parseFloat(cellMuatan.text().trim().replace(/[^0-9]/g, "")) || 0;
-
-                                if (nilaiMuatanMurni > 0) {
-                                    costRatio = (biayaMurni / nilaiMuatanMurni) * 100;
-                                }
-
-                                if (costRatio > 0) {
-                                    cellCR.html('<span class="text-primary font-weight-bold" style="color: #0056b3; font-weight: bold;">' + costRatio.toFixed(4) + '%</span>');
-                                } else {
-                                    cellCR.html('<span class="text-muted">-</span>');
-                                }
-                            }
-                        });
-                    }
-                });
-
-                // ==========================================
-                // FILTER CUSTOM (AREA, BULAN, TAHUN)
-                // ==========================================
-                $.fn.dataTable.ext.search.push(
-                    
-                    function(settings, data, dataIndex) {
-
-                     
-                        let filterArea = $('#filterArea').val() ? $('#filterArea').val().trim() : '';
-                        let filterMonth = $('#filterMonth').val();
-                        let filterYear = $('#filterYear').val();
-                        let filterDate = $('#filterDate').val();
-
-                        let tanggal = data[0] ? data[0].trim() : '';
-                        if (filterDate) {
-                            let rowDate = '';
-
-                            if (tanggal.includes('/')) {
-                                let p = tanggal.split('/');
-                                rowDate = p[2] + '-' + p[1].padStart(2, '0') + '-' + p[0].padStart(2, '0');
-                            } else if (tanggal.includes('-')) {
-                                if (tanggal.split('-')[0].length == 4) {
-                                    rowDate = tanggal.substring(0, 10);
-                                } else {
-                                    let p = tanggal.split('-');
-                                    rowDate = p[2] + '-' + p[1].padStart(2, '0') + '-' + p[0].padStart(2, '0');
-                                }
+                            if (nilaiMuatanMurni > 0) {
+                                costRatio = (biayaMurni / nilaiMuatanMurni) * 100;
                             }
 
-                            if (rowDate !== filterDate) {
-                                return false;
-                            }
+                            cellCR.html(costRatio > 0 ?
+                                '<span class="text-primary font-weight-bold" style="color:#0056b3;font-weight:bold;">' + costRatio.toFixed(4) + '%</span>' :
+                                '<span class="text-muted">-</span>'
+                            );
                         }
-                        let dataArea = data[8] ? data[8].trim() : '';
-
-                        if (filterArea && dataArea !== filterArea) return false;
-
-                        if (filterMonth || filterYear) {
-                            if (!tanggal || tanggal === '-') return false;
-                            let rowMonth, rowYear;
-                            if (tanggal.includes('-') || tanggal.includes('/')) {
-                                let separator = tanggal.includes('-') ? '-' : '/';
-                                let parts = tanggal.split(separator);
-                                if (parts[0].length === 4) {
-                                    rowYear = parseInt(parts[0]);
-                                    rowMonth = parseInt(parts[1]);
-                                } else {
-                                    rowYear = parseInt(parts[2]);
-                                    rowMonth = parseInt(parts[1]);
-                                }
-                            } else {
-                                let date = new Date(tanggal);
-                                if (isNaN(date.getTime())) return false;
-                                rowMonth = date.getMonth() + 1;
-                                rowYear = date.getFullYear();
-                            }
-                            if (filterMonth && rowMonth !== parseInt(filterMonth)) return false;
-                            if (filterYear && rowYear !== parseInt(filterYear)) return false;
-                        }
-                       console.log(data);
-
-                        return true;
-                        
-                    }
-
-                );
-                
-                
-
-               $('#filterArea, #filterDate, #filterMonth, #filterYear').on('change', function() {
-    console.log('draw');
-    table.draw();
-});
+                    });
+                }
             });
 
+
             // ==========================================
-// EXPORT EXCEL SESUAI FILTER AKTIF
-// ==========================================
-$('#btnExportExcel').on('click', function(e) {
-    e.preventDefault();
+            // FILTER CUSTOM (AREA, BULAN, TAHUN)
+            // ==========================================
+            $.fn.dataTable.ext.search.push(
 
-    let params = new URLSearchParams();
+                function(settings, data, dataIndex) {
 
-    let filterArea  = $('#filterArea').val();
-    let filterDate  = $('#filterDate').val();
-    let filterMonth = $('#filterMonth').val();
-    let filterYear  = $('#filterYear').val();
 
-    if (filterArea)  params.append('area', filterArea);
-    if (filterDate)  params.append('date', filterDate);
-    if (filterMonth) params.append('month', filterMonth);
-    if (filterYear)  params.append('year', filterYear);
+                    let filterArea = $('#filterArea').val() ? $('#filterArea').val().trim() : '';
+                    let filterMonth = $('#filterMonth').val();
+                    let filterYear = $('#filterYear').val();
+                    let filterDate = $('#filterDate').val();
 
-    let baseUrl = "{{ route('logistik.export') }}";
-    let finalUrl = params.toString() ? (baseUrl + '?' + params.toString()) : baseUrl;
+                    let tanggal = data[0] ? data[0].trim() : '';
+                    if (filterDate) {
+                        let rowDate = '';
 
-    window.location.href = finalUrl;
-});
-        </script>
+                        if (tanggal.includes('/')) {
+                            let p = tanggal.split('/');
+                            rowDate = p[2] + '-' + p[1].padStart(2, '0') + '-' + p[0].padStart(2, '0');
+                        } else if (tanggal.includes('-')) {
+                            if (tanggal.split('-')[0].length == 4) {
+                                rowDate = tanggal.substring(0, 10);
+                            } else {
+                                let p = tanggal.split('-');
+                                rowDate = p[2] + '-' + p[1].padStart(2, '0') + '-' + p[0].padStart(2, '0');
+                            }
+                        }
 
-    </body>
+                        if (rowDate !== filterDate) {
+                            return false;
+                        }
+                    }
+                    let dataArea = data[10] ? data[10].trim() : '';
 
-    </html>
+                    if (filterArea && dataArea !== filterArea) return false;
+
+                    if (filterMonth || filterYear) {
+                        if (!tanggal || tanggal === '-') return false;
+                        let rowMonth, rowYear;
+                        if (tanggal.includes('-') || tanggal.includes('/')) {
+                            let separator = tanggal.includes('-') ? '-' : '/';
+                            let parts = tanggal.split(separator);
+                            if (parts[0].length === 4) {
+                                rowYear = parseInt(parts[0]);
+                                rowMonth = parseInt(parts[1]);
+                            } else {
+                                rowYear = parseInt(parts[2]);
+                                rowMonth = parseInt(parts[1]);
+                            }
+                        } else {
+                            let date = new Date(tanggal);
+                            if (isNaN(date.getTime())) return false;
+                            rowMonth = date.getMonth() + 1;
+                            rowYear = date.getFullYear();
+                        }
+                        if (filterMonth && rowMonth !== parseInt(filterMonth)) return false;
+                        if (filterYear && rowYear !== parseInt(filterYear)) return false;
+                    }
+                    console.log(data);
+
+                    return true;
+
+                }
+
+            );
+
+
+
+            $('#filterArea, #filterDate, #filterMonth, #filterYear').on('change', function() {
+                console.log('draw');
+                table.draw();
+            });
+        });
+
+        function isDarat(val) {
+            return (val || '').trim().toUpperCase() === 'DARAT';
+        }
+
+        function hitungRencanaKirimJS(tglNaik) {
+            if (!tglNaik) return '';
+            let d = new Date(tglNaik);
+            d.setDate(d.getDate() + 4);
+            let yyyy = d.getFullYear();
+            let mm = String(d.getMonth() + 1).padStart(2, '0');
+            let dd = String(d.getDate()).padStart(2, '0');
+            return `${yyyy}-${mm}-${dd}`;
+        }
+
+        // function autoRencanaKirim(row) {
+        //     let via = row.find('[name="via_kirim"]').val();
+        //     let tglNaikInput = row.find('[name="tanggal_naik_logistik"]');
+        //     let rencanaInput = row.find('[name="rencana_kirim"]');
+
+        //     if (isDarat(via)) {
+        //         rencanaInput.val(hitungRencanaKirimJS(tglNaikInput.val()));
+        //         rencanaInput.prop('readonly', true).css('background', '#f1f5f9');
+        //     } else {
+        //         rencanaInput.prop('readonly', false).css('background', '');
+        //     }
+        // }
+
+        // jalankan sekali saat halaman dibuka, untuk semua baris
+        $('#tablePlanner tbody tr').each(function() {
+            autoRencanaKirim($(this));
+        });
+
+        // jalankan tiap kali via_kirim atau tanggal_naik_logistik berubah
+        // $(document).on('input change', '#tablePlanner [name="via_kirim"], #tablePlanner [name="tanggal_naik_logistik"]', function() {
+        //     let row = $(this).closest('tr');
+        //     autoRencanaKirim(row);
+        //     row.find('[name="rencana_kirim"]').trigger('change'); // supaya autosave ke-trigger juga
+        // });
+
+        // ==========================================
+        // EXPORT EXCEL SESUAI FILTER AKTIF
+        // ==========================================
+        $('#btnExportExcel').on('click', function(e) {
+            e.preventDefault();
+
+            let params = new URLSearchParams();
+
+            let filterArea = $('#filterArea').val();
+            let filterDate = $('#filterDate').val();
+            let filterMonth = $('#filterMonth').val();
+            let filterYear = $('#filterYear').val();
+
+            if (filterArea) params.append('area', filterArea);
+            if (filterDate) params.append('date', filterDate);
+            if (filterMonth) params.append('month', filterMonth);
+            if (filterYear) params.append('year', filterYear);
+
+            let baseUrl = "{{ route('logistik.export') }}";
+            let finalUrl = params.toString() ? (baseUrl + '?' + params.toString()) : baseUrl;
+
+            window.location.href = finalUrl;
+        });
+    </script>
+
+</body>
+
+</html>

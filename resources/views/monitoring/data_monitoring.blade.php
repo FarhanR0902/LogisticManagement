@@ -16,7 +16,6 @@
     <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
 
     <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
-    <!-- <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script> -->
     <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
 
     <style>
@@ -26,18 +25,18 @@
             margin: 0;
         }
 
-        .container {
-            width: calc(100% - 250px);
+        .container-fluid {
             margin-left: 250px;
+            width: calc(100% - 250px);
             padding: 20px;
         }
 
-      .title {
-    font-size: 24px;
-    font-weight: bold;
-    margin-bottom: 20px;
-    color: #111827; /* atau #000 */
-}
+        .title {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 20px;
+            color: #111827;
+        }
 
         .card {
             background: #fff;
@@ -45,6 +44,7 @@
             border-radius: 12px;
             box-shadow: 0 5px 20px rgba(0, 0, 0, 0.08);
             overflow: auto;
+            width: 100%;
         }
 
         .d-none {
@@ -72,10 +72,6 @@
             white-space: nowrap;
         }
 
-        .filter-box select {
-            min-width: 180px;
-        }
-
         table {
             width: 100%;
             border-collapse: collapse;
@@ -86,10 +82,8 @@
         th {
             background: #111827;
             color: #fff;
-
             padding: 14px;
             font-size: 15px;
-
             text-align: center;
         }
 
@@ -108,12 +102,9 @@
             width: 100%;
             font-size: 14px;
             padding: 8px;
-
-
             border: 1px solid #d1d5db;
             border-radius: 5px;
         }
-
 
         .save-btn {
             background: #22c55e;
@@ -128,243 +119,32 @@
             border-radius: 20px;
             color: #fff;
             font-size: 11px;
-        }
-
-        .green {
-            background: #22c55e;
-        }
-
-        .red {
-            background: #ef4444;
-        }
-
-        .orange {
-            background: #f59e0b;
-        }
-
-        .card {
-            overflow-x: auto;
-        }
-
-        #tableMonitoring {
-            width: 100% !important;
-        }
-
-        #tableMonitoring th {
-            text-align: center;
-            vertical-align: middle;
-        }
-
-        #tableMonitoring td {
-            vertical-align: middle;
-            white-space: nowrap;
-        }
-
-        #tableMonitoring input[type=text] {
-            min-width: 120px;
-        }
-
-        #tableMonitoring input[type=number] {
-            width: 70px;
-        }
-
-        #tableMonitoring input[type=datetime-local] {
-            width: 170px;
-        }
-
-        .select2-container {
-            min-width: 160px !important;
-        }
-
-        .save-btn {
-            min-width: 70px;
-        }
-
-        #tableMonitoring th,
-        #tableMonitoring td {
-            text-align: left;
-            vertical-align: middle;
-            white-space: nowrap;
-        }
-
-        #tableMonitoring input[type="text"] {
-            min-width: 120px;
-        }
-
-        #tableMonitoring input[type="number"] {
-            width: 70px;
-        }
-
-        #tableMonitoring input[type="datetime-local"] {
-            width: 170px;
-        }
-
-        #tableMonitoring .save-btn {
-            width: 70px;
-        }
-
-        #tableMonitoring .badge {
             display: inline-block;
-            min-width: 70px;
-            text-align: center;
         }
 
-        .select2-container {
-            min-width: 140px !important;
-        }
+        .green { background: #22c55e; }
+        .red { background: #ef4444; }
+        .orange { background: #f59e0b; }
+        .blue { background: #2563eb; }
+        .gray { background: #9ca3af; }
 
-        .select2-selection {
-            height: 32px !important;
-        }
+        #tableMonitoring { width: 100% !important; }
+        #tableMonitoring th { text-align: left; vertical-align: middle; }
+        #tableMonitoring td { vertical-align: middle; white-space: nowrap; }
+        #tableMonitoring input[type=text] { min-width: 120px; }
+        #tableMonitoring input[type=number] { width: 70px; }
+        #tableMonitoring input[type=datetime-local] { width: 170px; }
+        #tableMonitoring .save-btn { width: 70px; }
+        #tableMonitoring .badge { display: inline-block; min-width: 70px; text-align: center; }
 
-        .dataTables_wrapper {
-            overflow-x: auto;
-        }
+        .select2-container { min-width: 140px !important; }
+        .select2-selection { height: 32px !important; }
+        .dataTables_wrapper { overflow-x: auto; width: 100%; }
 
-        .card {
-            overflow-x: auto;
-        }
+        .input-filled { background: #bbf7d0 !important; border: 2px solid #16a34a !important; }
+        .input-empty { background: #fecaca !important; border: 2px solid #dc2626 !important; }
 
-        /* =========================
-   NOTIF PANEL + TOAST SYSTEM
-========================= */
-
-
-
-        @keyframes slideIn {
-            from {
-                transform: translateX(120%);
-                opacity: 0;
-            }
-
-            to {
-                transform: translateX(0);
-                opacity: 1;
-            }
-        }
-
-        /* PANEL LIST NOTIF */
-        .notif-panel {
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
-            width: 320px;
-            background: #ffffff;
-            border-radius: 12px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, .2);
-            z-index: 99998;
-            overflow: hidden;
-            font-size: 12px;
-        }
-
-        .highlight-row td {
-            background: #fef08a !important;
-            animation: blinkRow 1s infinite alternate;
-        }
-
-        .highlight-row {
-            background-color: #fff3cd !important;
-            /* Warna kuning latar soft */
-            border: 2px solid #ffc107 !important;
-            /* Garis pinggir penanda */
-            transition: background-color 0.4s ease;
-        }
-
-        @keyframes blinkRow {
-            from {
-                background: #ffffff;
-            }
-
-            to {
-                background: #ffffff;
-            }
-        }
-
-        .notif-header {
-            background: #111827;
-            color: #fff;
-            padding: 10px;
-            font-weight: bold;
-        }
-
-        .notif-body {
-            max-height: 250px;
-            overflow-y: auto;
-        }
-
-        .notif-item {
-            padding: 10px;
-            border-bottom: 1px solid #eee;
-        }
-
-        .notif-search {
-            width: 100%;
-            padding: 8px;
-            border: none;
-            border-bottom: 1px solid #ddd;
-            outline: none;
-        }
-
-        .status-select {
-            min-width: 150px;
-            padding: 6px;
-            border-radius: 6px;
-            border: 1px solid #ddd;
-        }
-
-        .transport-tabs {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 15px;
-        }
-
-        .transport-tabs a {
-            padding: 10px 18px;
-            text-decoration: none;
-            border-radius: 10px;
-            background: #e5e7eb;
-            color: #111827;
-            font-weight: 600;
-            transition: .3s;
-        }
-
-        .transport-tabs a:hover {
-            background: #d1d5db;
-        }
-
-        .blue {
-            background: #2563eb;
-        }
-
-        .transport-tabs a.active {
-            background: #2563eb;
-            color: #fff;
-        }
-
-        .btn-filter {
-            display: inline-block;
-            padding: 8px 15px;
-            background: #e5e7eb;
-            color: #111827;
-            border-radius: 8px;
-            text-decoration: none;
-            margin-right: 5px;
-            font-weight: 600;
-        }
-
-        .btn-filter.active {
-            background: #2563eb;
-            color: #fff;
-        }
-
-        .toast-container {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            width: 350px;
-            z-index: 99999;
-        }
-
+        /* ===== TOAST ===== */
         .toast-container {
             position: fixed;
             top: 20px;
@@ -385,18 +165,6 @@
             font-size: 12px;
         }
 
-        .toast {
-            background: #111827;
-            color: #fff;
-            padding: 12px 14px;
-            border-radius: 10px;
-            margin-bottom: 10px;
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
-            animation: slideIn .3s ease;
-            border-left: 5px solid #f59e0b;
-            font-size: 12px;
-        }
-
         .toast strong {
             display: block;
             margin-bottom: 5px;
@@ -404,265 +172,95 @@
         }
 
         @keyframes slideIn {
-            from {
-                transform: translateX(120%);
-                opacity: 0;
-            }
-
-            to {
-                transform: translateX(0);
-                opacity: 1;
-            }
+            from { transform: translateX(120%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
         }
 
-        /* PANEL LIST NOTIF */
-        .notif-panel {
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
-            width: 320px;
-            background: #ffffff;
-            border-radius: 12px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, .2);
-            z-index: 99998;
-            overflow: hidden;
-            font-size: 12px;
-        }
-
-        .notif-header {
-            background: #111827;
-            color: #fff;
-            padding: 10px;
-            font-weight: bold;
-        }
-
-        .notif-body {
-            max-height: 250px;
-            overflow-y: auto;
-        }
-
-        .notif-item {
-            padding: 10px;
-            border-bottom: 1px solid #eee;
-        }
-
-        .notif-search {
-            width: 100%;
-            padding: 8px;
-            border: none;
-            border-bottom: 1px solid #ddd;
-            outline: none;
-        }
-
-        .highlight-row {
-            background: #ffffff !important;
-            animation: blinkRow 1s infinite alternate;
-        }
-
-        @keyframes blinkRow {
-            from {
-                background: #ffffff;
-            }
-
-            to {
-                background: #ffffff;
-            }
-        }
-
-        .card {
-            width: 100%;
-        }
-
-        .dataTables_wrapper {
-            width: 100%;
-        }
-
-        .table-responsive {
-            width: 100%;
-        }
-
-        .container-fluid {
-            margin-left: 250px;
-            /* sama dengan lebar sidebar */
-            width: calc(100% - 250px);
-            padding: 20px;
-        }
-
-        .card {
-            width: 100%;
-            overflow-x: auto;
-        }
-
-        .sidebar {
-            position: fixed;
-            left: 0;
-            width: 250px;
-        }
-
-        .dataTables_wrapper {
-            width: 100%;
-        }
-
-        table.dataTable {
-            width: 100% !important;
-        }
-
-        .input-filled {
-            background: #bbf7d0 !important;
-            border: 2px solid #16a34a !important;
-        }
-
-        .input-empty {
-            background: #fecaca !important;
-            border: 2px solid #dc2626 !important;
-        }
-
-        .toast-container {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            width: 380px;
-            z-index: 999999;
-        }
-
-        .notif-toast {
-            position: relative;
-            overflow: hidden;
-            background: linear-gradient(135deg, #ffffff, #f8fafc);
-            border-radius: 16px;
-            padding: 15px;
-            margin-bottom: 12px;
-            cursor: pointer;
-
-            box-shadow:
-                0 10px 30px rgba(0, 0, 0, .15),
-                0 2px 10px rgba(0, 0, 0, .08);
-
-            animation: slideIn .4s ease;
-            transition: all .25s ease;
-        }
-
-        .notif-toast:hover {
-            transform: translateY(-3px) scale(1.02);
-        }
-
-        .notif-toast::before {
-            content: '';
-            position: absolute;
-            left: 0;
-            top: 0;
-            width: 6px;
-            height: 100%;
-            background: #f59e0b;
-        }
-
-        .notif-toast.urgent::before {
-            background: #ef4444;
-        }
-
-        .notif-toast.h1::before {
-            background: #dc2626;
-        }
-
-        .notif-top {
+        /* ===== ALERT CONTROL / SUMMARY BOX ===== */
+        .summary-row {
             display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            margin-bottom: 15px;
+            align-items: flex-start;
+        }
+
+        .missing-field-box {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
             align-items: center;
-            gap: 10px;
+        }
+
+        #alertControlBox {
+            width: 100%;
+        }
+
+        #alertControlBox .box-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
             margin-bottom: 10px;
         }
 
-        .notif-icon {
-            width: 42px;
-            height: 42px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 20px;
-            background: #fef3c7;
-        }
-
-        .notif-title {
-            font-weight: 700;
+        #alertControlBox .box-header b {
             font-size: 15px;
             color: #111827;
         }
 
-        .notif-sub {
+        #alertControlList {
+            max-height: 260px;
+            overflow-y: auto;
+        }
+
+        .alert-item {
+            background: #f9fafb;
+            border: 1px solid #e5e7eb;
+            border-radius: 10px;
+            padding: 10px 12px;
+            margin-bottom: 8px;
+            cursor: pointer;
+            transition: all .15s ease;
+        }
+
+        .alert-item:hover {
+            background: #f3f4f6;
+            transform: translateY(-1px);
+        }
+
+        .alert-item .alert-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .alert-item .alert-missing {
             font-size: 12px;
             color: #6b7280;
-        }
-
-        .notif-body {
-            font-size: 13px;
-            line-height: 1.6;
-            color: #374151;
-        }
-
-        .notif-shipment {
-            font-weight: 700;
-            color: #2563eb;
-        }
-
-        .notif-progress {
-            position: absolute;
-            bottom: 0;
-            left: 0;
-            height: 4px;
-            background: #2563eb;
-            animation: countdown 5s linear forwards;
-        }
-
-        @keyframes countdown {
-            from {
-                width: 100%;
-            }
-
-            to {
-                width: 0%;
-            }
-        }
-
-        @keyframes slideIn {
-            from {
-                opacity: 0;
-                transform: translateX(120%);
-            }
-
-            to {
-                opacity: 1;
-                transform: translateX(0);
-            }
+            margin-top: 4px;
+            white-space: normal;
         }
 
         .highlight-row td {
             background: #fde68a !important;
-            animation: pulseRow .8s infinite alternate;
+            transition: background-color .3s ease;
         }
 
-        @keyframes pulseRow {
-            from {
-                background: #fde68a;
-            }
-
-            to {
-                background: #fef3c7;
-            }
+        .completeness-badge {
+            white-space: normal;
+            max-width: 220px;
+            line-height: 1.4;
         }
 
-        /* @keyframes slideIn{
-    from{
-        transform: translateX(120%);
-        opacity:0;
-    }
-    to{
-        transform: translateX(0);
-        opacity:1;
-    }
-} */
-    .blue{
-    background:#2563eb;
-}
+        /* Cegah select status (On Track / Potential Delay) keremes/mengecil */
+        #tableMonitoring select.status-select {
+            min-width: 160px !important;
+            width: 160px !important;
+        }
+
+        #tableMonitoring td:has(select.status-select) {
+            min-width: 160px;
+        }
     </style>
 
 </head>
@@ -681,7 +279,6 @@
                         <h5 class="modal-title">Shipment Laut</h5>
                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
-           
 
                     <div class="modal-body">
                         <div class="row">
@@ -690,11 +287,11 @@
                                 <label>No Shipment</label>
                                 <select name="no_shipment" class="form-select searchable">
                                     <option value="">Pilih Shipment</option>
-                                   @foreach($logistik->unique('no_shipment') as $r)
-<option value="{{ $r->no_shipment }}">
-    {{ $r->no_shipment }} - {{ $r->tujuan }}
-</option>
-@endforeach
+                                    @foreach($logistik->unique('no_shipment') as $r)
+                                    <option value="{{ $r->no_shipment }}">
+                                        {{ $r->no_shipment }} - {{ $r->tujuan }}
+                                    </option>
+                                    @endforeach
                                 </select>
                             </div>
 
@@ -736,33 +333,9 @@
             </div>
         </div>
     </div>
-    
-    <!-- <div id="notifBox" style="
-    position:fixed;
-    top:20px;
-    right:20px;
-    width:350px;
-    background:#111827;
-    color:#fff;
-    padding:15px;
-    border-radius:12px;
-    box-shadow:0 10px 25px rgba(0,0,0,.3);
-    display:none;
-    z-index:9999;
-">
-    <h4 style="margin-bottom:10px;">⚠ Estimasi Tiba H-1</h4>
-    <div id="notifContent" style="font-size:13px; line-height:1.5;"></div>
 
-    <button onclick="$('#notifBox').fadeOut()"
-        style="margin-top:10px;padding:6px 10px;border:none;background:#ef4444;color:#fff;border-radius:6px;">
-        Tutup
-    </button>
-</div> -->
-    <!-- TOAST POPUP -->
+    <!-- TOAST POPUP (satu-satunya container, jangan duplikat) -->
     <div class="toast-container" id="toastContainer"></div>
-
-
-    <!-- PANEL LIST NOTIF (SEARCHABLE) -->
 
     <div class="container-fluid px-3">
         @if(session('success'))
@@ -773,35 +346,14 @@
 
         <div class="title">🚚 DATA MONITORING</div>
 
-        <div class="toast-container" id="toastContainer"></div>
-                 <div class="mb-3">
-<a href="{{ route('monitoring.export', [
+        <div class="mb-3">
+            <a href="{{ route('monitoring.export', [
     'pic_monitoring' => request('pic_monitoring'),
     'area' => request('area')
 ]) }}" class="btn btn-success">
-    Export Excel
-</a>
-</div>
-        <!-- <div id="notifBox" style="
-position:fixed;
-top:20px;
-right:20px;
-width:350px;
-background:#111827;
-color:#fff;
-padding:15px;
-border-radius:12px;
-box-shadow:0 10px 25px rgba(0,0,0,.3);
-display:none;
-z-index:9999;
-">
-            <h4 style="margin-bottom:10px;"> Estimasi Tiba ⚠️ </h4>
-            <div id="notifContent"></div>
-        </div> -->
-
-
-
-
+                Export Excel
+            </a>
+        </div>
 
         {{-- FILTER --}}
         <div class="filter-box">
@@ -839,7 +391,6 @@ z-index:9999;
                         @endfor
                 </select>
 
-                {{-- TOMBOL RESET FILTER AKAN MUNCUL HANYA JIKA ADA SALAH SATU FILTER YANG AKTIF --}}
                 @if(request('pic_monitoring') || request('area') || request('bulan') || request('tahun'))
                 <a href="{{ route('monitoring.datalogistik') }}" class="btn btn-secondary btn-sm d-flex align-items-center gap-1" style="height: 38px; padding: 0 15px;">
                     🔄 Reset Filter
@@ -848,10 +399,12 @@ z-index:9999;
 
             </form>
         </div>
+
         <div class="col-md-3">
             <label class="form-label fw-bold">Filter Tanggal Keluar Gudang</label>
             <input type="date" id="filterKeluarGudangTgl" class="form-control">
         </div>
+
         <!-- BUTTON -->
         <button class="btn btn-primary mb-3"
             data-bs-toggle="modal"
@@ -859,836 +412,673 @@ z-index:9999;
             + Shipment Laut
         </button>
 
-        <!-- MODAL -->
+        {{-- ===== SUMMARY: FIELD YANG PALING BANYAK KOSONG ===== --}}
+        <div class="card mb-3">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                <b style="font-size:14px; color:#374151;">📋 Field belum lengkap:</b>
+            </div>
+            <div class="missing-field-box" id="missingFieldSummary">
+                <span class="badge gray">Menghitung...</span>
+            </div>
+        </div>
+
+        {{-- ===== ALERT CONTROL BOX ===== --}}
+        <div class="card mb-3" id="alertControlBox">
+            <div class="box-header">
+                <b>🔔 Alert Control — Lewat Estimasi Tiba</b>
+                <span class="badge red" id="alertControlCount">0 Alert</span>
+            </div>
+            <div id="alertControlList">
+                <div class="p-2" style="color:#6b7280; font-size:13px;">Memuat data...</div>
+            </div>
+        </div>
 
         <div class="card">
-
-            <!-- 🔥 TARUH DI SINI -->
-<!-- 
-            <div id="notifBox" style="
-position:fixed;
-top:20px;
-right:20px;
-width:350px;
-background:#111827;
-color:#fff;
-padding:15px;
-border-radius:12px;
-box-shadow:0 10px 25px rgba(0,0,0,.3);
-display:none;
-z-index:9999;
-">
-                <h4 style="margin-bottom:10px;"> Estimasi Tiba ⚠️</h4>
-                <div id="notifContent"></div>
-            </div> -->
             <table id="tableMonitoring" class="display nowrap">
                 <thead>
                     <tr>
-
-                        <!-- EDITABLE -->
-
                         <th>Tanggal Keluar Gudang</th>
-                        <!-- <th>Transportasi</th>
-                         -->
                         <th class="editable">Act PGI Date</th>
                         <th>Dist Channel</th>
-
                         <th>Area</th>
                         <th>No Shipment</th>
                         <th>Tujuan</th>
                         <th>Ekspedisi</th>
-
                         <th class="editable">PIC</th>
-                   
                         <th class="editable">Status</th>
-                        <th class="editable">Action</th>
-                         <th>Total DO Qty</th>
-                        <th class="editable">Total DO Qty Actual</th>
-                          <th>Selisih Qty</th>
+                        <th class="editable">Alert</th>
+                        <th>Total DO Qty</th>
+                        <th class="editable">Selisih Qty Do</th>
+                        <th class="editable">Biaya Kuli</th>
+                        <th>Total Biaya kuli</th>
+                        <th>Qty Actual Do</th>
                         <th class="editable">Reason Qty</th>
-                        <th class="editable">Urutan</th>
-                        <!-- READONLY -->
-
-
-
-
-
-                        <!-- EDITABLE -->
-
-
-                        <!-- READONLY -->
-                        <th>Keluar</th>
-                        <th>Estimasi</th>
-                       
-
-                        <!-- EDITABLE -->
-                        <th class="editable">Tiba</th>
-
-                        <!-- READONLY -->
-                        <th>Lama</th>
+                        <th class="editable">Urutan Bongkar</th>
+                        <th>Estimasi Tiba</th>
+                        <th class="editable">Tanggal Tiba</th>
+                        <th>Lama Perjalanan</th>
                         <th>SLA Tiba</th>
-
-                        <!-- EDITABLE -->
-                        <th class="editable">Bongkar</th>
-
-                        <!-- READONLY -->
+                        <th class="editable">Tanggal Bongkar</th>
+                        <th>Status Bongkar</th>
                         <th>Overstay</th>
                         <th>SLA Bongkar</th>
-
-                        <!-- EDITABLE -->
-
-
-                        <!-- EDITABLE -->
                         <th class="editable">Reason Tiba</th>
                         <th class="editable">Reason Bongkar</th>
                         <th class="editable">Remarks</th>
-                             <th class="editable">Nama Kapal</th>
-
+                        <th class="editable">Nama Kapal</th>
                         <th>ETD</th>
                         <th>ETA</th>
-                         <th>ATD</th>
+                        <th>ATD</th>
                         <th>ATA</th>
-
-
-
-                        <!-- READONLY -->
+                        <th>Kelengkapan Data</th>
                         <th>Action</th>
-
                     </tr>
                 </thead>
 
                 <tbody>
-             @foreach($logistik as $r)
-          @php
+                    @foreach($logistik as $r)
+                    @php
+                    $sla_tiba = $r->sla_tiba ?? '-';
+                    $sla_bongkar = $r->sla_bongkar ?? '-';
+                    $overstay = $r->overstay_days ?? '-';
+                    $lama_perjalanan = $r->lama_perjalanan ?? '-';
+                    $status_akhir = $r->status_akhir ?? '-';
 
-          $sla_tiba = $r->sla_tiba ?? '-';
-$sla_bongkar = $r->sla_bongkar ?? '-';
-$overstay = $r->overstay_days ?? '-';
-$lama_perjalanan = $r->lama_perjalanan ?? '-';
-$status_akhir = $r->status_akhir ?? '-';
-// =========================
-// 1. KELUAR GUDANG TERAKHIR
-// =========================
-$keluarTimestamp = collect([
-    $r->tanggal_keluar_gudang,
-    $r->tanggal_keluar_gudang_2,
-    $r->tanggal_keluar_gudang_3,
-])
-->filter()
-->map(function ($d) {
-    return strtotime($d);
-})
-->max();
+                    $keluarTimestamp = collect([
+                    $r->tanggal_keluar_gudang,
+                    $r->tanggal_keluar_gudang_2,
+                    $r->tanggal_keluar_gudang_3,
+                    ])
+                    ->filter()
+                    ->map(function ($d) {
+                    return strtotime($d);
+                    })
+                    ->max();
 
-$keluar = $keluarTimestamp ?: null;
+                    $keluar = (!empty($r->gudang_blocked)) ? null : ($keluarTimestamp ?: null);
 
-// =========================
-// 2. TIBA
-// =========================
-$tiba = $r->tanggal_tiba
-    ? strtotime($r->tanggal_tiba)
-    : null;
+                    $tiba = $r->tanggal_tiba ? strtotime($r->tanggal_tiba) : null;
 
-// =========================
-// 3. LAMA PERJALANAN
-// =========================
-$lama_perjalanan = '-';
+                    $lama_perjalanan = '-';
+                    if ($tiba && $keluar) {
+                    $lama_perjalanan = floor(($tiba - $keluar) / 86400);
+                    }
 
-if ($tiba && $keluar) {
-    $lama_perjalanan = floor(($tiba - $keluar) / 86400);
-}
+                    $estimasi = !empty($r->estimasi_tiba) ? strtotime($r->estimasi_tiba) : null;
 
-// =========================
-// 4. ESTIMASI TIBA
-// =========================
+                    $alert = '-';
+                    $alertClass = '';
+                    $alertText = '';
 
-   
-// =========================
-// 4. ESTIMASI TIBA (DATABASE)
-// =========================
+                    if (!empty($r->gudang_blocked)) {
+                    $estimasi_show = 'Menuju Gudang Berikutnya';
+                    $alertClass = 'gray';
+                    $alert = '-';
+                    } else {
+                    $estimasi_show = $estimasi ? date('d-m-Y', $estimasi) : '-';
 
-$estimasi = !empty($r->estimasi_tiba)
-    ? strtotime($r->estimasi_tiba)
-    : null;
+                    if (!$r->tanggal_tiba && $estimasi) {
+                    $today = strtotime(date('Y-m-d'));
+                    $hariSisa = floor(($estimasi - $today) / 86400);
 
-$estimasi_show = $estimasi
-    ? date('d-m-Y', $estimasi)
-    : '-';
-$alert = '-';
-$alertClass = '';
-$alertText = '';
+                    if ($hariSisa < 0) {
+                    $alertText = 'Pending Tiba  H+' . abs($hariSisa);
+                    $alertClass = 'red';
+                    } elseif ($hariSisa==0) {
+                    $alertText='H-0' ; $alertClass='red' ;
+                    } elseif ($hariSisa==1) {
+                    $alertText='H-1' ; $alertClass='red' ;
+                    } elseif ($hariSisa==2) {
+                    $alertText='H-2' ; $alertClass='orange' ;
+                    } elseif ($hariSisa==3) {
+                    $alertText='H-3' ; $alertClass='orange' ;
+                    } elseif ($hariSisa <=7) {
+                    $alertText='H-' . $hariSisa; $alertClass='blue' ;
+                    } else {
+                    $alertText='ON TRACK' ; $alertClass='green' ;
+                    }
+                    $alert=$alertText;
+                    }
+                    }
 
-if (!$r->tanggal_tiba && $estimasi) {
+                    $statusBongkar = '-';
+                    $statusBongkarClass = '';
 
-    $today = strtotime(date('Y-m-d'));
-    $hariSisa = floor(($estimasi - $today) / 86400);
+                    if ($r->tanggal_bongkar) {
+                    $statusBongkar = 'Sudah Bongkar';
+                    $statusBongkarClass = 'green';
+                    } elseif ($r->tanggal_tiba) {
+                    $tanggalTiba = strtotime(date('Y-m-d', strtotime($r->tanggal_tiba)));
+                    $today = strtotime(date('Y-m-d'));
+                    $hariBongkar = floor(($today - $tanggalTiba) / 86400);
+                    $statusBongkar = 'Pending Bongkar H+' . max(0, $hariBongkar);
 
-    if ($hariSisa < 0) {
-        $alertText = 'OVERDUE';
-        $alertClass = 'red';
-    } elseif ($hariSisa == 0) {
-        $alertText = 'H-0';
-        $alertClass = 'red';
-    } elseif ($hariSisa == 1) {
-        $alertText = 'H-1';
-        $alertClass = 'red';
-    } elseif ($hariSisa == 2) {
-        $alertText = 'H-2';
-        $alertClass = 'orange';
-    } elseif ($hariSisa == 3) {
-        $alertText = 'H-3';
-        $alertClass = 'orange';
-    } elseif ($hariSisa <= 7) {
-        $alertText = 'H-' . $hariSisa;
-        $alertClass = 'blue';
-    } else {
-        $alertText = 'ON TRACK';
-        $alertClass = 'green';
-    }
+                    if ($hariBongkar == 0) {
+                    $statusBongkarClass = 'orange';
+                    } else {
+                    $statusBongkarClass = 'red';
+                    }
+                    }
+                    @endphp
+                    <tr
+                        data-id="{{ $r->id }}"
+                        data-shipment="{{ $r->no_shipment }}"
+                        data-keluar="{{ $keluar ? date('Y-m-d', $keluar) : '' }}"
+                        data-estimasi="{{ (empty($r->gudang_blocked) && $estimasi) ? date('Y-m-d', $estimasi) : '' }}">
 
-    $alert = $alertText;
-}
-// =========================
-// 5. SLA TIBA
-// =========================
-// =========================
-// 5. SLA TIBA
-// =========================
+                        <td>{{ $keluar ? date('d-m-Y ', $keluar) : '-' }}</td>
 
-$sla_tiba = $r->sla_tiba;
-
-// =========================
-//$sla_bongkar = $r->sla_bongkar;
-@endphp
-                      <tr
-    class="{{ ($alert ?? '') == 'H-1' ? 'highlight-row' : '' }}"
-    data-id="{{ $r->id }}"
-    data-shipment="{{ $r->no_shipment }}"
-    data-keluar="{{ $keluar ? date('Y-m-d', $keluar) : '' }}">
-                     <td>
-    {{ $keluar 
-        ? date('d-m-Y ', $keluar) 
-        : '-' }}
-</td>
-
-
-
-                       <td>{{ $r->create_tgl ? \Carbon\Carbon::parse($r->create_tgl)->format('d/m/Y H:i') : '-' }}</td>
+                        <td>{{ $r->create_tgl ? \Carbon\Carbon::parse($r->create_tgl)->format('d/m/Y H:i') : '-' }}</td>
 
                         <td>{{ $r->dist_channel }}</td>
-
                         <td>{{ $r->area }}</td>
                         <td>{{ $r->no_shipment }}</td>
-
                         <td>{{ $r->tujuan }}</td>
-
-
-
                         <td>{{ $r->ekpedisi }}</td>
 
-
-
-
                         <td>
-                            <input type="text" name="pic_monitoring"
-                                value="{{ $r->pic_monitoring }}">
+                            <input type="text" name="pic_monitoring" value="{{ $r->pic_monitoring }}">
                         </td>
-                       
 
                         <td>
                             <select name="status_kendaraan" class="form-select status-select">
-                                <option value="On Track"
-                                    {{ $r->status_kendaraan == 'On Track' ? 'selected' : '' }}>
+                                <option value="On Track" {{ $r->status_kendaraan == 'On Track' ? 'selected' : '' }}>
                                     🟢 On Track
                                 </option>
-
-                                <option value="Potential Delay"
-                                    {{ $r->status_kendaraan == 'Potential Delay' ? 'selected' : '' }}>
+                                <option value="Potential Delay" {{ $r->status_kendaraan == 'Potential Delay' ? 'selected' : '' }}>
                                     🔴 Potential Delay
                                 </option>
                             </select>
                         </td>
-                     <td>
-    @if($r->tanggal_tiba)
-
-        <span class="badge green">
-            ✅ TIBA
-        </span>
-
-    @else
-
-        <span class="badge {{ $alertClass }}">
-            {{ $alert }}
-        </span>
-
-    @endif
-</td>
 
                         <td>
-                            <input type="number"
-                                name="total_do_qty_car"
-                                value="{{ $r->total_do_qty_car }}">
+                            @if($r->tanggal_tiba)
+                            <span class="badge green">✅ TIBA</span>
+                            @else
+                            <span class="badge {{ $alertClass }}">{{ $alert }}</span>
+                            @endif
                         </td>
-                                  <td>
+
+                        <td>{{ $r->total_do_qty_car }}</td>
+
+                        <td data-label="Selisih Qty">
                             <input type="number"
-                                name="qty_monitoring"
-                                value="{{ $r->qty_monitoring }}">
+                                form="form-update-{{ $r->id }}"
+                                name="selisih_qty"
+                                class="row-selisih-qty"
+                                data-total-do="{{ $r->total_do_qty_car }}"
+                                value="{{ $r->selisih_qty }}">
                         </td>
-                            <td>
-    <input type="number"
-           name="selisih_qty"
-           value="{{ $r->selisih_qty }}"
-           readonly>
-</td>
-                                  <td>
+
+                        <td data-label="Biaya Kuli">
+                            <input type="number"
+                                name="biaya_kuli"
+                                class="row-biaya-kuli"
+                                form="form-update-{{ $r->id }}"
+                                value="{{ $r->biaya_kuli }}">
+                        </td>
+
+                        <td>
                             <input type="text"
-                                name="remarks_qty"
-                                value="{{ $r->remarks_qty }}">
+                                name="total_biaya_kuli"
+                                class="row-total-biaya-kuli"
+                                value="Rp {{ number_format($r->total_biaya_kuli ?? 0, 0, ',', '.') }}"
+                                readonly>
                         </td>
 
                         <td>
                             <input type="number"
-                                name="act_urutan_bongkar"
-                                value="{{ $r->act_urutan_bongkar }}">
+                                form="form-update-{{ $r->id }}"
+                                name="qty_monitoring"
+                                class="row-qty-monitoring"
+                                value="{{ $r->qty_monitoring }}"
+                                readonly
+                                style="background:#f1f5f9;color:#0284c7;font-weight:600;">
                         </td>
 
-                      <td>
-    {{ $keluar 
-        ? date('d-m-Y H:i', $keluar) 
-        : '-' }}
-</td>
-
-                  <td>
-    {{ $r->estimasi_tiba ? date('d-m-Y', strtotime($r->estimasi_tiba)) : '-' }}
-</td>
-                       
                         <td>
+                            <select name="remarks_qty" class="reason-select searchable-select">
+                                <option value="">Pilih Reason Qty</option>
+                                @foreach($akurasiQty as $item)
+                                <option value="{{ $item }}" {{ $r->remarks_qty == $item ? 'selected' : '' }}>
+                                    {{ $item }}
+                                </option>
+                                @endforeach
+                            </select>
+                            <span class="d-none txt">{{ $r->remarks_qty }}</span>
+                        </td>
+
+                        <td>
+                            <input type="number" name="act_urutan_bongkar" value="{{ $r->act_urutan_bongkar }}">
+                        </td>
+
+                        <td>{{ $estimasi_show }}</td>
+
+                        <td data-required="true" data-label="Tgl Tiba">
                             <input type="datetime-local"
                                 name="tanggal_tiba"
-                                value="{{ $r->tanggal_tiba
-                ? date('Y-m-d\TH:i', strtotime($r->tanggal_tiba))
-                : '' }}">
+                                value="{{ $r->tanggal_tiba ? date('Y-m-d\TH:i', strtotime($r->tanggal_tiba)) : '' }}">
                         </td>
-<td>{{ $lama_perjalanan }}</td>
 
+                        <td>{{ $lama_perjalanan }}</td>
 
                         <td>
-
                             @if($sla_tiba == '-')
-
                             -
-
                             @elseif($sla_tiba == 'On Time')
-
-                            <span class="badge green">
-                                On Time
-                            </span>
-
+                            <span class="badge green">On Time</span>
                             @else
-
-                            <span class="badge red">
-                                {{ $sla_tiba }}
-                            </span>
-
+                            <span class="badge red">{{ $sla_tiba }}</span>
                             @endif
-
                         </td>
 
-                        <td>
+                        <td data-required="true" data-label="Tgl Bongkar">
                             <input type="datetime-local"
                                 name="tanggal_bongkar"
-                                value="{{ $r->tanggal_bongkar
-                ? date('Y-m-d\TH:i', strtotime($r->tanggal_bongkar))
-                : '' }}">
+                                value="{{ $r->tanggal_bongkar ? date('Y-m-d\TH:i', strtotime($r->tanggal_bongkar)) : '' }}">
                         </td>
 
-                       <td>{{ $r->overstay_days ?? '-' }}</td>
-
                         <td>
-
-                            @if($sla_bongkar == '-')
-
-                            -
-
-                            @elseif($sla_bongkar == 'On Time')
-
-                            <span class="badge green">
-                                On Time
-                            </span>
-
+                            @if($statusBongkar != '-')
+                            <span class="badge {{ $statusBongkarClass }}">{{ $statusBongkar }}</span>
                             @else
-
-                            <span class="badge red">
-                                {{ $sla_bongkar }}
-                            </span>
-
+                            -
                             @endif
-
                         </td>
 
-
+                        <td>{{ $r->overstay_days ?? '-' }}</td>
 
                         <td>
-                            <select name="reason_tiba"
-                                class="reason-select searchable-select">
+                            @if($sla_bongkar == '-')
+                            -
+                            @elseif($sla_bongkar == 'On Time')
+                            <span class="badge green">On Time</span>
+                            @else
+                            <span class="badge red">{{ $sla_bongkar }}</span>
+                            @endif
+                        </td>
 
+                        <td>
+                            <select name="reason_tiba" class="reason-select searchable-select">
                                 <option value="">Pilih Reason Tiba</option>
-
                                 @foreach($akurasiTiba as $item)
-                                <option value="{{ $item }}"
-                                    {{ $r->reason_tiba == $item ? 'selected' : '' }}>
+                                <option value="{{ $item }}" {{ $r->reason_tiba == $item ? 'selected' : '' }}>
                                     {{ $item }}
                                 </option>
                                 @endforeach
-
                             </select>
-
-                            <span class="d-none txt">
-                                {{ $r->reason_tiba }}
-                            </span>
+                            <span class="d-none txt">{{ $r->reason_tiba }}</span>
                         </td>
 
                         <td>
-                            <select name="reason_bongkar"
-                                class="reason-select searchable-select">
-
+                            <select name="reason_bongkar" class="reason-select searchable-select">
                                 <option value="">Pilih Reason Bongkar</option>
-
                                 @foreach($akurasiBongkar as $item)
-                                <option value="{{ $item }}"
-                                    {{ $r->reason_bongkar == $item ? 'selected' : '' }}>
+                                <option value="{{ $item }}" {{ $r->reason_bongkar == $item ? 'selected' : '' }}>
                                     {{ $item }}
                                 </option>
                                 @endforeach
-
                             </select>
-
-                            <span class="d-none txt">
-                                {{ $r->reason_bongkar }}
-                            </span>
-                        </td>
-                        <td>
-                            <input type="text"
-                                name="remarks"
-                                value="{{ $r->remarks }}">
-                        </td>
-
-                           <td>
-                            <input type="text" name="nama_kapal"
-                                value="{{ $r->nama_kapal }}">
+                            <span class="d-none txt">{{ $r->reason_bongkar }}</span>
                         </td>
 
                         <td>
-                            <input type="date"
-                                name="ETD"
-                                value="{{ $r->etd ? date('Y-m-d', strtotime($r->etd)) : '' }}">
+                            <input type="text" name="remarks" value="{{ $r->remarks }}">
                         </td>
 
                         <td>
-                            <input type="date"
-                                name="ETA"
-                                value="{{ $r->eta ? date('Y-m-d', strtotime($r->eta)) : '' }}">
-                        </td>
-                         <td>
-                            <input type="date"
-                                name="ATD"
-                                value="{{ $r->atd ? date('Y-m-d', strtotime($r->atd)) : '' }}">
+                            <input type="text" name="nama_kapal" value="{{ $r->nama_kapal }}">
                         </td>
 
                         <td>
-                            <input type="date"
-                                name="ATA"
-                                value="{{ $r->ata ? date('Y-m-d', strtotime($r->ata)) : '' }}">
+                            <input type="date" name="ETD" value="{{ $r->etd ? date('Y-m-d', strtotime($r->etd)) : '' }}">
                         </td>
 
+                        <td>
+                            <input type="date" name="ETA" value="{{ $r->eta ? date('Y-m-d', strtotime($r->eta)) : '' }}">
+                        </td>
+
+                        <td>
+                            <input type="date" name="ATD" value="{{ $r->atd ? date('Y-m-d', strtotime($r->atd)) : '' }}">
+                        </td>
+
+                        <td>
+                            <input type="date" name="ATA" value="{{ $r->ata ? date('Y-m-d', strtotime($r->ata)) : '' }}">
+                        </td>
+
+                        {{-- BADGE KELENGKAPAN DATA (diisi JS) --}}
+                        <td>
+                            <span class="badge completeness-badge gray">-</span>
+                        </td>
 
                         <td>
                             <span class="save-status"></span>
-
-                            <button
-                                type="button"
-                                class="save-btn"
-                                onclick="saveRow({{ $r->id }})">
+                            <button type="button" class="save-btn" onclick="saveRow({{ $r->id }})">
                                 SAVE
                             </button>
                         </td>
 
-                        </tr>
-
-                        <div id="toastContainer" class="toast-container"></div>
-                        @endforeach
-
-                        <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+                    </tr>
+                    @endforeach
                 </tbody>
             </table>
 
-           <script>
-    let table;
-    let notif = [];
-    let notifTimer = null;
-    let notifShown = false;
-    let saveTimer;
+            <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 
-    $(document).ready(function() {
-        // Inisialisasi DataTable
-        table = $('#tableMonitoring').DataTable({
-            scrollX: true,
-            scrollCollapse: true,
-            autoWidth: false,
-            fixedHeader: true,
-            pageLength: 10,
-            orderCellsTop: true,
-            ordering: true,
-            columnDefs: [
-                { width: "120px", targets: [0, 1, 2, 6, 9] },
-                { width: "140px", targets: [3, 8] },
-                { width: "350px", targets: 4 },
-                { width: "150px", targets: [5, 20] },
-                { width: "80px", targets: [7, 14, 21] },
-                { width: "180px", targets: [10, 13, 18, 19] },
-                { width: "70px", targets: 11 },
-                { width: "90px", targets: 12 },
-                { width: "100px", targets: [15, 16, 17] }
-            ]
-        });
+            <script>
+                let table;
+                let saveTimer;
 
-        // Custom Filter Tanggal Import
-        var importTglFilter = '';
-        $('#filterImportTgl').on('change', function() {
-            importTglFilter = $(this).val();
-            table.draw();
-        });
+                $(document).ready(function() {
 
-        // Custom Filter Tanggal Keluar Gudang
-        $('#filterKeluarGudangTgl').on('change', function() {
-            table.draw();
-        });
+                    table = $('#tableMonitoring').DataTable({
+                        scrollX: true,
+                        scrollCollapse: true,
+                        autoWidth: false,
+                        fixedHeader: true,
+                        pageLength: 10,
+                        lengthMenu: [10, 25, 50, 100],
+                        orderCellsTop: true,
+                        ordering: true,
+                        deferRender: true,
+                        language: {
+                            search: "Cari:",
+                            lengthMenu: "Tampilkan _MENU_ data",
+                            info: "Menampilkan _START_ - _END_ dari _TOTAL_ data",
+                            paginate: { previous: "«", next: "»" }
+                        },
+                        columnDefs: [
+                            { width: "120px", targets: [0, 1, 2, 6, 9] },   // Tgl Keluar, Act PGI, Dist Channel, Ekspedisi, Alert
+                            { width: "160px", targets: [8] },               // Status (select on track/potential delay)
+                            { width: "140px", targets: [3] },               // Area
+                            { width: "350px", targets: 4 },                 // No Shipment
+                            { width: "150px", targets: [5] },               // Tujuan
+                            { width: "180px", targets: [10, 13, 18, 19, 21] }, // Total DO Qty, Total Biaya, Estimasi Tiba, Tgl Tiba, Tgl Bongkar
+                            { width: "220px", targets: [32] }               // Kelengkapan Data
+                        ]
+                    });
 
-        $.fn.dataTable.ext.search.push(function(settings, data, dataIndex) {
-            var rowNode = table.row(dataIndex).node();
-            
-            // Logika Filter Import
-            if (importTglFilter !== '') {
-                var importTglRow = $(rowNode).attr('data-import') || '';
-                if (importTglRow !== importTglFilter) return false;
-            }
+                    // Custom filter: Tanggal Keluar Gudang
+                    $('#filterKeluarGudangTgl').on('change', function() {
+                        table.draw();
+                    });
 
-            // Logika Filter Keluar Gudang
-            let filterDate = $('#filterKeluarGudangTgl').val();
-            let tanggalKeluar = $(rowNode).attr('data-keluar');
-            if (filterDate && tanggalKeluar !== filterDate) return false;
+                    $.fn.dataTable.ext.search.push(function(settings, data, dataIndex) {
+                        let rowNode = table.row(dataIndex).node();
+                        let filterDate = $('#filterKeluarGudangTgl').val();
+                        let tanggalKeluar = $(rowNode).attr('data-keluar');
+                        if (filterDate && tanggalKeluar !== filterDate) return false;
+                        return true;
+                    });
 
-            return true;
-        });
+                    $('.filter-box .searchable').select2({ width: '180px' });
+                    $('#shipModal .searchable').select2({ width: '100%', dropdownParent: $('#shipModal') });
 
-        // Inisialisasi Select2 Global & Modal
-        $('.filter-box .searchable').select2({ width: '180px' });
-        $('#shipModal .searchable').select2({
-            width: '100%',
-            dropdownParent: $('#shipModal')
-        });
+                    $('#shipModal form').on('submit', function(e) {
+                        e.preventDefault();
+                        $.ajax({
+                            url: $(this).attr('action'),
+                            type: 'POST',
+                            data: $(this).serialize(),
+                            success: function(res) {
+                                $('#shipModal').modal('hide');
+                                $('#shipModal form')[0].reset();
+                                alert(res.message);
+                                location.reload();
+                            },
+                            error: function(err) {
+                                alert('Gagal update data');
+                            }
+                        });
+                    });
 
-        // Submit Form Modal
-        $('#shipModal form').on('submit', function(e) {
-            e.preventDefault();
-            $.ajax({
-                url: $(this).attr('action'),
-                type: 'POST',
-                data: $(this).serialize(),
-                success: function(res) {
-                    $('#shipModal').modal('hide');
-                    $('#shipModal form')[0].reset();
-                    alert(res.message);
-                    location.reload();
-                },
-                error: function(err) {
-                    alert('Gagal update data');
+                    initReasonSelect();
+                    updateFieldStatus(true); // true = tampilkan toast sekali di awal kalau ada yang kosong
+
+                    table.on('draw.dt', function() {
+                        initReasonSelect();
+                        updateFieldStatus(false);
+                    });
+                });
+
+                function formatRupiah(angka) {
+                    return 'Rp ' + Number(angka).toLocaleString('id-ID');
                 }
-            });
-        });
 
-        // Jalankan Notifikasi Pertama Kali
-        generateNotif(true);
-        setInterval(generateNotif, 1000000n); // refresh tiap 1 menit
+                $(document).on('input', 'input[name="qty_monitoring"], input[name="biaya_kuli"]', function() {
+                    let row = $(this).closest('tr');
+                    let qty = parseInt(row.find('input[name="qty_monitoring"]').val()) || 0;
+                    let biaya = parseInt(row.find('input[name="biaya_kuli"]').val()) || 0;
+                    let total = qty * biaya;
+                    row.find('input[name="total_biaya_kuli"]').val(formatRupiah(total));
+                });
 
-        table.on('draw', function () {
-            generateNotif(false);
-        });
+                $(document).on('input', '[name="total_do_qty_car"], [name="selisih_qty"]', function() {
+                    let row = $(this).closest('tr');
+                    let total = parseFloat(row.find('[name="total_do_qty_car"]').val()) || 0;
+                    let selisih = parseFloat(row.find('[name="selisih_qty"]').val()) || 0;
+                    let qtyMonitoring = total - selisih;
+                    row.find('[name="qty_monitoring"]').val(qtyMonitoring).trigger('input');
+                });
 
-        // Warna Input Tanggal
-        updateDateColor();
-    });
+                // ==========================================================
+                // ALERT CONTROL (versi final):
+                // - HANYA cek Tgl Tiba & Tgl Bongkar.
+                // - Row dianggap "alert" kalau sudah melewati estimasi_tiba
+                //   (data-estimasi < hari ini) DAN Tgl Tiba & Tgl Bongkar
+                //   MASIH KOSONG. Kalau belum lewat estimasi (masih H-),
+                //   TIDAK dianggap alert sama sekali.
+                // - Selisih Qty & Biaya Kuli TIDAK lagi ikut dihitung.
+                // ==========================================================
+                function updateFieldStatus(showToast) {
+                    showToast = showToast || false;
 
+                    let alertList = [];
+                    let missingSummary = {}; // { "Tgl Tiba": 3, "Tgl Bongkar": 3 }
+                    let todayStr = new Date().toISOString().slice(0, 10);
+                    let anyOverdue = false;
 
-    // Menghitung Notifikasi
-function generateNotif(showPopup = true) {
+                    $('#tableMonitoring tbody tr').each(function() {
+                        let row = $(this);
+                        let missingFields = [];
 
-    notif = [];
+                        let estimasiStr = (row.attr('data-estimasi') || '').trim();
+                        let isOverdue = estimasiStr !== '' && estimasiStr < todayStr;
+                        if (isOverdue) anyOverdue = true;
 
-    table.rows().every(function () {
+                        row.find('td[data-required="true"]').each(function() {
+                            let td = $(this);
+                            let input = td.find('input, select');
+                            let val = (input.val() || '').toString().trim();
+                            let filled = val !== '';
+                            let label = td.data('label'); // "Tgl Tiba" atau "Tgl Bongkar"
 
-        let row = $(this.node());
+                            // hanya dianggap kosong/alert kalau sudah lewat estimasi tiba
+                            let countAsMissing = !filled && isOverdue;
 
-        let shipment = row.data('shipment');
-        let estimasi = row.find('.estimasi-tiba').data('estimasi');
-        let tujuan = row.find('.estimasi-tiba').data('tujuan');
-        let tanggalTiba = row.find('[name="tanggal_tiba"]').val();
+                            input.toggleClass('input-filled', filled)
+                                 .toggleClass('input-empty', countAsMissing);
 
-        if (!shipment || !estimasi) return;
+                            if (countAsMissing) {
+                                missingFields.push(label);
+                                missingSummary[label] = (missingSummary[label] || 0) + 1;
+                            }
+                        });
 
-        // Sudah tiba = tidak notif
-        if (tanggalTiba && tanggalTiba.trim() !== '') return;
+                        let badge = row.find('.completeness-badge');
+                        let emptyCount = missingFields.length;
 
-        let estDate = new Date(estimasi + 'T00:00:00');
+                        if (!isOverdue) {
+                            // belum lewat estimasi tiba (atau tidak ada estimasi) -> netral, bukan "Lengkap"
+                            badge.attr('class', 'badge completeness-badge gray')
+                                 .text('-')
+                                 .attr('title', 'Belum jatuh tempo estimasi tiba');
+                        } else if (emptyCount === 0) {
+                            badge.attr('class', 'badge completeness-badge green')
+                                 .text('✅ Lengkap')
+                                 .attr('title', 'Data lengkap');
+                        } else {
+                            let cls = emptyCount === 1 ? 'orange' : 'red';
+                            let text = '❌ ' + missingFields.join(', ');
+                            badge.attr('class', 'badge completeness-badge ' + cls)
+                                 .text(text)
+                                 .attr('title', text);
 
-        let today = new Date();
-        today.setHours(0,0,0,0);
+                            alertList.push({
+                                id: row.data('id'),
+                                shipment: row.data('shipment'),
+                                missing: missingFields,
+                                emptyCount: emptyCount,
+                                estimasi: estimasiStr
+                            });
+                        }
+                    });
 
-        let diff = Math.ceil(
-            (estDate - today) /
-            (1000 * 60 * 60 * 24)
-        );
+                    renderMissingFieldSummary(missingSummary, anyOverdue);
+                    renderAlertControl(alertList);
 
-        // Hanya notif di hari tertentu
-        if (![7,5,3,2,1].includes(diff)) return;
+                    if (showToast && alertList.length > 0) {
+                        showToastMsg('⚠ ' + alertList.length + ' shipment sudah lewat estimasi tiba, tapi Tgl Tiba/Tgl Bongkar belum diisi');
+                    }
+                }
 
-        let level = 'followup';
+                function renderMissingFieldSummary(missingSummary, anyOverdue) {
+                    let entries = Object.entries(missingSummary).sort((a, b) => b[1] - a[1]);
 
-        if (diff <= 3) {
-            level = 'urgent';
-        }
+                    if (entries.length === 0) {
+                        if (anyOverdue) {
+                            $('#missingFieldSummary').html('<span class="badge green">✅ Semua data lengkap</span>');
+                        } else {
+                            $('#missingFieldSummary').html('<span class="badge gray">- Belum ada yang jatuh tempo estimasi tiba</span>');
+                        }
+                        return;
+                    }
 
-        if (diff === 1) {
-            level = 'critical';
-        }
+                    let html = entries.map(function(e) {
+                        return '<span class="badge red">' + e[0] + ': ' + e[1] + '</span>';
+                    }).join(' ');
 
-        notif.push({
-            shipment,
-            tujuan,
-            estimasi,
-            diff,
-            level
-        });
-    });
+                    $('#missingFieldSummary').html(html);
+                }
 
-    renderNotifList("", showPopup);
-}
+                function renderAlertControl(alertList) {
+                    $('#alertControlCount').text(alertList.length + ' Alert');
 
-    // Render HTML Notifikasi ke dalam box
-    function renderNotifList(filter = "", showPopup = true) {
-        let html = "";
-        notif
-            .filter(i => String(i.shipment || '').toLowerCase().includes(String(filter || '').toLowerCase()))
-            .forEach(i => {
-                html += `
-                <div class="notif-item" data-shipment="${i.shipment}" style="padding:12px 14px; border-radius:10px; margin-bottom:10px; cursor:pointer; background: linear-gradient(135deg, #111827, #1f2937); border: 1px solid rgba(255,255,255,0.06); transition: all 0.2s ease;">
-                    <div style="display:flex; justify-content:space-between; align-items:center;">
-                        <b style="color:#ffffff; font-size:14px; letter-spacing:0.3px;">🚚 ${i.shipment}</b>
-                        <span style="font-size:11px; padding:4px 8px; border-radius:999px; background:${i.diff <= 1 ? '#dc2626' : '#f59e0b'}; color:white; font-weight:600;">H${i.diff === 1 ? 'BESOK' : 'H-' + i.diff}</span>
-                    </div>
-                    <div style="margin-top:6px; font-size:12px; color:#cbd5e1;">📦 Estimasi: <b style="color:#fff">${i.estimasi}</b></div>
-                    <div style="margin-top:4px; font-size:12px; color:#cbd5e1;">📍 Tujuan: <b style="color:#fff">${i.tujuan}</b></div>
-                    <div style="margin-top:4px; font-size:11px; color:#94a3b8;">Klik untuk lihat detail shipment →</div>
-                </div>`;
-            });
+                    if (alertList.length === 0) {
+                        $('#alertControlList').html('<div class="p-2" style="color:#22c55e;">✅ Tidak ada shipment yang lewat estimasi tiba</div>');
+                        return;
+                    }
 
-        $('#notifContent').html(html);
+                    // urutkan dari yang paling lama lewat estimasinya
+                    alertList.sort(function(a, b) { return a.estimasi.localeCompare(b.estimasi); });
 
-        if (notif.length > 0 && showPopup && !notifShown) {
-            notifShown = true;
-            $('#notifBox').stop(true,true).fadeIn();
-            clearTimeout(notifTimer);
-            notifTimer = setTimeout(() => {
-                $('#notifBox').fadeOut(300);
-                notifShown = false;
-            }, 5000);
-        }
-    }
+                    let html = alertList.map(function(a) {
+                        let sev = a.emptyCount === 2 ? 'red' : 'orange';
+                        let estimasiInfo = a.estimasi ? (' • Estimasi ' + a.estimasi) : '';
+                        return '' +
+                            '<div class="alert-item" data-id="' + a.id + '">' +
+                                '<div class="alert-top">' +
+                                    '<b>🚚 ' + a.shipment + '</b>' +
+                                    '<span class="badge ' + sev + '">' + a.emptyCount + ' kosong</span>' +
+                                '</div>' +
+                                '<div class="alert-missing">Belum diisi: ' + a.missing.join(', ') + estimasiInfo + '</div>' +
+                            '</div>';
+                    }).join('');
 
-    // Filter list notifikasi berdasarkan keyup (Typo 'renderNotisfList' diperbaiki di sini)
-    $('#notifSearch').on('keyup', function () {
-        renderNotifList($(this).val(), false);
-    });
+                    $('#alertControlList').html(html);
+                }
 
-    // Event klik list notif untuk filter DataTable
-    $(document).on('click', '.notif-item', function () {
-        $('#notifBox').fadeOut(200);
-        let shipment = String($(this).data('shipment') || '');
-        table.search('').columns().search('');
-        table.column(4).search('^' + shipment + '$', true, false).draw();
-    });
+                // Klik item alert -> lompat & highlight row terkait di tabel
+                $(document).on('click', '.alert-item', function() {
+                    let id = $(this).data('id');
+                    table.search('').columns().search('').draw();
 
-    // Fungsi Save Row Ajax
-    function saveRow(id) {
-        let row = $('tr[data-id="' + id + '"]');
-        $.ajax({
-            url: '/monitoring/update/' + id,
-            type: 'POST',
-            data: {
-                _token: '{{ csrf_token() }}',
-                _method: 'PUT',
-                pic_monitoring: row.find('[name="pic_monitoring"]').val(),
-                status_kendaraan: row.find('[name="status_kendaraan"]').val(),
-                action_required: row.find('[name="action_required"]').val(),
-                act_urutan_bongkar: row.find('[name="act_urutan_bongkar"]').val(),
-                tanggal_tiba: row.find('[name="tanggal_tiba"]').val(),
-                tanggal_bongkar: row.find('[name="tanggal_bongkar"]').val(),
-                reason_tiba: row.find('[name="reason_tiba"]').val(),
-                reason_bongkar: row.find('[name="reason_bongkar"]').val(),
-                remarks: row.find('[name="remarks"]').val(),
-                act_pgi_date: row.find('[name="act_pgi_date"]').val(),
-                total_do_qty_car: row.find('[name="total_do_qty_car"]').val(),
-                    qty_monitoring: row.find('[name="qty_monitoring"]').val(),
-    selisih_qty: row.find('[name="selisih_qty"]').val(),
-    remarks_qty: row.find('[name="remarks_qty"]').val(),
-            },
-            beforeSend: function() {
-                row.find('.save-btn').prop('disabled', true).text('Saving...');
-                row.find('.save-status').html('⏳ Saving...');
-            },
-            success: function(response) {
-                row.find('.save-btn').prop('disabled', false).text('SAVE');
-                row.find('.save-status').html('✅ Saved');
-                setTimeout(function() { row.find('.save-status').html(''); }, 2000);
-            },
-            error: function(xhr) {
-                row.find('.save-btn').prop('disabled', false).text('SAVE');
-                row.find('.save-status').html('❌ Error');
-            }
-        });
-    }
+                    setTimeout(function() {
+                        let $row = $('tr[data-id="' + id + '"]');
+                        if ($row.length) {
+                            $row.addClass('highlight-row');
+                            $row.get(0).scrollIntoView({ behavior: 'smooth', block: 'center' });
+                            setTimeout(function() { $row.removeClass('highlight-row'); }, 2000);
+                        }
+                    }, 150);
+                });
 
-    // Auto Save saat input berubah
-    $(document).on('change', '#tableMonitoring input, #tableMonitoring select', function() {
-        let row = $(this).closest('tr');
-        let id = row.data('id');
-        clearTimeout(saveTimer);
-        saveTimer = setTimeout(function() {
-            saveRow(id);
-        }, 500);
-    });
-    $(document).on('input', '[name="total_do_qty_car"], [name="qty_monitoring"]', function () {
+                function showToastMsg(msg) {
+                    let toast = $(
+                        '<div class="toast"><strong>Perhatian</strong>' + msg + '</div>'
+                    );
+                    $('#toastContainer').append(toast);
+                    setTimeout(function() {
+                        toast.fadeOut(400, function() { toast.remove(); });
+                    }, 6000);
+                }
 
-    let row = $(this).closest('tr');
+                function saveRow(id) {
+                    let row = $('tr[data-id="' + id + '"]');
+                    $.ajax({
+                        url: '/monitoring/update/' + id,
+                        type: 'POST',
+                        data: {
+                            _token: '{{ csrf_token() }}',
+                            _method: 'PUT',
+                            pic_monitoring: row.find('[name="pic_monitoring"]').val(),
+                            status_kendaraan: row.find('[name="status_kendaraan"]').val(),
+                            action_required: row.find('[name="action_required"]').val(),
+                            act_urutan_bongkar: row.find('[name="act_urutan_bongkar"]').val(),
+                            tanggal_tiba: row.find('[name="tanggal_tiba"]').val(),
+                            tanggal_bongkar: row.find('[name="tanggal_bongkar"]').val(),
+                            reason_tiba: row.find('[name="reason_tiba"]').val(),
+                            reason_bongkar: row.find('[name="reason_bongkar"]').val(),
+                            remarks_qty: row.find('[name="remarks_qty"]').val(),
+                            remarks: row.find('[name="remarks"]').val(),
+                            act_pgi_date: row.find('[name="act_pgi_date"]').val(),
+                            total_do_qty_car: row.find('[name="total_do_qty_car"]').val(),
+                            qty_monitoring: row.find('[name="qty_monitoring"]').val(),
+                            selisih_qty: row.find('[name="selisih_qty"]').val(),
+                            biaya_kuli: row.find('[name="biaya_kuli"]').val(),
+                        },
+                        beforeSend: function() {
+                            row.find('.save-btn').prop('disabled', true).text('Saving...');
+                            row.find('.save-status').html('⏳ Saving...');
+                        },
+                        success: function(response) {
+                            row.find('.save-btn').prop('disabled', false).text('SAVE');
+                            row.find('.save-status').html('✅ Saved');
+                            setTimeout(function() { row.find('.save-status').html(''); }, 2000);
+                        },
+                        error: function(xhr) {
+                            row.find('.save-btn').prop('disabled', false).text('SAVE');
+                            row.find('.save-status').html('❌ Error');
+                        }
+                    });
+                }
 
-    let total = parseFloat(row.find('[name="total_do_qty_car"]').val()) || 0;
-    let qty   = parseFloat(row.find('[name="qty_monitoring"]').val()) || 0;
+                // Auto-save saat input berubah
+                $(document).on('change', '#tableMonitoring input, #tableMonitoring select', function() {
+                    let row = $(this).closest('tr');
+                    let id = row.data('id');
+                    clearTimeout(saveTimer);
+                    saveTimer = setTimeout(function() {
+                        saveRow(id);
+                    }, 500);
+                });
 
-    row.find('[name="selisih_qty"]').val(total - qty);
+                function initReasonSelect() {
+                    $('.searchable-select').each(function() {
+                        if ($(this).hasClass('select2-hidden-accessible')) {
+                            $(this).select2('destroy');
+                        }
+                        $(this).select2({
+                            width: 'resolve',
+                            placeholder: 'Pilih Reason',
+                            allowClear: true
+                        });
+                    });
+                }
+            </script>
 
-});
+        </div>
+    </div>
 
-    // Fungsi warna input tanggal kosong/berisi
-    function updateDateColor() {
-        $('#tableMonitoring input[type="date"], #tableMonitoring input[type="datetime-local"]').each(function() {
-            if ($(this).val() && $(this).val().trim() !== '') {
-                $(this).removeClass('input-empty').addClass('input-filled');
-            } else {
-                $(this).removeClass('input-filled').addClass('input-empty');
-            }
-        });
-    }
-
-    $(document).on('change', '#tableMonitoring input[type="date"], #tableMonitoring input[type="datetime-local"]', function() {
-        updateDateColor();
-    });
-
-    // Re-init Select2 pada kolom Reason setiap kali Table di-render ulang (pagination / sorting)
-    function initReasonSelect() {
-        $('.searchable-select').each(function () {
-            if ($(this).hasClass('select2-hidden-accessible')) {
-                $(this).select2('destroy');
-            }
-            $(this).select2({
-                width: 'resolve',
-                placeholder: 'Pilih Reason',
-                allowClear: true
-            });
-        });
-    }
-
-    $(document).ready(function () {
-        initReasonSelect();
-        table.on('draw.dt', function () {
-            initReasonSelect();
-        });
-    });
-</script>
-
+</body>
 </html>
-
-<!-- $leadtime = (int) $r->transport_lead_time;
-
-$estimasi = $keluar
-    ? strtotime("+{$leadtime} days", $keluar)
-    : null; -->
-
-    <!--  $leadtime = (int) $r->transport_lead_time;
-
-// Ambil jumlah tanggal tiba unik untuk shipment yang sama
-$adaYangSudahTiba = DB::table('logistik_pengiriman')
-    ->where('no_shipment', $r->no_shipment)
-    ->whereNotNull('tanggal_tiba')
-    ->exists();
-
-// Kalau baris ini sendiri sudah tiba,
-// pakai leadtime normal
-if ($r->tanggal_tiba) {
-
-    $leadtimeFinal = $leadtime;
-
-} else {
-
-    $leadtimeFinal = $leadtime + $adaYangSudahTiba;
-}
-
-$estimasi = $keluar
-    ? strtotime("+{$leadtimeFinal} days", $keluar)
-    : null; -->
-    <!-- $leadtime = (int) $r->transport_lead_time;
-
-// cek apakah shipment sudah pernah “shift”
-$shifted = DB::table('logistik_pengiriman')
-    ->where('no_shipment', $r->no_shipment)
-    ->whereNotNull('tanggal_tiba')
-    ->exists();
-
-/*
-    LOGIC FIX:
-    - pertama kali belum ada shift → normal
-    - setelah ada input pertama → shift +1 TETAP
-    - tidak reset walaupun input ke-2 / ke-3 masuk
-*/
-
-$leadtimeFinal = $leadtime;
-
-if ($shifted) {
-    $leadtimeFinal = $leadtime + 1;
-}
-
-$estimasi = $keluar
-    ? strtotime("+{$leadtimeFinal} days", $keluar)
-    : null;
- -->
-
-
- <!-- 
-$leadtime = (int) $r->transport_lead_time;
-
-// hitung berapa STEP yang sudah “terisi sebelum baris ini”
-$shift = DB::table('logistik_pengiriman')
-    ->where('no_shipment', $r->no_shipment)
-    ->whereNotNull('tanggal_tiba');
-
-if (!is_null($r->act_urutan_bongkar)) {
-    $shift->where('act_urutan_bongkar', '<', $r->act_urutan_bongkar);
-}
-
-$shift = $shift->count();
-
-$leadtimeFinal = $leadtime + $shift;
-
-$estimasi = $keluar
-    ? strtotime("+{$leadtimeFinal} days", $keluar)
-    : null;
- -->

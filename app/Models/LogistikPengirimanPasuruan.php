@@ -73,6 +73,8 @@ class LogistikPengirimanPasuruan extends Model
     'via_kirim_pasuruan',
     'shipping_point_pasuruan',
     'total_do_pasuruan',
+    'biaya_kuli_pasuruan',
+    'total_biaya_kuli_pasuruan',
 
     'ketersediaan_unit_pasuruan',
     'mobil_pasuruan',
@@ -127,6 +129,8 @@ class LogistikPengirimanPasuruan extends Model
     'remarks_qty_pasuruan',
     'selisih_qty_pasuruan',
     'reason_waktu_bongkar_pasuruan',
+    'biaya_kuli_pasuruan',
+    'total_biaya_kuli_pasuruaun',
     'remarks_pasuruan',
 
 

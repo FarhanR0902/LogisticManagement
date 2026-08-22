@@ -919,11 +919,11 @@ tbody tr:last-child td{ border-bottom:none; }
         <span><i style="background:#e11d48;"></i> Nilai muatan tinggi</span>
     </div>
 
-    <p class="map-note">
-        Angka di setiap lingkaran = total nilai muatan (Rp, format ringkas) dari area tersebut.
-        Klik lingkaran untuk lihat detail lengkap (jumlah shipment, nilai muatan, biaya kirim).
-        Koordinat diambil per area di variabel <code>koordinatAreaPasuruan</code>.
-    </p>
+        <!-- <p class="map-note">
+            Angka di setiap lingkaran = total nilai muatan (Rp, format ringkas) dari area tersebut.
+            Klik lingkaran untuk lihat detail lengkap (jumlah shipment, nilai muatan, biaya kirim).
+            Koordinat diambil per area di variabel <code>koordinatAreaPasuruan</code>.
+        </p> -->
 
     <div id="mapDebugBox" style="margin-top:14px;"></div>
 </div>

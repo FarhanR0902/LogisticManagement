@@ -7,8 +7,10 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use App\Models\LogistikPengiriman;
 use App\Models\LogistikPengirimanPasuruan;
+use App\Models\TarifPengiriman;
 use Maatwebsite\Excel\Facades\Excel;
 use App\Exports\PlannerExport;
+use App\Models\TujuanFilter;
 use App\Imports\PasuruanImport;
 use App\Exports\PasuruanExport;
 class SpvPlannerController extends Controller
@@ -168,6 +170,145 @@ public function importPasuruan(Request $request)
     return redirect()
     ->route('spvplanner.data.pasuruan')
     ->with('success', 'Data logistik Pasuruan berhasil diimport.');
+}
+
+public function tarifIndex(Request $request)
+{
+    if (!auth()->check() || auth()->user()->role !== 'spvplanner') {
+        abort(403, 'Anda tidak memiliki akses ke halaman ini.');
+    }
+
+    $query = TarifPengiriman::query();
+
+ if ($request->filled('search')) {
+
+    $search = $request->search;
+
+    $query->where(function ($q) use ($search) {
+
+        $q->where('Div', 'like', "%{$search}%")
+            ->orWhere('customer_id', 'like', "%{$search}%")
+            ->orWhere('tujuan', 'like', "%{$search}%")
+            ->orWhere('dist_channel', 'like', "%{$search}%")
+            ->orWhere('pulau', 'like', "%{$search}%")
+            ->orWhere('area', 'like', "%{$search}%")
+            ->orWhere('Planner', 'like', "%{$search}%")
+            ->orWhere('Monitoring', 'like', "%{$search}%")
+            ->orWhere('biaya_kuli', 'like', "%{$search}%")
+            ->orWhere('transport_lead_time', 'like', "%{$search}%");
+
+    });
+}
+
+    $data = $query
+        ->orderByDesc('id')
+        ->paginate(20)
+        ->withQueryString();
+
+    return view('spvplanner.tarif_pengiriman.index', compact('data'));
+}
+
+public function tarifCreate()
+{
+    if (!auth()->check() || auth()->user()->role !== 'spvplanner') {
+        abort(403, 'Anda tidak memiliki akses ke halaman ini.');
+    }
+
+    return view('spvplanner.tarif_pengiriman.create');
+}
+
+public function tarifStore(Request $request)
+{
+    if (!auth()->check() || auth()->user()->role !== 'spvplanner') {
+        abort(403, 'Anda tidak memiliki akses ke halaman ini.');
+    }
+
+    $validated = $request->validate([
+        'servc_agent' => 'nullable|string|max:10',
+        'ekpedisi' => 'nullable|string|max:100',
+        'sh' => 'nullable|string|max:10',
+        'mobil' => 'nullable|string|max:50',
+        'routew' => 'nullable|string|max:20',
+        'route' => 'nullable|string|max:100',
+        'biaya_kirim' => 'nullable|string|max:30',
+        'unit' => 'nullable|string|max:10',
+        'per' => 'nullable|string|max:10',
+        'uom' => 'nullable|string|max:10',
+        'd' => 'nullable|string|max:10',
+        'tx' => 'nullable|string|max:10',
+        'e' => 'nullable|string|max:10',
+        's_1' => 'nullable|string|max:10',
+        's_2' => 'nullable|string|max:10',
+        'valid_from' => 'nullable|string|max:20',
+        'valid_to' => 'nullable|string|max:20',
+    ]);
+
+    TarifPengiriman::create($validated);
+
+    return redirect()
+        ->route('spvplanner.tarif.index')
+        ->with('success', 'Data tarif berhasil ditambahkan.');
+}
+
+public function tarifEdit($id)
+{
+    if (!auth()->check() || auth()->user()->role !== 'spvplanner') {
+        abort(403, 'Anda tidak memiliki akses ke halaman ini.');
+    }
+
+    $data = TarifPengiriman::findOrFail($id);
+
+    return view('spvplanner.tarif_pengiriman.edit', compact('data'));
+}
+
+public function tarifUpdate(Request $request, $id)
+{
+    if (!auth()->check() || auth()->user()->role !== 'spvplanner') {
+        abort(403, 'Anda tidak memiliki akses ke halaman ini.');
+    }
+
+    $data = TarifPengiriman::findOrFail($id);
+
+    $validated = $request->validate([
+        'servc_agent' => 'nullable|string|max:10',
+        'ekpedisi' => 'nullable|string|max:100',
+        'sh' => 'nullable|string|max:10',
+        'mobil' => 'nullable|string|max:50',
+        'routew' => 'nullable|string|max:20',
+        'route' => 'nullable|string|max:100',
+        'biaya_kirim' => 'nullable|string|max:30',
+        'unit' => 'nullable|string|max:10',
+        'per' => 'nullable|string|max:10',
+        'uom' => 'nullable|string|max:10',
+        'd' => 'nullable|string|max:10',
+        'tx' => 'nullable|string|max:10',
+        'e' => 'nullable|string|max:10',
+        's_1' => 'nullable|string|max:10',
+        's_2' => 'nullable|string|max:10',
+        'valid_from' => 'nullable|string|max:20',
+        'valid_to' => 'nullable|string|max:20',
+    ]);
+
+    $data->update($validated);
+
+    return redirect()
+        ->route('spvplanner.tarif.index')
+        ->with('success', 'Data tarif berhasil diperbarui.');
+}
+
+public function tarifDestroy($id)
+{
+    if (!auth()->check() || auth()->user()->role !== 'spvplanner') {
+        abort(403, 'Anda tidak memiliki akses ke halaman ini.');
+    }
+
+    $data = TarifPengiriman::findOrFail($id);
+
+    $data->delete();
+
+    return redirect()
+        ->route('spvplanner.tarif.index')
+        ->with('success', 'Data tarif berhasil dihapus.');
 }
 
 public function exportPasuruan()
@@ -482,7 +623,7 @@ public function dataLogistikPasuruan()
 
 
 
-public function Fulldashboard(Request $request)
+ public function Fulldashboard(Request $request)
 {
 
     // ================= BASE QUERY =================
@@ -817,6 +958,10 @@ public function Fulldashboard(Request $request)
 public function store(Request $request)
 {
 
+$request->merge([
+        // 'rencana_kirim' => $this->hitungRencanaKirim($request)
+    ]);
+
   
     $rumus = $this->hitungSla($request);
 
@@ -941,6 +1086,35 @@ $belum_armada = $shipments->filter(function ($row) {
         'summary_area'
     ));
 }
+
+
+
+public function archive()
+{
+    DB::transaction(function () {
+
+        $data = DB::table('logistik_pengiriman_pasuruan')->get();
+
+        // Kalau tidak ada data, tidak melakukan apa-apa
+        if ($data->isEmpty()) {
+            return;
+        }
+
+        // Pindahkan data ke storage
+        DB::table('logistik_pengiriman_pasuruan_storage')
+            ->insert(
+                $data->map(fn ($row) => (array) $row)->toArray()
+            );
+
+        // Hapus data dari tabel utama setelah berhasil masuk storage
+        DB::table('logistik_pengiriman_pasuruan')->delete();
+    });
+
+    return redirect()
+        ->route('spvplanner.data.pasuruan')
+        ->with('success', 'Semua data berhasil dipindahkan ke Storage.');
+}
+
 
 // public function update(Request $request, $id)
 // {
@@ -1270,179 +1444,371 @@ $belum_armada = $shipments->filter(function ($row) {
 
 
 
-public function update(Request $request, $id)
-{
-    // ==========================
-    // Ambil data lama
-    // ==========================
-    $old = DB::table('logistik_pengiriman')
-        ->where('id', $id)
-        ->first();
+// public function update(Request $request, $id)
+// {
 
-    if (!$old) {
-        return back()->with('error', 'Data tidak ditemukan');
-    }
+// $request->merge([
+//         // 'rencana_kirim' => $this->hitungRencanaKirim($request)
+//     ]);
+//     // ==========================
+//     // Ambil data lama
+//     // ==========================
+//     $old = DB::table('logistik_pengiriman')
+//         ->where('id', $id)
+//         ->first();
 
-    // Area tetap dari database
-    // $request->merge([
-    //     'area' => $old->area
-    // ]);
+//     if (!$old) {
+//         return back()->with('error', 'Data tidak ditemukan');
+//     }
 
-    // ==========================
-    // Hitung Estimasi Tiba
-    // ==========================
-    $keluar = collect([
-        $request->tanggal_keluar_gudang,
-        $request->tanggal_keluar_gudang_2,
-        $request->tanggal_keluar_gudang_3,
-    ])
-    ->filter()
-    ->map(fn($v) => strtotime($v))
-    ->max();
+//     // Area tetap dari database
+//     // $request->merge([
+//     //     'area' => $old->area
+//     // ]);
 
-    if ($keluar && $request->transport_lead_time) {
+//     // ==========================
+//     // Hitung Estimasi Tiba
+//     // ==========================
+//     $keluar = collect([
+//         $request->tanggal_keluar_gudang,
+//         $request->tanggal_keluar_gudang_2,
+//         $request->tanggal_keluar_gudang_3,
+//     ])
+//     ->filter()
+//     ->map(fn($v) => strtotime($v))
+//     ->max();
 
-        $request->merge([
-            'estimasi_tiba' => date(
-                'Y-m-d',
-                strtotime(
-                    '+' . (int)$request->transport_lead_time . ' days',
-                    $keluar
-                )
-            )
-        ]);
-    }
+//     if ($keluar && $request->transport_lead_time) {
 
-    // ==========================
-    // Hitung SLA
-    // ==========================
-    $rumus = $this->hitungSla($request);
+//         $request->merge([
+//             'estimasi_tiba' => date(
+//                 'Y-m-d',
+//                 strtotime(
+//                     '+' . (int)$request->transport_lead_time . ' days',
+//                     $keluar
+//                 )
+//             )
+//         ]);
+//     }
 
-    $oldNoShipment = $old->no_shipment;
-    $newNoShipment = $request->no_shipment;
+//     // ==========================
+//     // Hitung SLA
+//     // ==========================
+//     $rumus = $this->hitungSla($request);
 
-    // ====================================================
-    // UPDATE SEMUA ROW YANG NO SHIPMENT SAMA
-    // ====================================================
+//     $oldNoShipment = $old->no_shipment;
+//     $newNoShipment = $request->no_shipment;
 
-    $updateShipment = [
+//     // ====================================================
+//     // UPDATE SEMUA ROW YANG NO SHIPMENT SAMA
+//     // ====================================================
 
-        'estimasi_tiba'         => $request->estimasi_tiba,
-        'tanggal_naik_logistik' => $request->tanggal_naik_logistik,
-        'rencana_kirim'         => $request->rencana_kirim,
-        'transport_lead_time'   => $request->transport_lead_time,
-        'planner'               => $request->planner,
-        'no_shipment'           => $newNoShipment,
+//     $updateShipment = [
+
+//         'estimasi_tiba'         => $request->estimasi_tiba,
+//         'tanggal_naik_logistik' => $request->tanggal_naik_logistik,
+//         'rencana_kirim'         => $request->rencana_kirim,
+//         'transport_lead_time'   => $request->transport_lead_time,
+//         'planner'               => $request->planner,
+//         'no_shipment'           => $newNoShipment,
         
-        'perubahan_mobil'       => $request->perubahan_mobil,
-        'kategori_ekspedisi'    => $request->kategori_ekspedisi,
-        'keterangan'            => $request->keterangan,
-         'ekpedisi'    => $request->ekpedisi,
-          'mobil'    => $request->mobil,
-        'tanggal_dpt_unit'      => $request->tanggal_dpt_unit,
+//         'perubahan_mobil'       => $request->perubahan_mobil,
+//         'kategori_ekspedisi'    => $request->kategori_ekspedisi,
+//         'keterangan'            => $request->keterangan,
+//          'ekpedisi'    => $request->ekpedisi,
+//           'mobil'    => $request->mobil,
+//         'tanggal_dpt_unit'      => $request->tanggal_dpt_unit,
 
-        'planning_loading'      => $request->planning_loading,
-        'tanggal_tiba_gudang'   => $request->tanggal_tiba_gudang,
-        'tanggal_keluar_gudang' => $request->tanggal_keluar_gudang,
-        'area' => $request->area,
-        'via_kirim' => $request->via_kirim,
+//         'planning_loading'      => $request->planning_loading,
+//         'tanggal_tiba_gudang'   => $request->tanggal_tiba_gudang,
+//         'tanggal_keluar_gudang' => $request->tanggal_keluar_gudang,
+//         'area' => $request->area,
+//         'via_kirim' => $request->via_kirim,
 
-        'planning_loading_2'      => $request->planning_loading_2,
-        'tanggal_tiba_gudang_2'   => $request->tanggal_tiba_gudang_2,
-        'tanggal_keluar_gudang_2' => $request->tanggal_keluar_gudang_2,
+//         'planning_loading_2'      => $request->planning_loading_2,
+//         'tanggal_tiba_gudang_2'   => $request->tanggal_tiba_gudang_2,
+//         'tanggal_keluar_gudang_2' => $request->tanggal_keluar_gudang_2,
 
-        'planning_loading_3'      => $request->planning_loading_3,
-        'tanggal_tiba_gudang_3'   => $request->tanggal_tiba_gudang_3,
-        'tanggal_keluar_gudang_3' => $request->tanggal_keluar_gudang_3,
-          'nama_driver' => $request->nama_driver,
-            'no_pol' => $request->no_pol,
-            // 'total_do_qty_car' => $request->total_do_qty_car,
+//         'planning_loading_3'      => $request->planning_loading_3,
+//         'tanggal_tiba_gudang_3'   => $request->tanggal_tiba_gudang_3,
+//         'tanggal_keluar_gudang_3' => $request->tanggal_keluar_gudang_3,
+//           'nama_driver' => $request->nama_driver,
+//             'no_pol' => $request->no_pol,
+//             // 'total_do_qty_car' => $request->total_do_qty_car,
 
-        'dist_channel' => $request->dist_channel,
+//         'dist_channel' => $request->dist_channel,
 
-        'lama_waktu_pencarian' => $rumus['lama_waktu_pencarian'] ?? null,
-        'sla_dapat_mobil'      => $rumus['sla_dapat_mobil'] ?? null,
-        'status_pengiriman'    => $rumus['status_pengiriman'] ?? null,
+//         'lama_waktu_pencarian' => $rumus['lama_waktu_pencarian'] ?? null,
+//         'sla_dapat_mobil'      => $rumus['sla_dapat_mobil'] ?? null,
+//         'status_pengiriman'    => $rumus['status_pengiriman'] ?? null,
 
-        'lama_digudang' => $rumus['lama_digudang'] ?? null,
-        'status_gudang' => $rumus['status_gudang'] ?? null,
-        'sla_loading'   => $rumus['sla_loading'] ?? null,
+//         'lama_digudang' => $rumus['lama_digudang'] ?? null,
+//         'status_gudang' => $rumus['status_gudang'] ?? null,
+//         'sla_loading'   => $rumus['sla_loading'] ?? null,
 
-        'lama_digudang_2' => $rumus['lama_digudang_2'] ?? null,
-        'status_gudang_2' => $rumus['status_gudang_2'] ?? null,
-        'sla_loading_2'   => $rumus['sla_loading_2'] ?? null,
+//         'lama_digudang_2' => $rumus['lama_digudang_2'] ?? null,
+//         'status_gudang_2' => $rumus['status_gudang_2'] ?? null,
+//         'sla_loading_2'   => $rumus['sla_loading_2'] ?? null,
 
-        'lama_digudang_3' => $rumus['lama_digudang_3'] ?? null,
-        'status_gudang_3' => $rumus['status_gudang_3'] ?? null,
-        'sla_loading_3'   => $rumus['sla_loading_3'] ?? null,
+//         'lama_digudang_3' => $rumus['lama_digudang_3'] ?? null,
+//         'status_gudang_3' => $rumus['status_gudang_3'] ?? null,
+//         'sla_loading_3'   => $rumus['sla_loading_3'] ?? null,
         
-        'updated_at' => now(),
-    ];
+//         'updated_at' => now(),
+//     ];
     
 
-    DB::table('logistik_pengiriman')
-        ->where(function ($q) use ($oldNoShipment, $newNoShipment) {
-            $q->where('no_shipment', $oldNoShipment)
-              ->orWhere('no_shipment', $newNoShipment);
-        })
-        ->update($updateShipment);
+//     DB::table('logistik_pengiriman')
+//         ->where(function ($q) use ($oldNoShipment, $newNoShipment) {
+//             $q->where('no_shipment', $oldNoShipment)
+//               ->orWhere('no_shipment', $newNoShipment);
+//         })
+//         ->update($updateShipment);
 
-    // ====================================================
-    // UPDATE HANYA ROW YANG DIKLIK
-    // ====================================================
+//     // ====================================================
+//     // UPDATE HANYA ROW YANG DIKLIK
+//     // ====================================================
 
-    $updateRow = [
+//     $updateRow = [
 
-        'tujuan' => $request->tujuan,
-        'route'  => $request->route,
-        'pulau'  => $request->pulau,
-        'total_do_qty_car' => $request->total_do_qty_car,
+//         'tujuan' => $request->tujuan,
+//         'route'  => $request->route,
+//         'pulau'  => $request->pulau,
+//         'total_do_qty_car' => $request->total_do_qty_car,
 
-        'mobil'      => $request->mobil,
-        'ekpedisi'   => $request->ekpedisi,
-        'via_kirim'  => $request->via_kirim,
+//         'mobil'      => $request->mobil,
+//         'ekpedisi'   => $request->ekpedisi,
+//         'via_kirim'  => $request->via_kirim,
 
-        // kalau memang area mau ikut bisa pakai ini
-        // kalau tidak, hapus baris di bawah
-        'area' => $request->area,
+//         // kalau memang area mau ikut bisa pakai ini
+//         // kalau tidak, hapus baris di bawah
+//         'area' => $request->area,
 
-      'nilai_muatan' => $this->cleanMoney($request->nilai_muatan),
-'biaya_kirim'  => $this->cleanMoney($request->biaya_kirim),
+//       'nilai_muatan' => $this->cleanMoney($request->nilai_muatan),
+// 'biaya_kirim'  => $this->cleanMoney($request->biaya_kirim),
 
-        'updated_at' => now(),
-    ];
+//         'updated_at' => now(),
+//     ];
 
-    DB::table('logistik_pengiriman')
-        ->where('id', $id)
-        ->update($updateRow);
-$shipment = $newNoShipment ?: $oldNoShipment;
+//     DB::table('logistik_pengiriman')
+//         ->where('id', $id)
+//         ->update($updateRow);
+// $shipment = $newNoShipment ?: $oldNoShipment;
 
-$rows = DB::table('logistik_pengiriman')
-    ->where('no_shipment', $shipment)
-    ->get();
+// $rows = DB::table('logistik_pengiriman')
+//     ->where('no_shipment', $shipment)
+//     ->get();
 
-$totalMuatan = $rows->sum(function ($r) {
-    return (float) $r->nilai_muatan;
-});
+// $totalMuatan = $rows->sum(function ($r) {
+//     return (float) $r->nilai_muatan;
+// });
 
-$totalBiaya = $rows->max(function ($r) {
-    return (float) $r->biaya_kirim;
-});
+// $totalBiaya = $rows->max(function ($r) {
+//     return (float) $r->biaya_kirim;
+// });
 
-$cr = 0;
+// $cr = 0;
 
-if ($totalMuatan > 0) {
-    $cr = round(($totalBiaya / $totalMuatan) * 100, 4);
-}
+// if ($totalMuatan > 0) {
+//     $cr = round(($totalBiaya / $totalMuatan) * 100, 4);
+// }
 
-DB::table('logistik_pengiriman')
-    ->where('no_shipment', $shipment)
-    ->update([
-        'cr' => $cr
-    ]);
+// DB::table('logistik_pengiriman')
+//     ->where('no_shipment', $shipment)
+//     ->update([
+//         'cr' => $cr
+//     ]);
 
-    return back()->with('success', 'Data berhasil diperbarui');
-}
+//     return back()->with('success', 'Data berhasil diperbarui');
+// }
+
+
+ public function update(Request $request, $id)
+    {
+        // ==========================
+        // Ambil data lama
+        // ==========================
+        $old = DB::table('logistik_pengiriman')
+            ->where('id', $id)
+            ->first();
+
+        if (!$old) {
+            return back()->with('error', 'Data tidak ditemukan');
+        }
+
+        // ==========================
+        // Hitung Estimasi Tiba (FIX: pakai blocked-check,
+        // supaya konsisten dengan logic di MonitoringController)
+        // ==========================
+        $gudangInfo = $this->getKeluarGudangInfoRequest($request);
+        $keluar  = $gudangInfo['keluar'];
+        $blocked = $gudangInfo['blocked'];
+
+        if (!$blocked && $keluar && $request->transport_lead_time) {
+
+            $request->merge([
+                'estimasi_tiba' => date(
+                    'Y-m-d',
+                    strtotime(
+                        '+' . (int) $request->transport_lead_time . ' days',
+                        $keluar
+                    )
+                )
+            ]);
+        } else {
+            // masih ada siklus gudang yang "ngegantung" (belum keluar)
+            // -> jangan hitung estimasi dulu
+            $request->merge(['estimasi_tiba' => null]);
+        }
+
+        // ==========================
+        // Hitung SLA
+        // ==========================
+        $rumus = $this->hitungSla($request);
+
+        $oldNoShipment = $old->no_shipment;
+        $newNoShipment = $request->no_shipment;
+        $shipment      = $newNoShipment ?: $oldNoShipment;
+
+        // ====================================================
+        // 1. UPDATE FIELD YANG SHARED UNTUK SEMUA ROW SESHIPMENT
+        // ====================================================
+        $updateShipment = [
+
+            'estimasi_tiba'         => $request->estimasi_tiba,
+            'tanggal_naik_logistik' => $request->tanggal_naik_logistik,
+            'rencana_kirim'         => $request->rencana_kirim,
+            'transport_lead_time'   => $request->transport_lead_time,
+            'planner'               => $request->planner,
+            'no_shipment'           => $newNoShipment,
+
+            'perubahan_mobil'       => $request->perubahan_mobil,
+            'kategori_ekspedisi'    => $request->kategori_ekspedisi,
+            'keterangan'            => $request->keterangan,
+
+            'ekpedisi'              => $request->ekpedisi,
+            'mobil'                 => $request->mobil,
+            'route'                 => $request->route,
+
+            'tanggal_dpt_unit'      => $request->tanggal_dpt_unit,
+
+            'planning_loading'      => $request->planning_loading,
+            'tanggal_tiba_gudang'   => $request->tanggal_tiba_gudang,
+            'tanggal_keluar_gudang' => $request->tanggal_keluar_gudang,
+            'area'                  => $request->area,
+            'via_kirim'             => $request->via_kirim,
+
+            'planning_loading_2'      => $request->planning_loading_2,
+            'tanggal_tiba_gudang_2'   => $request->tanggal_tiba_gudang_2,
+            'tanggal_keluar_gudang_2' => $request->tanggal_keluar_gudang_2,
+
+            'planning_loading_3'      => $request->planning_loading_3,
+            'tanggal_tiba_gudang_3'   => $request->tanggal_tiba_gudang_3,
+            'tanggal_keluar_gudang_3' => $request->tanggal_keluar_gudang_3,
+
+            'nama_driver' => $request->nama_driver,
+            'no_pol'      => $request->no_pol,
+
+            'dist_channel' => $request->dist_channel,
+
+            'lama_waktu_pencarian' => $rumus['lama_waktu_pencarian'] ?? null,
+            'sla_dapat_mobil'      => $rumus['sla_dapat_mobil'] ?? null,
+            'status_pengiriman'    => $rumus['status_pengiriman'] ?? null,
+
+            'lama_digudang' => $rumus['lama_digudang'] ?? null,
+            'status_gudang' => $rumus['status_gudang'] ?? null,
+            'sla_loading'   => $rumus['sla_loading'] ?? null,
+
+            'lama_digudang_2' => $rumus['lama_digudang_2'] ?? null,
+            'status_gudang_2' => $rumus['status_gudang_2'] ?? null,
+            'sla_loading_2'   => $rumus['sla_loading_2'] ?? null,
+
+            'lama_digudang_3' => $rumus['lama_digudang_3'] ?? null,
+            'status_gudang_3' => $rumus['status_gudang_3'] ?? null,
+            'sla_loading_3'   => $rumus['sla_loading_3'] ?? null,
+
+            'updated_at' => now(),
+        ];
+
+        DB::table('logistik_pengiriman')
+            ->where(function ($q) use ($oldNoShipment, $newNoShipment) {
+                $q->where('no_shipment', $oldNoShipment)
+                  ->orWhere('no_shipment', $newNoShipment);
+            })
+            ->update($updateShipment);
+
+        // ====================================================
+        // 2. AUTO HITUNG BIAYA KIRIM
+        // ====================================================
+        $autoBiaya = $this->cariBiayaKirimOtomatis(
+            $request->route,
+            $request->mobil,
+            $request->ekpedisi
+        );
+
+        if ($autoBiaya !== null) {
+            DB::table('logistik_pengiriman')
+                ->where('no_shipment', $shipment)
+                ->update([
+                    'biaya_kirim' => $this->cleanMoney($autoBiaya),
+                    'updated_at'  => now(),
+                ]);
+        }
+
+        // ====================================================
+        // 3. UPDATE FIELD YANG SPESIFIK PER ROW / PER TUJUAN
+        // ====================================================
+        $updateRow = [
+            'tujuan'           => $request->tujuan,
+            'pulau'            => $request->pulau,
+            'total_do_qty_car' => $request->total_do_qty_car,
+            'nilai_muatan'     => $this->cleanMoney($request->nilai_muatan),
+            'updated_at'       => now(),
+        ];
+
+        if ($autoBiaya === null) {
+            $updateRow['biaya_kirim'] = $this->cleanMoney($request->biaya_kirim);
+        }
+
+        DB::table('logistik_pengiriman')
+            ->where('id', $id)
+            ->update($updateRow);
+
+        // ====================================================
+        // 4. HITUNG ULANG CR PER ROW (PROPORSIONAL PER TUJUAN)
+        // ====================================================
+        $rows = DB::table('logistik_pengiriman')
+            ->where('no_shipment', $shipment)
+            ->get();
+
+        $totalMuatan = $rows->sum(function ($r) {
+            return (float) $r->nilai_muatan;
+        });
+
+        $totalBiaya = $rows->max(function ($r) {
+            return (float) $r->biaya_kirim;
+        });
+
+        foreach ($rows as $r) {
+
+            $crRow = 0;
+            $nilaiMuatanRow = (float) $r->nilai_muatan;
+
+            if ($totalMuatan > 0 && $nilaiMuatanRow > 0) {
+                $kontribusi = $nilaiMuatanRow / $totalMuatan;
+                $totalCR    = ($totalBiaya / $totalMuatan) * 100;
+                $crRow      = $kontribusi * $totalCR;
+            }
+
+            DB::table('logistik_pengiriman')
+                ->where('id', $r->id)
+                ->update([
+                    'cr' => round($crRow, 4)
+                ]);
+        }
+
+        return back()->with('success', 'Data berhasil diperbarui');
+    }
 //     $updateData = [
 
 //      'estimasi_tiba' => $request->estimasi_tiba,
@@ -1534,32 +1900,69 @@ private function cleanMoney($value)
     return (int) preg_replace('/[^0-9]/', '', $value);
 }
 
-public function dataLogistik()
-{
-    $logistik = LogistikPengiriman::orderByRaw('CAST(no_shipment AS UNSIGNED) ASC')
-        ->get();
+  public function dataLogistik()
+    {
+        $logistik = LogistikPengiriman::orderByRaw('CAST(no_shipment AS UNSIGNED) ASC')
+            ->get();
 
-   $planners = LogistikPengiriman::whereNotNull('planner')
-    ->where('planner','!=','')
-    ->distinct()
-    ->orderBy('planner')
-    ->pluck('planner');
+        $planners = LogistikPengiriman::whereNotNull('planner')
+            ->where('planner', '!=', '')
+            ->distinct()
+            ->orderBy('planner')
+            ->pluck('planner');
 
-$areas = LogistikPengiriman::whereNotNull('area')
-    ->where('area','!=','')
-    ->distinct()
-    ->orderBy('area')
-    ->pluck('area');
+        $tujuanList = DB::table('tujuanfillterr')
+            ->whereNotNull('tujuan')->where('tujuan', '!=', '')
+            ->distinct()->orderBy('tujuan')->pluck('tujuan');
 
-return view(
-    'spvplanner.data_planner',
-    compact(
-        'logistik',
-        'planners',
-        'areas'
-    )
-);
-}
+        $pulauList = DB::table('tujuanfillterr')
+            ->whereNotNull('pulau')->where('pulau', '!=', '')
+            ->distinct()->orderBy('pulau')->pluck('pulau');
+
+        $areas = DB::table('tujuanfillterr')
+            ->whereNotNull('area')->where('area', '!=', '')
+            ->distinct()->orderBy('area')->pluck('area');
+
+        $distChannelList = DB::table('tujuanfillterr')
+            ->whereNotNull('dist_channel')->where('dist_channel', '!=', '')
+            ->distinct()->orderBy('dist_channel')->pluck('dist_channel');
+
+        $ekpedisiList = DB::table('tarif_pengiriman')
+            ->whereNotNull('ekpedisi')->where('ekpedisi', '!=', '')
+            ->distinct()->orderBy('ekpedisi')->pluck('ekpedisi');
+
+        $mobilList = DB::table('tarif_pengiriman')
+            ->whereNotNull('mobil')->where('mobil', '!=', '')
+            ->distinct()->orderBy('mobil')->pluck('mobil');
+
+        $routeList = DB::table('tarif_pengiriman')
+            ->whereNotNull('route')->where('route', '!=', '')
+            ->distinct()->orderBy('route')->pluck('route');
+
+        $tarifPengiriman = DB::table('tarif_pengiriman')
+            ->select('route', 'mobil', 'ekpedisi', 'biaya_kirim')
+            ->whereNotNull('route')
+            ->whereNotNull('mobil')
+            ->get();
+
+        return view(
+            'spvplanner.data_planner',
+            compact(
+                'logistik',
+                'ekpedisiList',
+                'tujuanList',
+                'mobilList',
+                'pulauList',
+                'routeList',
+                'distChannelList',
+                'planners',
+                'areas',
+                'tarifPengiriman'
+            )
+        );
+    }
+
+
 
 public function fullDataLogistik(Request $request)
 {
@@ -1826,22 +2229,13 @@ if ($start && $end) {
     );
 
     // Tentukan batas SLA
-    if ($area == 'JABODETABEK' || $area == 'JABODEBEK') {
-
-        // H+0
-        $batasHari = 0;
-
-    } elseif ($area == 'JAWA_BARAT') {
-
-        // H+1
-        $batasHari = 1;
-
-    } else {
-
-        // Semua area lainnya H+2
-        $batasHari = 2;
-
-    }
+  if ($area == 'JABODETABEK' || $area == 'JABODEBEK' || $area == 'BANTEN') {
+    $batasHari = 0;
+} elseif ($area == 'JAWA_BARAT') {
+    $batasHari = 1;
+} else {
+    $batasHari = 2;
+}
 
     if ($selisihHari > $batasHari) {
 
@@ -1940,6 +2334,19 @@ if ($request->planning_loading_3 && $request->tanggal_tiba_gudang_3) {
 
     return $data;
 }
+
+// private function hitungRencanaKirim($request)
+// {
+//     $tglNaik  = $request->tanggal_naik_logistik;
+//     $leadTime = (int) ($request->transport_lead_time ?? 0);
+
+//     if ($tglNaik && $leadTime > 0) {
+//         return date('Y-m-d', strtotime($tglNaik . " +{$leadTime} days"));
+//     }
+
+//     // tidak ada tanggal_naik_logistik atau lead time belum diisi -> pakai input manual apa adanya
+//     return $request->rencana_kirim;
+// }
 // private function hitungSla($request)
 // {
 //     $data = [
@@ -2106,46 +2513,302 @@ if ($request->planning_loading_3 && $request->tanggal_tiba_gudang_3) {
 //     return $data;
 // }
 
-public function autosaveRow(Request $request, $id)
-{
-    DB::table('logistik_pengiriman')
-        ->where('id', $id)
-        ->update([
-            'planner' => $request->planner,
-            'no_shipment' => $request->no_shipment,
-            'tanggal_naik_logistik' => $request->tanggal_naik_logistik,
-            'rencana_kirim' => $request->rencana_kirim,
-            'planning_loading' => $request->planning_loading,
-            'tanggal_tiba_gudang' => $request->tanggal_tiba_gudang,
-            'tanggal_keluar_gudang' => $request->tanggal_keluar_gudang,
-            'planning_loading_2' => $request->planning_loading_2,
-            'tanggal_tiba_gudang_2' => $request->tanggal_tiba_gudang_2,
-            'tanggal_keluar_gudang_2' => $request->tanggal_keluar_gudang_2,
-            'planning_loading_3' => $request->planning_loading_3,
-            'tanggal_tiba_gudang_3' => $request->tanggal_tiba_gudang_3,
-            'tanggal_keluar_gudang_3' => $request->tanggal_keluar_gudang_3,
-            'tujuan' => $request->tujuan,
-            'route' => $request->route,
-            'pulau' => $request->pulau,
-            'area' => $request->area,
-            'via_kirim' => $request->via_kirim,
-            'dist_channel' => $request->dist_channel,
-            'kategori_ekspedisi' => $request->kategori_ekspedisi,
-            'ekpedisi' => $request->ekpedisi,
-            'transport_lead_time' => $request->transport_lead_time,
-            'mobil' => $request->mobil,
-            'nilai_muatan' => $request->nilai_muatan,
-            'biaya_kirim' => $request->biaya_kirim,
-            'cr' => $request->cr,
-            'tanggal_dpt_unit' => $request->tanggal_dpt_unit,
-            'biaya_kirim' => $request->biaya_kirim,
-            'nilai_muatan' => $request->nilai_muatan,
-            'cr' => $request->cr,
-            'updated_at' => now(),
-        ]);
 
-    return response()->json(['success' => true]);
+ public function autosaveRow(Request $request, $id)
+    {
+        $old = DB::table('logistik_pengiriman')
+            ->where('id', $id)
+            ->first();
+
+        if (!$old) {
+            return response()->json(['success' => false, 'message' => 'Data tidak ditemukan'], 404);
+        }
+
+        $oldNoShipment = $old->no_shipment;
+        $newNoShipment = $request->no_shipment;
+        $shipment      = $newNoShipment ?: $oldNoShipment;
+
+        // ==========================
+        // HITUNG ESTIMASI TIBA (blocked-check)
+        // ==========================
+        $gudangInfo = $this->getKeluarGudangInfoRequest($request);
+        $keluar  = $gudangInfo['keluar'];
+        $blocked = $gudangInfo['blocked'];
+
+        if (!$blocked && $keluar && $request->transport_lead_time) {
+            $request->merge([
+                'estimasi_tiba' => date(
+                    'Y-m-d',
+                    strtotime('+' . (int) $request->transport_lead_time . ' days', $keluar)
+                )
+            ]);
+        } else {
+            $request->merge(['estimasi_tiba' => null]);
+        }
+
+        // ==========================
+        // HITUNG SLA (INI YANG SEBELUMNYA HILANG TOTAL)
+        // ==========================
+        $rumus = $this->hitungSla($request);
+
+        $autoBiaya = $this->cariBiayaKirimOtomatis(
+            $request->route,
+            $request->mobil,
+            $request->ekpedisi
+        );
+
+        $biayaKirim = $autoBiaya !== null
+            ? $this->cleanMoney($autoBiaya)
+            : $this->cleanMoney($request->biaya_kirim);
+
+        // ====================================================
+        // 1. UPDATE FIELD SHARED UNTUK SEMUA ROW SESHIPMENT
+        // ====================================================
+        $updateShipment = [
+            'planner'       => $request->planner,
+            'no_shipment'   => $newNoShipment,
+            'estimasi_tiba' => $request->estimasi_tiba,
+
+            'tanggal_naik_logistik' => $request->tanggal_naik_logistik,
+            'rencana_kirim'         => $request->rencana_kirim,
+            'tanggal_dpt_unit'      => $request->tanggal_dpt_unit,
+
+            'planning_loading'      => $request->planning_loading,
+            'tanggal_tiba_gudang'   => $request->tanggal_tiba_gudang,
+            'tanggal_keluar_gudang' => $request->tanggal_keluar_gudang,
+
+            'planning_loading_2'      => $request->planning_loading_2,
+            'tanggal_tiba_gudang_2'   => $request->tanggal_tiba_gudang_2,
+            'tanggal_keluar_gudang_2' => $request->tanggal_keluar_gudang_2,
+
+            'planning_loading_3'      => $request->planning_loading_3,
+            'tanggal_tiba_gudang_3'   => $request->tanggal_tiba_gudang_3,
+            'tanggal_keluar_gudang_3' => $request->tanggal_keluar_gudang_3,
+
+            'tujuan'    => $request->tujuan,
+            'route'     => $request->route,
+            'pulau'     => $request->pulau,
+            'area'      => $request->area,
+            'via_kirim' => $request->via_kirim,
+
+            'dist_channel'        => $request->dist_channel,
+            'kategori_ekspedisi'  => $request->kategori_ekspedisi,
+            'ekpedisi'            => $request->ekpedisi,
+            'transport_lead_time' => $request->transport_lead_time,
+
+            'nama_driver' => $request->nama_driver,
+            'no_pol'      => $request->no_pol,
+            'mobil'       => $request->mobil,
+
+            // ===================== FIX: SLA IKUT DISIMPAN =====================
+            'lama_waktu_pencarian' => $rumus['lama_waktu_pencarian'] ?? null,
+            'sla_dapat_mobil'      => $rumus['sla_dapat_mobil'] ?? null,
+            'status_pengiriman'    => $rumus['status_pengiriman'] ?? null,
+
+            'lama_digudang' => $rumus['lama_digudang'] ?? null,
+            'status_gudang' => $rumus['status_gudang'] ?? null,
+            'sla_loading'   => $rumus['sla_loading'] ?? null,
+
+            'lama_digudang_2' => $rumus['lama_digudang_2'] ?? null,
+            'status_gudang_2' => $rumus['status_gudang_2'] ?? null,
+            'sla_loading_2'   => $rumus['sla_loading_2'] ?? null,
+
+            'lama_digudang_3' => $rumus['lama_digudang_3'] ?? null,
+            'status_gudang_3' => $rumus['status_gudang_3'] ?? null,
+            'sla_loading_3'   => $rumus['sla_loading_3'] ?? null,
+            // ====================================================================
+
+            'updated_at' => now(),
+        ];
+
+        DB::table('logistik_pengiriman')
+            ->where(function ($q) use ($oldNoShipment, $newNoShipment) {
+                $q->where('no_shipment', $oldNoShipment)
+                  ->orWhere('no_shipment', $newNoShipment);
+            })
+            ->update($updateShipment);
+
+        // ====================================================
+        // 2. SYNC BIAYA KIRIM AUTO KE SEMUA ROW SESHIPMENT
+        // ====================================================
+        if ($autoBiaya !== null) {
+            DB::table('logistik_pengiriman')
+                ->where('no_shipment', $shipment)
+                ->update([
+                    'biaya_kirim' => $biayaKirim,
+                    'updated_at'  => now(),
+                ]);
+        }
+
+        // ====================================================
+        // 3. UPDATE FIELD SPESIFIK PER ROW (per unit/per tujuan)
+        // ====================================================
+        $updateRow = [
+            'total_do_qty_car' => $request->total_do_qty_car,
+            'nilai_muatan'     => $this->cleanMoney($request->nilai_muatan),
+            'updated_at'       => now(),
+        ];
+
+        if ($autoBiaya === null) {
+            $updateRow['biaya_kirim'] = $biayaKirim;
+        }
+
+        DB::table('logistik_pengiriman')
+            ->where('id', $id)
+            ->update($updateRow);
+
+        // ====================================================
+        // 4. HITUNG ULANG CR PROPORSIONAL SESHIPMENT
+        // ====================================================
+        $rows = DB::table('logistik_pengiriman')
+            ->where('no_shipment', $shipment)
+            ->get();
+
+        $totalMuatan = $rows->sum(fn($r) => (float) $r->nilai_muatan);
+        $totalBiaya  = $rows->max(fn($r) => (float) $r->biaya_kirim);
+
+        foreach ($rows as $r) {
+            $crRow = 0;
+            $nilaiMuatanRow = (float) $r->nilai_muatan;
+
+            if ($totalMuatan > 0 && $nilaiMuatanRow > 0) {
+                $kontribusi = $nilaiMuatanRow / $totalMuatan;
+                $totalCR    = ($totalBiaya / $totalMuatan) * 100;
+                $crRow      = $kontribusi * $totalCR;
+            }
+
+            DB::table('logistik_pengiriman')
+                ->where('id', $r->id)
+                ->update(['cr' => round($crRow, 4)]);
+        }
+
+        return response()->json([
+            'success'       => true,
+            'biaya_kirim'   => $biayaKirim,
+            'estimasi_tiba' => $request->estimasi_tiba,
+            'sla'           => $rumus,
+        ]);
+    }
+
+
+    private function getKeluarGudangInfoRequest($request)
+{
+    $cycles = [
+        ['planning' => $request->planning_loading,   'tiba' => $request->tanggal_tiba_gudang,   'keluar' => $request->tanggal_keluar_gudang],
+        ['planning' => $request->planning_loading_2, 'tiba' => $request->tanggal_tiba_gudang_2, 'keluar' => $request->tanggal_keluar_gudang_2],
+        ['planning' => $request->planning_loading_3, 'tiba' => $request->tanggal_tiba_gudang_3, 'keluar' => $request->tanggal_keluar_gudang_3],
+    ];
+
+    $blocked = false;
+    $keluarTimestamps = [];
+
+    foreach ($cycles as $c) {
+        $started = !empty($c['planning']) || !empty($c['tiba']);
+        $selesai = !empty($c['keluar']);
+
+        if ($started && !$selesai) {
+            $blocked = true;
+        }
+
+        if ($selesai) {
+            $keluarTimestamps[] = strtotime($c['keluar']);
+        }
+    }
+
+    return [
+        'blocked' => $blocked,
+        'keluar'  => !empty($keluarTimestamps) ? max($keluarTimestamps) : null,
+    ];
 }
+
+private function cariBiayaKirimOtomatis($route, $mobil, $ekpedisi = null)
+{
+    if (!$route || !$mobil) {
+        return null;
+    }
+
+    $normalize = function ($v) {
+        if (!$v) return '';
+        $v = str_replace("\xc2\xa0", ' ', $v);
+        $v = preg_replace('/\s*-\s*/', '-', $v);
+        $v = preg_replace('/\s+/', ' ', trim($v));
+        return mb_strtolower($v);
+    };
+
+    $routeKey    = $normalize($route);
+    $mobilKey    = $normalize($mobil);
+    $ekpedisiKey = $ekpedisi ? $normalize($ekpedisi) : '';
+
+    $candidates = DB::table('tarif_pengiriman')
+        ->whereNotNull('route')
+        ->whereNotNull('mobil')
+        ->get()
+        ->filter(fn ($t) => $normalize($t->route) === $routeKey);
+
+    if ($candidates->isEmpty()) {
+        return null;
+    }
+
+    if ($ekpedisiKey !== '') {
+        $strict = $candidates->first(function ($t) use ($normalize, $ekpedisiKey, $mobilKey) {
+            return $normalize($t->ekpedisi) === $ekpedisiKey
+                && str_starts_with($normalize($t->mobil), $mobilKey);
+        });
+
+        if ($strict) {
+            return $strict->biaya_kirim;
+        }
+    }
+
+    $fallback = $candidates->first(fn ($t) => str_starts_with($normalize($t->mobil), $mobilKey));
+
+    return $fallback->biaya_kirim ?? null;
+}
+
+// public function autosaveRow(Request $request, $id)
+// {
+
+// $request->merge([
+//         // 'rencana_kirim' => $this->hitungRencanaKirim($request)
+//     ]);
+//     DB::table('logistik_pengiriman')
+//         ->where('id', $id)
+//         ->update([
+//             'planner' => $request->planner,
+//             'no_shipment' => $request->no_shipment,
+//             'tanggal_naik_logistik' => $request->tanggal_naik_logistik,
+//             'rencana_kirim' => $request->rencana_kirim,
+//             'planning_loading' => $request->planning_loading,
+//             'tanggal_tiba_gudang' => $request->tanggal_tiba_gudang,
+//             'tanggal_keluar_gudang' => $request->tanggal_keluar_gudang,
+//             'planning_loading_2' => $request->planning_loading_2,
+//             'tanggal_tiba_gudang_2' => $request->tanggal_tiba_gudang_2,
+//             'tanggal_keluar_gudang_2' => $request->tanggal_keluar_gudang_2,
+//             'planning_loading_3' => $request->planning_loading_3,
+//             'tanggal_tiba_gudang_3' => $request->tanggal_tiba_gudang_3,
+//             'tanggal_keluar_gudang_3' => $request->tanggal_keluar_gudang_3,
+//             'tujuan' => $request->tujuan,
+//             'route' => $request->route,
+//             'pulau' => $request->pulau,
+//             'area' => $request->area,
+//             'via_kirim' => $request->via_kirim,
+//             'dist_channel' => $request->dist_channel,
+//             'kategori_ekspedisi' => $request->kategori_ekspedisi,
+//             'ekpedisi' => $request->ekpedisi,
+//             'transport_lead_time' => $request->transport_lead_time,
+//             'mobil' => $request->mobil,
+//             'nilai_muatan' => $request->nilai_muatan,
+//             'biaya_kirim' => $request->biaya_kirim,
+//             'cr' => $request->cr,
+//             'tanggal_dpt_unit' => $request->tanggal_dpt_unit,
+//             'biaya_kirim' => $request->biaya_kirim,
+//             'nilai_muatan' => $request->nilai_muatan,
+//             'cr' => $request->cr,
+//             'updated_at' => now(),
+//         ]);
+
+//     return response()->json(['success' => true]);
+// }
 public function slaOntime(Request $request)
 {
     $query = DB::table('logistik_pengiriman')
@@ -2447,11 +3110,11 @@ if ($row->rencana_kirim && $row->tanggal_dpt_unit) {
     return view('spvplanner.armada', compact('logistik'));
 }
 
-public function exportPlanner()
+public function exportPlanner(Request $request)
 {
     return Excel::download(
-        new PlannerExport(),
-        'Data_Planner.xlsx'
+        new PlannerExport($request->planner, $request->area, $request->bulan, $request->tahun),
+        'Planner.xlsx'
     );
 }
 

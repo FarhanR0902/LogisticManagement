@@ -782,51 +782,48 @@ tbody tr:last-child td{ border-bottom:none; }
 
 <!-- KPI -->
 <div class="section-label">Ringkasan status</div>
-
 <div class="kpi-row">
 
-<a href="{{ url('/datalogistik') }}?{{ http_build_query(request()->query()) }}" class="card blue">
+<a href="{{ route('sales.data.pasuruan') }}" class="card blue">
     <h4>Total Shipment</h4>
     <h1>{{ $total_data }}</h1>
 </a>
-
-<a href="{{ route('manager.gudang.ontime', request()->query()) }}" class="card green">
-    <h4>Gudang MS OnTime</h4>
+<a href="{{ route('pasuruan.gudang.ontime') }}" class="card green">
+    <h4>Sudah Tiba Di Gudang</h4>
     <h1>{{ $gudang_ontime }}</h1>
 </a>
 
-<a href="{{ route('manager.gudang.delay', request()->query()) }}" class="card red">
-    <h4>Gudang MS Delay</h4>
+<a href="{{ route('pasuruan.gudang.delay') }}" class="card red">
+    <h4>Belum Tiba Di Gudang</h4>
     <h1>{{ $gudang_delay }}</h1>
 </a>
 
-<a href="{{ route('manager.customer.ontime', request()->query()) }}" class="card teal">
+<a href="{{ route('pasuruan.tujuan.ontime') }}" class="card teal">
     <h4>Tiba Tujuan OnTime</h4>
     <h1>{{ $customer_ontime }}</h1>
 </a>
 
-<a href="{{ route('manager.customer.delay', request()->query()) }}" class="card orange">
+<a href="{{ route('pasuruan.tujuan.delay') }}" class="card orange">
     <h4>Tiba Tujuan Delay</h4>
     <h1>{{ $customer_delay }}</h1>
 </a>
 
-<a href="{{ route('manager.bongkar.ontime', request()->query()) }}" class="card purple">
+<a href="{{ route('pasuruan.bongkar.ontime') }}" class="card purple">
     <h4>Bongkar OnTime</h4>
     <h1>{{ $bongkar_ontime }}</h1>
 </a>
 
-<a href="{{ route('manager.bongkar.delay', request()->query()) }}" class="card dark">
+<a href="{{ route('pasuruan.bongkar.delay') }}" class="card dark">
     <h4>Bongkar Delay</h4>
     <h1>{{ $bongkar_delay }}</h1>
 </a>
 
-<a href="{{ route('manager.summary.area', request()->query()) }}" class="card blue">
+<a href="{{ route('manager.summary.area') }}" class="card blue">
     <h4>Summary Area</h4>
     <h1>{{ count($summary_area) }}</h1>
 </a>
 
 </div>
-
 <!-- HERO TOTALS -->
 <div class="section-label">Nilai & biaya</div>
 <div class="total-row">
@@ -858,7 +855,7 @@ tbody tr:last-child td{ border-bottom:none; }
 
 <!-- PETA SEBARAN -->
 <div class="table-box">
-    <h3>🗺️ Peta sebaran nilai muatan per area</h3>
+    <!-- <h3>🗺️ Peta sebaran nilai muatan per area</h3> -->
 
     <div id="shipmentMap"></div>
 
@@ -868,11 +865,11 @@ tbody tr:last-child td{ border-bottom:none; }
         <span><i style="background:#e11d48;"></i> Nilai muatan tinggi</span>
     </div>
 
-    <p class="map-note">
+    <!-- <p class="map-note">
         Angka di setiap lingkaran = total nilai muatan (Rp, format ringkas) dari area tersebut.
         Klik lingkaran untuk lihat detail lengkap (jumlah shipment, nilai muatan, biaya kirim).
         Koordinat diambil per area di variabel <code>koordinatAreaPasuruan</code>.
-    </p>
+    </p> -->
 
     <div id="mapDebugBox" style="margin-top:14px;"></div>
 </div>
@@ -1503,24 +1500,24 @@ if (document.getElementById('shipmentMap')) {
 
         } else {
 
-            html += `<div style="background:#eef2ff;border:1px solid #4f46e5;color:#3730a3;
-                        padding:12px 14px;border-radius:10px;font-size:13px;margin-bottom:10px;">
-                        Total area dari controller: <b>${summaryAreaMapPasuruan.length}</b> baris.
-                        Cocok dengan koordinat (muncul di peta): <b>${matched.length}</b>.
-                        Belum ada koordinatnya (tidak muncul di peta): <b>${unmatched.length}</b>.
-                      </div>`;
+            // html += `<div style="background:#eef2ff;border:1px solid #4f46e5;color:#3730a3;
+            //             padding:12px 14px;border-radius:10px;font-size:13px;margin-bottom:10px;">
+            //             Total area dari controller: <b>${summaryAreaMapPasuruan.length}</b> baris.
+            //             Cocok dengan koordinat (muncul di peta): <b>${matched.length}</b>.
+            //             Belum ada koordinatnya (tidak muncul di peta): <b>${unmatched.length}</b>.
+            //           </div>`;
 
-            if (unmatched.length > 0) {
-                html += `<details style="background:#fef7e9;border:1px solid #f59e0b;
-                            padding:12px 14px;border-radius:10px;font-size:13px;">
-                            <summary style="cursor:pointer;font-weight:600;color:#b45309;">
-                                ⚠️ Lihat ${unmatched.length} nama area yang BELUM ada koordinatnya
-                            </summary>
-                            <ul style="margin-top:8px;padding-left:18px;color:#78350f;">
-                                ${unmatched.map(u => `<li>${u}</li>`).join('')}
-                            </ul>
-                          </details>`;
-            }
+            // if (unmatched.length > 0) {
+            //     html += `<details style="background:#fef7e9;border:1px solid #f59e0b;
+            //                 padding:12px 14px;border-radius:10px;font-size:13px;">
+            //                 <summary style="cursor:pointer;font-weight:600;color:#b45309;">
+            //                     ⚠️ Lihat ${unmatched.length} nama area yang BELUM ada koordinatnya
+            //                 </summary>
+            //                 <ul style="margin-top:8px;padding-left:18px;color:#78350f;">
+            //                     ${unmatched.map(u => `<li>${u}</li>`).join('')}
+            //                 </ul>
+            //               </details>`;
+            // }
         }
 
         debugBox.innerHTML = html;

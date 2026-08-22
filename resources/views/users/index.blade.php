@@ -235,6 +235,8 @@ table tr:hover{
                         <th>No</th>
                         <th>Nama</th>
                         <th>Username</th>
+                        <th>Email</th>
+                        <th>Verifikasi Account</th>
                         <th>Role</th>
                         <th>Dist Channel</th>
                         <th>Dibuat</th>
@@ -255,7 +257,8 @@ table tr:hover{
                         <td>{{ $user->name }}</td>
 
                         <td>{{ $user->username }}</td>
-
+                        <td>{{ $user->email }}</td>
+                         <td>{{ $user->email_verified_at }}</td>
                         <td>
 
                             <span class="role role-{{ $user->role }}">

@@ -794,7 +794,7 @@ tbody tr:last-child td{ border-bottom:none; }
 
 <!-- PETA SEBARAN -->
 <div class="table-box">
-    <h3>🗺️ Peta sebaran nilai muatan per area &mdash; {{ strtoupper(session('dist_channel')) }}</h3>
+    <!-- <h3>🗺️ Peta sebaran nilai muatan per area &mdash; {{ strtoupper(session('dist_channel')) }}</h3> -->
 
     <div id="shipmentMap"></div>
 
@@ -803,12 +803,12 @@ tbody tr:last-child td{ border-bottom:none; }
         <span><i style="background:#f59e0b;"></i> Nilai muatan sedang</span>
         <span><i style="background:#e11d48;"></i> Nilai muatan tinggi</span>
     </div>
-
+<!-- 
     <p class="map-note">
         Angka di setiap lingkaran = total nilai muatan (Rp, format ringkas) dari area tersebut.
         Klik lingkaran untuk lihat detail lengkap (jumlah shipment, nilai muatan, biaya kirim).
         Koordinat diambil per area di variabel <code>koordinatAreaSales</code>.
-    </p>
+    </p> -->
 
     <div id="mapDebugBox" style="margin-top:14px;"></div>
 </div>
@@ -1297,24 +1297,24 @@ if (document.getElementById('shipmentMap')) {
 
         } else {
 
-            html += `<div style="background:#eef2ff;border:1px solid #4f46e5;color:#3730a3;
-                        padding:12px 14px;border-radius:10px;font-size:13px;margin-bottom:10px;">
-                        Total area dari controller: <b>${summaryAreaMapSales.length}</b> baris.
-                        Cocok dengan koordinat (muncul di peta): <b>${matched.length}</b>.
-                        Belum ada koordinatnya (tidak muncul di peta): <b>${unmatched.length}</b>.
-                      </div>`;
+            // html += `<div style="background:#eef2ff;border:1px solid #4f46e5;color:#3730a3;
+            //             padding:12px 14px;border-radius:10px;font-size:13px;margin-bottom:10px;">
+            //             Total area dari controller: <b>${summaryAreaMapSales.length}</b> baris.
+            //             Cocok dengan koordinat (muncul di peta): <b>${matched.length}</b>.
+            //             Belum ada koordinatnya (tidak muncul di peta): <b>${unmatched.length}</b>.
+            //           </div>`;
 
-            if (unmatched.length > 0) {
-                html += `<details style="background:#fef7e9;border:1px solid #f59e0b;
-                            padding:12px 14px;border-radius:10px;font-size:13px;">
-                            <summary style="cursor:pointer;font-weight:600;color:#b45309;">
-                                ⚠️ Lihat ${unmatched.length} nama area yang BELUM ada koordinatnya
-                            </summary>
-                            <ul style="margin-top:8px;padding-left:18px;color:#78350f;">
-                                ${unmatched.map(u => `<li>${u}</li>`).join('')}
-                            </ul>
-                          </details>`;
-            }
+            // if (unmatched.length > 0) {
+            //     html += `<details style="background:#fef7e9;border:1px solid #f59e0b;
+            //                 padding:12px 14px;border-radius:10px;font-size:13px;">
+            //                 <summary style="cursor:pointer;font-weight:600;color:#b45309;">
+            //                     ⚠️ Lihat ${unmatched.length} nama area yang BELUM ada koordinatnya
+            //                 </summary>
+            //                 <ul style="margin-top:8px;padding-left:18px;color:#78350f;">
+            //                     ${unmatched.map(u => `<li>${u}</li>`).join('')}
+            //                 </ul>
+            //               </details>`;
+            // }
         }
 
         debugBox.innerHTML = html;

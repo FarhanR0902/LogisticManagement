@@ -827,9 +827,9 @@ font-size: 16px;
 
                     <th>Lama Waktu Pencarian</th>
                     <th>SLA Dapat Mobil</th>
-                    <th>Planning Loading KACS</th>
-                    <th>Tanggal Tiba KACS</th>
-                    <th>Tanggal Keluar KACS</th>
+                    <th>Planning Loading pasuruan</th>
+                    <th>Tanggal Tiba Pasuruan</th>
+                    <th>Tanggal Keluar Pasuruan</th>
 
 
 
@@ -858,6 +858,7 @@ font-size: 16px;
 
                     <th>SLA Tiba</th>
                     <th>Tanggal Bongkar</th>
+                    <th>Status Bongkar</th>
                     <th>Overstay</th>
                     <th>SLA Bongkar</th>
                     <th>Reason Tiba</th>
@@ -1393,6 +1394,49 @@ else {
     {{ $r->tanggal_bongkar_pasuruan
         ? date('d-m-Y h:i A', strtotime($r->tanggal_bongkar_pasuruan))
         : '-' }}
+</td>
+
+<td class="text-center">
+    @php
+        if (!empty($r->tanggal_bongkar_pasuruan)) {
+
+            // Kalau tanggal bongkar sudah diisi
+            $statusBongkar = 'Telah Bongkar';
+            $statusBongkarClass = 'green';
+
+        } elseif (!empty($r->tanggal_tiba_pasuruan)) {
+
+            // Kalau sudah tiba tapi belum bongkar
+            $tanggalTiba = strtotime(
+                date('Y-m-d', strtotime($r->tanggal_tiba_pasuruan))
+            );
+
+            $hariIni = strtotime(date('Y-m-d'));
+
+            $selisihHari = floor(
+                ($hariIni - $tanggalTiba) / 86400
+            );
+
+            $selisihHari = max(0, $selisihHari);
+
+            $statusBongkar = 'H+' . $selisihHari;
+
+            if ($selisihHari == 0) {
+                $statusBongkarClass = 'orange';
+            } else {
+                $statusBongkarClass = 'red';
+            }
+
+        } else {
+
+            $statusBongkar = '-';
+            $statusBongkarClass = 'gray';
+        }
+    @endphp
+
+    <span class="badge status-bongkar {{ $statusBongkarClass }}">
+        {{ $statusBongkar }}
+    </span>
 </td>
                         <td>
 @php

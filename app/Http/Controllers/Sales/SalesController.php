@@ -494,6 +494,9 @@ class SalesController extends Controller
     | DATA LOGISTIK PASURUAN (SALES - filtered by dist_channel)
     |--------------------------------------------------------------------------
     */
+
+
+    
     public function dataLogistikPasuruan()
     {
         $query = LogistikPengirimanPasuruan::query();
@@ -570,16 +573,19 @@ class SalesController extends Controller
 
     private function getArea()
     {
-        return DB::table('logistik_pengiriman')
-
+        // FIX: sebelumnya method ini TIDAK difilter dist_channel sama sekali,
+        // jadi dropdown "Area" di halaman gudang/tujuan/bongkar bisa nampilin
+        // nama area yang sebenarnya cuma dipakai channel lain. Sekarang
+        // dibatasi sama seperti query utama lainnya.
+        $query = DB::table('logistik_pengiriman')
             ->select('area')
+            ->whereNotNull('area');
 
-            ->whereNotNull('area')
+        $this->filterByDistChannel($query);
 
+        return $query
             ->groupBy('area')
-
             ->orderBy('area')
-
             ->get();
     }
 
@@ -944,7 +950,163 @@ public function gudangOntime(Request $request)
     | TUJUAN ONTIME
     |--------------------------------------------------------------------------
     */
+/*
+|--------------------------------------------------------------------------
+| GUDANG ONTIME - PASURUAN
+|--------------------------------------------------------------------------
+*/
+public function gudangOntimePasuruan(Request $request)
+{
+    $query = LogistikPengirimanPasuruan::query();
+    $this->filterByDistChannelPasuruan($query);
 
+    $query->whereNotNull('tanggal_tiba_gudang_pasuruan');
+
+    $this->applyFilterPasuruan($query, $request);
+
+    $list = $query->orderByDesc('tanggal_tiba_gudang_pasuruan')->get();
+
+    return view('sales.sla_ontime', compact('list'));
+}
+
+/*
+|--------------------------------------------------------------------------
+| GUDANG DELAY - PASURUAN
+|--------------------------------------------------------------------------
+*/
+public function gudangDelayPasuruan(Request $request)
+{
+    $query = LogistikPengirimanPasuruan::query();
+    $this->filterByDistChannelPasuruan($query);
+
+    $query->whereNotNull('rencana_kirim_pasuruan')
+          ->whereRaw("TRIM(rencana_kirim_pasuruan) <> ''")
+          ->whereNotNull('tanggal_dpt_unit_pasuruan')
+          ->whereRaw("TRIM(tanggal_dpt_unit_pasuruan) <> ''")
+          ->where(function ($q) {
+              $q->whereNull('tanggal_tiba_gudang_pasuruan')
+                ->orWhereRaw("TRIM(tanggal_tiba_gudang_pasuruan) = ''");
+          });
+
+    $this->applyFilterPasuruan($query, $request);
+
+    $list = $query->orderByDesc('tanggal_dpt_unit_pasuruan')->get();
+
+    return view('sales.sla_delay', compact('list'));
+}
+
+/*
+|--------------------------------------------------------------------------
+| TUJUAN ONTIME - PASURUAN
+|--------------------------------------------------------------------------
+*/
+public function tujuanOntimePasuruan(Request $request)
+{
+    $query = LogistikPengirimanPasuruan::query();
+    $this->filterByDistChannelPasuruan($query);
+
+    $query->whereNotNull('tanggal_tiba_pasuruan')
+          ->whereNotNull('estimasi_tiba_pasuruan')
+          ->whereRaw("DATEDIFF(DATE(tanggal_tiba_pasuruan), DATE(estimasi_tiba_pasuruan)) <= 0");
+
+    $this->applyFilterPasuruan($query, $request);
+
+    $logistik = $query->orderByDesc('tanggal_tiba_pasuruan')->get();
+
+    return view('sales.tujuan_ontime', compact('logistik'));
+}
+
+/*
+|--------------------------------------------------------------------------
+| TUJUAN DELAY - PASURUAN
+|--------------------------------------------------------------------------
+*/
+public function tujuanDelayPasuruan(Request $request)
+{
+    $query = LogistikPengirimanPasuruan::query();
+    $this->filterByDistChannelPasuruan($query);
+
+    $query->whereNotNull('tanggal_tiba_pasuruan')
+          ->whereNotNull('estimasi_tiba_pasuruan')
+          ->whereRaw("DATEDIFF(DATE(tanggal_tiba_pasuruan), DATE(estimasi_tiba_pasuruan)) > 0");
+
+    $this->applyFilterPasuruan($query, $request);
+
+    $logistik = $query->orderByDesc('tanggal_tiba_pasuruan')->get();
+
+    return view('sales.tujuan_delay', compact('logistik'));
+}
+
+/*
+|--------------------------------------------------------------------------
+| BONGKAR ONTIME - PASURUAN
+|--------------------------------------------------------------------------
+*/
+public function bongkarOntimePasuruan(Request $request)
+{
+    $query = LogistikPengirimanPasuruan::query();
+    $this->filterByDistChannelPasuruan($query);
+
+    $query->whereNotNull('tanggal_bongkar_pasuruan')
+          ->where('tanggal_bongkar_pasuruan', '!=', '1899-12-31 00:00:00')
+          ->where(function ($q) {
+              $q->whereNull('overstay_days_pasuruan')
+                ->orWhere('overstay_days_pasuruan', 0);
+          });
+
+    $this->applyFilterPasuruan($query, $request);
+
+    $logistik = $query->orderByDesc('tanggal_bongkar_pasuruan')->get();
+
+    return view('sales.bongkar_ontime', compact('logistik'));
+}
+
+/*
+|--------------------------------------------------------------------------
+| BONGKAR DELAY - PASURUAN
+|--------------------------------------------------------------------------
+*/
+public function bongkarDelayPasuruan(Request $request)
+{
+    $query = LogistikPengirimanPasuruan::query();
+    $this->filterByDistChannelPasuruan($query);
+
+    $query->whereNotNull('tanggal_bongkar_pasuruan')
+          ->where('tanggal_bongkar_pasuruan', '!=', '1899-12-31 00:00:00')
+          ->where('overstay_days_pasuruan', '>', 0);
+
+    $this->applyFilterPasuruan($query, $request);
+
+    $logistik = $query->orderByDesc('tanggal_bongkar_pasuruan')->get();
+
+    return view('sales.bongkar_delay', compact('logistik'));
+}
+
+/*
+|--------------------------------------------------------------------------
+| SUMMARY AREA - PASURUAN
+|--------------------------------------------------------------------------
+*/
+public function summaryAreaPasuruan(Request $request)
+{
+    $query = LogistikPengirimanPasuruan::query();
+    $this->filterByDistChannelPasuruan($query);
+    $this->applyFilterPasuruan($query, $request);
+
+    $summary_area = $query
+        ->select(
+            'area_pasuruan',
+            DB::raw('COUNT(*) as total_shipment'),
+            DB::raw('COALESCE(SUM(biaya_kirim_pasuruan),0) as total_biaya'),
+            DB::raw('COALESCE(SUM(nilai_muatan_pasuruan),0) as total_muatan')
+        )
+        ->whereNotNull('area_pasuruan')
+        ->groupBy('area_pasuruan')
+        ->orderByDesc('total_shipment')
+        ->get();
+
+    return view('sales.summary_area', compact('summary_area'));
+}
 public function tujuanOntime(Request $request)
 {
     $query = DB::table('logistik_pengiriman');
@@ -1017,6 +1179,11 @@ public function tujuanDelay(Request $request)
     $query = DB::table('logistik_pengiriman')
         ->whereNotNull('sla_tiba')
         ->whereRaw("LOWER(TRIM(sla_tiba)) IN ('delay','h+1','h+2','h>2','critical delay')");
+
+    // FIX: sebelumnya method ini TIDAK difilter dist_channel sama sekali,
+    // jadi bisa nampilin data dari SEMUA channel, bukan cuma channel user
+    // yang login. Ditambahkan sama seperti method-method lain.
+    $this->filterByDistChannel($query);
 
     $this->applyFilter($query, $request);
 
@@ -1108,6 +1275,11 @@ public function bongkarDelaya(Request $request)
         ->whereNotNull('sla_bongkar')
         ->whereRaw("LOWER(TRIM(sla_bongkar)) IN ('delay','critical delay','h+1','h+2','h>2')");
 
+    // FIX: sebelumnya method ini TIDAK difilter dist_channel sama sekali,
+    // jadi bisa nampilin data dari SEMUA channel, bukan cuma channel user
+    // yang login. Ditambahkan sama seperti method-method lain.
+    $this->filterByDistChannel($query);
+
     $this->applyFilter($query, $request);
 
     $logistik = $query
@@ -1130,6 +1302,11 @@ public function bongkarDelaya(Request $request)
 
         $query = DB::table('logistik_pengiriman');
 
+        // FIX: paling kritis - method ini SEBELUMNYA TIDAK difilter dist_channel
+        // sama sekali, jadi mengembalikan SELURUH data mentah dari SEMUA channel
+        // (bukan cuma channel milik user yang login). Ditambahkan di sini.
+        $this->filterByDistChannel($query);
+
         $this->applyFilter($query, $request);
 
         $logistik = $query->get();
@@ -1150,6 +1327,11 @@ public function bongkarDelaya(Request $request)
     {
 
         $query = DB::table('logistik_pengiriman');
+
+        // FIX: sebelumnya method ini TIDAK difilter dist_channel sama sekali,
+        // jadi summary agregat (jumlah shipment, biaya, muatan per area)
+        // nyampur data dari SEMUA channel. Ditambahkan di sini.
+        $this->filterByDistChannel($query);
 
         $this->applyFilter($query, $request);
 

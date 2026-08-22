@@ -111,6 +111,8 @@ class MonitoringExport implements FromCollection, WithHeadings
                 $r->total_do_qty_car,
                 $r->qty_monitoring,
                 $r->selisih_qty,
+                $r->biaya_kuli,
+                $r->total_biaya_kuli,
                 $r->remarks_qty,
                 $r->act_urutan_bongkar,
 
@@ -158,6 +160,8 @@ class MonitoringExport implements FromCollection, WithHeadings
             'Total DO Qty',
             'Total DO Qty Actual',
             'Selisih Qty',
+            'biaya_kuli',
+            'total_biaya_kuli',
             'Reason Qty',
             'Urutan Bongkar',
 

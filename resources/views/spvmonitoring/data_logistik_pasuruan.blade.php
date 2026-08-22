@@ -11,395 +11,425 @@
 
     <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
     <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
-    <style>
-            body {
-                font-family: 'Segoe UI', Arial, sans-serif;
-                background: #f1f5f9;
-                margin: 0;
-                color: #1e293b;
-                font-size: 16px;
-            }
 
-            /* ================= CONTAINER ================= */
+    <style>
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            background: #f1f5f9;
+            margin: 0;
+            color: #1e293b;
+        }
+
+        /* ================= CONTAINER ================= */
+
+        .container {
+            margin-left: 260px;
+            padding: 30px;
+        }
+
+        h2 {
+            font-size: 32px;
+            font-weight: 700;
+            margin-bottom: 20px;
+            color: #0f172a;
+        }
+
+        /* ================= CARD ================= */
+
+        .card {
+            background: #fff;
+            padding: 20px;
+            border-radius: 16px;
+            overflow: auto;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, .08);
+        }
+
+        /* ================= TABLE ================= */
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+        }
+
+        th {
+            background: #03c03c;
+            color: #fff;
+            padding: 14px 12px;
+            white-space: nowrap;
+            font-size: 14px;
+            font-weight: 600;
+            text-align: center;
+            border: 1px solid #dbeafe;
+        }
+
+        td {
+            padding: 12px 10px;
+            border: 1px solid #e2e8f0;
+            white-space: nowrap;
+            text-align: left;
+            vertical-align: middle;
+            font-size: 14px;
+        }
+
+        /* Zebra */
+
+        tbody tr:nth-child(even) {
+            background: #f8fafc;
+        }
+
+        tbody tr:hover {
+            background: #dbeafe;
+            transition: .2s;
+        }
+
+        /* ================= FILTER ================= */
+
+        .filter-box {
+            background: #fff;
+            padding: 20px;
+            border-radius: 16px;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, .08);
+            margin-bottom: 20px;
+        }
+
+        .filter-box form {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .filter-box input,
+        .filter-box select {
+            padding: 12px 14px;
+            border: 1px solid #cbd5e1;
+            border-radius: 10px;
+            font-size: 14px;
+            min-width: 180px;
+            outline: none;
+        }
+
+        .filter-box input:focus,
+        .filter-box select:focus {
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, .15);
+        }
+
+        .filter-box button {
+            padding: 12px 18px;
+            background: #22c55e;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .filter-box button:hover {
+            background: #16a34a;
+        }
+
+        .filter-box a {
+            padding: 12px 18px;
+            background: #ef4444;
+            color: white;
+            border-radius: 10px;
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .filter-box a:hover {
+            background: #dc2626;
+        }
+
+        /* ================= IMPORT BOX ================= */
+
+        .import-box {
+            background: #fff;
+            padding: 20px;
+            border-radius: 16px;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, .08);
+            margin-bottom: 20px;
+        }
+
+        .import-box form {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .import-box input[type=file] {
+            padding: 12px;
+            border: 2px dashed #cbd5e1;
+            border-radius: 10px;
+            background: #f8fafc;
+            font-size: 14px;
+        }
+
+        .import-box input[type=file]:hover {
+            border-color: #2563eb;
+        }
+
+        .import-box button {
+            padding: 12px 18px;
+            border: none;
+            border-radius: 10px;
+            background: linear-gradient(135deg, #3b82f6, #2563eb);
+            color: white;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .import-box button:hover {
+            transform: translateY(-2px);
+        }
+
+        /* ================= ARCHIVE BUTTON ================= */
+
+        .archive-form {
+            margin: 20px 0;
+        }
+
+        .archive-btn {
+            background: linear-gradient(135deg, #2563eb, #1d4ed8);
+            color: white;
+            border: none;
+            padding: 14px 24px;
+            border-radius: 12px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: .3s;
+        }
+
+        .archive-btn:hover {
+            transform: translateY(-2px);
+        }
+
+        /* ================= BADGE ================= */
+
+        .badge {
+            padding: 8px 14px;
+            border-radius: 20px;
+            color: white;
+            font-size: 13px;
+            font-weight: 600;
+            display: inline-block;
+        }
+
+        .green {
+            background: #22c55e;
+        }
+
+        .red {
+            background: #ef4444;
+        }
+
+        .gray {
+            background: #64748b;
+        }
+
+        .orange {
+            background: #f97316;
+        }
+
+        .blue {
+            background: #2563eb;
+        }
+
+        .yellow {
+            background: #facc15;
+            color: #000;
+        }
+
+        .badge-mp {
+            background: #16a34a;
+        }
+
+        .badge-cmd {
+            background: #2563eb;
+        }
+
+        .badge-jess {
+            background: #f59e0b;
+        }
+
+        .badge-default {
+            background: #64748b;
+        }
+
+        .badge-green {
+            background: #22c55e;
+        }
+
+        .badge-red {
+            background: #ef4444;
+        }
+
+        .badge-gray {
+            background: #64748b;
+        }
+
+        .badge-orange {
+            background: #f97316;
+        }
+
+        .bg-success {
+            background: #22c55e !important;
+        }
+
+        .bg-warning {
+            background: #ef4444 !important;
+            color: #ffffff !important;
+        }
+
+        .bg-secondary {
+            background: #64748b !important;
+        }
+
+        /* ================= SMALL COLUMN ================= */
+
+        .col-small {
+            width: 100px !important;
+            min-width: 100px !important;
+            max-width: 120px !important;
+            font-size: 13px;
+            text-align: center;
+        }
+
+        /* ================= DATATABLE ================= */
+
+        .dataTables_wrapper {
+            font-size: 14px;
+        }
+
+        .dataTables_filter input {
+            padding: 8px 12px !important;
+            border-radius: 8px !important;
+        }
+
+        .dataTables_length select {
+            padding: 6px 10px !important;
+        }
+
+        /* ================= RESPONSIVE ================= */
+
+        @media(max-width:768px) {
 
             .container {
-                margin-left: 260px;
-                padding: 30px;
+                margin-left: 0;
+                padding: 15px;
             }
 
             h2 {
-                font-size: 34px;
-                font-weight: 700;
-                margin-bottom: 20px;
-                color: #0f172a;
+                font-size: 24px;
             }
-
-            /* ================= CARD ================= */
-
-            .card {
-                background: #fff;
-                padding: 20px;
-                border-radius: 16px;
-                overflow: auto;
-                box-shadow: 0 4px 20px rgba(0, 0, 0, .08);
-            }
-
-            /* ================= TABLE ================= */
 
             table {
-                width: 100%;
-                border-collapse: collapse;
-                font-size: 16px;
+                font-size: 13px;
             }
 
             th {
-                background: #03c03c;
-                color: #fff;
-                padding: 16px 14px;
-                white-space: nowrap;
-                font-size: 16px;
-                font-weight: 600;
-                text-align: center;
-                border: 1px solid #dbeafe;
+                font-size: 13px;
+                padding: 10px;
             }
 
             td {
-                padding: 14px 12px;
-                border: 1px solid #e2e8f0;
-                white-space: nowrap;
-                text-align: left;
-                vertical-align: middle;
-                font-size: 16px;
+                font-size: 13px;
+                padding: 8px;
             }
 
-            /* Zebra */
-
-            tbody tr:nth-child(even) {
-                background: #f8fafc;
-            }
-
-            tbody tr:hover {
-                background: #dbeafe;
-                transition: .2s;
-            }
-
-            /* ================= FILTER ================= */
-
-            .filter-box {
-                background: #fff;
-                padding: 20px;
-                border-radius: 16px;
-                box-shadow: 0 4px 16px rgba(0, 0, 0, .08);
-                margin-bottom: 20px;
-            }
-
-            .filter-box form {
-                display: flex;
-                gap: 12px;
-                flex-wrap: wrap;
-                align-items: center;
+            .filter-box form,
+            .import-box form {
+                flex-direction: column;
+                align-items: stretch;
             }
 
             .filter-box input,
-            .filter-box select {
-                padding: 13px 16px;
-                border: 1px solid #cbd5e1;
-                border-radius: 10px;
-                font-size: 16px;
-                min-width: 190px;
-                outline: none;
-            }
-
-            .filter-box input:focus,
-            .filter-box select:focus {
-                border-color: #3b82f6;
-                box-shadow: 0 0 0 3px rgba(59, 130, 246, .15);
-            }
-
-            .filter-box button {
-                padding: 13px 20px;
-                background: #22c55e;
-                color: white;
-                border: none;
-                border-radius: 10px;
-                font-size: 16px;
-                font-weight: 600;
-                cursor: pointer;
-            }
-
-            .filter-box button:hover {
-                background: #16a34a;
-            }
-
-            .filter-box a {
-                padding: 13px 20px;
-                background: #ef4444;
-                color: white;
-                border-radius: 10px;
-                text-decoration: none;
-                font-size: 16px;
-                font-weight: 600;
-            }
-
-            .filter-box a:hover {
-                background: #dc2626;
-            }
-
-            /* ================= IMPORT BOX ================= */
-
-            .import-box {
-                background: #fff;
-                padding: 20px;
-                border-radius: 16px;
-                box-shadow: 0 4px 16px rgba(0, 0, 0, .08);
-                margin-bottom: 20px;
-            }
-
-            .import-box form {
-                display: flex;
-                gap: 12px;
-                align-items: center;
-                flex-wrap: wrap;
-            }
-
-            .import-box input[type=file] {
-                padding: 13px;
-                border: 2px dashed #cbd5e1;
-                border-radius: 10px;
-                background: #f8fafc;
-                font-size: 16px;
-            }
-
-            .import-box input[type=file]:hover {
-                border-color: #2563eb;
-            }
-
+            .filter-box select,
+            .filter-box button,
             .import-box button {
-                padding: 13px 20px;
-                border: none;
-                border-radius: 10px;
-                background: linear-gradient(135deg, #3b82f6, #2563eb);
-                color: white;
-                font-size: 16px;
-                font-weight: 600;
-                cursor: pointer;
+                width: 100%;
             }
+        }
 
-            .import-box button:hover {
-                transform: translateY(-2px);
-            }
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 7px 14px;
+            border-radius: 999px;
+            font-size: 13px;
+            font-weight: 700;
+            color: #fff;
+            letter-spacing: .3px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, .15);
+        }
 
-            /* ================= ARCHIVE BUTTON ================= */
+        /* Hijau */
+        .badge-success {
+            background: linear-gradient(135deg, #16a34a, #22c55e);
+        }
 
-            .archive-form {
-                margin: 20px 0;
-            }
+        /* Kuning */
+        .badge-warning {
+            background: linear-gradient(135deg, #f59e0b, #fbbf24);
+            color: #222;
+        }
 
-            .archive-btn {
-                background: linear-gradient(135deg, #2563eb, #1d4ed8);
-                color: white;
-                border: none;
-                padding: 15px 26px;
-                border-radius: 12px;
-                font-size: 17px;
-                font-weight: 600;
-                cursor: pointer;
-                transition: .3s;
-            }
+        /* Biru */
+        .badge-info {
+            background: linear-gradient(135deg, #2563eb, #3b82f6);
+        }
 
-            .archive-btn:hover {
-                transform: translateY(-2px);
-            }
+        /* Merah */
+        .badge-danger {
+            background: linear-gradient(135deg, #dc2626, #ef4444);
+        }
 
-            /* ================= BADGE ================= */
+        /* Abu */
+        .badge-secondary {
+            background: linear-gradient(135deg, #00e5ff, #9ca3af);
+        }
 
-            .badge {
-                padding: 9px 16px;
-                border-radius: 20px;
-                color: white;
-                font-size: 15px;
-                font-weight: 600;
-                display: inline-block;
-            }
+        .cr-value{
+    color:#0056b3;
+    font-weight:700;
+    font-size:14px;
+}
 
-            .green {
-                background: #22c55e;
-            }
+.badge-duplicate{
+    display:inline-block;
+    padding:7px 12px;
+    border-radius:20px;
+    background:linear-gradient(135deg,#7c3aed,#a855f7);
+    color:#fff;
+    font-size:12px;
+    font-weight:700;
+    white-space:nowrap;
+    box-shadow:0 2px 8px rgba(124,58,237,.25);
+}
+.badge-duplicate{
+    background:#ff9800;
+    color:#fff;
+    padding:7px 14px;
+    border-radius:20px;
+    font-size:13px;
+    font-weight:700;
+    display:inline-block;
+}
 
-            .red {
-                background: #ef4444;
-            }
-
-            .gray {
-                background: #64748b;
-            }
-
-            .orange {
-                background: #f97316;
-            }
-
-            .blue {
-                background: #2563eb;
-            }
-
-            .yellow {
-                background: #facc15;
-                color: #000;
-            }
-
-            .badge-mp {
-                background: #16a34a;
-            }
-
-            .badge-cmd {
-                background: #2563eb;
-            }
-
-            .badge-jess {
-                background: #f59e0b;
-            }
-
-            .badge-default {
-                background: #64748b;
-            }
-
-            .badge-green {
-                background: #22c55e;
-            }
-
-            .badge-red {
-                background: #ef4444;
-            }
-
-            .badge-gray {
-                background: #64748b;
-            }
-
-            .badge-orange {
-                background: #f97316;
-            }
-
-            .bg-success {
-                background: #22c55e !important;
-            }
-
-            .bg-warning {
-                background: #ef4444 !important;
-                color: #ffffff !important;
-            }
-
-            .bg-secondary {
-                background: #64748b !important;
-            }
-
-            /* ================= SMALL COLUMN ================= */
-
-            .col-small {
-                width: 110px !important;
-                min-width: 110px !important;
-                max-width: 130px !important;
-                font-size: 15px;
-                text-align: center;
-            }
-
-            /* ================= DATATABLE ================= */
-
-            .dataTables_wrapper {
-                font-size: 16px;
-            }
-
-            .dataTables_filter input {
-                padding: 9px 14px !important;
-                border-radius: 8px !important;
-                font-size: 16px !important;
-            }
-
-            .dataTables_length select {
-                padding: 7px 12px !important;
-                font-size: 16px !important;
-            }
-
-            /* ================= RESPONSIVE ================= */
-
-            @media(max-width:768px) {
-
-                .container {
-                    margin-left: 0;
-                    padding: 15px;
-                }
-
-                h2 {
-                    font-size: 26px;
-                }
-
-                table {
-                    font-size: 15px;
-                }
-
-                th {
-                    font-size: 15px;
-                    padding: 12px;
-                }
-
-                td {
-                    font-size: 15px;
-                    padding: 10px;
-                }
-
-                .filter-box form,
-                .import-box form {
-                    flex-direction: column;
-                    align-items: stretch;
-                }
-
-                .filter-box input,
-                .filter-box select,
-                .filter-box button,
-                .import-box button {
-                    width: 100%;
-                }
-            }
-
-            .badge {
-                display: inline-flex;
-                align-items: center;
-                gap: 6px;
-                padding: 9px 16px;
-                border-radius: 999px;
-                font-size: 15px;
-                font-weight: 700;
-                color: #fff;
-                letter-spacing: .3px;
-                box-shadow: 0 2px 8px rgba(0, 0, 0, .15);
-            }
-
-            /* Hijau */
-            .badge-success {
-                background: linear-gradient(135deg, #16a34a, #22c55e);
-            }
-
-            /* Kuning */
-            .badge-warning {
-                background: linear-gradient(135deg, #f59e0b, #fbbf24);
-                color: #222;
-            }
-
-            /* Biru */
-            .badge-info {
-                background: linear-gradient(135deg, #2563eb, #3b82f6);
-            }
-
-            /* Merah */
-            .badge-danger {
-                background: linear-gradient(135deg, #dc2626, #ef4444);
-            }
-
-            /* Abu */
-            .badge-secondary {
-                background: linear-gradient(135deg, #00e5ff, #9ca3af);
-            }
-        </style>
-    
+.cr-value{
+    color:#0056b3;
+    font-weight:700;
+    font-size:14px;
+}
+    </style>
 </head>
 
 <body>
@@ -410,7 +440,8 @@
 
         <h2>📦 DATA LOGISTIK</h2>
 
-  
+   
+
 <a href="#" id="btnExportExcel" class="btn-export">
 <i class="fa fa-file-excel"></i>
 Export Excel
@@ -420,7 +451,7 @@ Export Excel
 
 
         <!-- HAPUS SEMUA -->
-   
+
 
         <style>
             .archive-form {
@@ -798,9 +829,9 @@ font-size: 16px;
 
                     <th>Lama Waktu Pencarian</th>
                     <th>SLA Dapat Mobil</th>
-                    <th>Planning Loading KACS</th>
-                    <th>Tanggal Tiba KACS</th>
-                    <th>Tanggal Keluar KACS</th>
+                    <th>Planning Loading Pasuruan</th>
+                    <th>Tanggal Tiba Pasuruan</th>
+                    <th>Tanggal Keluar Pasuruan</th>
 
 
 
@@ -829,6 +860,7 @@ font-size: 16px;
 
                     <th>SLA Tiba</th>
                     <th>Tanggal Bongkar</th>
+                     <th>Status Bongkar</th>
                     <th>Overstay</th>
                     <th>SLA Bongkar</th>
                     <th>Reason Tiba</th>
@@ -886,25 +918,25 @@ font-size: 16px;
                 }
                 @endphp
 
-         @php
+   @php
 
-$shownShipment = [];
-$crShipment = [];
+$shipmentGroups = [];
 
 foreach ($logistik->groupBy('no_shipment_pasuruan') as $shipment => $rows) {
 
-    $totalMuatan = $rows->sum(function ($x) {
-        return (float) $x->nilai_muatan_pasuruan;
-    });
+    $shipmentGroups[$shipment] = [
 
-    $totalBiaya = $rows->sum(function ($x) {
-        return (float) $x->biaya_kirim_pasuruan;
-    });
+        // SUM muatan seluruh customer dalam shipment
+        'totalMuatan' => $rows->sum(function ($x) {
+            return (float) $x->nilai_muatan_pasuruan;
+        }),
 
-    $crShipment[$shipment] =
-        $totalMuatan > 0
-            ? ($totalBiaya / $totalMuatan) * 100
-            : 0;
+        // MAX biaya kirim dalam shipment
+        'totalBiaya' => $rows->max(function ($x) {
+            return (float) $x->biaya_kirim_pasuruan;
+        }),
+
+    ];
 }
 
 @endphp
@@ -1091,31 +1123,11 @@ else {
                         <td>{{ $r->total_do_pasuruan }}</td>
                         <!-- <td>{{ $r->perubahan_mobil_pasuruan }}</td> -->
 
-                        <td>Rp {{ number_format($r->nilai_muatan_pasuruan, 0, ',', '.') }}</td>
-                        <td>Rp {{ number_format($r->biaya_kirim_pasuruan, 0, ',', '.') }}</td>
+                    <td>Rp {{ number_format($r->nilai_muatan_pasuruan, 0, ',', '.') }}</td>
+<td>Rp {{ number_format($r->biaya_kirim_pasuruan, 0, ',', '.') }}</td>
 
-<td>
-
-@if($isDuplicate)
-
-<span class="badge badge-duplicate">
-    Duplicate No Shipment {{ $shipment }}
-    @if($jumlahData>1)
-        ({{ $jumlahData }} Data)
-    @endif
-</span>
-
-@elseif($cr > 0)
-
-<span class="cr-value">
-    {{ number_format($cr,4,',','.') }}%
-</span>
-
-@else
-
-<span class="text-muted">-</span>
-
-@endif
+<td class="cr-cell">
+    <span class="text-muted">-</span>
 </td>
                         <td>
                             @php
@@ -1328,36 +1340,87 @@ else {
                                         name="estimasi_tiba_pasuruan"
                                         value="{{ $r->estimasi_tiba_pasuruan ? date('Y-m-d', strtotime($r->estimasi_tiba_pasuruan)) : '' }}">
                                 </td>
-                          <td>
+                      <td>
     {{ $r->tanggal_tiba_pasuruan
         ? date('d-m-Y h:i A', strtotime($r->tanggal_tiba_pasuruan))
         : '-' }}
 </td>
                         <td>{{ $r->lama_perjalanan_pasuruan ?? '-' }}</td>
 
-                        <td>
-                            @php
-                            $slaTibaVal = trim($r->sla_tiba_pasuruan ?? '');
-                            @endphp
+                     <td>
+    @php
+        $slaTibaVal = '-';
+        $slaTibaClass = 'gray';
 
-                            @if($slaTibaVal == '')
-                            <span class="badge gray">-</span>
+        if (!empty($r->tanggal_tiba_pasuruan) && !empty($r->estimasi_tiba_pasuruan)) {
 
-                            @elseif(strtolower($slaTibaVal) == 'on time')
-                            <span class="badge green">{{ $slaTibaVal }}</span>
+            // FIXED: dibandingkan per TANGGAL kalender saja (jam di-strip
+            // dulu pakai date('Y-m-d')), bukan sebagai timestamp penuh.
+            // tanggal_tiba_pasuruan sekarang datetime (ada jam, misal
+            // 14:45), sementara estimasi_tiba_pasuruan biasanya hasil
+            // generate tanpa jam (selalu 00:00:00). Kalau dibandingkan
+            // sebagai timestamp mentah, tiba jam berapa pun di atas
+            // 00:00 akan selalu dianggap "lebih besar" dari estimasi
+            // walau tanggalnya sama persis → SLA jadi selalu Delay.
+            $tibaDate = strtotime(date('Y-m-d', strtotime($r->tanggal_tiba_pasuruan)));
+            $estimasiDate = strtotime(date('Y-m-d', strtotime($r->estimasi_tiba_pasuruan)));
 
-                            @elseif(strtolower($slaTibaVal) == 'delay')
-                            <span class="badge red">{{ $slaTibaVal }}</span>
+            $slaTibaVal = ($tibaDate <= $estimasiDate) ? 'On Time' : 'Delay';
+            $slaTibaClass = ($slaTibaVal == 'On Time') ? 'green' : 'red';
+        }
+    @endphp
 
-                            @else
-                            <span class="badge gray">{{ $slaTibaVal }}</span>
-                            @endif
-                        </td>
-                        <td>
+    <span class="badge {{ $slaTibaClass }}">{{ $slaTibaVal }}</span>
+</td>
+                       <td>
     {{ $r->tanggal_bongkar_pasuruan
         ? date('d-m-Y h:i A', strtotime($r->tanggal_bongkar_pasuruan))
         : '-' }}
 </td>
+<td class="text-center">
+    @php
+        if (!empty($r->tanggal_bongkar_pasuruan)) {
+
+            // Kalau tanggal bongkar sudah diisi
+            $statusBongkar = 'Telah Bongkar';
+            $statusBongkarClass = 'green';
+
+        } elseif (!empty($r->tanggal_tiba_pasuruan)) {
+
+            // Kalau sudah tiba tapi belum bongkar
+            $tanggalTiba = strtotime(
+                date('Y-m-d', strtotime($r->tanggal_tiba_pasuruan))
+            );
+
+            $hariIni = strtotime(date('Y-m-d'));
+
+            $selisihHari = floor(
+                ($hariIni - $tanggalTiba) / 86400
+            );
+
+            $selisihHari = max(0, $selisihHari);
+
+            $statusBongkar = 'H+' . $selisihHari;
+
+            if ($selisihHari == 0) {
+                $statusBongkarClass = 'orange';
+            } else {
+                $statusBongkarClass = 'red';
+            }
+
+        } else {
+
+            $statusBongkar = '-';
+            $statusBongkarClass = 'gray';
+        }
+    @endphp
+
+    <span class="badge status-bongkar {{ $statusBongkarClass }}">
+        {{ $statusBongkar }}
+    </span>
+</td>
+
+
                         <td>
 @php
     $overstayText = '';
@@ -1514,7 +1577,122 @@ $(document).ready(function() {
     let table = $('#tableLogistik').DataTable({
         scrollX: true,
         pageLength: 10,
-        autoWidth: false
+        autoWidth: false,
+
+        // =========================================================
+        // DRAW CALLBACK: Hitung CR Berdasarkan Muatan Gabungan per Shipment
+        // =========================================================
+        "drawCallback": function(settings) {
+            let api = this.api();
+            let shipmentGroups = {};
+
+            // -----------------------------------------------------
+            // PASS 1: Hitung Total Nilai Muatan & MAX Biaya Kirim per No Shipment
+            // -----------------------------------------------------
+            api.rows({ search: 'applied' }).every(function(rowIdx, tableLoop, rowLoop) {
+                let data = this.data();
+                let node = this.node();
+
+                let noShipment = data[4] ? data[4].trim() : '';
+
+                let cellsRp = [];
+                $(node).find('td').each(function() {
+                    if ($(this).text().includes('Rp')) {
+                        cellsRp.push($(this));
+                    }
+                });
+
+                let rawNilaiMuatan = cellsRp.length >= 2
+                    ? cellsRp[0].text().trim()
+                    : $(node).find('td').eq(12).text().trim();
+
+                let nilaiMuatan = parseFloat(rawNilaiMuatan.replace(/[^0-9]/g, "")) || 0;
+
+                if (noShipment && noShipment !== '-' && noShipment !== '') {
+
+                    if (!shipmentGroups[noShipment]) {
+                        shipmentGroups[noShipment] = {
+                            totalMuatan: 0,
+                            totalBiaya: 0,
+                            totalRow: 0
+                        };
+                    }
+
+                    let rawBiaya = cellsRp.length >= 2
+                        ? cellsRp[1].text().trim()
+                        : $(node).find('td').eq(13).text().trim();
+
+                    let biayaMurni = parseFloat(rawBiaya.replace(/[^0-9]/g, "")) || 0;
+
+                    shipmentGroups[noShipment].totalMuatan += nilaiMuatan;
+
+                    // MAX biaya kirim (bukan SUM), karena biaya_kirim sama untuk semua baris shipment yang sama
+                    shipmentGroups[noShipment].totalBiaya = Math.max(
+                        shipmentGroups[noShipment].totalBiaya,
+                        biayaMurni
+                    );
+
+                    shipmentGroups[noShipment].totalRow++;
+                }
+            });
+
+            // -----------------------------------------------------
+            // PASS 2: Tulis hasil CR ke tiap baris (halaman aktif saja)
+            // -----------------------------------------------------
+            api.rows({ page: 'current', search: 'applied' }).every(function(rowIdx, tableLoop, rowLoop) {
+                let data = this.data();
+                let node = this.node();
+                let noShipment = data[4] ? data[4].trim() : '';
+
+                let cellsRp = [];
+                $(node).find('td').each(function() {
+                    if ($(this).text().includes('Rp')) {
+                        cellsRp.push($(this));
+                    }
+                });
+
+                let cellMuatan = cellsRp.length >= 2 ? cellsRp[0] : $(node).find('td').eq(12);
+                let cellBiaya  = cellsRp.length >= 2 ? cellsRp[1] : $(node).find('td').eq(13);
+                let cellCR     = cellsRp.length >= 2 ? cellsRp[1].next('td') : $(node).find('td').eq(14);
+
+                let costRatio = 0;
+
+                if (noShipment && noShipment !== '-' && noShipment !== '' && shipmentGroups[noShipment]) {
+
+                    let totalMuatan = shipmentGroups[noShipment].totalMuatan;
+                    let totalBiaya  = shipmentGroups[noShipment].totalBiaya;
+
+                    let nilaiMuatanBaris = parseFloat(
+                        cellMuatan.text().trim().replace(/[^0-9]/g, "")
+                    ) || 0;
+
+                    if (totalMuatan > 0 && nilaiMuatanBaris > 0) {
+                        let totalCR = (totalBiaya / totalMuatan) * 100;
+                        let kontribusi = nilaiMuatanBaris / totalMuatan;
+                        costRatio = kontribusi * totalCR;
+                    }
+
+                    cellCR.html(costRatio > 0
+                        ? '<span class="cr-value">' + costRatio.toFixed(4).replace('.', ',') + '%</span>'
+                        : '<span class="text-muted">0,0000%</span>'
+                    );
+
+                } else {
+
+                    let nilaiMuatanMurni = parseFloat(cellMuatan.text().trim().replace(/[^0-9]/g, "")) || 0;
+                    let biayaMurni = parseFloat(cellBiaya.text().trim().replace(/[^0-9]/g, "")) || 0;
+
+                    if (nilaiMuatanMurni > 0) {
+                        costRatio = (biayaMurni / nilaiMuatanMurni) * 100;
+                    }
+
+                    cellCR.html(costRatio > 0
+                        ? '<span class="cr-value">' + costRatio.toFixed(4).replace('.', ',') + '%</span>'
+                        : '<span class="text-muted">-</span>'
+                    );
+                }
+            });
+        }
     });
 
     // ==========================================
@@ -1550,9 +1728,9 @@ $(document).ready(function() {
                 }
             }
 
-            // 2. FILTER PLANNER (Kolom 3) -> DIPERBAIKI SESUAI URUTAN TH
+            // 2. FILTER PLANNER (Kolom 3)
             let rawPlanner  = data[3] ? data[3] : '';
-            let dataPlanner = $('<div>').html(rawPlanner).text().trim(); // hapus tag html / spasi ekstra jika ada
+            let dataPlanner = $('<div>').html(rawPlanner).text().trim();
             if (filterPlanner && dataPlanner !== filterPlanner) {
                 return false;
             }

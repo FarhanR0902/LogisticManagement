@@ -123,6 +123,7 @@
         }
 
         table input[type="date"] { width: 165px; }
+        
 
         .badge-status {
             padding: 5px 10px;
@@ -212,6 +213,11 @@
             border: 2px solid #ef4444 !important;
             color: #991b1b !important;
         }
+
+        /* =========================================================
+           INPUT DATE & DATETIME-LOCAL
+           ========================================================= */
+
         input[type="date"],
         input[type="datetime-local"] {
             width: 100%;
@@ -221,14 +227,27 @@
             border: 1px solid #cbd5e1;
             border-radius: 4px;
             box-sizing: border-box;
+            color: #334155;
+            background-color: #fff;
+            transition: all 0.2s ease;
         }
 
+        /* datetime-local lebih lebar */
         input[type="datetime-local"] {
-            min-width: 170px; /* datetime-local butuh ruang lebih lebar dari date */
+            min-width: 190px;
         }
 
+        /* Saat diklik */
+        input[type="date"]:focus,
+        input[type="datetime-local"]:focus {
+            border-color: #38bdf8 !important;
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.2);
+        }
+
+        /* readonly tetap abu-abu */
         td input[readonly] {
-            background: #f1f5f9;
+            background: #f1f5f9 !important;
             cursor: not-allowed;
         }
     </style>
@@ -261,14 +280,7 @@
                     Add New Shipment
                 </button>
 
-                <button type="button"
-                    class="btn btn-success d-flex align-items-center gap-2"
-                    style="border: none; border-radius: 8px; padding: 10px 16px;"
-                    data-bs-toggle="modal"
-                    data-bs-target="#modalGudang23">
-                    <i class="fa-solid fa-warehouse"></i>
-                    Gudang 2 & 3
-                </button>
+            
             </div>
         </div>
 
@@ -367,7 +379,7 @@
                             <div class="modal-body">
                                 <div class="mb-3" style="max-width:300px;">
                                     <label class="form-label fw-bold">Create Tanggal</label>
-                                    <input type="date" name="create_tgl" class="form-control">
+                                    <input type="date" name="create_tgl_pasuruan" class="form-control">
                                 </div>
 
                                 <div class="form-horizontal-scroll bg-light rounded-3 border p-3">
@@ -396,8 +408,22 @@
                                         <input type="text" name="area_pasuruan" class="form-control">
                                     </div>
                                     <div class="field-box">
+                                        <label>Route</label>
+                                        <select name="route_pasuruan" class="form-control modal-route select-tarif">
+                                            <option value="">Pilih Route</option>
+                                            @foreach($routeOptions as $route)
+                                                <option value="{{ $route }}">{{ $route }}</option>
+                                            @endforeach
+                                        </select>
+                                    </div>
+                                    <div class="field-box">
                                         <label>Mobil</label>
-                                        <input type="text" name="mobil_pasuruan" class="form-control">
+                                        <select name="mobil_pasuruan" class="form-control modal-mobil select-tarif">
+                                            <option value="">Pilih Mobil</option>
+                                            @foreach($mobilOptions as $mobil)
+                                                <option value="{{ $mobil }}">{{ $mobil }}</option>
+                                            @endforeach
+                                        </select>
                                     </div>
                                     <div class="field-box">
                                         <label>Nilai Muatan</label>
@@ -417,11 +443,16 @@
                                     </div>
                                     <div class="field-box">
                                         <label>Ekspedisi</label>
-                                        <input type="text" name="ekspedisi_pasuruan" class="form-control">
+                                        <select name="ekspedisi_pasuruan" class="form-control modal-ekspedisi select-tarif">
+                                            <option value="">Pilih Ekspedisi</option>
+                                            @foreach($ekspedisiOptions as $eks)
+                                                <option value="{{ $eks }}">{{ $eks }}</option>
+                                            @endforeach
+                                        </select>
                                     </div>
                                     <div class="field-box">
                                         <label>Tanggal Terima Dari Admin</label>
-                                        <input type="date" name="tanggal_naik_logistik_pasuruan" class="form-control">
+                                        <input type="date" name="tanggal_terima_po_pasuruan" class="form-control">
                                     </div>
                                     <div class="field-box">
                                         <label>Rencana Kirim</label>
@@ -517,14 +548,17 @@
                                     <th class="th-oren">PIC Monitoring</th>
                                     <th class="th-oren">Act Pgi Date</th>
                                     <th class="th-oren">Urutan Bongkar</th>
-                                    <th class="th-oren">Actual Qty Do</th>
                                     <th class="th-oren">Selisih Qty Do</th>
+                                    <th class="th-oren">Actual Qty Do</th>
+                                     <th class="th-oren">Biaya Kuli Pasuruan</th>
+                                      <th class="th-oren">Total Biaya Kuli Pasuruan</th>
                                     <th class="th-oren">Reason Selisih Qty Do</th>
                                     <th class="th-system">Estimasi Tiba</th>
                                     <th class="th-oren">Tanggal Tiba</th>
                                     <th class="th-oren">Lama Perjalanan</th>
                                     <th class="th-system">SLA Tiba</th>
                                     <th class="th-oren">Tanggal Bongkar</th>
+                                    <th class="th-oren">Status Bongkar</th>
                                     <th class="th-oren">Overstays</th>
                                     <th class="th-oren">Sla Bongkar</th>
                                     <th class="th-oren">Reason Waktu Tiba</th>
@@ -535,6 +569,9 @@
                                     <th class="th-oren">ETA</th>
                                          <th class="th-oren">ATD</th>
                                     <th class="th-oren">ATA</th>
+                                    <th class="th-system">Estimasi Admin</th>
+                                    <th class="th-system">Ontime/Delay Admin</th>
+
                                
                                     <th class="th-default" style="min-width:130px;">Save & Hapus</th>
                                 </tr>
@@ -578,15 +615,36 @@
                                     </td>
 
                                     <td><input type="text" form="form-update-{{ $r->id }}" name="tujuan_pasuruan" value="{{ $r->tujuan_pasuruan }}"></td>
-                                    <td><input type="text" form="form-update-{{ $r->id }}" name="route_pasuruan" value="{{ $r->route_pasuruan }}"></td>
+                                    <td>
+                                        <select form="form-update-{{ $r->id }}" name="route_pasuruan" class="row-route select-tarif-row">
+                                            <option value="">Pilih Route</option>
+                                            @foreach($routeOptions as $route)
+                                                <option value="{{ $route }}" {{ $r->route_pasuruan == $route ? 'selected' : '' }}>{{ $route }}</option>
+                                            @endforeach
+                                        </select>
+                                    </td>
                                     <td><input type="text" form="form-update-{{ $r->id }}" name="pulau_pasuruan" value="{{ $r->pulau_pasuruan }}"></td>
                                     <td><input type="text" form="form-update-{{ $r->id }}" name="area_pasuruan" value="{{ $r->area_pasuruan }}"></td>
                                     <td><input type="text" form="form-update-{{ $r->id }}" name="via_kirim_pasuruan" value="{{ $r->via_kirim_pasuruan }}"></td>
                                     <td><input type="text" form="form-update-{{ $r->id }}" name="dist_channel_pasuruan" value="{{ $r->dist_channel_pasuruan }}"></td>
                                     <td><input type="text" form="form-update-{{ $r->id }}" name="kategori_ekspedisi_pasuruan" value="{{ $r->kategori_ekspedisi_pasuruan }}"></td>
-                                    <td><input type="text" form="form-update-{{ $r->id }}" name="ekspedisi_pasuruan" value="{{ $r->ekspedisi_pasuruan }}"></td>
+                                    <td>
+                                        <select form="form-update-{{ $r->id }}" name="ekspedisi_pasuruan" class="row-ekspedisi select-tarif-row">
+                                            <option value="">Pilih Ekspedisi</option>
+                                            @foreach($ekspedisiOptions as $eks)
+                                                <option value="{{ $eks }}" {{ $r->ekspedisi_pasuruan == $eks ? 'selected' : '' }}>{{ $eks }}</option>
+                                            @endforeach
+                                        </select>
+                                    </td>
                                     <td><input type="text" form="form-update-{{ $r->id }}" name="transport_lead_time_pasuruan" value="{{ $r->transport_lead_time_pasuruan }}"></td>
-                                    <td><input type="text" form="form-update-{{ $r->id }}" name="mobil_pasuruan" value="{{ $r->mobil_pasuruan }}"></td>
+                                    <td>
+                                        <select form="form-update-{{ $r->id }}" name="mobil_pasuruan" class="row-mobil select-tarif-row">
+                                            <option value="">Pilih Mobil</option>
+                                            @foreach($mobilOptions as $mobil)
+                                                <option value="{{ $mobil }}" {{ $r->mobil_pasuruan == $mobil ? 'selected' : '' }}>{{ $mobil }}</option>
+                                            @endforeach
+                                        </select>
+                                    </td>
                                      <td><input type="text" form="form-update-{{ $r->id }}" name="nama_driver_pasuruan" value="{{ $r->nama_driver_pasuruan }}"></td>
                                       <td><input type="text" form="form-update-{{ $r->id }}" name="no_pol_pasuruan" value="{{ $r->no_pol_pasuruan }}"></td>
                                     <td>
@@ -620,7 +678,7 @@
                                         <span class="badge-status {{ $badgeClass }}">{{ $statusMobil }}</span>
                                     </td>
 
-                                    <td class="text-center fw-medium text-primary">{{ $r->lama_waktu_pencarian }}</td>
+                                    <td class="text-center fw-medium text-primary">{{ $r->lama_waktu_pencarian_pasuruan }}</td>
 
                                     <td>
                                         @php
@@ -664,25 +722,62 @@
                                         <input type="number" form="form-update-{{ $r->id }}" name="act_urutan_bongkar_pasuruan" value="{{ $r->act_urutan_bongkar_pasuruan }}">
                                     </td>
 
+                                    {{--
+                                        FIXED: selisih_quantity_pasuruan sekarang INPUT MANUAL
+                                        dari user (sesuai controller), bukan lagi readonly.
+                                        Posisi dipindah ke sini (tepat setelah Urutan Bongkar)
+                                        sesuai permintaan. Value dikosongkan kalau memang belum
+                                        pernah diisi (null/kosong/0), TIDAK menampilkan "0" secara
+                                        default.
+                                    --}}
                                     <td>
-                                        <input type="number" form="form-update-{{ $r->id }}" name="actual_delivery_quantity_pasuruan" value="{{ $r->actual_delivery_quantity_pasuruan }}">
+                                        <input type="number" form="form-update-{{ $r->id }}" name="selisih_quantity_pasuruan"
+                                            value="{{ ($r->selisih_quantity_pasuruan === null || $r->selisih_quantity_pasuruan === '' || (float) $r->selisih_quantity_pasuruan === 0.0) ? '' : $r->selisih_quantity_pasuruan }}">
                                     </td>
 
+                                    {{--
+                                        FIXED (disesuaikan dengan controller update()/autosaveRow()):
+                                        actual_delivery_quantity_pasuruan sekarang DIHITUNG OTOMATIS
+                                        di controller = total_do_pasuruan - selisih_quantity_pasuruan.
+                                        Jadi di view ini field ini dibuat READONLY, nilainya
+                                        diturunkan lewat JS (lihat script di bawah) dan disimpan
+                                        lewat form submit / autosave seperti biasa.
+                                    --}}
                                     <td>
-                                        <input type="number" form="form-update-{{ $r->id }}" name="selisih_quantity_pasuruan" value="{{ $r->selisih_quantity_pasuruan }}" readonly style="background:#f1f5f9;">
+                                        <input type="number" form="form-update-{{ $r->id }}" name="actual_delivery_quantity_pasuruan" value="{{ $r->actual_delivery_quantity_pasuruan }}" readonly style="background:#f1f5f9;">
                                     </td>
+                                  
+                              <td>
+    <input type="text" form="form-update-{{ $r->id }}" name="biaya_kuli_pasuruan" class="rupiah-input"
+           value="{{ $r->biaya_kuli_pasuruan ? number_format($r->biaya_kuli_pasuruan, 0, ',', '.') : '' }}">
+</td>
+<td>
+    <input type="text" form="form-update-{{ $r->id }}" name="total_biaya_kuli_pasuruan"
+           value="Rp {{ number_format($r->total_biaya_kuli_pasuruan ?? 0, 0, ',', '.') }}"
+           readonly>
+</td>
 
                                     <td>
-                                        <input type="text" form="form-update-{{ $r->id }}" name="reason_selisih_quantity_pasuruan" value="{{ $r->reason_selisih_quantity_pasuruan }}">
+                                        <select form="form-update-{{ $r->id }}" name="reason_selisih_quantity_pasuruan" class="form-control reason-selisih-select">
+                                            <option value="">Pilih Reason</option>
+                                            @foreach($reasonSelisihQty as $reason)
+                                                <option value="{{ $reason }}" {{ $r->reason_selisih_quantity_pasuruan == $reason ? 'selected' : '' }}>
+                                                    {{ $reason }}
+                                                </option>
+                                            @endforeach
+                                        </select>
                                     </td>
 
                                     <td>
                                         <input type="date" form="form-update-{{ $r->id }}" name="estimasi_tiba_pasuruan" value="{{ $r->estimasi_tiba_pasuruan ? date('Y-m-d', strtotime($r->estimasi_tiba_pasuruan)) : '' }}" readonly style="background:#f1f5f9;">
                                     </td>
 
-                                    <td>
-                                        <input type="datetime-local" form="form-update-{{ $r->id }}" name="tanggal_tiba_pasuruan" value="{{ $r->tanggal_tiba_pasuruan ? date('Y-m-d\TH:i', strtotime($r->tanggal_tiba_pasuruan)) : '' }}">
-                                    </td>
+                                   <td>
+    <input type="datetime-local"
+        form="form-update-{{ $r->id }}"
+        name="tanggal_tiba_pasuruan"
+        value="{{ $r->tanggal_tiba_pasuruan ? date('Y-m-d\TH:i', strtotime($r->tanggal_tiba_pasuruan)) : '' }}">
+</td>
 
                                     <td>
                                         <input type="number" step="0.01" form="form-update-{{ $r->id }}" name="lama_perjalanan_pasuruan" value="{{ $r->lama_perjalanan_pasuruan }}" readonly style="background:#f1f5f9;">
@@ -693,12 +788,65 @@
                                     </td>
 
                                     <td>
-                                        <input type="datetime-local" form="form-update-{{ $r->id }}" name="tanggal_bongkar_pasuruan" value="{{ $r->tanggal_bongkar_pasuruan ? date('Y-m-d\TH:i', strtotime($r->tanggal_bongkar_pasuruan)) : '' }}">
-                                    </td>
+    <input type="datetime-local"
+        form="form-update-{{ $r->id }}"
+        name="tanggal_bongkar_pasuruan"
+        value="{{ $r->tanggal_bongkar_pasuruan ? date('Y-m-d\TH:i', strtotime($r->tanggal_bongkar_pasuruan)) : '' }}">
+</td>
 
-                                    <td>
-                                        <input type="number" step="0.01" form="form-update-{{ $r->id }}" name="overstay_days_pasuruan" value="{{ $r->overstay_days_pasuruan }}" readonly style="background:#f1f5f9;">
-                                    </td>
+{{-- STATUS BONGKAR --}}
+<td class="text-center">
+    @php
+        if (!empty($r->tanggal_bongkar_pasuruan)) {
+
+            // Kalau tanggal bongkar sudah diisi
+            $statusBongkar = 'Telah Bongkar';
+            $statusBongkarClass = 'green';
+
+        } elseif (!empty($r->tanggal_tiba_pasuruan)) {
+
+            // Kalau sudah tiba tapi belum bongkar
+            $tanggalTiba = strtotime(
+                date('Y-m-d', strtotime($r->tanggal_tiba_pasuruan))
+            );
+
+            $hariIni = strtotime(date('Y-m-d'));
+
+            $selisihHari = floor(
+                ($hariIni - $tanggalTiba) / 86400
+            );
+
+            $selisihHari = max(0, $selisihHari);
+
+            $statusBongkar = 'H+' . $selisihHari;
+
+            if ($selisihHari == 0) {
+                $statusBongkarClass = 'orange';
+            } else {
+                $statusBongkarClass = 'red';
+            }
+
+        } else {
+
+            $statusBongkar = '-';
+            $statusBongkarClass = 'gray';
+        }
+    @endphp
+
+    <span class="badge status-bongkar {{ $statusBongkarClass }}">
+        {{ $statusBongkar }}
+    </span>
+</td>
+
+<td>
+    <input type="number"
+        step="0.01"
+        form="form-update-{{ $r->id }}"
+        name="overstay_days_pasuruan"
+        value="{{ $r->overstay_days_pasuruan }}"
+        readonly
+        style="background:#f1f5f9;">
+</td>
 
                                     <td>
                                         <input type="text" form="form-update-{{ $r->id }}" name="sla_bongkar_pasuruan" value="{{ $r->sla_bongkar_pasuruan }}" readonly style="background:#f1f5f9;">
@@ -746,7 +894,56 @@
                                     <td>
                                         <input type="date" form="form-update-{{ $r->id }}" name="ata_pasuruan" value="{{ $r->ata_pasuruan ? date('Y-m-d', strtotime($r->ata_pasuruan)) : '' }}">
                                     </td>
-                             
+
+                                    @php
+    $estimasiAdminPasuruan = null;
+
+    if (!empty($r->rencana_kirim_pasuruan) && !empty($r->transport_lead_time_pasuruan)) {
+        $estimasiAdminPasuruan = \Carbon\Carbon::parse($r->rencana_kirim_pasuruan)
+            ->addDays((int) $r->transport_lead_time_pasuruan);
+    }
+
+    $statusEstimasiAdminPasuruan = '-';
+
+    if ($estimasiAdminPasuruan && !empty($r->tanggal_tiba_pasuruan)) {
+
+        // Sudah tiba -> bandingkan tanggal tiba vs estimasi
+        $tanggalTibaPasuruan = \Carbon\Carbon::parse($r->tanggal_tiba_pasuruan);
+
+        $statusEstimasiAdminPasuruan =
+            $tanggalTibaPasuruan->lte($estimasiAdminPasuruan)
+                ? 'On Time'
+                : 'Delay';
+
+    } elseif ($estimasiAdminPasuruan && empty($r->tanggal_tiba_pasuruan)) {
+
+        // Belum tiba -> cek apakah hari ini sudah lewat estimasi
+        $statusEstimasiAdminPasuruan =
+            now()->startOfDay()->gt($estimasiAdminPasuruan->copy()->startOfDay())
+                ? 'Delay'
+                : 'Belum Tiba';
+    }
+@endphp
+
+<td>
+    {{ $estimasiAdminPasuruan ? $estimasiAdminPasuruan->format('d-m-Y') : '-' }}
+</td>
+
+<td>
+    @if($statusEstimasiAdminPasuruan == 'On Time')
+        <span class="badge green">On Time</span>
+
+    @elseif($statusEstimasiAdminPasuruan == 'Delay')
+        <span class="badge red">Delay</span>
+
+    @elseif($statusEstimasiAdminPasuruan == 'Belum Tiba')
+        <span class="badge orange">Belum Tiba</span>
+
+    @else
+        <span class="badge gray">-</span>
+    @endif
+</td>
+
 
                                     <td>
                                         <div class="btn-action">
@@ -852,8 +1049,173 @@
                             dropdownAutoWidth: true,
                             dropdownParent: $('body')
                         });
+
+                        $('.select-tarif-row').not('.select2-hidden-accessible').select2({
+                            theme: 'bootstrap-5',
+                            width: '100%',
+                            allowClear: true,
+                            dropdownAutoWidth: true,
+                            dropdownParent: $('body')
+                        });
+
+                        $('.reason-selisih-select').not('.select2-hidden-accessible').select2({
+                            theme: 'bootstrap-5',
+                            width: '100%',
+                            placeholder: 'Pilih Reason Selisih',
+                            allowClear: true,
+                            dropdownAutoWidth: true,
+                            dropdownParent: $('body')
+                        });
                     }
 
+                    // ============================================================
+                    // DATA TARIF PENGIRIMAN dari controller, dipakai untuk:
+                    // 1. Cascading dropdown (pilih Route -> filter Mobil -> filter Ekspedisi)
+                    // 2. Preview biaya_kirim otomatis di browser (nilai FINAL tetap
+                    //    dihitung ulang & disimpan oleh cariBiayaKirimOtomatisPasuruan()
+                    //    di controller saat submit/autosave — ini cuma preview visual)
+                    // ============================================================
+                    const tarifData = @json($tarifPengiriman);
+
+                    function normalizeTarif(v) {
+                        if (!v) return '';
+                        return String(v).replace(/\u00a0/g, ' ').replace(/\s*-\s*/g, '-').replace(/\s+/g, ' ').trim().toLowerCase();
+                    }
+
+                    function filterMobilByRoute(routeVal) {
+                        if (!routeVal) return tarifData;
+                        let key = normalizeTarif(routeVal);
+                        return tarifData.filter(t => normalizeTarif(t.route) === key);
+                    }
+
+                    function isiOptionSelect($select, list, field, selectedVal) {
+                        let current = selectedVal ?? $select.val();
+                        let uniqueVals = [...new Set(list.map(t => t[field]).filter(Boolean))].sort();
+
+                        $select.empty();
+                        $select.append(`<option value="">Pilih ${field}</option>`);
+                        uniqueVals.forEach(v => {
+                            let sel = (v === current) ? 'selected' : '';
+                            $select.append(`<option value="${v}" ${sel}>${v}</option>`);
+                        });
+
+                        // trigger supaya select2 (kalau sudah di-init) ikut update tampilan
+                        if ($select.hasClass('select2-hidden-accessible')) {
+                            $select.trigger('change.select2');
+                        }
+                    }
+
+                    function updateCascadeMobilEkspedisi(scope, routeVal, keepMobil = null, keepEkspedisi = null) {
+                        let filtered = filterMobilByRoute(routeVal);
+
+                        let $mobilSelect = scope.find('[name="mobil_pasuruan"]');
+                        let $eksSelect = scope.find('[name="ekspedisi_pasuruan"]');
+
+                        isiOptionSelect($mobilSelect, filtered, 'mobil', keepMobil);
+                        isiOptionSelect($eksSelect, filtered, 'ekpedisi', keepEkspedisi);
+                    }
+
+                    function previewBiayaKirim(scope) {
+                        let route = scope.find('[name="route_pasuruan"]').val();
+                        let mobil = scope.find('[name="mobil_pasuruan"]').val();
+                        let eks   = scope.find('[name="ekspedisi_pasuruan"]').val();
+
+                        if (!route || !mobil) return;
+
+                        let routeKey = normalizeTarif(route);
+                        let mobilKey = normalizeTarif(mobil);
+                        let eksKey   = normalizeTarif(eks);
+
+                        let candidates = tarifData.filter(t => normalizeTarif(t.route) === routeKey);
+
+                        let match = null;
+                        if (eksKey) {
+                            match = candidates.find(t => normalizeTarif(t.ekpedisi) === eksKey && normalizeTarif(t.mobil).startsWith(mobilKey));
+                        }
+                        if (!match) {
+                            match = candidates.find(t => normalizeTarif(t.mobil).startsWith(mobilKey));
+                        }
+
+                        if (match && match.biaya_kirim) {
+                            let $biayaField = scope.find('[name="biaya_kirim_pasuruan"]');
+                            $biayaField.val(formatKeRupiah(match.biaya_kirim));
+                            if (scope.is('tr')) hitungSemuaCostRatioTabel();
+                        }
+                    }
+
+                    // --- Cascading untuk MODAL Add New Shipment ---
+                    $('#addModal').on('change', '[name="route_pasuruan"]', function () {
+                        let modalScope = $('#addModal');
+                        updateCascadeMobilEkspedisi(modalScope, $(this).val());
+                    });
+
+                    $('#addModal').on('change', '[name="route_pasuruan"], [name="mobil_pasuruan"], [name="ekspedisi_pasuruan"]', function () {
+                        previewBiayaKirim($('#addModal'));
+                    });
+
+                    // --- Cascading untuk PER-BARIS di tabel ---
+                    $(document).on('change', '#tablePlanner [name="route_pasuruan"]', function () {
+                        let row = $(this).closest('tr');
+                        let currentMobil = row.find('[name="mobil_pasuruan"]').val();
+                        let currentEks = row.find('[name="ekspedisi_pasuruan"]').val();
+                        updateCascadeMobilEkspedisi(row, $(this).val(), currentMobil, currentEks);
+                    });
+
+                    $(document).on('change', '#tablePlanner [name="route_pasuruan"], #tablePlanner [name="mobil_pasuruan"], #tablePlanner [name="ekspedisi_pasuruan"]', function () {
+                        let row = $(this).closest('tr');
+                        previewBiayaKirim(row);
+                    });
+
+                    // Inisialisasi cascading utk baris yang SUDAH ADA nilainya saat page
+                    // load (supaya opsi mobil/ekspedisi ke-filter sesuai route tersimpan)
+                    $('#tablePlanner tbody tr').each(function () {
+                        let row = $(this);
+                        let routeVal = row.find('[name="route_pasuruan"]').val();
+                        let mobilVal = row.find('[name="mobil_pasuruan"]').val();
+                        let eksVal = row.find('[name="ekspedisi_pasuruan"]').val();
+                        if (routeVal) {
+                            updateCascadeMobilEkspedisi(row, routeVal, mobilVal, eksVal);
+                        }
+                    });
+
+                    function isDaratPasuruan(val) {
+                        return (val || '').trim().toUpperCase() === 'DARAT';
+                    }
+
+                    function hitungRencanaKirimJSPasuruan(tglTerima) {
+                        if (!tglTerima) return '';
+                        let d = new Date(tglTerima);
+                        d.setDate(d.getDate() + 4);
+                        let yyyy = d.getFullYear();
+                        let mm = String(d.getMonth() + 1).padStart(2, '0');
+                        let dd = String(d.getDate()).padStart(2, '0');
+                        return `${yyyy}-${mm}-${dd}`;
+                    }
+
+                    function autoRencanaKirimPasuruan(row) {
+                        let via = row.find('[name="via_kirim_pasuruan"]').val();
+                        let tglTerimaInput = row.find('[name="tanggal_terima_po_pasuruan"]');
+                        let rencanaInput = row.find('[name="rencana_kirim_pasuruan"]');
+
+                        if (isDaratPasuruan(via)) {
+                            rencanaInput.val(hitungRencanaKirimJSPasuruan(tglTerimaInput.val()));
+                            rencanaInput.prop('readonly', true).css('background', '#f1f5f9');
+                        } else {
+                            rencanaInput.prop('readonly', false).css('background', '');
+                        }
+                    }
+
+                    // jalankan sekali saat halaman dibuka, untuk semua baris
+                    $('#tablePlanner tbody tr').each(function () {
+                        autoRencanaKirimPasuruan($(this));
+                    });
+
+                    // jalankan tiap kali via_kirim atau tanggal_terima_po berubah
+                    $(document).on('input change', '#tablePlanner [name="via_kirim_pasuruan"], #tablePlanner [name="tanggal_terima_po_pasuruan"]', function () {
+                        let row = $(this).closest('tr');
+                        autoRencanaKirimPasuruan(row);
+                        row.find('[name="rencana_kirim_pasuruan"]').trigger('change'); // supaya autosave ke-trigger juga
+                    });
                     // ========================================================
                     // INISIALISASI DATATABLES
                     // ========================================================
@@ -865,10 +1227,18 @@
                             targets: [0, 19, 20, 21, 22, 23, 24, 25, 26]
                         }],
 
-                        initComplete: function() {
+                       initComplete: function() {
                             setTimeout(function() {
                                 jalankanMaskingRupiahTabel();
                                 initSelect2RowLevel();
+                                hitungSemuaCostRatioTabel();
+                                // FIXED: select2 mengubah lebar cell setelah tabel
+                                // sudah dirender dengan scrollX:true, sehingga
+                                // header & body jadi tidak sinkron lebarnya
+                                // ("header geser-geser"). columns.adjust()
+                                // memaksa DataTables menghitung ulang & menyamakan
+                                // lebar header dengan body.
+                                table.columns.adjust();
                             }, 0);
 
                             // ================================================
@@ -908,9 +1278,33 @@
                         drawCallback: function() {
                             jalankanMaskingRupiahTabel();
                             initSelect2RowLevel();
+                            // FIXED: sama seperti initComplete — tiap kali paging
+                            // memicu select2 baru di-init untuk baris yang baru
+                            // muncul, resync lebar header/body lagi supaya tidak
+                            // geser.
+                            table.columns.adjust();
                         }
                     });
 
+                    // Format input biaya_kuli jadi 1.000.000 saat diketik
+$(document).on('input', 'input[name="biaya_kuli_pasuruan"]', function () {
+    let raw = $(this).val().replace(/\D/g, ''); // ambil angka saja
+    $(this).val(raw ? new Intl.NumberFormat('id-ID').format(raw) : '');
+    hitungTotalKuli($(this).closest('tr'));
+});
+
+function hitungTotalKuli(row) {
+    let qty = parseFloat(row.find('input[name="actual_delivery_quantity_pasuruan"]').val()) || 0;
+    let biayaRaw = row.find('input[name="biaya_kuli_pasuruan"]').val().replace(/\./g, '') || 0;
+    let biaya = parseFloat(biayaRaw) || 0;
+
+    let total = qty * biaya;
+    row.find('input[name="total_biaya_kuli_pasuruan"]').val(formatRupiah(total));
+}
+
+function formatRupiah(angka) {
+    return 'Rp ' + new Intl.NumberFormat('id-ID').format(angka);
+}
                     // ========================================================
                     // SELECT2 UNTUK FILTER HEADER (init sekali saja)
                     // ========================================================
@@ -940,6 +1334,14 @@
                         width: '100%',
                         placeholder: 'Semua Reason Bongkar',
                         allowClear: true
+                    });
+
+                    // Select2 untuk dropdown Route/Mobil/Ekspedisi di modal Add New Shipment
+                    $('.select-tarif').select2({
+                        theme: 'bootstrap-5',
+                        width: '100%',
+                        allowClear: true,
+                        dropdownParent: $('#addModal')
                     });
 
                     // ========================================================
@@ -1080,7 +1482,6 @@
                                 no_shipment_pasuruan: row.find('[name="no_shipment_pasuruan"]').val(),
                                 total_do_pasuruan: row.find('[name="total_do_pasuruan"]').val(),
                                 actual_delivery_quantity_pasuruan: row.find('[name="actual_delivery_quantity_pasuruan"]').val(),
-                                tanggal_naik_logistik_pasuruan: row.find('[name="tanggal_naik_logistik_pasuruan"]').val(),
                                 rencana_kirim_pasuruan: row.find('[name="rencana_kirim_pasuruan"]').val(),
                                 tanggal_dpt_unit_pasuruan: row.find('[name="tanggal_dpt_unit_pasuruan"]').val(),
                                 planning_loading_pasuruan: row.find('[name="planning_loading_pasuruan"]').val(),
@@ -1096,6 +1497,7 @@
                                 area_pasuruan: row.find('[name="area_pasuruan"]').val(),
                                 via_kirim_pasuruan: row.find('[name="via_kirim_pasuruan"]').val(),
                                 mobil_pasuruan: row.find('[name="mobil_pasuruan"]').val(),
+                                biaya_kuli_pasuruan: ambilAngkaMurni(row.find('[name="biaya_kuli_pasuruan"]').val()),
                                 nilai_muatan_pasuruan: ambilAngkaMurni(row.find('[name="nilai_muatan_pasuruan"]').val()),
                                 biaya_kirim_pasuruan: ambilAngkaMurni(row.find('[name="biaya_kirim_pasuruan"]').val()),
                                 cr_pasuruan: row.find('[name="cr_pasuruan"]').val(),
@@ -1123,45 +1525,68 @@
                     // ========================================================
                     // HITUNG CR (Cost Ratio) — akumulasi per No Shipment
                     // ========================================================
-                    function hitungSemuaCostRatioTabel() {
+ function hitungSemuaCostRatioTabel() {
                         var shipmentGroups = {};
+                        
                         var dt = $('#tablePlanner').DataTable();
 
-                        dt.rows().every(function() {
+                        // PASS 1: total nilai muatan (SUM) & biaya kirim (MAX) per shipment
+                        dt.rows({ search: 'applied' }).every(function() {
                             var row = $(this.node());
-                            var noShipment = row.find('.row-no-shipment').val();
+                            var noShipment = (row.find('.row-no-shipment').val() || '').trim();
                             if (!noShipment) return;
-                            noShipment = noShipment.trim();
 
                             var muatan = ambilAngkaMurni(row.find('.row-nilai-muatan').val());
                             var biaya = ambilAngkaMurni(row.find('.row-biaya-kirim').val());
 
                             if (!shipmentGroups[noShipment]) {
-                                shipmentGroups[noShipment] = { rows: [], totalMuatan: 0, totalBiaya: 0 };
+                                shipmentGroups[noShipment] = { totalMuatan: 0, totalBiaya: 0 };
                             }
 
-                            shipmentGroups[noShipment].rows.push(row);
                             shipmentGroups[noShipment].totalMuatan += muatan;
-                            shipmentGroups[noShipment].totalBiaya = Math.max(shipmentGroups[noShipment].totalBiaya, biaya);
+                            shipmentGroups[noShipment].totalBiaya = Math.max(
+                                shipmentGroups[noShipment].totalBiaya,
+                                biaya
+                            );
                         });
 
-                        $.each(shipmentGroups, function(noShipment, data) {
-                            var cr = 0;
-                            if (data.totalMuatan > 0) {
-                                cr = (data.totalBiaya / data.totalMuatan) * 100;
-                            }
+                        // PASS 2: hitung & isi CR tiap baris (proporsional terhadap kontribusi muatan)
+                        dt.rows({ search: 'applied' }).every(function() {
+                            var row = $(this.node());
+                            var noShipment = (row.find('.row-no-shipment').val() || '').trim();
+                            var crInput = row.find('.row-cr');
+                            var costRatio = 0;
 
-                            data.rows.forEach(function(row, index) {
-                                if (index === 0) {
-                                    row.find('.row-cr').val(cr.toFixed(4) + '%');
-                                } else {
-                                    row.find('.row-cr').val('0.0000%');
+                            if (noShipment && shipmentGroups[noShipment]) {
+
+                                var totalMuatan = shipmentGroups[noShipment].totalMuatan;
+                                var totalBiaya = shipmentGroups[noShipment].totalBiaya;
+                                var nilaiMuatanBaris = ambilAngkaMurni(row.find('.row-nilai-muatan').val());
+
+                                if (totalMuatan > 0 && nilaiMuatanBaris > 0) {
+                                    var totalCR = (totalBiaya / totalMuatan) * 100;
+                                    var kontribusi = nilaiMuatanBaris / totalMuatan;
+                                    costRatio = kontribusi * totalCR;
                                 }
-                            });
+
+                                crInput.val(costRatio > 0 ? costRatio.toFixed(4) + '%' : '0.0000%');
+
+                            } else {
+
+                                var nilaiMuatanMurni = ambilAngkaMurni(row.find('.row-nilai-muatan').val());
+                                var biayaMurni = ambilAngkaMurni(row.find('.row-biaya-kirim').val());
+
+                                if (nilaiMuatanMurni > 0) {
+                                    costRatio = (biayaMurni / nilaiMuatanMurni) * 100;
+                                }
+
+                                crInput.val(costRatio > 0 ? costRatio.toFixed(4) + '%' : '-');
+                            }
                         });
                     }
 
                     $(document).on('input', '.row-nilai-muatan', function() {
+                        $(this).val(formatKeRupiah(ambilAngkaMurni($(this).val())));
                         hitungSemuaCostRatioTabel();
                     });
 
@@ -1169,7 +1594,6 @@
                         $(this).val(formatKeRupiah(ambilAngkaMurni($(this).val())));
                         hitungSemuaCostRatioTabel();
                     });
-
                     $(document).on('input', '.modal-nilai-muatan, .modal-biaya-kirim', function() {
                         var muatanModal = ambilAngkaMurni($('.modal-nilai-muatan').val());
                         var biayaModal = ambilAngkaMurni($('.modal-biaya-kirim').val());
@@ -1237,25 +1661,6 @@
                     $('#selectedNoShipment').val(val);
                 });
 
-                $('#formGudang23').on('submit', function(e) {
-                    e.preventDefault();
-
-                    $.ajax({
-                        url: "{{ route('planner.updateGudang23') }}",
-                        type: "POST",
-                        data: $(this).serialize(),
-                        success: function(res) {
-                            alert(res.message);
-                            $('#modalGudang23').modal('hide');
-                            location.reload();
-                        },
-                        error: function(xhr) {
-                            console.log(xhr.responseText);
-                            alert('Gagal update data');
-                        }
-                    });
-                });
-
                 var autosaveTimer = {};
 
                 $(document).on('input change', '.autosave-row input, .autosave-row select, .autosave-row textarea', function() {
@@ -1270,7 +1675,6 @@
                             _token: "{{ csrf_token() }}",
                             planner_pasuruan: row.find('[name="planner_pasuruan"]').val(),
                             no_shipment_pasuruan: row.find('[name="no_shipment_pasuruan"]').val(),
-                            tanggal_naik_logistik_pasuruan: row.find('[name="tanggal_naik_logistik_pasuruan"]').val(),
                             rencana_kirim_pasuruan: row.find('[name="rencana_kirim_pasuruan"]').val(),
                             tanggal_dpt_unit_pasuruan: row.find('[name="tanggal_dpt_unit_pasuruan"]').val(),
                             biaya_kirim_pasuruan: ambilAngkaMurni(row.find('[name="biaya_kirim_pasuruan"]').val()),
@@ -1292,21 +1696,32 @@
                     }, 500);
                 });
 
-                function updateDateColor() {
-                    $('input[type="date"]').each(function() {
-                        if ($(this).val()) {
-                            $(this).removeClass('input-empty').addClass('input-filled');
-                        } else {
-                            $(this).removeClass('input-filled').addClass('input-empty');
-                        }
-                    });
-                }
+function updateDateColor() {
+    $('input[type="date"], input[type="datetime-local"]').each(function() {
 
-                updateDateColor();
+        if ($(this).val()) {
+            $(this)
+                .removeClass('input-empty')
+                .addClass('input-filled');
+        } else {
+            $(this)
+                .removeClass('input-filled')
+                .addClass('input-empty');
+        }
 
-                $(document).on('change', 'input[type="date"]', function() {
-                    updateDateColor();
-                });
+    });
+}
+
+updateDateColor();
+
+$(document).on(
+    'change',
+    'input[type="date"], input[type="datetime-local"]',
+    function() {
+        updateDateColor();
+    }
+);
+
 
                 $(document).on('input', '#tablePlanner input', function() {
                     $(this).closest('td').attr('data-search', $(this).val());
@@ -1348,11 +1763,29 @@
                     }
                 });
 
-                $(document).on('input', '[name="total_do_pasuruan"], [name="actual_delivery_quantity_pasuruan"]', function() {
+                // ============================================================
+                // FIXED (disesuaikan dengan controller):
+                // Sebelumnya listener ini mendengarkan total_do +
+                // actual_delivery_quantity untuk MENGHITUNG selisih (logika
+                // lama, kebalik dari controller). Sekarang controller
+                // menghitung actual_delivery_quantity_pasuruan = total_do -
+                // selisih, jadi listener ini mendengarkan total_do +
+                // SELISIH (yang sekarang input manual) untuk menampilkan
+                // preview actual qty secara real-time di browser. Nilai
+                // akhir yang benar tetap dihitung ulang & disimpan oleh
+                // controller saat save/autosave.
+                // ============================================================
+                $(document).on('input', '[name="total_do_pasuruan"], [name="selisih_quantity_pasuruan"]', function() {
                     let row = $(this).closest('tr');
                     let total = parseFloat(row.find('[name="total_do_pasuruan"]').val()) || 0;
-                    let actual = parseFloat(row.find('[name="actual_delivery_quantity_pasuruan"]').val()) || 0;
-                    row.find('[name="selisih_quantity_pasuruan"]').val(total - actual);
+                    let selisih = parseFloat(row.find('[name="selisih_quantity_pasuruan"]').val()) || 0;
+                    let actual = total - selisih;
+
+                    row.find('[name="actual_delivery_quantity_pasuruan"]').val(actual);
+
+                    // biaya kuli & total biaya kuli ikut ter-update di preview
+                    // karena actual qty berubah
+                    hitungTotalKuli(row);
                 });
             </script>
 
