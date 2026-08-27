@@ -306,6 +306,11 @@ class PlannerController extends Controller
     /**
      * =====================================================
      * AUTOSAVE ROW (inline edit per-cell)
+     * FIX UTAMA: sekarang menghitung estimasi_tiba + hitungSla(),
+     * yang sebelumnya SAMA SEKALI TIDAK DIPANGGIL di sini.
+     * Ini penyebab lama_waktu_pencarian, sla_dapat_mobil,
+     * lama_digudang, status_gudang, sla_loading (gudang 1/2/3)
+     * tidak pernah ter-update lewat inline edit.
      * =====================================================
      */
     public function autosaveRow(Request $request, $id)
@@ -341,7 +346,7 @@ class PlannerController extends Controller
         }
 
         // ==========================
-        // HITUNG SLA
+        // HITUNG SLA (INI YANG SEBELUMNYA HILANG TOTAL)
         // ==========================
         $rumus = $this->hitungSla($request);
 
@@ -394,6 +399,7 @@ class PlannerController extends Controller
             'no_pol'      => $request->no_pol,
             'mobil'       => $request->mobil,
 
+            // ===================== FIX: SLA IKUT DISIMPAN =====================
             'lama_waktu_pencarian' => $rumus['lama_waktu_pencarian'] ?? null,
             'sla_dapat_mobil'      => $rumus['sla_dapat_mobil'] ?? null,
             'status_pengiriman'    => $rumus['status_pengiriman'] ?? null,
@@ -409,6 +415,7 @@ class PlannerController extends Controller
             'lama_digudang_3' => $rumus['lama_digudang_3'] ?? null,
             'status_gudang_3' => $rumus['status_gudang_3'] ?? null,
             'sla_loading_3'   => $rumus['sla_loading_3'] ?? null,
+            // ====================================================================
 
             'updated_at' => now(),
         ];
@@ -495,18 +502,11 @@ class PlannerController extends Controller
         return (int) preg_replace('/[^0-9]/', '', $value);
     }
 
-    /**
-     * =====================================================
-     * HALAMAN DATA PLANNER
-     * FIX PERFORMA: TIDAK LAGI query semua baris ($logistik)
-     * ke Blade. View sekarang mengambil data lewat DataTables
-     * server-side (endpoint dataAjax()). Di sini hanya kirim
-     * list dropdown (planner/area/tujuan/dll) yang memang
-     * dibutuhkan untuk filter & modal "Add New Shipment".
-     * =====================================================
-     */
     public function dataLogistik()
     {
+        $logistik = LogistikPengiriman::orderByRaw('CAST(no_shipment AS UNSIGNED) ASC')
+            ->get();
+
         $planners = LogistikPengiriman::whereNotNull('planner')
             ->where('planner', '!=', '')
             ->distinct()
@@ -550,6 +550,7 @@ class PlannerController extends Controller
         return view(
             'planner.data_planner',
             compact(
+                'logistik',
                 'ekpedisiList',
                 'tujuanList',
                 'mobilList',
@@ -563,362 +564,6 @@ class PlannerController extends Controller
         );
     }
 
-    /**
-     * =====================================================
-     * ENDPOINT SERVER-SIDE UNTUK DATATABLES
-     * Hanya ambil & render baris yang benar-benar tampil
-     * (biasanya 10-25 baris), bukan semua data.
-     * =====================================================
-     */
-    public function dataAjax(Request $request)
-    {
-        $draw   = (int) $request->input('draw', 1);
-        $start  = (int) $request->input('start', 0);
-        $length = (int) $request->input('length', 10);
-        $searchValue = trim((string) $request->input('search.value', ''));
-
-        $baseQuery = LogistikPengiriman::query();
-        $totalRecords = (clone $baseQuery)->count();
-
-        // ===== FILTER: planner / area / tanggal import =====
-        if ($request->filled('planner_filter')) {
-            $baseQuery->where('planner', $request->input('planner_filter'));
-        }
-        if ($request->filled('area_filter')) {
-            $baseQuery->where('area', $request->input('area_filter'));
-        }
-        if ($request->filled('create_tgl_filter')) {
-            $baseQuery->whereDate('create_tgl', $request->input('create_tgl_filter'));
-        }
-
-        // ===== GLOBAL SEARCH (kolom-kolom penting saja) =====
-        if ($searchValue !== '') {
-            $baseQuery->where(function ($q) use ($searchValue) {
-                $cols = [
-                    'planner', 'no_shipment', 'tujuan', 'route', 'pulau', 'area',
-                    'via_kirim', 'dist_channel', 'kategori_ekspedisi', 'ekpedisi',
-                    'nama_driver', 'no_pol', 'mobil', 'transport_lead_time',
-                ];
-                foreach ($cols as $col) {
-                    $q->orWhere($col, 'like', "%{$searchValue}%");
-                }
-            });
-        }
-
-        $recordsFiltered = (clone $baseQuery)->count();
-
-        $rows = $baseQuery
-            ->orderByRaw('CAST(no_shipment AS UNSIGNED) ASC')
-            ->skip($start)
-            ->take($length)
-            ->get();
-
-        // list dropdown untuk render select di tiap baris
-        $tujuanList = DB::table('tujuanfillterr')->whereNotNull('tujuan')->where('tujuan', '!=', '')->distinct()->orderBy('tujuan')->pluck('tujuan');
-        $pulauList = DB::table('tujuanfillterr')->whereNotNull('pulau')->where('pulau', '!=', '')->distinct()->orderBy('pulau')->pluck('pulau');
-        $areas = DB::table('tujuanfillterr')->whereNotNull('area')->where('area', '!=', '')->distinct()->orderBy('area')->pluck('area');
-        $distChannelList = DB::table('tujuanfillterr')->whereNotNull('dist_channel')->where('dist_channel', '!=', '')->distinct()->orderBy('dist_channel')->pluck('dist_channel');
-        $ekpedisiList = DB::table('tarif_pengiriman')->whereNotNull('ekpedisi')->where('ekpedisi', '!=', '')->distinct()->orderBy('ekpedisi')->pluck('ekpedisi');
-        $mobilList = DB::table('tarif_pengiriman')->whereNotNull('mobil')->where('mobil', '!=', '')->distinct()->orderBy('mobil')->pluck('mobil');
-        $routeList = DB::table('tarif_pengiriman')->whereNotNull('route')->where('route', '!=', '')->distinct()->orderBy('route')->pluck('route');
-
-        $lists = compact('tujuanList', 'pulauList', 'areas', 'distChannelList', 'ekpedisiList', 'mobilList', 'routeList');
-
-        $data = [];
-        foreach ($rows as $r) {
-            $data[] = $this->renderRowColumns($r, $lists);
-        }
-
-        return response()->json([
-            'draw'            => $draw,
-            'recordsTotal'    => $totalRecords,
-            'recordsFiltered' => $recordsFiltered,
-            'data'            => $data,
-        ]);
-    }
-
-    /**
-     * Bangun 1 baris (array kolom, index harus sinkron dengan
-     * thead di data_planner.blade.php) dalam bentuk HTML string,
-     * supaya input/select/badge yang sudah ada tetap identik.
-     */
-    private function renderRowColumns($r, array $lists)
-    {
-        $id = $r->id;
-        $formAttr = 'form="form-update-' . $id . '"';
-
-        $dateInput = function ($name, $value) use ($formAttr) {
-            $val = $value ? date('Y-m-d', strtotime($value)) : '';
-            return '<input type="date" ' . $formAttr . ' name="' . $name . '" value="' . e($val) . '">';
-        };
-
-        $textInput = function ($name, $value, $extraClass = '') use ($formAttr) {
-            return '<input type="text" ' . $formAttr . ' name="' . $name . '" class="' . $extraClass . '" value="' . e($value) . '">';
-        };
-
-        $buildSelect = function ($name, $selected, $options, $extraClass = '', $required = false) use ($formAttr) {
-            $html = '<select ' . $formAttr . ' name="' . $name . '" class="' . $extraClass . ' select2-row">';
-            $html .= '<option value="">-- Pilih --</option>';
-            $found = false;
-            foreach ($options as $opt) {
-                $isSelected = ((string) $selected === (string) $opt);
-                if ($isSelected) $found = true;
-                $html .= '<option value="' . e($opt) . '"' . ($isSelected ? ' selected' : '') . '>' . e($opt) . '</option>';
-            }
-            if ($selected && !$found) {
-                $html .= '<option value="' . e($selected) . '" selected>' . e($selected) . ' (lama)</option>';
-            }
-            $html .= '</select>';
-            return $html;
-        };
-
-        // ===== helper durasi & status gudang (identik dgn logic asli) =====
-        $durasiStatus = function ($planning, $tiba) {
-            $durasiText = '-';
-            if (!empty($planning) && !empty($tiba)) {
-                $start = \Carbon\Carbon::parse($planning);
-                $end   = \Carbon\Carbon::parse($tiba);
-                $totalMenit  = $start->diffInMinutes($end);
-                $desimalHari = $totalMenit / 1440;
-                $hari = floor($desimalHari);
-                $jam  = round(($desimalHari - $hari) * 24);
-                if ($jam == 24) { $jam = 0; $hari += 1; }
-                if ($hari > 0 && $jam > 0) $durasiText = "{$hari} Hari {$jam} Jam";
-                elseif ($hari > 0) $durasiText = "{$hari} Hari";
-                elseif ($jam > 0) $durasiText = "{$jam} Jam";
-                else $durasiText = "0 Jam";
-            }
-            return $durasiText;
-        };
-
-        $statusBadge = function ($planning, $tiba) {
-            if (empty($planning) || empty($tiba)) {
-                return '<span class="badge gray">-</span>';
-            }
-            $startDay = \Carbon\Carbon::parse($planning)->startOfDay();
-            $endDay   = \Carbon\Carbon::parse($tiba)->startOfDay();
-            return $endDay->gt($startDay)
-                ? '<span class="badge red">Delay</span>'
-                : '<span class="badge green">On Time</span>';
-        };
-
-        $slaBadge = function ($planning, $tiba) {
-            if (empty($planning) || empty($tiba)) {
-                return '<span class="badge bg-secondary">-</span>';
-            }
-            $start = \Carbon\Carbon::parse($planning)->startOfDay();
-            $end   = \Carbon\Carbon::parse($tiba)->startOfDay();
-            if ($end->gt($start)) {
-                $selisih = $start->diffInDays($end);
-                return '<span class="badge red">H+' . $selisih . '</span>';
-            }
-            return '<span class="badge bg-success">Sesuai SLA</span>';
-        };
-
-        // ===== Status Mobil =====
-        if (!empty($r->tanggal_dpt_unit)) {
-            $statusMobilHtml = '<span class="badge-status bg-success text-white">SUDAH DAPAT</span>';
-        } else {
-            $statusMobilHtml = '<span class="badge-status bg-danger text-white">BELUM DAPAT</span>';
-        }
-
-        // ===== SLA Dapat Mobil =====
-        if ($r->rencana_kirim && $r->tanggal_dpt_unit) {
-            $area = strtoupper(trim($r->area ?? ''));
-            $rencana = strtotime(date('Y-m-d', strtotime($r->rencana_kirim)));
-            $dptUnit = strtotime(date('Y-m-d', strtotime($r->tanggal_dpt_unit)));
-            $selisihHari = floor(($dptUnit - $rencana) / 86400);
-
-            if (in_array($area, ['JABODEBEK', 'JABODETABEK', 'BANTEN'])) {
-                $batasHari = 0;
-            } elseif (in_array($area, ['JAWA_BARAT', 'JAWA BARAT'])) {
-                $batasHari = 1;
-            } else {
-                $batasHari = 2;
-            }
-
-            $text = $selisihHari > $batasHari ? 'H+' . ($selisihHari - $batasHari) : 'Sesuai SLA';
-            $slaMobilHtml = '<span class="badge-status ' . (str_contains($text, 'H+') ? 'bg-danger text-white' : 'bg-success text-white') . '">' . $text . '</span>';
-        } else {
-            $slaMobilHtml = '<span class="badge-status bg-secondary text-white">-</span>';
-        }
-
-        // ===== Kelengkapan Data (5 field wajib) =====
-        $requiredFields = [
-            'mobil'       => 'Mobil',
-            'ekpedisi'    => 'Ekspedisi',
-            'route'       => 'Route',
-            'nama_driver' => 'Nama Driver',
-            'no_pol'      => 'No Pol',
-        ];
-        $missing = [];
-        foreach ($requiredFields as $col => $label) {
-            if (trim((string) ($r->$col ?? '')) === '') {
-                $missing[] = $label;
-            }
-        }
-        if (count($missing) === 0) {
-            $kelengkapanHtml = '<span class="badge completeness-badge green" title="Data lengkap">✅ Lengkap</span>';
-        } else {
-            $emptyCount = count($missing);
-            $cls = $emptyCount === 1 ? 'yellow' : ($emptyCount <= 3 ? 'orange' : 'red');
-            $text = '❌ ' . implode(', ', $missing);
-            $kelengkapanHtml = '<span class="badge completeness-badge ' . $cls . '" title="' . e($text) . '">' . e($text) . '</span>';
-        }
-
-        $formattedRupiah = function ($angka) {
-            if (!$angka) return '';
-            $stringMurni = explode('.', (string) $angka)[0];
-            $angkaMurni = preg_replace('/[^0-9]/', '', $stringMurni);
-            return $angkaMurni ? 'Rp ' . number_format((float) $angkaMurni, 0, ',', '.') : '';
-        };
-
-        $tanggalImportText = $r->create_tgl ? \Carbon\Carbon::parse($r->create_tgl)->format('d/m/Y H:i') : '-';
-
-        $hiddenForm = '<form class="d-none" id="form-update-' . $id . '" action="' . route('planner.update', $id) . '" method="POST">'
-            . csrf_field() . method_field('PUT') . '</form>';
-
-        return [
-            // 0
-            $hiddenForm . $tanggalImportText,
-            // 1
-            $textInput('planner', $r->planner),
-            // 2
-            $textInput('no_shipment', $r->no_shipment, 'row-no-shipment'),
-            // 3-14 tanggal
-            $dateInput('tanggal_naik_logistik', $r->tanggal_naik_logistik),
-            $dateInput('rencana_kirim', $r->rencana_kirim),
-            $dateInput('tanggal_dpt_unit', $r->tanggal_dpt_unit),
-            $dateInput('planning_loading', $r->planning_loading),
-            $dateInput('tanggal_tiba_gudang', $r->tanggal_tiba_gudang),
-            $dateInput('tanggal_keluar_gudang', $r->tanggal_keluar_gudang),
-            $dateInput('planning_loading_2', $r->planning_loading_2),
-            $dateInput('tanggal_tiba_gudang_2', $r->tanggal_tiba_gudang_2),
-            $dateInput('tanggal_keluar_gudang_2', $r->tanggal_keluar_gudang_2),
-            $dateInput('planning_loading_3', $r->planning_loading_3),
-            $dateInput('tanggal_tiba_gudang_3', $r->tanggal_tiba_gudang_3),
-            $dateInput('tanggal_keluar_gudang_3', $r->tanggal_keluar_gudang_3),
-            // 15 tujuan
-            $buildSelect('tujuan', $r->tujuan, $lists['tujuanList'], 'row-tujuan'),
-            // 16 route (required)
-            $buildSelect('route', $r->route, $lists['routeList'], 'row-route'),
-            // 17 pulau
-            $buildSelect('pulau', $r->pulau, $lists['pulauList'], 'row-pulau'),
-            // 18 area
-            $buildSelect('area', $r->area, $lists['areas'], 'row-area'),
-            // 19 via kirim
-            $textInput('via_kirim', $r->via_kirim),
-            // 20 dist channel
-            $buildSelect('dist_channel', $r->dist_channel, $lists['distChannelList'], 'row-dist-channel'),
-            // 21 kategori ekspedisi
-            $textInput('kategori_ekspedisi', $r->kategori_ekspedisi),
-            // 22 ekpedisi (required)
-            $buildSelect('ekpedisi', $r->ekpedisi, $lists['ekpedisiList'], 'row-ekpedisi'),
-            // 23 lead time
-            $textInput('transport_lead_time', $r->transport_lead_time),
-            // 24 nama driver (required)
-            $textInput('nama_driver', $r->nama_driver),
-            // 25 no pol (required)
-            $textInput('no_pol', $r->no_pol),
-            // 26 mobil (required)
-            $buildSelect('mobil', $r->mobil, $lists['mobilList'], 'row-mobil'),
-            // 27 total qty
-            '<input type="number" ' . $formAttr . ' name="total_do_qty_car" value="' . e($r->total_do_qty_car) . '">',
-            // 28 nilai muatan
-            $textInput('nilai_muatan', $formattedRupiah($r->nilai_muatan), 'row-nilai-muatan input-rupiah'),
-            // 29 biaya kirim
-            $textInput('biaya_kirim', $formattedRupiah($r->biaya_kirim), 'row-biaya-kirim input-rupiah'),
-            // 30 cr
-            '<input type="text" ' . $formAttr . ' name="cr" class="row-cr" readonly style="background:#f1f5f9;color:#0284c7;font-weight:600;" value="' . e(is_numeric($r->cr) ? number_format((float) $r->cr, 4) : $r->cr) . '">',
-            // 31 status mobil
-            $statusMobilHtml,
-            // 32 lama waktu pencarian
-            '<span class="text-primary fw-medium">' . e($r->lama_waktu_pencarian) . '</span>',
-            // 33 sla dapat mobil
-            $slaMobilHtml,
-            // 34-36 KACS
-            $durasiStatus($r->planning_loading, $r->tanggal_tiba_gudang),
-            $statusBadge($r->planning_loading, $r->tanggal_tiba_gudang),
-            $slaBadge($r->planning_loading, $r->tanggal_tiba_gudang),
-            // 37-39 Sentul
-            $durasiStatus($r->planning_loading_2, $r->tanggal_tiba_gudang_2),
-            $statusBadge($r->planning_loading_2, $r->tanggal_tiba_gudang_2),
-            $slaBadge($r->planning_loading_2, $r->tanggal_tiba_gudang_2),
-            // 40-42 CCIE
-            $durasiStatus($r->planning_loading_3, $r->tanggal_tiba_gudang_3),
-            $statusBadge($r->planning_loading_3, $r->tanggal_tiba_gudang_3),
-            $slaBadge($r->planning_loading_3, $r->tanggal_tiba_gudang_3),
-            // 43 shipping point
-            $r->route ? explode('-', trim($r->route))[0] : '-',
-            // 44 kelengkapan data
-            $kelengkapanHtml,
-            // 45 hapus
-            '<div class="btn-action"><a href="' . route('planner.delete', $id) . '" class="btn btn-danger btn-sm px-2 d-flex align-items-center gap-1" onclick="return confirm(\'Hapus data ini?\')"><i class="fa-solid fa-trash"></i> Del</a></div>',
-        ];
-    }
-
-    /**
-     * =====================================================
-     * ALERT CONTROL (ringkasan field kosong) — query ringan,
-     * tidak perlu load semua 3000 baris ke PHP/JS.
-     * =====================================================
-     */
-public function alerts(Request $request)
-{
-    $fieldsMap = [
-        'mobil'       => 'Mobil',
-        'ekpedisi'    => 'Ekspedisi',
-        'route'       => 'Route',
-        'nama_driver' => 'Nama Driver',
-        'no_pol'      => 'No Pol',
-    ];
-
-    $query = DB::table('logistik_pengiriman')
-        ->select('id', 'no_shipment', 'mobil', 'ekpedisi', 'route', 'nama_driver', 'no_pol');
-
-    // ===== FILTER ikut sama seperti dataAjax() =====
-    if ($request->filled('planner_filter')) {
-        $query->where('planner', $request->input('planner_filter'));
-    }
-    if ($request->filled('area_filter')) {
-        $query->where('area', $request->input('area_filter'));
-    }
-
-    $rows = $query->where(function ($q) {
-            $q->whereNull('mobil')->orWhere('mobil', '')
-              ->orWhereNull('ekpedisi')->orWhere('ekpedisi', '')
-              ->orWhereNull('route')->orWhere('route', '')
-              ->orWhereNull('nama_driver')->orWhere('nama_driver', '')
-              ->orWhereNull('no_pol')->orWhere('no_pol', '');
-        })
-        ->get();
-
-    $alertList = [];
-    $missingSummary = [];
-
-    foreach ($rows as $r) {
-        $missing = [];
-        foreach ($fieldsMap as $col => $label) {
-            if (trim((string) $r->$col) === '') {
-                $missing[] = $label;
-                $missingSummary[$label] = ($missingSummary[$label] ?? 0) + 1;
-            }
-        }
-        $alertList[] = [
-            'id'         => $r->id,
-            'shipment'   => $r->no_shipment ?: '(tanpa no shipment)',
-            'missing'    => $missing,
-            'emptyCount' => count($missing),
-        ];
-    }
-
-    usort($alertList, fn ($a, $b) => $b['emptyCount'] <=> $a['emptyCount']);
-
-    return response()->json([
-        'alerts'         => $alertList,
-        'missingSummary' => $missingSummary,
-    ]);
-}
     private function cariBiayaKirimOtomatis($route, $mobil, $ekpedisi = null)
     {
         if (!$route || !$mobil) {
@@ -975,6 +620,15 @@ public function alerts(Request $request)
         ->first();
     }
 
+    /**
+     * =====================================================
+     * NEW HELPER (disamakan dengan MonitoringController::getKeluarGudangInfo)
+     * Menentukan: apakah masih ada siklus gudang yang "ngegantung"
+     * (sudah mulai tapi belum keluar), dan tanggal keluar gudang terakhir.
+     * Dipakai di update() dan autosaveRow() supaya estimasi_tiba
+     * konsisten dengan MonitoringController.
+     * =====================================================
+     */
     private function getKeluarGudangInfoRequest($request)
     {
         $cycles = [
@@ -1005,6 +659,17 @@ public function alerts(Request $request)
         ];
     }
 
+    /**
+     * =====================================================
+     * HITUNG SLA
+     * FIX: bagian gudang 1/2/3 sekarang membandingkan
+     * tanggal_tiba_gudang(_n) vs tanggal_keluar_gudang(_n)
+     * -- BUKAN planning_loading(_n) vs tanggal_tiba_gudang(_n).
+     * Sebelumnya lama_digudang/status_gudang/sla_loading tidak
+     * pernah berubah walau tanggal_keluar_gudang diubah, karena
+     * field itu tidak pernah dipakai dalam perhitungan.
+     * =====================================================
+     */
     private function hitungSla($request)
     {
         $data = [
@@ -1067,6 +732,9 @@ public function alerts(Request $request)
             ];
         };
 
+        // =====================================================
+        // 1. SLA DAPAT MOBIL (rencana_kirim -> tanggal_dpt_unit)
+        // =====================================================
         $start = $request->rencana_kirim
             ? date('Y-m-d H:i:s', strtotime($request->rencana_kirim))
             : null;
@@ -1090,6 +758,10 @@ public function alerts(Request $request)
                 ($tanggalDptUnit - $tanggalRencana) / 86400
             );
 
+            // NOTE: kalau area di database kamu tersimpan
+            // "JAWA BARAT" (spasi, bukan underscore), baris
+            // JAWA_BARAT di bawah TIDAK AKAN pernah match.
+            // Cek isi kolom area di DB, sesuaikan kalau perlu.
             if (
                 $area == 'JABODETABEK' ||
                 $area == 'JABODEBEK' ||
@@ -1115,6 +787,9 @@ public function alerts(Request $request)
             $data['status_pengiriman'] = null;
         }
 
+        // =====================================================
+        // 2. GUDANG 1 (KACS) — FIX: tiba -> keluar, bukan planning -> tiba
+        // =====================================================
         if ($request->tanggal_tiba_gudang && $request->tanggal_keluar_gudang) {
 
             $diff = $hitungSelisih(
@@ -1135,6 +810,9 @@ public function alerts(Request $request)
             }
         }
 
+        // =====================================================
+        // 3. GUDANG 2 (SENTUL)
+        // =====================================================
         if ($request->tanggal_tiba_gudang_2 && $request->tanggal_keluar_gudang_2) {
 
             $diff = $hitungSelisih(
@@ -1155,6 +833,9 @@ public function alerts(Request $request)
             }
         }
 
+        // =====================================================
+        // 4. GUDANG 3 (CCIE)
+        // =====================================================
         if ($request->tanggal_tiba_gudang_3 && $request->tanggal_keluar_gudang_3) {
 
             $diff = $hitungSelisih(

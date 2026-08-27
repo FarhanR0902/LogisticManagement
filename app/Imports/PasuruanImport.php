@@ -26,11 +26,29 @@ class PasuruanImport implements ToModel, WithHeadingRow, WithEvents
     // Nama tabel master tarif di database
     private const TARIF_TABLE = 'tarif_pengiriman';
 
+    // =====================================================
+    // FORWARD-FILL STATE (untuk kolom yang di Excel-nya hasil MERGED
+    // CELL: hanya baris pertama dari sebuah No Shipment yang terisi
+    // Route / Mobil / Ekpedisi, baris-baris berikutnya untuk No
+    // Shipment yang sama KOSONG karena efek merge visual di Excel).
+    //
+    // Cara kerja sama persis seperti LogistikImport: setiap baris
+    // diproses, kalau No Shipment SAMA dengan baris sebelumnya, dan
+    // kolom Route/Mobil/Ekpedisi di baris ini kosong, dipakai nilai
+    // terakhir yang pernah terisi untuk No Shipment tsb. Begitu No
+    // Shipment berubah, cache di-reset supaya tidak "bocor" ke
+    // shipment lain.
+    // =====================================================
+    private $lastNoShipment = null;
+    private $lastRoute      = null;
+    private $lastMobil      = null;
+    private $lastEkpedisi   = null;
+
     public function __construct()
     {
         // =====================================================
         // MASTER DATA: tujuan -> dist_channel, pulau, area, planner,
-        // pic monitoring, biaya_kuli.
+        // pic monitoring, biaya_kuli, transport_lead_time.
         //
         // PENTING - FILTER Div = 'Pasuruan':
         // Tabel tujuanfillterr berisi data gabungan dari BEBERAPA divisi.
@@ -95,16 +113,11 @@ class PasuruanImport implements ToModel, WithHeadingRow, WithEvents
             : $this->convertDate($row['act_pgi_date_pasuruan'] ?? null);
 
         // ================= TEXT =================
-        $noShipment         = $this->cleanText($row['no_shipment_pasuruan'] ?? null);
-        $tujuan             = $this->cleanText($row['tujuan_pasuruan'] ?? null);
-        $route              = $this->cleanText($row['route_pasuruan'] ?? null);
-        $viaKirim           = $this->cleanText($row['via_kirim_pasuruan'] ?? null);
+        $viaKirim           = $this->cleanText($row['via_kirim_pasuruan'] ?? $row['via_pasuruan'] ?? null); // fleksibel jika header excel hanya 'via_pasuruan'
         $shippingPoint      = $this->cleanText($row['shipping_point_pasuruan'] ?? null);
         $ketersediaanUnit   = $this->cleanText($row['ketersediaan_unit_pasuruan'] ?? null);
-        $mobil              = $this->cleanText($row['mobil_pasuruan'] ?? null);
         $perubahanMobil     = $this->cleanText($row['perubahan_mobil_pasuruan'] ?? null);
         $kategoriEkspedisi  = $this->cleanText($row['kategori_ekspedisi_pasuruan'] ?? null);
-        $ekspedisi          = $this->cleanText($row['ekspedisi_pasuruan'] ?? null);
         $statusKendaraan    = $this->cleanText($row['status_kendaraan_pasuruan'] ?? null);
         $namaKapal          = $this->cleanText($row['nama_kapal_pasuruan'] ?? null);
         $transportLaut      = $this->cleanText($row['transport_laut_pasuruan'] ?? null);
@@ -117,19 +130,50 @@ class PasuruanImport implements ToModel, WithHeadingRow, WithEvents
         $noPol              = $this->cleanText($row['no_pol_pasuruan'] ?? null);
         $namaDriver         = $this->cleanText($row['nama_driver_pasuruan'] ?? null);
 
-        // Nilai pulau/planner/pic dari file Excel (fallback kalau tujuan
-        // tidak ketemu di master tujuanfillterr, atau master kosong)
+        // Nilai pulau/area/planner/pic dari file Excel (fallback kalau
+        // tujuan tidak ketemu di master tujuanfillterr, atau master kosong)
         $pulauFromFile      = $this->cleanText($row['pulau_pasuruan'] ?? null);
+        $areaFromFile       = $this->cleanText($row['area_pasuruan'] ?? null);
         $plannerFromFile    = $this->cleanText($row['planner_pasuruan'] ?? null);
         $picMonitoringExcel = $this->cleanText($row['pic_monitoring_pasuruan'] ?? null);
 
         // ================= NUMBER =================
-      $leadTimeFromFile  = (int) $this->cleanNumber($row['transport_lead_time_pasuruan'] ?? 0);
+        $leadTimeFromFile  = (int) $this->cleanNumber($row['transport_lead_time_pasuruan'] ?? 0);
         $nilaiMuatan       = $this->cleanNumber($row['nilai_muatan_pasuruan'] ?? null);
         $totalDo           = $this->cleanNumber($row['total_do_pasuruan'] ?? null);
         $actualDeliveryQty = $this->cleanNumber($row['actual_delivery_quantity_pasuruan'] ?? null);
         $actUrutanBongkar  = $this->cleanNumber($row['act_urutan_bongkar_pasuruan'] ?? null);
         $qtyMonitoring     = $this->cleanNumber($row['qty_monitoring_pasuruan'] ?? null);
+
+        // =====================================================
+        // FORWARD-FILL: No Shipment, Route, Mobil, Ekspedisi
+        //
+        // Sama persis seperti LogistikImport: kalau file Excel Pasuruan
+        // hasil merged cell (Route/Mobil/Ekspedisi cuma terisi di baris
+        // pertama tiap No Shipment), baris berikutnya untuk shipment yang
+        // sama akan kosong. Di-forward-fill dari nilai terakhir yang
+        // terisi, SELAMA masih di No Shipment yang sama. Begitu No
+        // Shipment berubah, cache di-reset.
+        // =====================================================
+        $noShipment = $this->cleanText($row['no_shipment_pasuruan'] ?? null);
+
+        if ($noShipment !== $this->lastNoShipment) {
+            $this->lastRoute    = null;
+            $this->lastMobil    = null;
+            $this->lastEkpedisi = null;
+        }
+
+        $route    = $this->cleanText($row['route_pasuruan'] ?? null)    ?: $this->lastRoute;
+        $mobil    = $this->cleanText($row['mobil_pasuruan'] ?? null)    ?: $this->lastMobil;
+        $ekspedisi = $this->cleanText($row['ekspedisi_pasuruan'] ?? null) ?: $this->lastEkpedisi;
+
+        if ($route)     $this->lastRoute    = $route;
+        if ($mobil)     $this->lastMobil    = $mobil;
+        if ($ekspedisi) $this->lastEkpedisi = $ekspedisi;
+
+        $this->lastNoShipment = $noShipment;
+
+        $tujuan = $this->cleanText($row['tujuan_pasuruan'] ?? null);
 
         // =====================================================
         // BIAYA KIRIM: lookup ke master_harga berdasarkan Route (exact,
@@ -153,23 +197,24 @@ class PasuruanImport implements ToModel, WithHeadingRow, WithEvents
         $customerData = self::$customerMap[$tujuanKey] ?? null;
 
         $distChannel   = $customerData->dist_channel ?? null;
-        $area          = $customerData->area ?? null;
+        $areaMaster    = $customerData->area ?? null;
         $pulauMaster   = $customerData->pulau ?? null;
         $plannerMaster = $customerData->Planner ?? null;
         $picMaster     = $customerData->Monitoring ?? null;
         $biayaKuli     = $customerData->biaya_kuli ?? null;
-        $leadTimeMaster  = $customerData->transport_lead_time ?? null;
+        $leadTimeMaster = $customerData->transport_lead_time ?? null;
         // NB: biaya_kirim TIDAK diambil dari sini — sudah benar dari
         // findTarif() di atas (tabel tarif_pengiriman, bukan tujuanfillterr).
 
         // Prioritaskan data master (khusus div Pasuruan), fallback ke
         // kolom Excel kalau tujuan tidak ketemu / master kosong
+        $area          = $areaMaster ?: $areaFromFile;
         $pulau         = $pulauMaster ?: $pulauFromFile;
         $planner       = $plannerMaster ?: $plannerFromFile;
         $picMonitoring = $picMaster ?: $picMonitoringExcel;
         $leadTime = ($leadTimeMaster !== null && $leadTimeMaster !== '')
-    ? (int) $leadTimeMaster
-    : $leadTimeFromFile;      
+            ? (int) $leadTimeMaster
+            : $leadTimeFromFile;
 
         // ================= NORMALISASI KETERSEDIAAN UNIT =================
         if ($ketersediaanUnit === null || $ketersediaanUnit === '' || $ketersediaanUnit === '-') {
@@ -535,29 +580,55 @@ class PasuruanImport implements ToModel, WithHeadingRow, WithEvents
      * Kolom biaya_kirim di master_harga formatnya "8,500,000"
      * (koma = pemisah ribuan).
      */
- private function cleanNumberTarif($value): float
-{
-    if ($value === null || $value === '' || $value == '-') return 0;
+    private function cleanNumberTarif($value): float
+    {
+        if ($value === null || $value === '' || $value == '-') return 0;
 
-    $value = (string) $value;
-    $value = str_replace(['Rp', 'rp', ' '], '', $value);
+        $value = (string) $value;
+        $value = str_replace(['Rp', 'rp', ' '], '', $value);
 
-    if (strpos($value, ',') !== false && strpos($value, '.') !== false) {
-        // Ada titik DAN koma -> titik = ribuan, koma = desimal
-        $value = str_replace('.', '', $value);
-        $value = str_replace(',', '.', $value);
-    } else {
-        // Cuma titik ATAU cuma koma -> anggap keduanya pemisah ribuan
-        $value = str_replace(['.', ','], '', $value);
+        if (strpos($value, ',') !== false && strpos($value, '.') !== false) {
+            // Ada titik DAN koma -> titik = ribuan, koma = desimal
+            $value = str_replace('.', '', $value);
+            $value = str_replace(',', '.', $value);
+        } else {
+            // Cuma titik ATAU cuma koma -> anggap keduanya pemisah ribuan
+            $value = str_replace(['.', ','], '', $value);
+        }
+
+        return is_numeric($value) ? (float) $value : 0;
     }
-
-    return is_numeric($value) ? (float) $value : 0;
-}
 
     public function registerEvents(): array
     {
         return [
             AfterImport::class => function () {
+
+                // =====================================================
+                // SAFETY NET: kalau ternyata baris-baris dengan No
+                // Shipment yang sama TIDAK berurutan di file Excel
+                // (sehingga forward-fill saat model() tidak sempat
+                // menangkap semuanya), lakukan post-process di sini:
+                // isi Route / Mobil / Ekspedisi yang masih NULL/kosong
+                // dengan nilai non-kosong lain dari No Shipment yang
+                // sama (ambil salah satu yang ada). Sama persis seperti
+                // safety net di LogistikImport.
+                // =====================================================
+                foreach (['route_pasuruan', 'mobil_pasuruan', 'ekspedisi_pasuruan'] as $col) {
+                    DB::statement("
+                        UPDATE logistik_pengiriman_pasuruan lp
+                        JOIN (
+                            SELECT no_shipment_pasuruan, MIN($col) AS val
+                            FROM logistik_pengiriman_pasuruan
+                            WHERE $col IS NOT NULL AND $col != ''
+                            GROUP BY no_shipment_pasuruan
+                        ) x ON lp.no_shipment_pasuruan = x.no_shipment_pasuruan
+                        SET lp.$col = x.val
+                        WHERE (lp.$col IS NULL OR lp.$col = '')
+                          AND lp.no_shipment_pasuruan IS NOT NULL
+                          AND lp.no_shipment_pasuruan != ''
+                    ");
+                }
 
                 DB::statement("
                     UPDATE logistik_pengiriman_pasuruan lp

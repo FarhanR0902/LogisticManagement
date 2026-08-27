@@ -103,6 +103,11 @@ Route::get('/chart/status', [LogistikController::class, 'chartStatus']);
 
 Route::prefix('planner')->group(function () {
 
+Route::post('/planner/data-ajax', [App\Http\Controllers\Planner\PlannerController::class, 'dataAjax'])
+    ->name('planner.data.ajax');
+Route::get('/planner/alerts', [App\Http\Controllers\Planner\PlannerController::class, 'alerts'])
+    ->name('planner.alerts');
+
     Route::get('/dashboard', [PlannerController::class, 'dashboard'])
         ->name('planner.dashboard');
     Route::post('/planner/store', [PlannerController::class, 'store'])
@@ -159,6 +164,10 @@ Route::get(
     '/monitoring/data-logistik',
     [MonitoringController::class, 'dataLogistik']
 )->name('monitoring.datalogistik');
+
+Route::get('/monitoring/data-ajax', [MonitoringController::class, 'dataAjax'])->name('monitoring.datalogistik.ajax');
+Route::get('/monitoring/alerts', [MonitoringController::class, 'alerts'])->name('monitoring.alerts');
+Route::put('/monitoring/update/{id}', [MonitoringController::class, 'updateMonitoring'])->name('monitoring.update');
 
 Route::get(
     '/monitoring/export',
@@ -246,6 +255,8 @@ Route::get('/pasuruan/gudang/delay', [PasuruanController::class, 'gudangDelayPas
 
 Route::get('/pasuruan/tujuan/ontime', [PasuruanController::class, 'tujuanOntimePasuruan'])
     ->name('pasuruan.tujuan.ontime');
+Route::post('/pasuruan/data-ajax', [\App\Http\Controllers\PasuruanController::class, 'dataLogistikAjax'])
+    ->name('pasuruan.dataAjax');
 
 Route::get('/pasuruan/tujuan/delay', [PasuruanController::class, 'tujuanDelayPasuruan'])
     ->name('pasuruan.tujuan.delay');
@@ -333,6 +344,13 @@ Route::prefix('sales')->name('sales.')->group(function () {
 });
 
 Route::middleware(['auth'])->prefix('spvplanner')->group(function () {
+
+Route::post('/spvplanner/data-ajax', [App\Http\Controllers\Spv\SpvPlannerController::class, 'dataAjax'])
+    ->name('spvplanner.data.ajax');
+Route::get('/spvplanner/alerts', [App\Http\Controllers\Spv\SpvPlannerController::class, 'alerts'])
+    ->name('spvplanner.alerts');
+Route::post('/autosave-row/{id}', [App\Http\Controllers\Spv\SpvPlannerController::class, 'autosaveRow'])
+    ->name('spvplanner.autosave-row'); // ✅ BENAR — tanpa prefix manual
 
     Route::get('/dashboard', [SpvPlannerController::class, 'dashboard'])
         ->name('spvplanner.dashboard');

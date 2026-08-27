@@ -178,13 +178,13 @@
                         <option value="manager">Manager</option>
 
 
-                        <option value="developer">Developer</option>
+               
 
                         <option value="spvplanner">SPV Planner</option>
 
                         <option value="spvmonitoring">SPV Monitoring</option>
                           
-                            <option value="jess">Sales</option>
+                            <option value="sales">Sales</option>
                             
 
                     </select>

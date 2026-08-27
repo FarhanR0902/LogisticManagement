@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\spv;
+namespace App\Http\Controllers\Spv;
 
 use App\Http\Controllers\Controller;
 use App\Models\LogistikPengiriman;
@@ -230,6 +230,14 @@ class SpvMonitoringController extends Controller
             ->orderBy('pic_monitoring')
             ->pluck('pic_monitoring');
 
+        // ================= LIST SHIPMENT (dropdown "No Shipment") =================
+        $shipmentList = LogistikPengiriman::select('no_shipment', 'tujuan')
+            ->whereNotNull('no_shipment')
+            ->where('no_shipment', '!=', '')
+            ->groupBy('no_shipment', 'tujuan')
+            ->orderBy('no_shipment')
+            ->get();
+
         // ================= AKURASI =================
       $akurasiTiba = DB::table('akurasi3')
     ->distinct()
@@ -249,7 +257,8 @@ return view('monitoring.data_monitoring', compact(
     'akurasiTiba',
     'akurasiBongkar',
     'akurasiQty',
-    'picList'
+    'picList',
+    'shipmentList'
 ));
     }
 

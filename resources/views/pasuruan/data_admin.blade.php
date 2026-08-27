@@ -37,11 +37,26 @@
             font-weight: 600;
         }
 
-        .green { background-color: #22c55e !important; }
-        .red { background-color: #ef4444 !important; }
-        .gray { background-color: #64748b !important; }
-        .orange { background-color: #f97316 !important; }
-        .yellow { background-color: #facc15 !important; color: #000 !important; }
+        .green {
+            background-color: #22c55e !important;
+        }
+
+        .red {
+            background-color: #ef4444 !important;
+        }
+
+        .gray {
+            background-color: #64748b !important;
+        }
+
+        .orange {
+            background-color: #f97316 !important;
+        }
+
+        .yellow {
+            background-color: #facc15 !important;
+            color: #000 !important;
+        }
 
         .container-fluid-custom {
             width: calc(100% - 260px);
@@ -81,7 +96,9 @@
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
         }
 
-        .dataTables_wrapper { padding-top: 10px; }
+        .dataTables_wrapper {
+            padding-top: 10px;
+        }
 
         table.dataTable {
             border-collapse: collapse !important;
@@ -93,7 +110,9 @@
             transition: background-color 0.2s ease;
         }
 
-        table.dataTable tbody tr:hover { background-color: #f1f5f9 !important; }
+        table.dataTable tbody tr:hover {
+            background-color: #f1f5f9 !important;
+        }
 
         table.dataTable tbody td {
             padding: 12px 14px !important;
@@ -122,8 +141,10 @@
             box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.2);
         }
 
-        table input[type="date"] { width: 165px; }
-        
+        table input[type="date"] {
+            width: 165px;
+        }
+
 
         .badge-status {
             padding: 5px 10px;
@@ -141,7 +162,9 @@
             padding-bottom: 15px;
         }
 
-        .form-horizontal-scroll .field-box { flex: 0 0 240px; }
+        .form-horizontal-scroll .field-box {
+            flex: 0 0 240px;
+        }
 
         .form-horizontal-scroll label {
             font-size: 13px;
@@ -157,7 +180,10 @@
             border: 1px solid #cbd5e1;
         }
 
-        .btn-action { display: inline-flex; gap: 5px; }
+        .btn-action {
+            display: inline-flex;
+            gap: 5px;
+        }
 
         th.th-default {
             background: #00d0ff !important;
@@ -199,7 +225,10 @@
             font-weight: bold;
         }
 
-        .bg-orange { background: #fd7e14 !important; color: #fff; }
+        .bg-orange {
+            background: #fd7e14 !important;
+            color: #fff;
+        }
 
         .input-filled {
             background-color: #dcfce7 !important;
@@ -271,6 +300,13 @@
                     <i class="fa-solid fa-file-excel"></i>
                     Export Excel
                 </a>
+                <button type="button" id="btnSaveAll"
+                    class="btn btn-primary d-flex align-items-center gap-2"
+                    style="background:#0284c7; border:none; border-radius:8px; padding:10px 16px;">
+                    <i class="fa-solid fa-floppy-disk"></i>
+                    Save All
+                    <span id="unsavedCount" class="badge bg-danger rounded-pill" style="display:none;">0</span>
+                </button>
                 <button type="button"
                     class="btn btn-primary d-flex align-items-center gap-2"
                     style="background: #0284c7; border: none; border-radius: 8px; padding: 10px 16px;"
@@ -280,17 +316,17 @@
                     Add New Shipment
                 </button>
 
-            
+
             </div>
         </div>
 
         <div class="mb-3 d-flex gap-2">
-           
+
 
             <button type="button"
-                    class="btn btn-success"
-                    data-bs-toggle="modal"
-                    data-bs-target="#transportLautModal">
+                class="btn btn-success"
+                data-bs-toggle="modal"
+                data-bs-target="#transportLautModal">
                 🚢 Input Transport Laut
             </button>
         </div>
@@ -313,9 +349,9 @@
                                     <select name="no_shipment_pasuruan" class="form-select">
                                         <option value="">Pilih Shipment</option>
                                         @foreach($logistik->unique('no_shipment_pasuruan') as $r)
-                                            <option value="{{ $r->no_shipment_pasuruan }}">
-                                                {{ $r->no_shipment_pasuruan }} - {{ $r->tujuan_pasuruan }}
-                                            </option>
+                                        <option value="{{ $r->no_shipment_pasuruan }}">
+                                            {{ $r->no_shipment_pasuruan }} - {{ $r->tujuan_pasuruan }}
+                                        </option>
                                         @endforeach
                                     </select>
                                 </div>
@@ -412,7 +448,7 @@
                                         <select name="route_pasuruan" class="form-control modal-route select-tarif">
                                             <option value="">Pilih Route</option>
                                             @foreach($routeOptions as $route)
-                                                <option value="{{ $route }}">{{ $route }}</option>
+                                            <option value="{{ $route }}">{{ $route }}</option>
                                             @endforeach
                                         </select>
                                     </div>
@@ -421,7 +457,7 @@
                                         <select name="mobil_pasuruan" class="form-control modal-mobil select-tarif">
                                             <option value="">Pilih Mobil</option>
                                             @foreach($mobilOptions as $mobil)
-                                                <option value="{{ $mobil }}">{{ $mobil }}</option>
+                                            <option value="{{ $mobil }}">{{ $mobil }}</option>
                                             @endforeach
                                         </select>
                                     </div>
@@ -446,7 +482,7 @@
                                         <select name="ekspedisi_pasuruan" class="form-control modal-ekspedisi select-tarif">
                                             <option value="">Pilih Ekspedisi</option>
                                             @foreach($ekspedisiOptions as $eks)
-                                                <option value="{{ $eks }}">{{ $eks }}</option>
+                                            <option value="{{ $eks }}">{{ $eks }}</option>
                                             @endforeach
                                         </select>
                                     </div>
@@ -493,7 +529,7 @@
                     <select id="filterPlanner" class="form-select planner-select">
                         <option value="">Semua Planner</option>
                         @foreach($planners as $planner)
-                            <option value="{{ $planner }}">{{ $planner }}</option>
+                        <option value="{{ $planner }}">{{ $planner }}</option>
                         @endforeach
                     </select>
                 </div>
@@ -503,7 +539,7 @@
                     <select id="filterArea" class="form-select area-select">
                         <option value="">Semua Area</option>
                         @foreach($areas as $area)
-                            <option value="{{ $area }}">{{ $area }}</option>
+                        <option value="{{ $area }}">{{ $area }}</option>
                         @endforeach
                     </select>
                 </div>
@@ -535,8 +571,8 @@
                                     <th class="th-oren">Ekspedisi</th>
                                     <th class="th-oren">Lead Time</th>
                                     <th class="th-oren">Mobil</th>
-                                      <th class="th-oren">Nama Driver</th>
-                                        <th class="th-oren">No Pol </th>
+                                    <th class="th-oren">Nama Driver</th>
+                                    <th class="th-oren">No Pol </th>
                                     <th class="th-system">Total Qty</th>
                                     <th class="th-system">Nilai Muatan</th>
                                     <th class="th-system">Biaya Kirim</th>
@@ -550,8 +586,8 @@
                                     <th class="th-oren">Urutan Bongkar</th>
                                     <th class="th-oren">Selisih Qty Do</th>
                                     <th class="th-oren">Actual Qty Do</th>
-                                     <th class="th-oren">Biaya Kuli Pasuruan</th>
-                                      <th class="th-oren">Total Biaya Kuli Pasuruan</th>
+                                    <th class="th-oren">Biaya Kuli Pasuruan</th>
+                                    <th class="th-oren">Total Biaya Kuli Pasuruan</th>
                                     <th class="th-oren">Reason Selisih Qty Do</th>
                                     <th class="th-system">Estimasi Tiba</th>
                                     <th class="th-oren">Tanggal Tiba</th>
@@ -567,12 +603,12 @@
                                     <th class="th-oren">Nama Kapal</th>
                                     <th class="th-oren">ETD</th>
                                     <th class="th-oren">ETA</th>
-                                         <th class="th-oren">ATD</th>
+                                    <th class="th-oren">ATD</th>
                                     <th class="th-oren">ATA</th>
                                     <th class="th-system">Estimasi Admin</th>
                                     <th class="th-system">Ontime/Delay Admin</th>
 
-                               
+
                                     <th class="th-default" style="min-width:130px;">Save & Hapus</th>
                                 </tr>
                             </thead>
@@ -619,7 +655,7 @@
                                         <select form="form-update-{{ $r->id }}" name="route_pasuruan" class="row-route select-tarif-row">
                                             <option value="">Pilih Route</option>
                                             @foreach($routeOptions as $route)
-                                                <option value="{{ $route }}" {{ $r->route_pasuruan == $route ? 'selected' : '' }}>{{ $route }}</option>
+                                            <option value="{{ $route }}" {{ $r->route_pasuruan == $route ? 'selected' : '' }}>{{ $route }}</option>
                                             @endforeach
                                         </select>
                                     </td>
@@ -632,7 +668,7 @@
                                         <select form="form-update-{{ $r->id }}" name="ekspedisi_pasuruan" class="row-ekspedisi select-tarif-row">
                                             <option value="">Pilih Ekspedisi</option>
                                             @foreach($ekspedisiOptions as $eks)
-                                                <option value="{{ $eks }}" {{ $r->ekspedisi_pasuruan == $eks ? 'selected' : '' }}>{{ $eks }}</option>
+                                            <option value="{{ $eks }}" {{ $r->ekspedisi_pasuruan == $eks ? 'selected' : '' }}>{{ $eks }}</option>
                                             @endforeach
                                         </select>
                                     </td>
@@ -641,12 +677,12 @@
                                         <select form="form-update-{{ $r->id }}" name="mobil_pasuruan" class="row-mobil select-tarif-row">
                                             <option value="">Pilih Mobil</option>
                                             @foreach($mobilOptions as $mobil)
-                                                <option value="{{ $mobil }}" {{ $r->mobil_pasuruan == $mobil ? 'selected' : '' }}>{{ $mobil }}</option>
+                                            <option value="{{ $mobil }}" {{ $r->mobil_pasuruan == $mobil ? 'selected' : '' }}>{{ $mobil }}</option>
                                             @endforeach
                                         </select>
                                     </td>
-                                     <td><input type="text" form="form-update-{{ $r->id }}" name="nama_driver_pasuruan" value="{{ $r->nama_driver_pasuruan }}"></td>
-                                      <td><input type="text" form="form-update-{{ $r->id }}" name="no_pol_pasuruan" value="{{ $r->no_pol_pasuruan }}"></td>
+                                    <td><input type="text" form="form-update-{{ $r->id }}" name="nama_driver_pasuruan" value="{{ $r->nama_driver_pasuruan }}"></td>
+                                    <td><input type="text" form="form-update-{{ $r->id }}" name="no_pol_pasuruan" value="{{ $r->no_pol_pasuruan }}"></td>
                                     <td>
                                         <input type="number" form="form-update-{{ $r->id }}" name="total_do_pasuruan" value="{{ $r->total_do_pasuruan}}">
                                     </td>
@@ -667,13 +703,13 @@
 
                                     <td>
                                         @php
-                                            if (!empty($r->tanggal_dpt_unit_pasuruan)) {
-                                                $statusMobil = 'SUDAH DAPAT';
-                                                $badgeClass = 'bg-success text-white';
-                                            } else {
-                                                $statusMobil = 'BELUM DAPAT';
-                                                $badgeClass = 'bg-danger text-white';
-                                            }
+                                        if (!empty($r->tanggal_dpt_unit_pasuruan)) {
+                                        $statusMobil = 'SUDAH DAPAT';
+                                        $badgeClass = 'bg-success text-white';
+                                        } else {
+                                        $statusMobil = 'BELUM DAPAT';
+                                        $badgeClass = 'bg-danger text-white';
+                                        }
                                         @endphp
                                         <span class="badge-status {{ $badgeClass }}">{{ $statusMobil }}</span>
                                     </td>
@@ -682,28 +718,28 @@
 
                                     <td>
                                         @php
-                                            if ($r->rencana_kirim_pasuruan && $r->tanggal_dpt_unit_pasuruan) {
-                                                $area = strtoupper(trim($r->area_pasuruan));
-                                                $rencana = strtotime(date('Y-m-d', strtotime($r->rencana_kirim_pasuruan)));
-                                                $dptUnit = strtotime(date('Y-m-d', strtotime($r->tanggal_dpt_unit_pasuruan)));
-                                                $selisihHari = floor(($dptUnit - $rencana) / 86400);
+                                        if ($r->rencana_kirim_pasuruan && $r->tanggal_dpt_unit_pasuruan) {
+                                        $area = strtoupper(trim($r->area_pasuruan));
+                                        $rencana = strtotime(date('Y-m-d', strtotime($r->rencana_kirim_pasuruan)));
+                                        $dptUnit = strtotime(date('Y-m-d', strtotime($r->tanggal_dpt_unit_pasuruan)));
+                                        $selisihHari = floor(($dptUnit - $rencana) / 86400);
 
-                                                if ($area == 'JABODEBEK' || $area == 'JABODETABEK') {
-                                                    $batasHari = 0;
-                                                } elseif ($area == 'JAWA_BARAT') {
-                                                    $batasHari = 1;
-                                                } else {
-                                                    $batasHari = 2;
-                                                }
+                                        if ($area == 'JABODEBEK' || $area == 'JABODETABEK') {
+                                        $batasHari = 0;
+                                        } elseif ($area == 'JAWA_BARAT') {
+                                        $batasHari = 1;
+                                        } else {
+                                        $batasHari = 2;
+                                        }
 
-                                                if ($selisihHari > $batasHari) {
-                                                    $text = 'H+' . ($selisihHari - $batasHari);
-                                                } else {
-                                                    $text = 'Sesuai SLA';
-                                                }
-                                            } else {
-                                                $text = '-';
-                                            }
+                                        if ($selisihHari > $batasHari) {
+                                        $text = 'H+' . ($selisihHari - $batasHari);
+                                        } else {
+                                        $text = 'Sesuai SLA';
+                                        }
+                                        } else {
+                                        $text = '-';
+                                        }
                                         @endphp
                                         <span class="badge-status {{ str_contains($text, 'H+') ? 'bg-danger text-white' : 'bg-success text-white' }}">
                                             {{ $text }}
@@ -716,7 +752,7 @@
                                         <input type="text" form="form-update-{{ $r->id }}" name="pic_monitoring_pasuruan" value="{{ $r->pic_monitoring_pasuruan }}">
                                     </td>
 
-                                      <td>{{ $r->created_at ? \Carbon\Carbon::parse($r->created_at)->format('d/m/Y') : '-' }}</td>
+                                    <td>{{ $r->created_at ? \Carbon\Carbon::parse($r->created_at)->format('d/m/Y') : '-' }}</td>
 
                                     <td>
                                         <input type="number" form="form-update-{{ $r->id }}" name="act_urutan_bongkar_pasuruan" value="{{ $r->act_urutan_bongkar_pasuruan }}">
@@ -746,24 +782,24 @@
                                     <td>
                                         <input type="number" form="form-update-{{ $r->id }}" name="actual_delivery_quantity_pasuruan" value="{{ $r->actual_delivery_quantity_pasuruan }}" readonly style="background:#f1f5f9;">
                                     </td>
-                                  
-                              <td>
-    <input type="text" form="form-update-{{ $r->id }}" name="biaya_kuli_pasuruan" class="rupiah-input"
-           value="{{ $r->biaya_kuli_pasuruan ? number_format($r->biaya_kuli_pasuruan, 0, ',', '.') : '' }}">
-</td>
-<td>
-    <input type="text" form="form-update-{{ $r->id }}" name="total_biaya_kuli_pasuruan"
-           value="Rp {{ number_format($r->total_biaya_kuli_pasuruan ?? 0, 0, ',', '.') }}"
-           readonly>
-</td>
+
+                                    <td>
+                                        <input type="text" form="form-update-{{ $r->id }}" name="biaya_kuli_pasuruan" class="rupiah-input"
+                                            value="{{ $r->biaya_kuli_pasuruan ? number_format($r->biaya_kuli_pasuruan, 0, ',', '.') : '' }}">
+                                    </td>
+                                    <td>
+                                        <input type="text" form="form-update-{{ $r->id }}" name="total_biaya_kuli_pasuruan"
+                                            value="Rp {{ number_format($r->total_biaya_kuli_pasuruan ?? 0, 0, ',', '.') }}"
+                                            readonly>
+                                    </td>
 
                                     <td>
                                         <select form="form-update-{{ $r->id }}" name="reason_selisih_quantity_pasuruan" class="form-control reason-selisih-select">
                                             <option value="">Pilih Reason</option>
                                             @foreach($reasonSelisihQty as $reason)
-                                                <option value="{{ $reason }}" {{ $r->reason_selisih_quantity_pasuruan == $reason ? 'selected' : '' }}>
-                                                    {{ $reason }}
-                                                </option>
+                                            <option value="{{ $reason }}" {{ $r->reason_selisih_quantity_pasuruan == $reason ? 'selected' : '' }}>
+                                                {{ $reason }}
+                                            </option>
                                             @endforeach
                                         </select>
                                     </td>
@@ -772,12 +808,12 @@
                                         <input type="date" form="form-update-{{ $r->id }}" name="estimasi_tiba_pasuruan" value="{{ $r->estimasi_tiba_pasuruan ? date('Y-m-d', strtotime($r->estimasi_tiba_pasuruan)) : '' }}" readonly style="background:#f1f5f9;">
                                     </td>
 
-                                   <td>
-    <input type="datetime-local"
-        form="form-update-{{ $r->id }}"
-        name="tanggal_tiba_pasuruan"
-        value="{{ $r->tanggal_tiba_pasuruan ? date('Y-m-d\TH:i', strtotime($r->tanggal_tiba_pasuruan)) : '' }}">
-</td>
+                                    <td>
+                                        <input type="datetime-local"
+                                            form="form-update-{{ $r->id }}"
+                                            name="tanggal_tiba_pasuruan"
+                                            value="{{ $r->tanggal_tiba_pasuruan ? date('Y-m-d\TH:i', strtotime($r->tanggal_tiba_pasuruan)) : '' }}">
+                                    </td>
 
                                     <td>
                                         <input type="number" step="0.01" form="form-update-{{ $r->id }}" name="lama_perjalanan_pasuruan" value="{{ $r->lama_perjalanan_pasuruan }}" readonly style="background:#f1f5f9;">
@@ -788,65 +824,65 @@
                                     </td>
 
                                     <td>
-    <input type="datetime-local"
-        form="form-update-{{ $r->id }}"
-        name="tanggal_bongkar_pasuruan"
-        value="{{ $r->tanggal_bongkar_pasuruan ? date('Y-m-d\TH:i', strtotime($r->tanggal_bongkar_pasuruan)) : '' }}">
-</td>
+                                        <input type="datetime-local"
+                                            form="form-update-{{ $r->id }}"
+                                            name="tanggal_bongkar_pasuruan"
+                                            value="{{ $r->tanggal_bongkar_pasuruan ? date('Y-m-d\TH:i', strtotime($r->tanggal_bongkar_pasuruan)) : '' }}">
+                                    </td>
 
-{{-- STATUS BONGKAR --}}
-<td class="text-center">
-    @php
-        if (!empty($r->tanggal_bongkar_pasuruan)) {
+                                    {{-- STATUS BONGKAR --}}
+                                    <td class="text-center">
+                                        @php
+                                        if (!empty($r->tanggal_bongkar_pasuruan)) {
 
-            // Kalau tanggal bongkar sudah diisi
-            $statusBongkar = 'Telah Bongkar';
-            $statusBongkarClass = 'green';
+                                        // Kalau tanggal bongkar sudah diisi
+                                        $statusBongkar = 'Telah Bongkar';
+                                        $statusBongkarClass = 'green';
 
-        } elseif (!empty($r->tanggal_tiba_pasuruan)) {
+                                        } elseif (!empty($r->tanggal_tiba_pasuruan)) {
 
-            // Kalau sudah tiba tapi belum bongkar
-            $tanggalTiba = strtotime(
-                date('Y-m-d', strtotime($r->tanggal_tiba_pasuruan))
-            );
+                                        // Kalau sudah tiba tapi belum bongkar
+                                        $tanggalTiba = strtotime(
+                                        date('Y-m-d', strtotime($r->tanggal_tiba_pasuruan))
+                                        );
 
-            $hariIni = strtotime(date('Y-m-d'));
+                                        $hariIni = strtotime(date('Y-m-d'));
 
-            $selisihHari = floor(
-                ($hariIni - $tanggalTiba) / 86400
-            );
+                                        $selisihHari = floor(
+                                        ($hariIni - $tanggalTiba) / 86400
+                                        );
 
-            $selisihHari = max(0, $selisihHari);
+                                        $selisihHari = max(0, $selisihHari);
 
-            $statusBongkar = 'H+' . $selisihHari;
+                                        $statusBongkar = 'H+' . $selisihHari;
 
-            if ($selisihHari == 0) {
-                $statusBongkarClass = 'orange';
-            } else {
-                $statusBongkarClass = 'red';
-            }
+                                        if ($selisihHari == 0) {
+                                        $statusBongkarClass = 'orange';
+                                        } else {
+                                        $statusBongkarClass = 'red';
+                                        }
 
-        } else {
+                                        } else {
 
-            $statusBongkar = '-';
-            $statusBongkarClass = 'gray';
-        }
-    @endphp
+                                        $statusBongkar = '-';
+                                        $statusBongkarClass = 'gray';
+                                        }
+                                        @endphp
 
-    <span class="badge status-bongkar {{ $statusBongkarClass }}">
-        {{ $statusBongkar }}
-    </span>
-</td>
+                                        <span class="badge status-bongkar {{ $statusBongkarClass }}">
+                                            {{ $statusBongkar }}
+                                        </span>
+                                    </td>
 
-<td>
-    <input type="number"
-        step="0.01"
-        form="form-update-{{ $r->id }}"
-        name="overstay_days_pasuruan"
-        value="{{ $r->overstay_days_pasuruan }}"
-        readonly
-        style="background:#f1f5f9;">
-</td>
+                                    <td>
+                                        <input type="number"
+                                            step="0.01"
+                                            form="form-update-{{ $r->id }}"
+                                            name="overstay_days_pasuruan"
+                                            value="{{ $r->overstay_days_pasuruan }}"
+                                            readonly
+                                            style="background:#f1f5f9;">
+                                    </td>
 
                                     <td>
                                         <input type="text" form="form-update-{{ $r->id }}" name="sla_bongkar_pasuruan" value="{{ $r->sla_bongkar_pasuruan }}" readonly style="background:#f1f5f9;">
@@ -856,9 +892,9 @@
                                         <select form="form-update-{{ $r->id }}" name="reason_waktu_tiba_pasuruan" class="form-control reason-tiba-select">
                                             <option value="">Pilih Reason</option>
                                             @foreach($reasonTiba as $reason)
-                                                <option value="{{ $reason }}" {{ $r->reason_waktu_tiba_pasuruan == $reason ? 'selected' : '' }}>
-                                                    {{ $reason }}
-                                                </option>
+                                            <option value="{{ $reason }}" {{ $r->reason_waktu_tiba_pasuruan == $reason ? 'selected' : '' }}>
+                                                {{ $reason }}
+                                            </option>
                                             @endforeach
                                         </select>
                                     </td>
@@ -867,9 +903,9 @@
                                         <select form="form-update-{{ $r->id }}" name="reason_waktu_bongkar_pasuruan" class="form-control reason-bongkar-select">
                                             <option value="">Pilih Reason</option>
                                             @foreach($reasonBongkar as $reason)
-                                                <option value="{{ $reason }}" {{ $r->reason_waktu_bongkar_pasuruan == $reason ? 'selected' : '' }}>
-                                                    {{ $reason }}
-                                                </option>
+                                            <option value="{{ $reason }}" {{ $r->reason_waktu_bongkar_pasuruan == $reason ? 'selected' : '' }}>
+                                                {{ $reason }}
+                                            </option>
                                             @endforeach
                                         </select>
                                     </td>
@@ -888,7 +924,7 @@
                                     <td>
                                         <input type="date" form="form-update-{{ $r->id }}" name="eta_pasuruan" value="{{ $r->eta_pasuruan ? date('Y-m-d', strtotime($r->eta_pasuruan)) : '' }}">
                                     </td>
-                                           <td>
+                                    <td>
                                         <input type="date" form="form-update-{{ $r->id }}" name="atd_pasuruan" value="{{ $r->atd_pasuruan ? date('Y-m-d', strtotime($r->atd_pasuruan)) : '' }}">
                                     </td>
                                     <td>
@@ -896,60 +932,57 @@
                                     </td>
 
                                     @php
-    $estimasiAdminPasuruan = null;
+                                    $estimasiAdminPasuruan = null;
 
-    if (!empty($r->rencana_kirim_pasuruan) && !empty($r->transport_lead_time_pasuruan)) {
-        $estimasiAdminPasuruan = \Carbon\Carbon::parse($r->rencana_kirim_pasuruan)
-            ->addDays((int) $r->transport_lead_time_pasuruan);
-    }
+                                    if (!empty($r->rencana_kirim_pasuruan) && !empty($r->transport_lead_time_pasuruan)) {
+                                    $estimasiAdminPasuruan = \Carbon\Carbon::parse($r->rencana_kirim_pasuruan)
+                                    ->addDays((int) $r->transport_lead_time_pasuruan);
+                                    }
 
-    $statusEstimasiAdminPasuruan = '-';
+                                    $statusEstimasiAdminPasuruan = '-';
 
-    if ($estimasiAdminPasuruan && !empty($r->tanggal_tiba_pasuruan)) {
+                                    if ($estimasiAdminPasuruan && !empty($r->tanggal_tiba_pasuruan)) {
 
-        // Sudah tiba -> bandingkan tanggal tiba vs estimasi
-        $tanggalTibaPasuruan = \Carbon\Carbon::parse($r->tanggal_tiba_pasuruan);
+                                    // Sudah tiba -> bandingkan tanggal tiba vs estimasi
+                                    $tanggalTibaPasuruan = \Carbon\Carbon::parse($r->tanggal_tiba_pasuruan);
 
-        $statusEstimasiAdminPasuruan =
-            $tanggalTibaPasuruan->lte($estimasiAdminPasuruan)
-                ? 'On Time'
-                : 'Delay';
+                                    $statusEstimasiAdminPasuruan =
+                                    $tanggalTibaPasuruan->lte($estimasiAdminPasuruan)
+                                    ? 'On Time'
+                                    : 'Delay';
 
-    } elseif ($estimasiAdminPasuruan && empty($r->tanggal_tiba_pasuruan)) {
+                                    } elseif ($estimasiAdminPasuruan && empty($r->tanggal_tiba_pasuruan)) {
 
-        // Belum tiba -> cek apakah hari ini sudah lewat estimasi
-        $statusEstimasiAdminPasuruan =
-            now()->startOfDay()->gt($estimasiAdminPasuruan->copy()->startOfDay())
-                ? 'Delay'
-                : 'Belum Tiba';
-    }
-@endphp
+                                    // Belum tiba -> cek apakah hari ini sudah lewat estimasi
+                                    $statusEstimasiAdminPasuruan =
+                                    now()->startOfDay()->gt($estimasiAdminPasuruan->copy()->startOfDay())
+                                    ? 'Delay'
+                                    : 'Belum Tiba';
+                                    }
+                                    @endphp
 
-<td>
-    {{ $estimasiAdminPasuruan ? $estimasiAdminPasuruan->format('d-m-Y') : '-' }}
-</td>
+                                    <td>
+                                        {{ $estimasiAdminPasuruan ? $estimasiAdminPasuruan->format('d-m-Y') : '-' }}
+                                    </td>
 
-<td>
-    @if($statusEstimasiAdminPasuruan == 'On Time')
-        <span class="badge green">On Time</span>
+                                    <td>
+                                        @if($statusEstimasiAdminPasuruan == 'On Time')
+                                        <span class="badge green">On Time</span>
 
-    @elseif($statusEstimasiAdminPasuruan == 'Delay')
-        <span class="badge red">Delay</span>
+                                        @elseif($statusEstimasiAdminPasuruan == 'Delay')
+                                        <span class="badge red">Delay</span>
 
-    @elseif($statusEstimasiAdminPasuruan == 'Belum Tiba')
-        <span class="badge orange">Belum Tiba</span>
+                                        @elseif($statusEstimasiAdminPasuruan == 'Belum Tiba')
+                                        <span class="badge orange">Belum Tiba</span>
 
-    @else
-        <span class="badge gray">-</span>
-    @endif
-</td>
+                                        @else
+                                        <span class="badge gray">-</span>
+                                        @endif
+                                    </td>
 
 
                                     <td>
                                         <div class="btn-action">
-                                            <button type="submit" form="form-update-{{ $r->id }}" class="btn btn-success btn-sm px-2 d-flex align-items-center gap-1">
-                                                <i class="fa-solid fa-floppy-disk"></i> Save
-                                            </button>
                                             <a href="{{ route('pasuruan.destroy', $r->id) }}"
                                                 class="btn btn-danger btn-sm px-2 d-flex align-items-center gap-1"
                                                 onclick="return confirm('Hapus data ini?')">
@@ -1130,13 +1163,13 @@
                     function previewBiayaKirim(scope) {
                         let route = scope.find('[name="route_pasuruan"]').val();
                         let mobil = scope.find('[name="mobil_pasuruan"]').val();
-                        let eks   = scope.find('[name="ekspedisi_pasuruan"]').val();
+                        let eks = scope.find('[name="ekspedisi_pasuruan"]').val();
 
                         if (!route || !mobil) return;
 
                         let routeKey = normalizeTarif(route);
                         let mobilKey = normalizeTarif(mobil);
-                        let eksKey   = normalizeTarif(eks);
+                        let eksKey = normalizeTarif(eks);
 
                         let candidates = tarifData.filter(t => normalizeTarif(t.route) === routeKey);
 
@@ -1156,31 +1189,31 @@
                     }
 
                     // --- Cascading untuk MODAL Add New Shipment ---
-                    $('#addModal').on('change', '[name="route_pasuruan"]', function () {
+                    $('#addModal').on('change', '[name="route_pasuruan"]', function() {
                         let modalScope = $('#addModal');
                         updateCascadeMobilEkspedisi(modalScope, $(this).val());
                     });
 
-                    $('#addModal').on('change', '[name="route_pasuruan"], [name="mobil_pasuruan"], [name="ekspedisi_pasuruan"]', function () {
+                    $('#addModal').on('change', '[name="route_pasuruan"], [name="mobil_pasuruan"], [name="ekspedisi_pasuruan"]', function() {
                         previewBiayaKirim($('#addModal'));
                     });
 
                     // --- Cascading untuk PER-BARIS di tabel ---
-                    $(document).on('change', '#tablePlanner [name="route_pasuruan"]', function () {
+                    $(document).on('change', '#tablePlanner [name="route_pasuruan"]', function() {
                         let row = $(this).closest('tr');
                         let currentMobil = row.find('[name="mobil_pasuruan"]').val();
                         let currentEks = row.find('[name="ekspedisi_pasuruan"]').val();
                         updateCascadeMobilEkspedisi(row, $(this).val(), currentMobil, currentEks);
                     });
 
-                    $(document).on('change', '#tablePlanner [name="route_pasuruan"], #tablePlanner [name="mobil_pasuruan"], #tablePlanner [name="ekspedisi_pasuruan"]', function () {
+                    $(document).on('change', '#tablePlanner [name="route_pasuruan"], #tablePlanner [name="mobil_pasuruan"], #tablePlanner [name="ekspedisi_pasuruan"]', function() {
                         let row = $(this).closest('tr');
                         previewBiayaKirim(row);
                     });
 
                     // Inisialisasi cascading utk baris yang SUDAH ADA nilainya saat page
                     // load (supaya opsi mobil/ekspedisi ke-filter sesuai route tersimpan)
-                    $('#tablePlanner tbody tr').each(function () {
+                    $('#tablePlanner tbody tr').each(function() {
                         let row = $(this);
                         let routeVal = row.find('[name="route_pasuruan"]').val();
                         let mobilVal = row.find('[name="mobil_pasuruan"]').val();
@@ -1218,12 +1251,12 @@
                     }
 
                     // jalankan sekali saat halaman dibuka, untuk semua baris
-                    $('#tablePlanner tbody tr').each(function () {
+                    $('#tablePlanner tbody tr').each(function() {
                         autoRencanaKirimPasuruan($(this));
                     });
 
                     // jalankan tiap kali via_kirim atau tanggal_terima_po berubah
-                    $(document).on('input change', '#tablePlanner [name="via_kirim_pasuruan"], #tablePlanner [name="tanggal_terima_po_pasuruan"]', function () {
+                    $(document).on('input change', '#tablePlanner [name="via_kirim_pasuruan"], #tablePlanner [name="tanggal_terima_po_pasuruan"]', function() {
                         let row = $(this).closest('tr');
                         autoRencanaKirimPasuruan(row);
                         row.find('[name="rencana_kirim_pasuruan"]').trigger('change'); // supaya autosave ke-trigger juga
@@ -1239,7 +1272,7 @@
                             targets: [0, 19, 20, 21, 22, 23, 24, 25, 26]
                         }],
 
-                       initComplete: function() {
+                        initComplete: function() {
                             // FIXED (CRITICAL BUG): sebelumnya callback ini
                             // memakai variabel luar `table`, yang PADA SAAT
                             // initComplete jalan, boleh jadi belum ter-assign
@@ -1277,7 +1310,7 @@
                             // ================================================
                             $('#tablePlanner_filter input')
                                 .off('keyup input search paste cut')
-                                .on('keyup input search paste cut', function () {
+                                .on('keyup input search paste cut', function() {
                                     globalKeyword = $(this).val().toLowerCase().trim();
                                     table.draw();
                                 });
@@ -1323,24 +1356,24 @@
                     });
 
                     // Format input biaya_kuli jadi 1.000.000 saat diketik
-$(document).on('input', 'input[name="biaya_kuli_pasuruan"]', function () {
-    let raw = $(this).val().replace(/\D/g, ''); // ambil angka saja
-    $(this).val(raw ? new Intl.NumberFormat('id-ID').format(raw) : '');
-    hitungTotalKuli($(this).closest('tr'));
-});
+                    $(document).on('input', 'input[name="biaya_kuli_pasuruan"]', function() {
+                        let raw = $(this).val().replace(/\D/g, ''); // ambil angka saja
+                        $(this).val(raw ? new Intl.NumberFormat('id-ID').format(raw) : '');
+                        hitungTotalKuli($(this).closest('tr'));
+                    });
 
-function hitungTotalKuli(row) {
-    let qty = parseFloat(row.find('input[name="actual_delivery_quantity_pasuruan"]').val()) || 0;
-    let biayaRaw = row.find('input[name="biaya_kuli_pasuruan"]').val().replace(/\./g, '') || 0;
-    let biaya = parseFloat(biayaRaw) || 0;
+                    function hitungTotalKuli(row) {
+                        let qty = parseFloat(row.find('input[name="actual_delivery_quantity_pasuruan"]').val()) || 0;
+                        let biayaRaw = row.find('input[name="biaya_kuli_pasuruan"]').val().replace(/\./g, '') || 0;
+                        let biaya = parseFloat(biayaRaw) || 0;
 
-    let total = qty * biaya;
-    row.find('input[name="total_biaya_kuli_pasuruan"]').val(formatRupiah(total));
-}
+                        let total = qty * biaya;
+                        row.find('input[name="total_biaya_kuli_pasuruan"]').val(formatRupiah(total));
+                    }
 
-function formatRupiah(angka) {
-    return 'Rp ' + new Intl.NumberFormat('id-ID').format(angka);
-}
+                    function formatRupiah(angka) {
+                        return 'Rp ' + new Intl.NumberFormat('id-ID').format(angka);
+                    }
                     // ========================================================
                     // SELECT2 UNTUK FILTER HEADER (init sekali saja)
                     // ========================================================
@@ -1449,7 +1482,7 @@ function formatRupiah(angka) {
                         if (globalKeyword !== '') {
                             var textAll = '';
 
-                            node.find('input,select,textarea').each(function () {
+                            node.find('input,select,textarea').each(function() {
                                 var $el = $(this);
                                 if ($el.is('select')) {
                                     textAll += ' ' + ($el.find('option:selected').text() || '').toLowerCase();
@@ -1461,7 +1494,7 @@ function formatRupiah(angka) {
                             // biar angka Rupiah yang diformat titik-titik tetap
                             // ketemu walau user ngetik angka polos (5000000 vs
                             // Rp 5.000.000)
-                            node.find('.row-nilai-muatan, .row-biaya-kirim').each(function () {
+                            node.find('.row-nilai-muatan, .row-biaya-kirim').each(function() {
                                 textAll += ' ' + ambilAngkaMurni($(this).val());
                             });
 
@@ -1581,13 +1614,15 @@ function formatRupiah(angka) {
                     // ========================================================
                     // HITUNG CR (Cost Ratio) — akumulasi per No Shipment
                     // ========================================================
- function hitungSemuaCostRatioTabel() {
+                    function hitungSemuaCostRatioTabel() {
                         var shipmentGroups = {};
-                        
+
                         var dt = $('#tablePlanner').DataTable();
 
                         // PASS 1: total nilai muatan (SUM) & biaya kirim (MAX) per shipment
-                        dt.rows({ search: 'applied' }).every(function() {
+                        dt.rows({
+                            search: 'applied'
+                        }).every(function() {
                             var row = $(this.node());
                             var noShipment = (row.find('.row-no-shipment').val() || '').trim();
                             if (!noShipment) return;
@@ -1596,7 +1631,10 @@ function formatRupiah(angka) {
                             var biaya = ambilAngkaMurni(row.find('.row-biaya-kirim').val());
 
                             if (!shipmentGroups[noShipment]) {
-                                shipmentGroups[noShipment] = { totalMuatan: 0, totalBiaya: 0 };
+                                shipmentGroups[noShipment] = {
+                                    totalMuatan: 0,
+                                    totalBiaya: 0
+                                };
                             }
 
                             shipmentGroups[noShipment].totalMuatan += muatan;
@@ -1607,7 +1645,9 @@ function formatRupiah(angka) {
                         });
 
                         // PASS 2: hitung & isi CR tiap baris (proporsional terhadap kontribusi muatan)
-                        dt.rows({ search: 'applied' }).every(function() {
+                        dt.rows({
+                            search: 'applied'
+                        }).every(function() {
                             var row = $(this.node());
                             var noShipment = (row.find('.row-no-shipment').val() || '').trim();
                             var crInput = row.find('.row-cr');
@@ -1686,7 +1726,7 @@ function formatRupiah(angka) {
                     // sinkronisasi data internal DataTables (dipakai saat
                     // search/sort) TANPA memaksa redraw visual.
                     // ========================================================
-                    $(document).on('input change', '#tablePlanner input, #tablePlanner select, #tablePlanner textarea', function () {
+                    $(document).on('input change', '#tablePlanner input, #tablePlanner select, #tablePlanner textarea', function() {
                         table.row($(this).closest('tr')).invalidate('dom');
                     });
                 });
@@ -1752,31 +1792,31 @@ function formatRupiah(angka) {
                     }, 500);
                 });
 
-function updateDateColor() {
-    $('input[type="date"], input[type="datetime-local"]').each(function() {
+                function updateDateColor() {
+                    $('input[type="date"], input[type="datetime-local"]').each(function() {
 
-        if ($(this).val()) {
-            $(this)
-                .removeClass('input-empty')
-                .addClass('input-filled');
-        } else {
-            $(this)
-                .removeClass('input-filled')
-                .addClass('input-empty');
-        }
+                        if ($(this).val()) {
+                            $(this)
+                                .removeClass('input-empty')
+                                .addClass('input-filled');
+                        } else {
+                            $(this)
+                                .removeClass('input-filled')
+                                .addClass('input-empty');
+                        }
 
-    });
-}
+                    });
+                }
 
-updateDateColor();
+                updateDateColor();
 
-$(document).on(
-    'change',
-    'input[type="date"], input[type="datetime-local"]',
-    function() {
-        updateDateColor();
-    }
-);
+                $(document).on(
+                    'change',
+                    'input[type="date"], input[type="datetime-local"]',
+                    function() {
+                        updateDateColor();
+                    }
+                );
 
 
                 $(document).on('input', '#tablePlanner input', function() {

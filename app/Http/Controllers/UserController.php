@@ -19,13 +19,13 @@ class UserController extends Controller
 
     public function create()
     {
-        $distChannels = DB::table('logistik_pengiriman')
+        // Dist channel diambil dari tabel tujuanfillterr
+        $distChannels = DB::table('tujuanfillterr')
             ->select('dist_channel')
             ->whereNotNull('dist_channel')
             ->distinct()
             ->orderBy('dist_channel')
             ->pluck('dist_channel');
-            
 
         return view('users.create', compact('distChannels'));
     }
@@ -51,17 +51,18 @@ class UserController extends Controller
         return redirect('/users')->with('success', 'User berhasil ditambahkan');
     }
 
-public function register()
-{
-    $distChannels = DB::table('logistik_pengiriman')
-        ->select('dist_channel')
-        ->whereNotNull('dist_channel')
-        ->distinct()
-        ->orderBy('dist_channel')
-        ->pluck('dist_channel');
+    public function register()
+    {
+        // Dist channel diambil dari tabel tujuanfillterr
+        $distChannels = DB::table('tujuanfillterr')
+            ->select('dist_channel')
+            ->whereNotNull('dist_channel')
+            ->distinct()
+            ->orderBy('dist_channel')
+            ->pluck('dist_channel');
 
-    return view('auth.register', compact('distChannels'));
-}
+        return view('auth.register', compact('distChannels'));
+    }
 
     // public function registerStore(Request $request)
     // {
@@ -94,35 +95,44 @@ public function register()
     // }
 
 
-//     public function registerStore(Request $request)
-// {
-//     $request->validate([
-//         'name' => 'required',
-//         'username' => 'required|unique:users',
-//         'password' => 'required|min:6',
-//         'role' => 'required',
-//         'dist_channel' => 'nullable',
-//     ]);
+    //     public function registerStore(Request $request)
+    // {
+    //     $request->validate([
+    //         'name' => 'required',
+    //         'username' => 'required|unique:users',
+    //         'password' => 'required|min:6',
+    //         'role' => 'required',
+    //         'dist_channel' => 'nullable',
+    //     ]);
 
-//     $user = User::create([
-//         'name' => $request->name,
-//         'username' => $request->username,
-//         'password' => Hash::make($request->password),
-//         'role' => $request->role ?? 'user',
-//         'dist_channel' => $request->dist_channel,
-//     ]);
+    //     $user = User::create([
+    //         'name' => $request->name,
+    //         'username' => $request->username,
+    //         'password' => Hash::make($request->password),
+    //         'role' => $request->role ?? 'user',
+    //         'dist_channel' => $request->dist_channel,
+    //     ]);
 
-//     // Langsung login setelah registrasi
-//     Auth::login($user);
+    //     // Langsung login setelah registrasi
+    //     Auth::login($user);
 
-//     return redirect()->route('dashboard')
-//         ->with('success', 'Registrasi berhasil!');
-// }
+    //     return redirect()->route('dashboard')
+    //         ->with('success', 'Registrasi berhasil!');
+    // }
 
     public function edit($id)
     {
         $user = User::findOrFail($id);
-        return view('users.edit', compact('user'));
+
+        // Dist channel diambil dari tabel tujuanfillterr
+        $distChannels = DB::table('tujuanfillterr')
+            ->select('dist_channel')
+            ->whereNotNull('dist_channel')
+            ->distinct()
+            ->orderBy('dist_channel')
+            ->pluck('dist_channel');
+
+        return view('users.edit', compact('user', 'distChannels'));
     }
 
     public function update(Request $request, $id)
@@ -133,6 +143,7 @@ public function register()
             'name' => $request->name,
             'username' => $request->username,
             'role' => $request->role,
+            'dist_channel' => $request->dist_channel,
         ];
 
         if ($request->password) {
@@ -143,49 +154,50 @@ public function register()
 
         return redirect('/users')->with('success', 'User berhasil diupdate');
     }
+
     public function registerStore(Request $request)
-{
-    $request->validate([
-        'name' => 'required',
-        'username' => 'required|unique:users',
-        'password' => 'required|min:6',
-        'role' => 'required',
-        'dist_channel' => 'nullable',
-    ]);
+    {
+        $request->validate([
+            'name' => 'required',
+            'username' => 'required|unique:users',
+            'password' => 'required|min:6',
+            'role' => 'required',
+            'dist_channel' => 'nullable',
+        ]);
 
-    $user = User::create([
-        'name' => $request->name,
-        'username' => $request->username,
-        'password' => Hash::make($request->password),
-        'role' => $request->role ?? 'user',
-        'dist_channel' => $request->dist_channel,
-    ]);
+        $user = User::create([
+            'name' => $request->name,
+            'username' => $request->username,
+            'password' => Hash::make($request->password),
+            'role' => $request->role ?? 'user',
+            'dist_channel' => $request->dist_channel,
+        ]);
 
-    // Langsung login setelah registrasi
-    Auth::login($user);
+        // Langsung login setelah registrasi
+        Auth::login($user);
 
-    $role = strtolower(trim($user->role ?? ''));
+        $role = strtolower(trim($user->role ?? ''));
 
-    session([
-        'name' => $user->name,
-        'username' => $user->username,
-        'role' => $role,
-        'dist_channel' => strtolower(trim($user->dist_channel ?? '')),
-    ]);
+        session([
+            'name' => $user->name,
+            'username' => $user->username,
+            'role' => $role,
+            'dist_channel' => strtolower(trim($user->dist_channel ?? '')),
+        ]);
 
-    return match ($role) {
-        'planner' => redirect()->route('planner.dashboard'),
-        'monitoring' => redirect()->route('monitoring.dashboard'),
-        'manager' => redirect()->route('manager.dashboard'),
-        'sales' => redirect()->route('sales.dashboard'),
-        'spvplanner' => redirect()->route('spvplanner.dashboard'),
-        'spvmonitoring' => redirect()->route('spvmonitoring.dashboard'),
-        'developer' => redirect()->route('developer.dashboard'),
-        'cmd' => redirect()->route('cmd.dashboard'),
-        'pasuruan', 'admin_pasuruan' => redirect()->route('pasuruan.dashboard'),
-        default => redirect('/login')->with('success', 'Registrasi berhasil! Silakan login.'),
-    };
-}
+        return match ($role) {
+            'planner' => redirect()->route('planner.dashboard'),
+            'monitoring' => redirect()->route('monitoring.dashboard'),
+            'manager' => redirect()->route('manager.dashboard'),
+            'sales' => redirect()->route('sales.dashboard'),
+            'spvplanner' => redirect()->route('spvplanner.dashboard'),
+            'spvmonitoring' => redirect()->route('spvmonitoring.dashboard'),
+            'developer' => redirect()->route('developer.dashboard'),
+            'cmd' => redirect()->route('cmd.dashboard'),
+            'pasuruan', 'admin_pasuruan' => redirect()->route('pasuruan.dashboard'),
+            default => redirect('/login')->with('success', 'Registrasi berhasil! Silakan login.'),
+        };
+    }
 
     public function destroy($id)
     {
