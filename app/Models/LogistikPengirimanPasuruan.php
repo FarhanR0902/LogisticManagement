@@ -111,6 +111,8 @@ class LogistikPengirimanPasuruan extends Model
     'tanggal_bongkar_pasuruan',
     'overstay_days_pasuruan',
     'sla_bongkar_pasuruan',
+    'nama_driver_pasuruan',
+    'no_pol_pasuruan',
 
     'status_akhir_pasuruan',
 

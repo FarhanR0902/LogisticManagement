@@ -312,6 +312,7 @@
                     table = $('#tableMonitoring').DataTable({
                         processing: true,
                         serverSide: true,
+                         autoWidth: false,
                         searchDelay: 600, // debounce, jangan tembak query tiap keystroke
                         ajax: {
                             url: "{{ route('monitoring.datalogistik.ajax') }}",
@@ -391,9 +392,19 @@
                     });
 
                     // init select2 utk kolom reason & re-init tiap kali draw (hanya utk baris yg tampil, ringan)
-                    table.on('draw.dt', function() {
-                        initReasonSelect();
-                    });
+              table.on('draw.dt', function() {
+    initReasonSelect();
+    // recalculate lebar header vs body setelah select2/badge/input ke-render
+    setTimeout(function() {
+        table.columns.adjust();
+    }, 0);
+});
+
+$(window).on('resize', function() {
+    if (table) {
+        table.columns.adjust();
+    }
+});
 
                     // ================= ALERT CONTROL (dari endpoint ringan) =================
                     loadAlertControl(true);

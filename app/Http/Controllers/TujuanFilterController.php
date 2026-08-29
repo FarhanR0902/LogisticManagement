@@ -197,6 +197,39 @@ class TujuanFilterController extends Controller
             ->route('spvplanner.tujuan.index')
             ->with('success', "Tujuan \"{$tujuan}\" berhasil dihapus.");
     }
+        /**
+     * Hapus beberapa data sekaligus (checkbox terpilih).
+     */
+    public function bulkDestroy(Request $request)
+    {
+        $this->checkRole();
+
+        $request->validate([
+            'ids'   => 'required|array|min:1',
+            'ids.*' => 'integer|exists:' . self::TABLE . ',id',
+        ]);
+
+        $count = TujuanFilter::whereIn('id', $request->ids)->delete();
+
+        return redirect()
+            ->route('spvplanner.tujuan.index')
+            ->with('success', "{$count} data tujuan berhasil dihapus.");
+    }
+
+    /**
+     * Hapus SEMUA data tujuan tanpa terkecuali.
+     */
+    public function destroyAll()
+    {
+        $this->checkRole();
+
+        $count = TujuanFilter::count();
+        TujuanFilter::truncate();
+
+        return response()->json([
+            'message' => "Semua data tujuan berhasil dihapus ({$count} data).",
+        ]);
+    }
 
     /**
      * Import massal dari CSV. Semua 9 kolom didukung.

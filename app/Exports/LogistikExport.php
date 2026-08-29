@@ -114,7 +114,9 @@ class LogistikExport implements FromCollection, WithHeadings, WithMapping, WithS
             'Act Urutan Bongkar',
             'Total DO Qty Car',
             'Qty Monitoring',
+            
             'Selisih Qty',
+            'Biaya Kuli',
             'Remarks Qty',
             'Act PGI Date',
 
@@ -350,6 +352,7 @@ if (!is_null($r->overstay_days)) {
             $r->area,
             $statusMobil,
             $r->mobil,
+           
             $r->nilai_muatan,
             $r->biaya_kirim,
             $r->cr,
@@ -393,7 +396,9 @@ if (!is_null($r->overstay_days)) {
             $r->act_urutan_bongkar,
             $r->total_do_qty_car,
             $r->qty_monitoring,
+            
             $r->selisih_qty,
+             $r->total_biaya_kuli,
             $r->remarks_qty,
             $fmt($r->act_pgi_date),
 

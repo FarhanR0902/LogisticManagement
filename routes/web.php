@@ -86,6 +86,11 @@ Route::get('/logistik/export', [LogistikController::class, 'export'])
 Route::get('/dashboard', [LogistikController::class, 'dashboard']);
 Route::get('/logistik', [LogistikController::class, 'index']);
 Route::get('/datalogistik', [LogistikController::class, 'dataLogistik']);
+Route::get('/datalogistik', [LogistikController::class, 'dataLogistik'])->name('logistik.page');
+
+// SESUDAH — terima POST juga (GET tetap boleh dipertahankan buat kompatibilitas)
+Route::match(['get', 'post'], '/datalogistik/ajax', [LogistikController::class, 'dataLogistikAjax'])
+    ->name('logistik.ajax');
 
 Route::post('/logistik/store', [LogistikController::class, 'store']);
 Route::post('/logistik/update/{id}', [LogistikController::class, 'update']);
@@ -212,6 +217,11 @@ Route::prefix('manager')->group(function () {
     Route::get('/dashboard', [ManagerController::class, 'dashboard'])
         ->name('manager.dashboard');
 
+        Route::match(['get', 'post'], '/manager/data-pasuruan/ajax', [
+    \App\Http\Controllers\Manager\ManagerController::class,
+    'dataLogistikPasuruanAjax'
+])->name('manager.pasuruan.ajax');
+
     // ================= GUDANG =================
     Route::get('/gudang/ontime', [ManagerController::class, 'gudangOnTime'])
         ->name('manager.gudang.ontime');
@@ -257,6 +267,10 @@ Route::get('/pasuruan/tujuan/ontime', [PasuruanController::class, 'tujuanOntimeP
     ->name('pasuruan.tujuan.ontime');
 Route::post('/pasuruan/data-ajax', [\App\Http\Controllers\PasuruanController::class, 'dataLogistikAjax'])
     ->name('pasuruan.dataAjax');
+    Route::get('/datalogistik', [LogistikController::class, 'dataLogistik'])->name('logistik.page');
+Route::match(['get','post'], '/datalogistik/ajax', [LogistikController::class, 'dataLogistikAjax'])->name('logistik.ajax');
+Route::get('/pasuruan/data-logistik', [PasuruanController::class, 'dataLogistik'])->name('pasuruan.dataLogistik');
+Route::match(['get', 'post'], '/pasuruan/data-logistik/ajax', [PasuruanController::class, 'dataLogistikAjaxPasuruan'])->name('pasuruan.dataLogistikAjax');
 
 Route::get('/pasuruan/tujuan/delay', [PasuruanController::class, 'tujuanDelayPasuruan'])
     ->name('pasuruan.tujuan.delay');
@@ -341,16 +355,32 @@ Route::prefix('sales')->name('sales.')->group(function () {
         ->name('pasuruan.bongkar.delay');
     Route::get('/pasuruan/summary-area', [SalesController::class, 'summaryAreaPasuruan'])
         ->name('pasuruan.summary.area');
+        Route::get('/pasuruan/data-ajax', [PasuruanController::class, 'dataAjaxPasuruan'])
+    ->name('pasuruan.dataAjax');
 });
 
 Route::middleware(['auth'])->prefix('spvplanner')->group(function () {
 
 Route::post('/spvplanner/data-ajax', [App\Http\Controllers\Spv\SpvPlannerController::class, 'dataAjax'])
     ->name('spvplanner.data.ajax');
+    Route::match(['get', 'post'], '/logistik/full-data/ajax', [SpvPlannerController::class, 'fullDataLogistikAjax'])
+    ->name('full.data.logistik.ajax');
+    Route::get('/data-logistik-pasuruan', [SpvPlannerController::class, 'dataLogistikPasuruan'])
+        ->name('spvplanner.data.pasuruan');
+
+    // route baru untuk AJAX DataTables
+  Route::post('/data-logistik-pasuruan/ajax', [SpvPlannerController::class, 'dataLogistikPasuruanAjax'])
+    ->name('spvplanner.data.pasuruan.ajax');
 Route::get('/spvplanner/alerts', [App\Http\Controllers\Spv\SpvPlannerController::class, 'alerts'])
     ->name('spvplanner.alerts');
 Route::post('/autosave-row/{id}', [App\Http\Controllers\Spv\SpvPlannerController::class, 'autosaveRow'])
     ->name('spvplanner.autosave-row'); // ✅ BENAR — tanpa prefix manual
+
+    Route::post('/spvplanner/tujuan-filter/bulk-destroy', [TujuanFilterController::class, 'bulkDestroy'])
+    ->name('spvplanner.tujuan.bulk-destroy');
+
+Route::delete('/spvplanner/tujuan-filter/destroy-all', [TujuanFilterController::class, 'destroyAll'])
+    ->name('spvplanner.tujuan.destroy-all');
 
     Route::get('/dashboard', [SpvPlannerController::class, 'dashboard'])
         ->name('spvplanner.dashboard');
@@ -689,13 +719,67 @@ Route::prefix('sales')
 
 use App\Http\Controllers\LogistikPengiriman2Controller;
 
+// Route::prefix('pasuruan')->group(function () {
+
+//     // Halaman Admin
+//     Route::get('/admin', [PasuruanController::class, 'admin'])
+//         ->name('pasuruan.admin');
+//        Route::post('/pasuruan/data-ajax-pasuruan', [PasuruanController::class, 'dataAjaxPasuruan'])
+//     ->name('pasuruan.dataAjaxPasuruan');
+// Route::get('/pasuruan/list-no-shipment', [PasuruanController::class, 'listNoShipmentPasuruan'])
+//     ->name('pasuruan.listNoShipment');
+
+//     // Halaman Data Logistik Pasuruan
+//     Route::get('/data-logistik', [PasuruanController::class, 'dataLogistik'])
+//         ->name('pasuruan.dataLogistik');
+
+//     // CRUD
+//     Route::post('/store', [PasuruanController::class, 'store'])
+//         ->name('pasuruan.store');
+// Route::put('/update/{id}', [PasuruanController::class, 'update'])
+//     ->name('pasuruan.updateRow');
+//     Route::put('/{id}', [PasuruanController::class, 'update'])
+//         ->name('pasuruan.update');
+
+//     Route::delete('/{id}', [PasuruanController::class, 'destroy'])
+//         ->name('pasuruan.destroy');
+
+//     // Autosave
+//     Route::put('/autosave-row/{id}', [PasuruanController::class, 'autosaveRow'])
+//         ->name('pasuruan.autosaveRow');
+
+//     Route::get('/dashboard', [PasuruanController::class, 'dashboard'])
+//         ->name('pasuruan.dashboard');
+
+//     // IMPORT
+//     Route::post('/import', [PasuruanController::class, 'import'])
+//         ->name('pasuruan.import');
+
+//     // EXPORT
+//     Route::get('/export', [PasuruanController::class, 'export'])
+//         ->name('pasuruan.export');
+
+//     // ARCHIVE
+//     Route::post('/archive-all', [PasuruanController::class, 'archiveAll'])
+//         ->name('pasuruan.archive');
+
+//     Route::post(
+//         '/pasuruan/update-transport-laut',
+//         [PasuruanController::class, 'updateTransportLaut']
+//     )->name('pasuruan.updateTransportLaut');
+// });
+
 Route::prefix('pasuruan')->group(function () {
 
-    // Halaman Admin
     Route::get('/admin', [PasuruanController::class, 'admin'])
         ->name('pasuruan.admin');
 
-    // Halaman Data Logistik Pasuruan
+    Route::post('/data-ajax-pasuruan', [PasuruanController::class, 'dataAjaxPasuruan'])
+        ->name('pasuruan.dataAjaxPasuruan');
+
+    Route::get('/list-no-shipment', [PasuruanController::class, 'listNoShipmentPasuruan'])
+        ->name('pasuruan.listNoShipment');
+
     Route::get('/data-logistik', [PasuruanController::class, 'dataLogistik'])
         ->name('pasuruan.dataLogistik');
 
@@ -716,23 +800,18 @@ Route::prefix('pasuruan')->group(function () {
     Route::get('/dashboard', [PasuruanController::class, 'dashboard'])
         ->name('pasuruan.dashboard');
 
-    // IMPORT
+    // Import / Export
     Route::post('/import', [PasuruanController::class, 'import'])
         ->name('pasuruan.import');
 
-    // EXPORT
     Route::get('/export', [PasuruanController::class, 'export'])
         ->name('pasuruan.export');
 
-    // ARCHIVE
     Route::post('/archive-all', [PasuruanController::class, 'archiveAll'])
         ->name('pasuruan.archive');
 
-    Route::post(
-        '/pasuruan/update-transport-laut',
-        [PasuruanController::class, 'updateTransportLaut']
-    )->name('pasuruan.updateTransportLaut');
+    Route::post('/update-transport-laut', [PasuruanController::class, 'updateTransportLaut'])
+        ->name('pasuruan.updateTransportLaut');
 });
-
 
 Route::fallback(fn() => redirect('/login'));

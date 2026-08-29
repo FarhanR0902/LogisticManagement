@@ -143,6 +143,7 @@ class PasuruanExport implements FromCollection, WithHeadings, WithMapping, WithS
             'Total DO Qty Car',
             'Qty Monitoring',
             'Selisih Qty',
+             'Biaya Kuli',
             'Remarks Qty',
             'Act PGI Date',
 
@@ -463,6 +464,7 @@ class PasuruanExport implements FromCollection, WithHeadings, WithMapping, WithS
             $r->total_do_pasuruan,
             $r->actual_delivery_quantity_pasuruan,
             $r->selisih_quantity_pasuruan,
+            $r->total_biaya_kuli_pasuruan,
             $r->reason_selisih_quantity_pasuruan,
             $fmt($r->act_pgi_date_pasuruan),
 

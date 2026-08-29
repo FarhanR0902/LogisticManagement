@@ -128,6 +128,7 @@ class MonitoringController extends Controller
     // =====================================================
     public function dataAjax(Request $request)
     {
+        
         $draw   = (int) $request->input('draw', 1);
         $start  = (int) $request->input('start', 0);
         $length = (int) $request->input('length', 10);
@@ -245,25 +246,26 @@ class MonitoringController extends Controller
         // Ini jauh lebih ringan drpd hitung utk SEMUA data tiap request.
         // ============================================================
         $grouped = $rows->groupBy('no_shipment');
-        foreach ($grouped as $shipment => $items) {
-            $gudangInfo = $this->getKeluarGudangInfo($items->first());
-            $keluar  = $gudangInfo['keluar'];
-            $blocked = $gudangInfo['blocked'];
-            $leadtime = (int) ($items->first()->transport_lead_time ?? 0);
+    foreach ($grouped as $shipment => $items) {
+    $gudangInfo = $this->getKeluarGudangInfo($items->first()); // atau mergeGudangFields kalau udah diterapkan
+    $keluar  = $gudangInfo['keluar'];
+    $blocked = $gudangInfo['blocked'];
+    $blockedStatus = $gudangInfo['blocked_status'];
+    $leadtime = (int) ($items->first()->transport_lead_time ?? 0);
 
-            $estimasi = (!$blocked && $keluar)
-                ? strtotime("+{$leadtime} days", $keluar)
-                : null;
+    $estimasi = (!$blocked && $keluar)
+        ? strtotime("+{$leadtime} days", $keluar)
+        : null;
 
-            foreach ($items as $r) {
-                $r->_keluar = $keluar;
-                $r->_blocked = $blocked;
-                $r->_tanggal_estimasi = $r->estimasi_tiba
-                    ? strtotime($r->estimasi_tiba)
-                    : $estimasi;
-            }
-        }
-
+    foreach ($items as $r) {
+        $r->_keluar = $keluar;
+        $r->_blocked = $blocked;
+        $r->_blocked_status = $blockedStatus;
+        $r->_tanggal_estimasi = $r->estimasi_tiba
+            ? strtotime($r->estimasi_tiba)
+            : $estimasi;
+    }
+}
         $akurasiTiba = Cache::remember('monitoring_akurasi_tiba', 3600, function () {
             return DB::table('akurasi3')->distinct()->pluck('akurasi_waktu_tiba');
         });
@@ -322,8 +324,12 @@ class MonitoringController extends Controller
         $keluar   = $r->_keluar ?? null;
         $blocked  = $r->_blocked ?? false;
         $estimasi = $r->_tanggal_estimasi ?? null;
+        $blockedStatus = $r->_blocked_status ?? null;
 
         $tiba = $r->tanggal_tiba ? strtotime($r->tanggal_tiba) : null;
+        $blockedLabel = $blockedStatus === 'sedang'
+    ? 'Sedang di Gudang Berikutnya'
+    : 'Menuju Gudang Berikutnya';
 
         $lama_perjalanan = '-';
         if ($tiba && $keluar) {
@@ -333,12 +339,13 @@ class MonitoringController extends Controller
         $alert = '-';
         $alertClass = '';
         $estimasi_show = '-';
+        
 
-        if ($blocked) {
-            $estimasi_show = 'Menuju Gudang Berikutnya';
-            $alertClass = 'gray';
-        } else {
-            $estimasi_show = $estimasi ? date('d-m-Y', $estimasi) : '-';
+if ($blocked) {
+    $estimasi_show = $blockedLabel;
+    $alertClass = 'gray';
+} else {
+    $estimasi_show = $estimasi ? date('d-m-Y', $estimasi) : '-';
 
             if (!$r->tanggal_tiba && $estimasi) {
                 $today = strtotime(date('Y-m-d'));
@@ -417,9 +424,11 @@ class MonitoringController extends Controller
             $kelengkapanHtml = '<span class="badge completeness-badge ' . $cls . '" title="' . e($text) . '">' . e($text) . '</span>';
         }
 
-        return [
-            // 0 Tanggal Keluar Gudang
-            $keluar ? date('d-m-Y ', $keluar) : '-',
+       return [
+   // 0 Tanggal Keluar Gudang
+$blocked
+    ? '<span class="badge red">' . e($blockedLabel) . '</span>'
+    : ($keluar ? '<span class="badge green">' . date('d-m-Y', $keluar) . '</span>' : '-'),
             // 1 Act PGI Date (editable)
                   e($r->create_tgl),
             // 2 Dist Channel
@@ -722,34 +731,41 @@ class MonitoringController extends Controller
         ]);
     }
 
-    private function getKeluarGudangInfo($r)
-    {
-        $cycles = [
-            ['planning' => $r->planning_loading,   'tiba' => $r->tanggal_tiba_gudang,   'keluar' => $r->tanggal_keluar_gudang],
-            ['planning' => $r->planning_loading_2, 'tiba' => $r->tanggal_tiba_gudang_2, 'keluar' => $r->tanggal_keluar_gudang_2],
-            ['planning' => $r->planning_loading_3, 'tiba' => $r->tanggal_tiba_gudang_3, 'keluar' => $r->tanggal_keluar_gudang_3],
-        ];
+ private function getKeluarGudangInfo($r)
+{
+    $cycles = [
+        ['planning' => $r->planning_loading,   'tiba' => $r->tanggal_tiba_gudang,   'keluar' => $r->tanggal_keluar_gudang],
+        ['planning' => $r->planning_loading_2, 'tiba' => $r->tanggal_tiba_gudang_2, 'keluar' => $r->tanggal_keluar_gudang_2],
+        ['planning' => $r->planning_loading_3, 'tiba' => $r->tanggal_tiba_gudang_3, 'keluar' => $r->tanggal_keluar_gudang_3],
+    ];
 
-        $blocked = false;
-        $keluarTimestamps = [];
+    $blocked = false;
+    $blockedStatus = null; // 'menuju' | 'sedang'
+    $keluarTimestamps = [];
 
-        foreach ($cycles as $c) {
-            $started = !empty($c['planning']) || !empty($c['tiba']);
-            $selesai = !empty($c['keluar']);
+    foreach ($cycles as $c) {
+        $hasPlanning = !empty($c['planning']);
+        $hasTiba     = !empty($c['tiba']);
+        $started     = $hasPlanning || $hasTiba;
+        $selesai     = !empty($c['keluar']);
 
-            if ($started && !$selesai) {
-                $blocked = true;
-            }
-            if ($selesai) {
-                $keluarTimestamps[] = strtotime($c['keluar']);
-            }
+        if ($started && !$selesai) {
+            $blocked = true;
+            // kalau udah tiba di gudang itu -> "sedang di gudang"
+            // kalau baru planning doang -> "menuju gudang"
+            $blockedStatus = $hasTiba ? 'sedang' : 'menuju';
         }
-
-        return [
-            'blocked' => $blocked,
-            'keluar'  => !empty($keluarTimestamps) ? max($keluarTimestamps) : null,
-        ];
+        if ($selesai) {
+            $keluarTimestamps[] = strtotime($c['keluar']);
+        }
     }
+
+    return [
+        'blocked'       => $blocked,
+        'blocked_status'=> $blockedStatus,
+        'keluar'        => !empty($keluarTimestamps) ? max($keluarTimestamps) : null,
+    ];
+}
 
     private function generateStatusAlert($sla_tiba, $sla_bongkar)
     {

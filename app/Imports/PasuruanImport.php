@@ -6,6 +6,8 @@ use Illuminate\Support\Facades\DB;
 use App\Models\LogistikPengirimanPasuruan;
 use Maatwebsite\Excel\Concerns\ToModel;
 use Maatwebsite\Excel\Concerns\WithHeadingRow;
+use Maatwebsite\Excel\Concerns\WithBatchInserts;   // <-- tambah
+use Maatwebsite\Excel\Concerns\WithChunkReading;
 use PhpOffice\PhpSpreadsheet\Shared\Date;
 use Maatwebsite\Excel\Concerns\WithEvents;
 use Maatwebsite\Excel\Events\AfterImport;
@@ -89,6 +91,16 @@ class PasuruanImport implements ToModel, WithHeadingRow, WithEvents
                 ->get()
                 ->groupBy(fn($row) => $this->normalize($row->route));
         }
+    }
+
+        public function batchSize(): int
+    {
+        return 500;
+    }
+
+       public function chunkSize(): int
+    {
+        return 500;
     }
 
     public function model(array $row)

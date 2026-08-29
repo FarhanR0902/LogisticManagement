@@ -67,6 +67,7 @@ class LogistikImport implements ToModel, WithHeadingRow, WithEvents
                     'transport_lead_time',
                     'Monitoring'
                 )
+                 ->where('Div', 'HO Meruya')  
                 ->get()
                 ->keyBy(fn($row) => strtolower(trim($row->tujuan)));
         }

@@ -269,6 +269,7 @@
     justify-content: space-between;
 
     gap: 15px;
+    flex-wrap: wrap;
 
     min-height: 62px;
     padding: 12px 17px;
@@ -308,6 +309,63 @@
     font-weight: 600;
 
     white-space: nowrap;
+}
+
+
+/* =========================================================
+   BULK ACTIONS
+========================================================= */
+
+.tf-bulk-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.tf-btn-bulk {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+
+    height: 32px;
+    padding: 0 12px;
+
+    border-radius: 6px;
+    border: 1px solid #fecaca;
+
+    background: #fef2f2;
+    color: #dc2626;
+
+    font-size: 11px;
+    font-weight: 600;
+
+    cursor: pointer;
+
+    transition: .15s ease;
+    white-space: nowrap;
+}
+
+.tf-btn-bulk:hover:not(:disabled) {
+    background: #fee2e2;
+    color: #b91c1c;
+}
+
+.tf-btn-bulk:disabled {
+    opacity: .5;
+    cursor: not-allowed;
+}
+
+.tf-btn-bulk-all {
+    background: #dc2626;
+    border-color: #dc2626;
+    color: #fff;
+}
+
+.tf-btn-bulk-all:hover {
+    background: #b91c1c;
+    color: #fff;
 }
 
 
@@ -407,10 +465,20 @@
     border-bottom: 0;
 }
 
+.tf-table tbody tr.row-selected td {
+    background: #eff6ff;
+}
+
 
 /* =========================================================
    COLUMN WIDTH
 ========================================================= */
+
+.tf-col-check {
+    width: 40px;
+    min-width: 40px;
+    text-align: center !important;
+}
 
 .tf-col-no {
     width: 50px;
@@ -575,6 +643,8 @@
     cursor: pointer;
 
     transition: .15s ease;
+
+    border: 0;
 }
 
 .tf-action-btn i {
@@ -811,6 +881,14 @@
         flex-direction: column;
     }
 
+    .tf-bulk-actions {
+        width: 100%;
+    }
+
+    .tf-btn-bulk {
+        flex: 1;
+    }
+
     .tf-pagination-area {
         align-items: flex-start;
         flex-direction: column;
@@ -1019,122 +1097,145 @@
             </div>
         </div>
 
-        @if (method_exists($data, 'total'))
-            <span class="tf-data-count">
-                <i class="fas fa-database"></i>
-                {{ number_format($data->total(), 0, ',', '.') }} Data
-            </span>
-        @endif
+        <div class="tf-bulk-actions">
+
+            <button type="button" id="btnDeleteSelected" class="tf-btn-bulk" disabled>
+                <i class="fas fa-trash"></i>
+                Hapus Terpilih (<span id="selectedCount">0</span>)
+            </button>
+
+            <button type="button" id="btnDeleteAll" class="tf-btn-bulk tf-btn-bulk-all">
+                <i class="fas fa-trash-alt"></i>
+                Hapus Semua Data
+            </button>
+
+            @if (method_exists($data, 'total'))
+                <span class="tf-data-count">
+                    <i class="fas fa-database"></i>
+                    {{ number_format($data->total(), 0, ',', '.') }} Data
+                </span>
+            @endif
+
+        </div>
 
     </div>
 
     <div class="tf-table-wrapper">
 
-        <table class="tf-table">
+        <form id="bulkForm" method="POST" action="{{ route('spvplanner.tujuan.bulk-destroy') }}">
+            @csrf
 
-            <thead>
-                <tr>
-                    <th class="tf-col-no">No</th>
-                    <th class="tf-col-tujuan">Div</th>
-                    <th class="tf-col-tujuan">Customer ID</th>
-                    <th class="tf-col-tujuan">Tujuan</th>
-                    <th class="tf-col-channel">Distribution Channel</th>
-                    <th class="tf-col-area">Pulau</th>
-                    <th class="tf-col-area">Area</th>
-                    <th class="tf-col-planner">Planner</th>
-                    <th class="tf-col-monitoring">Monitoring</th>
-                    <th class="tf-col-biaya_kuli">Biaya Kuli</th>
-                       <th class="tf-col-transport_lead_time">Transport Lead Time</th>
-                    <th class="tf-col-action tf-action-sticky">Aksi</th>
-                </tr>
-            </thead>
+            <table class="tf-table">
 
-            <tbody>
-
-                @forelse ($data as $row)
+                <thead>
                     <tr>
-                        <td class="tf-col-no">
-                            {{ $data->firstItem() + $loop->index }}
-                        </td>
+                        <th class="tf-col-check">
+                            <input type="checkbox" id="checkAll" title="Pilih Semua di Halaman Ini">
+                        </th>
+                        <th class="tf-col-no">No</th>
+                        <th class="tf-col-tujuan">Div</th>
+                        <th class="tf-col-tujuan">Customer ID</th>
+                        <th class="tf-col-tujuan">Tujuan</th>
+                        <th class="tf-col-channel">Distribution Channel</th>
+                        <th class="tf-col-area">Pulau</th>
+                        <th class="tf-col-area">Area</th>
+                        <th class="tf-col-planner">Planner</th>
+                        <th class="tf-col-monitoring">Monitoring</th>
+                        <th class="tf-col-biaya_kuli">Biaya Kuli</th>
+                        <th class="tf-col-transport_lead_time">Transport Lead Time</th>
+                        <th class="tf-col-action tf-action-sticky">Aksi</th>
+                    </tr>
+                </thead>
 
-                        <td class="tf-col-tujuan">
-                            <span class="tf-channel-text">{{ $row->Div ?: '-' }}</span>
-                        </td>
+                <tbody>
 
-                        <td class="tf-col-tujuan">
-                            <span class="tf-channel-text">{{ $row->customer_id ?: '-' }}</span>
-                        </td>
+                    @forelse ($data as $row)
+                        <tr data-row-id="{{ $row->id }}">
+                            <td class="tf-col-check">
+                                <input type="checkbox" name="ids[]" value="{{ $row->id }}" class="row-check">
+                            </td>
 
-                        <td class="tf-col-tujuan">
-                            <span class="tf-tujuan-text">{{ $row->tujuan }}</span>
-                        </td>
+                            <td class="tf-col-no">
+                                {{ $data->firstItem() + $loop->index }}
+                            </td>
 
-                        <td class="tf-col-channel">
-                            <span class="tf-channel-text">{{ $row->dist_channel ?: '-' }}</span>
-                        </td>
+                            <td class="tf-col-tujuan">
+                                <span class="tf-channel-text">{{ $row->Div ?: '-' }}</span>
+                            </td>
 
-                        <td class="tf-col-area">
-                            <span class="tf-channel-text">{{ $row->pulau ?: '-' }}</span>
-                        </td>
+                            <td class="tf-col-tujuan">
+                                <span class="tf-channel-text">{{ $row->customer_id ?: '-' }}</span>
+                            </td>
 
-                        <td class="tf-col-area">
-                            <span class="tf-area-badge">{{ $row->area }}</span>
-                        </td>
+                            <td class="tf-col-tujuan">
+                                <span class="tf-tujuan-text">{{ $row->tujuan }}</span>
+                            </td>
 
-                        <td class="tf-col-channel">
-                            <span class="tf-channel-text">{{ $row->Planner ?: '-' }}</span>
-                        </td>
+                            <td class="tf-col-channel">
+                                <span class="tf-channel-text">{{ $row->dist_channel ?: '-' }}</span>
+                            </td>
 
-                        <td class="tf-col-channel">
-                            <span class="tf-channel-text">{{ $row->Monitoring ?: '-' }}</span>
-                        </td>
+                            <td class="tf-col-area">
+                                <span class="tf-channel-text">{{ $row->pulau ?: '-' }}</span>
+                            </td>
 
-                        <td class="tf-col-biaya_kuli">
-                            <span class="tf-channel-text">{{ $row->biaya_kuli ?: '-' }}</span>
-                        </td>
-                        
-                        <td class="tf-col-transport_lead_time">
-                            <span class="tf-channel-text">{{ $row->transport_lead_time ?: '-' }}</span>
-                        </td>
+                            <td class="tf-col-area">
+                                <span class="tf-area-badge">{{ $row->area }}</span>
+                            </td>
 
-                        <td class="tf-col-action tf-action-sticky">
-                            <div class="tf-action-wrapper">
+                            <td class="tf-col-channel">
+                                <span class="tf-channel-text">{{ $row->Planner ?: '-' }}</span>
+                            </td>
 
-                                <a href="{{ route('spvplanner.tujuan.edit', $row->id) }}"
-                                   class="tf-action-btn tf-action-edit" title="Edit Data">
-                                    <i class="fas fa-edit"></i>
-                                    <span>Edit</span>
-                                </a>
+                            <td class="tf-col-channel">
+                                <span class="tf-channel-text">{{ $row->Monitoring ?: '-' }}</span>
+                            </td>
 
-                                <form action="{{ route('spvplanner.tujuan.destroy', $row->id) }}" method="POST"
-                                      style="display:inline !important; margin:0 !important;"
-                                      onsubmit="return confirm('Yakin ingin menghapus tujuan ini?');">
-                                    @csrf
-                                    @method('DELETE')
-                                    <button type="submit" class="tf-action-btn tf-action-delete" title="Hapus Data">
+                            <td class="tf-col-biaya_kuli">
+                                <span class="tf-channel-text">{{ $row->biaya_kuli ?: '-' }}</span>
+                            </td>
+
+                            <td class="tf-col-transport_lead_time">
+                                <span class="tf-channel-text">{{ $row->transport_lead_time ?: '-' }}</span>
+                            </td>
+
+                            <td class="tf-col-action tf-action-sticky">
+                                <div class="tf-action-wrapper">
+
+                                    <a href="{{ route('spvplanner.tujuan.edit', $row->id) }}"
+                                       class="tf-action-btn tf-action-edit" title="Edit Data">
+                                        <i class="fas fa-edit"></i>
+                                        <span>Edit</span>
+                                    </a>
+
+                                    <button type="button"
+                                            class="tf-action-btn tf-action-delete btn-delete-single"
+                                            data-id="{{ $row->id }}"
+                                            title="Hapus Data">
                                         <i class="fas fa-trash"></i>
                                         <span>Hapus</span>
                                     </button>
-                                </form>
 
-                            </div>
-                        </td>
-                    </tr>
-                @empty
-                    <tr class="tf-empty-row">
-                        <td colspan="10">
-                            <div class="tf-empty-icon">
-                                <i class="fas fa-map-marker-alt"></i>
-                            </div>
-                            <div class="tf-empty-title">Belum ada data tujuan</div>
-                            <p class="tf-empty-description">Data tujuan &amp; area belum tersedia.</p>
-                        </td>
-                    </tr>
-                @endforelse
+                                </div>
+                            </td>
+                        </tr>
+                    @empty
+                        <tr class="tf-empty-row">
+                            <td colspan="12">
+                                <div class="tf-empty-icon">
+                                    <i class="fas fa-map-marker-alt"></i>
+                                </div>
+                                <div class="tf-empty-title">Belum ada data tujuan</div>
+                                <p class="tf-empty-description">Data tujuan &amp; area belum tersedia.</p>
+                            </td>
+                        </tr>
+                    @endforelse
 
-            </tbody>
+                </tbody>
 
-        </table>
+            </table>
+
+        </form>
 
     </div>
 
@@ -1232,5 +1333,127 @@
 </div>
 
 </div>
+
+{{-- =====================================================
+     JS: CHECKBOX, BULK DELETE, DELETE ALL, DELETE SINGLE
+====================================================== --}}
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+
+    const checkAll          = document.getElementById('checkAll');
+    const btnDeleteSelected = document.getElementById('btnDeleteSelected');
+    const btnDeleteAll      = document.getElementById('btnDeleteAll');
+    const selectedCountEl   = document.getElementById('selectedCount');
+    const bulkForm          = document.getElementById('bulkForm');
+    const csrfToken         = '{{ csrf_token() }}';
+
+    function getRowChecks() {
+        return document.querySelectorAll('.row-check');
+    }
+
+    function updateSelectedCount() {
+        const checked = document.querySelectorAll('.row-check:checked');
+
+        selectedCountEl.textContent = checked.length;
+        btnDeleteSelected.disabled = checked.length === 0;
+
+        getRowChecks().forEach(function (cb) {
+            const tr = cb.closest('tr');
+            if (tr) tr.classList.toggle('row-selected', cb.checked);
+        });
+
+        // sinkronkan status "select all" kalau semua/tidak semua tercentang
+        const total = getRowChecks().length;
+        if (checkAll) {
+            checkAll.checked = total > 0 && checked.length === total;
+            checkAll.indeterminate = checked.length > 0 && checked.length < total;
+        }
+    }
+
+    checkAll?.addEventListener('change', function () {
+        getRowChecks().forEach(function (cb) {
+            cb.checked = checkAll.checked;
+        });
+        updateSelectedCount();
+    });
+
+    document.addEventListener('change', function (e) {
+        if (e.target.classList && e.target.classList.contains('row-check')) {
+            updateSelectedCount();
+        }
+    });
+
+    // ===== Hapus Terpilih (bulk) =====
+    btnDeleteSelected?.addEventListener('click', function () {
+        const checked = document.querySelectorAll('.row-check:checked');
+        if (checked.length === 0) return;
+
+        if (confirm('Yakin ingin menghapus ' + checked.length + ' data tujuan yang dipilih?')) {
+            bulkForm.submit();
+        }
+    });
+
+    // ===== Hapus Semua (delete all) =====
+    btnDeleteAll?.addEventListener('click', function () {
+        const confirmText = prompt('Ini akan menghapus SEMUA data tujuan tanpa terkecuali.\nKetik "HAPUS SEMUA" untuk konfirmasi:');
+
+        if (confirmText === null) return; // user cancel
+
+        if (confirmText.trim().toUpperCase() !== 'HAPUS SEMUA') {
+            alert('Konfirmasi tidak sesuai, aksi dibatalkan.');
+            return;
+        }
+
+        btnDeleteAll.disabled = true;
+
+        fetch("{{ route('spvplanner.tujuan.destroy-all') }}", {
+            method: 'DELETE',
+            headers: {
+                'X-CSRF-TOKEN': csrfToken,
+                'Accept': 'application/json',
+            }
+        })
+        .then(function (res) { return res.json(); })
+        .then(function (data) {
+            alert(data.message || 'Semua data berhasil dihapus');
+            window.location.reload();
+        })
+        .catch(function () {
+            alert('Gagal menghapus semua data');
+            btnDeleteAll.disabled = false;
+        });
+    });
+
+    // ===== Hapus satu baris =====
+    document.addEventListener('click', function (e) {
+        const btn = e.target.closest('.btn-delete-single');
+        if (!btn) return;
+
+        const id = btn.dataset.id;
+        if (!confirm('Yakin ingin menghapus tujuan ini?')) return;
+
+        btn.disabled = true;
+
+        fetch('/spvplanner/tujuan/' + id, {
+            method: 'DELETE',
+            headers: {
+                'X-CSRF-TOKEN': csrfToken,
+                'Accept': 'application/json',
+            }
+        })
+        .then(function (res) { return res.json(); })
+        .then(function (data) {
+            alert(data.message || 'Data berhasil dihapus');
+            window.location.reload();
+        })
+        .catch(function () {
+            alert('Gagal menghapus data');
+            btn.disabled = false;
+        });
+    });
+
+});
+</script>
 
 @endsection

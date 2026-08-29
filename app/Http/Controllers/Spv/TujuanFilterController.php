@@ -58,6 +58,11 @@ class TujuanFilterController extends Controller
      * Aturan validasi dipusatkan supaya store() & update() konsisten,
      * sesuai header: id, Div, customer_id, tujuan, dist_channel, pulau,
      * area, Planner, Monitoring, biaya_kuli, transport_lead_time
+     *
+     * PENTING: unique 'tujuan' sekarang di-scope per 'Div', karena satu
+     * tujuan (nama customer) BISA muncul di lebih dari satu Div dengan
+     * Planner/Monitoring yang berbeda (misal HO Meruya vs Pasuruan).
+     * Kombinasi (Div, tujuan) itulah yang harus unik, bukan tujuan saja.
      */
     private function rules($ignoreId = null): array
     {
@@ -69,8 +74,11 @@ class TujuanFilterController extends Controller
                 'string',
                 'max:255',
                 $ignoreId
-                    ? Rule::unique(self::TABLE, 'tujuan')->ignore($ignoreId)
-                    : Rule::unique(self::TABLE, 'tujuan'),
+                    ? Rule::unique(self::TABLE, 'tujuan')
+                        ->ignore($ignoreId)
+                        ->where(fn($q) => $q->where('Div', request('Div')))
+                    : Rule::unique(self::TABLE, 'tujuan')
+                        ->where(fn($q) => $q->where('Div', request('Div'))),
             ],
             'dist_channel'        => 'nullable|string|max:100',
             'pulau'               => 'nullable|string|max:100',
@@ -85,7 +93,7 @@ class TujuanFilterController extends Controller
     private function validationMessages(): array
     {
         return [
-            'tujuan.unique'   => 'Tujuan ini sudah terdaftar, silakan edit data yang sudah ada.',
+            'tujuan.unique'   => 'Tujuan ini sudah terdaftar untuk Div yang sama, silakan edit data yang sudah ada.',
             'tujuan.required' => 'Kolom tujuan wajib diisi.',
             'area.required'   => 'Kolom area wajib diisi.',
         ];
@@ -126,25 +134,25 @@ class TujuanFilterController extends Controller
 
         $query = TujuanFilter::query();
 
-      if ($request->filled('search')) {
+        if ($request->filled('search')) {
 
-    $search = $request->search;
+            $search = $request->search;
 
-    $query->where(function ($q) use ($search) {
+            $query->where(function ($q) use ($search) {
 
-        $q->where('Div', 'like', "%{$search}%")
-            ->orWhere('customer_id', 'like', "%{$search}%")
-            ->orWhere('tujuan', 'like', "%{$search}%")
-            ->orWhere('dist_channel', 'like', "%{$search}%")
-            ->orWhere('pulau', 'like', "%{$search}%")
-            ->orWhere('area', 'like', "%{$search}%")
-            ->orWhere('Planner', 'like', "%{$search}%")
-            ->orWhere('Monitoring', 'like', "%{$search}%")
-            ->orWhere('biaya_kuli', 'like', "%{$search}%")
-            ->orWhere('transport_lead_time', 'like', "%{$search}%");
+                $q->where('Div', 'like', "%{$search}%")
+                    ->orWhere('customer_id', 'like', "%{$search}%")
+                    ->orWhere('tujuan', 'like', "%{$search}%")
+                    ->orWhere('dist_channel', 'like', "%{$search}%")
+                    ->orWhere('pulau', 'like', "%{$search}%")
+                    ->orWhere('area', 'like', "%{$search}%")
+                    ->orWhere('Planner', 'like', "%{$search}%")
+                    ->orWhere('Monitoring', 'like', "%{$search}%")
+                    ->orWhere('biaya_kuli', 'like', "%{$search}%")
+                    ->orWhere('transport_lead_time', 'like', "%{$search}%");
 
-    });
-}
+            });
+        }
 
         if ($request->filled('area')) {
             $query->where('area', $request->area);
@@ -187,7 +195,7 @@ class TujuanFilterController extends Controller
 
         $validated = $request->validate($this->rules(), $this->validationMessages());
 
-        $validated['is_active'] = true;
+    
 
         TujuanFilter::create($validated);
 
@@ -227,12 +235,12 @@ class TujuanFilterController extends Controller
 
         $validated = $request->validate(
             array_merge($this->rules($data->id), [
-                'is_active' => 'nullable|boolean',
+    
             ]),
             $this->validationMessages()
         );
 
-        $validated['is_active'] = $request->boolean('is_active', true);
+      
 
         $data->update($validated);
 
@@ -259,8 +267,55 @@ class TujuanFilterController extends Controller
     }
 
     /**
+     * Hapus beberapa data sekaligus (checkbox terpilih).
+     */
+    public function bulkDestroy(Request $request)
+    {
+        $this->checkRole();
+
+        $request->validate([
+            'ids'   => 'required|array|min:1',
+            'ids.*' => 'integer|exists:' . self::TABLE . ',id',
+        ]);
+
+        $count = TujuanFilter::whereIn('id', $request->ids)->delete();
+
+        return redirect()
+            ->route($this->indexRouteName())
+            ->with('success', "{$count} data tujuan berhasil dihapus.");
+    }
+
+    /**
+     * Hapus SEMUA data tujuan tanpa terkecuali.
+     */
+    public function destroyAll()
+    {
+        $this->checkRole();
+
+        $count = TujuanFilter::count();
+
+        // pakai delete(), bukan truncate(), supaya aman kalau ada
+        // foreign key constraint dari tabel lain yang referensi ke sini
+        TujuanFilter::query()->delete();
+
+        return response()->json([
+            'message' => "Semua data tujuan berhasil dihapus ({$count} data).",
+        ]);
+    }
+
+    /**
      * Import massal dari CSV. Semua 10 kolom didukung.
-     * Baris dengan tujuan yang sudah ada akan DITIMPA (updateOrCreate).
+     *
+     * PENTING: setiap baris di CSV disimpan sebagai ROW BARU (create),
+     * BUKAN updateOrCreate. Ini disengaja karena sumber data CSV bisa
+     * punya baris dengan (Div, tujuan) yang sama persis tapi datanya
+     * beda (misal Planner/area beda), dan semua baris itu tetap harus
+     * masuk apa adanya -- tidak ada yang boleh saling menimpa.
+     *
+     * KONSEKUENSI: import ini TIDAK idempotent. Kalau file yang sama
+     * di-import 2x, datanya akan DOBEL (bukan di-update). Kalau perlu
+     * re-import bersih, hapus dulu data lama (pakai fitur "Hapus Semua
+     * Data" atau "Hapus Terpilih") sebelum import ulang.
      */
     public function import(Request $request)
     {
@@ -298,7 +353,9 @@ class TujuanFilterController extends Controller
         }
 
         $inserted = 0;
-        $updated  = 0;
+        $skipped  = 0;
+        $batch    = [];
+        $now      = now();
 
         DB::beginTransaction();
 
@@ -307,8 +364,12 @@ class TujuanFilterController extends Controller
                 $tujuan = trim($row[$idxTujuan] ?? '');
 
                 if ($tujuan === '') {
+                    $skipped++;
                     continue;
                 }
+
+                $divValue = $idxDiv !== false ? trim($row[$idxDiv] ?? '') : null;
+                $divValue = $divValue === '' ? null : $divValue;
 
                 $biayaKuli = 0;
 
@@ -330,26 +391,34 @@ class TujuanFilterController extends Controller
                     }
                 }
 
-                $model = TujuanFilter::updateOrCreate(
-                    ['tujuan' => $tujuan],
-                    [
-                        'Div'                 => $idxDiv !== false ? trim($row[$idxDiv]) : null,
-                        'customer_id'         => $idxCustomer !== false ? trim($row[$idxCustomer]) : null,
-                        'dist_channel'        => $idxDistChannel !== false ? trim($row[$idxDistChannel]) : null,
-                        'pulau'               => $idxPulau !== false ? trim($row[$idxPulau]) : null,
-                        'area'                => $idxArea !== false ? trim($row[$idxArea]) : null,
-                        'Planner'             => $idxPlanner !== false ? trim($row[$idxPlanner]) : null,
-                        'Monitoring'          => $idxMonitoring !== false ? trim($row[$idxMonitoring]) : null,
-                        'biaya_kuli'          => $biayaKuli,
-                        'transport_lead_time' => $transportLeadTime,
-                    ]
-                );
+                // create langsung, bukan updateOrCreate -- setiap baris
+                // CSV WAJIB jadi row baru, meskipun (Div, tujuan) sama
+                // dengan baris lain di file yang sama
+                $batch[] = [
+                    'Div'                 => $divValue,
+                    'customer_id'         => $idxCustomer !== false ? trim($row[$idxCustomer]) : null,
+                    'tujuan'              => $tujuan,
+                    'dist_channel'        => $idxDistChannel !== false ? trim($row[$idxDistChannel]) : null,
+                    'pulau'               => $idxPulau !== false ? trim($row[$idxPulau]) : null,
+                    'area'                => $idxArea !== false ? trim($row[$idxArea]) : null,
+                    'Planner'             => $idxPlanner !== false ? trim($row[$idxPlanner]) : null,
+                    'Monitoring'          => $idxMonitoring !== false ? trim($row[$idxMonitoring]) : null,
+                    'biaya_kuli'          => $biayaKuli,
+                    'transport_lead_time' => $transportLeadTime,
+                   
+                 
+                ];
+                $inserted++;
 
-                if ($model->wasRecentlyCreated) {
-                    $inserted++;
-                } else {
-                    $updated++;
+                // insert per 500 baris supaya query tidak terlalu besar sekaligus
+                if (count($batch) >= 500) {
+                    TujuanFilter::insert($batch);
+                    $batch = [];
                 }
+            }
+
+            if (!empty($batch)) {
+                TujuanFilter::insert($batch);
             }
 
             DB::commit();
@@ -362,9 +431,11 @@ class TujuanFilterController extends Controller
 
         fclose($handle);
 
-        return back()->with(
-            'success',
-            "Import selesai. {$inserted} data baru, {$updated} data diperbarui."
-        );
+        $msg = "Import selesai. {$inserted} data berhasil dimasukkan.";
+        if ($skipped > 0) {
+            $msg .= " {$skipped} baris dilewati karena kolom tujuan kosong.";
+        }
+
+        return back()->with('success', $msg);
     }
 }
