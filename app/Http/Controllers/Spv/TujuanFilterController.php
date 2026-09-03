@@ -126,7 +126,13 @@ class TujuanFilterController extends Controller
     }
 
     /**
-     * List + search + filter by area, dengan pagination.
+     * List + search umum + filter per kolom (Div, Customer ID, Tujuan,
+     * Distribution Channel, Pulau, Area, Planner, Monitoring, Biaya Kuli,
+     * Transport Lead Time), dengan pagination.
+     *
+     * PENTING: filter per kolom di sini pakai LIKE (kecuali pulau & area
+     * yang tetap exact-match lewat dropdown), supaya user bisa ketik
+     * sebagian kata dan tetap ketemu.
      */
     public function index(Request $request)
     {
@@ -134,6 +140,7 @@ class TujuanFilterController extends Controller
 
         $query = TujuanFilter::query();
 
+        // ===== Pencarian umum (semua kolom) =====
         if ($request->filled('search')) {
 
             $search = $request->search;
@@ -154,18 +161,48 @@ class TujuanFilterController extends Controller
             });
         }
 
+        // ===== Filter per kolom (LIKE, boleh sebagian kata) =====
+        $likeFilters = [
+            'Div'                 => 'Div',
+            'customer_id'         => 'customer_id',
+            'tujuan'              => 'tujuan',
+            'dist_channel'        => 'dist_channel',
+            'Planner'             => 'Planner',
+            'Monitoring'          => 'Monitoring',
+            'biaya_kuli'          => 'biaya_kuli',
+            'transport_lead_time' => 'transport_lead_time',
+        ];
+
+        foreach ($likeFilters as $requestKey => $column) {
+            if ($request->filled($requestKey)) {
+                $query->where($column, 'like', '%' . $request->input($requestKey) . '%');
+            }
+        }
+
+        // ===== Filter dropdown (exact match) =====
+        if ($request->filled('pulau')) {
+            $query->where('pulau', $request->pulau);
+        }
+
         if ($request->filled('area')) {
             $query->where('area', $request->area);
         }
 
-        $data = $query->orderBy('tujuan')->paginate(20)->withQueryString();
+        $data = $query->orderBy('tujuan')->paginate(100)->withQueryString();
 
         $list_area = TujuanFilter::select('area')
             ->distinct()
             ->orderBy('area')
             ->pluck('area');
 
-        return view('spv.tujuan_filter.index', compact('data', 'list_area'));
+        $list_pulau = TujuanFilter::select('pulau')
+            ->whereNotNull('pulau')
+            ->where('pulau', '!=', '')
+            ->distinct()
+            ->orderBy('pulau')
+            ->pluck('pulau');
+
+        return view('spv.tujuan_filter.index', compact('data', 'list_area', 'list_pulau'));
     }
 
     /**
@@ -194,8 +231,6 @@ class TujuanFilterController extends Controller
         $this->normalizeTransportLeadTime($request);
 
         $validated = $request->validate($this->rules(), $this->validationMessages());
-
-    
 
         TujuanFilter::create($validated);
 
@@ -235,12 +270,10 @@ class TujuanFilterController extends Controller
 
         $validated = $request->validate(
             array_merge($this->rules($data->id), [
-    
+
             ]),
             $this->validationMessages()
         );
-
-      
 
         $data->update($validated);
 
@@ -283,6 +316,57 @@ class TujuanFilterController extends Controller
         return redirect()
             ->route($this->indexRouteName())
             ->with('success', "{$count} data tujuan berhasil dihapus.");
+    }
+
+    /**
+     * Update beberapa data sekaligus (checkbox terpilih).
+     * Field yang DIKOSONGKAN di form tidak diubah -- hanya field
+     * yang diisi yang diterapkan ke semua baris terpilih.
+     */
+    public function bulkUpdate(Request $request)
+    {
+        $this->checkRole();
+
+        $request->validate([
+            'ids'                 => 'required|array|min:1',
+            'ids.*'               => 'integer|exists:' . self::TABLE . ',id',
+            'Div'                 => 'nullable|string|max:100',
+            'dist_channel'        => 'nullable|string|max:100',
+            'pulau'               => 'nullable|string|max:100',
+            'area'                => 'nullable|string|max:100',
+            'Planner'             => 'nullable|string|max:100',
+            'Monitoring'          => 'nullable|string|max:100',
+            'biaya_kuli'          => 'nullable|string|max:30',
+            'transport_lead_time' => 'nullable|string|max:20',
+        ]);
+
+        $this->normalizeBiayaKuli($request);
+        $this->normalizeTransportLeadTime($request);
+
+        $fields = [
+            'Div', 'dist_channel', 'pulau', 'area',
+            'Planner', 'Monitoring', 'biaya_kuli', 'transport_lead_time',
+        ];
+
+        $updateData = [];
+
+        foreach ($fields as $field) {
+            if ($request->filled($field)) {
+                $updateData[$field] = $request->input($field);
+            }
+        }
+
+        if (empty($updateData)) {
+            return redirect()
+                ->route($this->indexRouteName())
+                ->with('error', 'Tidak ada field yang diisi, tidak ada data yang diubah.');
+        }
+
+        $count = TujuanFilter::whereIn('id', $request->ids)->update($updateData);
+
+        return redirect()
+            ->route($this->indexRouteName())
+            ->with('success', "{$count} data tujuan berhasil diperbarui secara massal.");
     }
 
     /**
@@ -405,8 +489,6 @@ class TujuanFilterController extends Controller
                     'Monitoring'          => $idxMonitoring !== false ? trim($row[$idxMonitoring]) : null,
                     'biaya_kuli'          => $biayaKuli,
                     'transport_lead_time' => $transportLeadTime,
-                   
-                 
                 ];
                 $inserted++;
 

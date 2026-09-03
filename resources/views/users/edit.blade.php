@@ -163,6 +163,7 @@
                         <option value="spvmonitoring" {{ old('role', $user->role) == 'spvmonitoring' ? 'selected' : '' }}>SPV Monitoring</option>
                         <option value="sales" {{ old('role', $user->role) == 'sales' ? 'selected' : '' }}>Sales</option>
                         <option value="admin_pasuruan" {{ old('role', $user->role) == 'admin_pasuruan' ? 'selected' : '' }}>Pasuruan</option>
+                         <option value="developer" {{ old('role', $user->role) == 'developer' ? 'selected' : '' }}>Developer</option>
                     </select>
                 </div>
 

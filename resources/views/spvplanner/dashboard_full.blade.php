@@ -930,10 +930,16 @@ tbody tr:last-child td{ border-bottom:none; }
 
 <div class="chart-grid">
 
-    <div class="chart-box">
-        <h3>📍 SLA bongkar</h3>
+       <div class="chart-box">
+        <h3>🚚 Ekspedisi </h3>
         <div class="chart-wrapper">
-            <canvas id="chartBongkar"></canvas>
+            <canvas id="chartTopEkspedisi"></canvas>
+        </div>
+    </div>
+        <div class="chart-box">
+        <h3>📈 Trend Pengiriman per Bulan</h3>
+        <div class="chart-wrapper">
+            <canvas id="chartTrendBulanan"></canvas>
         </div>
     </div>
 
@@ -945,16 +951,15 @@ tbody tr:last-child td{ border-bottom:none; }
     </div>
 
     <div class="chart-box">
-        <h3>📦 Kategori ekspedisi</h3>
-        <div class="chart-wrapper">
-            <canvas id="chartEkspedisi"></canvas>
-        </div>
-    </div>
-
-    <div class="chart-box">
         <h3>📍 Top tujuan</h3>
         <div class="chart-wrapper">
             <canvas id="chartTujuan"></canvas>
+        </div>
+    </div>
+        <div class="chart-box">
+        <h3>📦 Kategori Ekspedisi (Oncall vs Kontrak)</h3>
+        <div class="chart-wrapper">
+            <canvas id="chartKategoriEkspedisi"></canvas>
         </div>
     </div>
 
@@ -990,7 +995,121 @@ tbody tr:last-child td{ border-bottom:none; }
     </table>
     </div>
 </div>
+<!-- TABLE EKSPEDISI (jumlah pemakaian + biaya kirim) -->
+<div class="table-box">
+    <h3>📦 Summary ekspedisi </h3>
+    <table>
+        <thead>
+            <tr>
+                <th>EKPEDISI</th>
+                <th class="num">Jumlah Dipakai</th>
+                <th class="num">Biaya Kirim</th>
+            </tr>
+        </thead>
+        <tbody>
+        @forelse($ekspedisi as $e)
+            <tr>
+                <td>{{ $e->ekpedisi }}</td>
+                <td class="num">{{ number_format($e->total) }}</td>
+                <td class="num">
+                    <span class="badge badge-green">
+                        Rp {{ number_format($e->total_biaya,0,',','.') }}
+                    </span>
+                </td>
+            </tr>
+        @empty
+            <tr><td colspan="3" class="empty-row">Belum ada data ekspedisi</td></tr>
+        @endforelse
+        </tbody>
+    </table>
+</div>
 
+<div class="two-col">
+
+    <div class="table-box">
+        <h3>👤 Summary Planner</h3>
+        <div class="table-scroll">
+        <table>
+            <thead>
+                <tr>
+                    <th>Planner</th>
+                    <th class="num">Jumlah</th>
+                    <th class="num">On Time</th>
+                    <th class="num">Delay</th>
+                </tr>
+            </thead>
+            <tbody>
+            @forelse($summary_planner as $p)
+                <tr>
+                    <td>{{ $p->planner }}</td>
+                    <td class="num">{{ number_format($p->total) }}</td>
+                    <td class="num"><span class="badge badge-green">{{ number_format($p->total_ontime) }}</span></td>
+                    <td class="num"><span class="badge badge-red">{{ number_format($p->total_delay) }}</span></td>
+                </tr>
+            @empty
+                <tr><td colspan="4" class="empty-row">Belum ada data planner</td></tr>
+            @endforelse
+            </tbody>
+        </table>
+        </div>
+    </div>
+
+    <div class="table-box">
+        <h3>🕵️ Summary PIC Monitoring</h3>
+        <div class="table-scroll">
+        <table>
+            <thead>
+                <tr>
+                    <th>PIC Monitoring</th>
+                    <th class="num">Jumlah</th>
+                    <th class="num">On Time</th>
+                    <th class="num">Delay</th>
+                </tr>
+            </thead>
+            <tbody>
+            @forelse($summary_pic_monitoring as $m)
+                <tr>
+                    <td>{{ $m->pic_monitoring }}</td>
+                    <td class="num">{{ number_format($m->total) }}</td>
+                    <td class="num"><span class="badge badge-green">{{ number_format($m->total_ontime) }}</span></td>
+                    <td class="num"><span class="badge badge-red">{{ number_format($m->total_delay) }}</span></td>
+                </tr>
+            @empty
+                <tr><td colspan="4" class="empty-row">Belum ada data PIC monitoring</td></tr>
+            @endforelse
+            </tbody>
+        </table>
+        </div>
+    </div>
+
+</div>
+    <div class="table-box">
+        <h3>📍 Summary Area By Ketibaan Ke Customer</h3>
+        <div class="table-scroll">
+        <table>
+            <thead>
+                <tr>
+                    <th>Area</th>
+                    <th class="num">Jumlah</th>
+                    <th class="num">On Time</th>
+                    <th class="num">Delay</th>
+                </tr>
+            </thead>
+            <tbody>
+            @forelse($summary_area_ontime as $a)
+                <tr>
+                    <td>{{ $a->area }}</td>
+                    <td class="num">{{ number_format($a->total) }}</td>
+                    <td class="num"><span class="badge badge-green">{{ number_format($a->total_ontime) }}</span></td>
+                    <td class="num"><span class="badge badge-red">{{ number_format($a->total_delay) }}</span></td>
+                </tr>
+            @empty
+                <tr><td colspan="4" class="empty-row">Belum ada data area</td></tr>
+            @endforelse
+            </tbody>
+        </table>
+        </div>
+    </div>
 <!-- TABLE TUJUAN -->
 <div class="table-box">
     <h3>📍 Summary tujuan detail</h3>
@@ -1130,21 +1249,92 @@ new Chart(document.getElementById('chartEkspedisi'), {
     }
 });
 
-new Chart(document.getElementById('chartBongkar'), {
-    type:'doughnut',
-    data:{
-        labels:['On Time','Delay'],
-        datasets:[{
-            data:[{{ $bongkar_ontime }},{{ $bongkar_delay }}],
-            backgroundColor:['#8b5cf6','#e11d48'],
-            borderWidth:0
+// new Chart(document.getElementById('chartBongkar'), {
+//     type:'doughnut',
+//     data:{
+//         labels:['On Time','Delay'],
+//         datasets:[{
+//             data:[{{ $bongkar_ontime }},{{ $bongkar_delay }}],
+//             backgroundColor:['#8b5cf6','#e11d48'],
+//             borderWidth:0
+//         }]
+//     },
+//     options:{
+//         responsive:true,
+//         maintainAspectRatio:false,
+//         cutout:'65%',
+//         plugins:{ legend:{ position:'bottom' } }
+//     }
+// });
+const topEkspedisiData = @json($top_ekspedisi_pemakaian ?? []);
+
+new Chart(document.getElementById('chartTopEkspedisi'), {
+    type: 'bar',
+    data: {
+        labels: topEkspedisiData.map(e => e.ekpedisi),
+        datasets: [{
+            label: 'Jumlah Dipakai',
+            data: topEkspedisiData.map(e => e.total),
+            backgroundColor: '#f59e0b',
+            borderRadius: 6,
+            maxBarThickness: 36
         }]
     },
-    options:{
-        responsive:true,
-        maintainAspectRatio:false,
-        cutout:'65%',
-        plugins:{ legend:{ position:'bottom' } }
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+            y: { beginAtZero: true, grid: { color: '#eef0f5' } },
+            x: { grid: { display: false } }
+        }
+    }
+});
+
+const trendBulananData = @json($trend_pengiriman_bulanan ?? []);
+
+new Chart(document.getElementById('chartTrendBulanan'), {
+    type: 'line',
+    data: {
+        labels: trendBulananData.map(t => t.bulan),
+        datasets: [{
+            label: 'Jumlah Pengiriman',
+            data: trendBulananData.map(t => t.total),
+            borderColor: '#4f46e5',
+            backgroundColor: 'rgba(79,70,229,.12)',
+            fill: true,
+            tension: 0.35,
+            pointBackgroundColor: '#4f46e5',
+            pointRadius: 4
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+            y: { beginAtZero: true, grid: { color: '#eef0f5' } },
+            x: { grid: { display: false } }
+        }
+    }
+});
+const kategoriEkspedisiData = @json($summary_kategori_ekspedisi ?? []);
+
+new Chart(document.getElementById('chartKategoriEkspedisi'), {
+    type: 'doughnut',
+    data: {
+        labels: kategoriEkspedisiData.map(k => k.kategori_ekspedisi),
+        datasets: [{
+            data: kategoriEkspedisiData.map(k => k.total),
+            backgroundColor: ['#4f46e5', '#0d9488'], // Oncall, Kontrak
+            borderWidth: 0
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        cutout: '65%',
+        plugins: { legend: { position: 'bottom' } }
     }
 });
 

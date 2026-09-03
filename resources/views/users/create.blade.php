@@ -167,7 +167,7 @@
 
                     <label>Role</label>
 
-                    <select name="role">
+<select name="role" id="role">
 
                         <option value="">-- Pilih Role --</option>
 
@@ -190,8 +190,7 @@
                     </select>
 
                 </div>
-
-                <div class="form-group">
+<div class="form-group" id="wrapper_dist_channel" style="display:none;">
     <label>Dist Channel</label>
 
     <select name="dist_channel" id="dist_channel" style="width:100%">
@@ -219,10 +218,27 @@
 
 <script>
 $(document).ready(function() {
+
     $('#dist_channel').select2({
         placeholder: "Cari Dist Channel...",
         allowClear: true
     });
+
+    function toggleDistChannel() {
+        if ($('#role').val() === 'sales') {
+            $('#wrapper_dist_channel').show();
+        } else {
+            $('#wrapper_dist_channel').hide();
+            $('#dist_channel').val('').trigger('change'); // reset pilihan biar ga ke-submit diam2
+        }
+    }
+
+    // jalankan sekali saat halaman pertama load (misal ada old input dari validasi gagal)
+    toggleDistChannel();
+
+    // jalankan setiap kali role berubah
+    $('#role').on('change', toggleDistChannel);
+
 });
 </script>
 

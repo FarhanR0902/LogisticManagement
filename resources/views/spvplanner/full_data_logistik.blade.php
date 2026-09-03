@@ -280,6 +280,34 @@
             transform: scale(.98);
         }
 
+         .btn-trash {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 20px;
+            background: #eb0c0c;
+            color: #fff !important;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            text-decoration: none;
+            cursor: pointer;
+            transition: all .25s ease;
+            box-shadow: 0 3px 10px rgba(25, 135, 84, .25);
+        }
+
+        .btn-trash:hover {
+            background: #dc2626;
+            color: #fff !important;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 15px rgba(25, 135, 84, .35);
+        }
+
+        .btn-trash:active {
+            transform: scale(.98);
+        }
+
         /* ================= DATATABLE ================= */
 
         .dataTables_wrapper {
@@ -393,10 +421,15 @@
             </form>
         </div>
 
-        <a href="#" id="btnExportExcel" class="btn-export">
-            <i class="fa fa-file-excel"></i>
-            Export Excel
-        </a>
+       <a href="#" id="btnExportExcel" class="btn-export">
+    <i class="fa fa-file-excel"></i>
+    Export Excel
+</a>
+
+<a href="#" id="btnDeleteFiltered" class="btn-trash">
+    <i class="fa fa-trash"></i>
+    Hapus Sesuai Filter / Pencarian
+</a>
 
         <form action="{{ url('/logistik/archive-all') }}"
             method="POST"
@@ -629,6 +662,49 @@
                 $('#filterPic').val('');
                 table.ajax.reload();
             });
+
+            $('#btnDeleteFiltered').on('click', function () {
+    let info   = table.page.info();
+    let jumlah = info.recordsDisplay; // jumlah baris hasil filter+search saat ini
+
+    if (jumlah === 0) {
+        alert('Tidak ada data untuk dihapus.');
+        return;
+    }
+
+    let konfirmasi = prompt(
+        `Anda akan MENGHAPUS PERMANEN ${jumlah} data sesuai filter/pencarian yang sedang aktif.\n\n` +
+        `Ketik "HAPUS" (huruf besar) untuk melanjutkan:`
+    );
+
+    if (konfirmasi !== 'HAPUS') {
+        alert('Dibatalkan.');
+        return;
+    }
+
+    $.ajax({
+        url: "{{ route('spvplanner.deleteFiltered') }}",
+        type: 'POST',
+        data: {
+            _token:         "{{ csrf_token() }}",
+            area:           $('#filterArea').val(),
+            date:           $('#filterDate').val(),
+            month:          $('#filterMonth').val(),
+            year:           $('#filterYear').val(),
+            pic_monitoring: $('#filterPic').val(),
+            search_value:   table.search() // ambil dari kotak search DataTables
+        },
+        success: function (res) {
+            alert(res.message);
+            if (res.success) {
+                table.ajax.reload(null, false); // false = tetap di halaman yg sama
+            }
+        },
+        error: function (xhr) {
+            alert(xhr.responseJSON?.message || 'Gagal menghapus data.');
+        }
+    });
+});
 
             // ==========================================
             // EXPORT EXCEL SESUAI FILTER AKTIF

@@ -197,6 +197,25 @@
     height: 38px;
 }
 
+/* Grid filter per kolom (Div, Customer ID, Tujuan, dst) */
+.tf-filter-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+    gap: 12px 14px;
+    margin-bottom: 14px;
+}
+
+.tf-filter-item {
+    display: flex;
+    flex-direction: column;
+}
+
+.tf-filter-buttons-row {
+    display: flex;
+    justify-content: flex-end;
+    gap: 7px;
+}
+
 .tf-btn-filter {
     height: 38px;
 
@@ -368,6 +387,18 @@
     color: #fff;
 }
 
+/* Edit Terpilih button */
+.tf-btn-bulk-edit {
+    border-color: #bfdbfe;
+    background: #eff6ff;
+    color: #2563eb;
+}
+
+.tf-btn-bulk-edit:hover:not(:disabled) {
+    background: #dbeafe;
+    color: #1d4ed8;
+}
+
 
 /* =========================================================
    TABLE WRAPPER
@@ -496,6 +527,22 @@
 
 .tf-col-channel {
     min-width: 160px;
+}
+
+.tf-col-planner {
+    min-width: 120px;
+}
+
+.tf-col-monitoring {
+    min-width: 120px;
+}
+
+.tf-col-biaya_kuli {
+    min-width: 130px;
+}
+
+.tf-col-transport_lead_time {
+    min-width: 150px;
 }
 
 .tf-col-status {
@@ -844,6 +891,196 @@
 
 
 /* =========================================================
+   BULK EDIT MODAL
+   (self-contained: shown/hidden with plain JS via the "show"
+   class below — tidak butuh jQuery / Bootstrap JS sama sekali)
+========================================================= */
+
+#bulkEditModal.modal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 1050;
+
+    overflow-x: hidden;
+    overflow-y: auto;
+
+    background: rgba(15, 23, 42, .55);
+}
+
+#bulkEditModal.modal.show {
+    display: block;
+}
+
+/* Kalau Bootstrap JS/CSS juga ada di layout lain dan sempat
+   nyuntik .modal-backdrop sendiri, sembunyikan biar gak dobel /
+   gak polos-unstyled — kita udah gelapin background sendiri di atas. */
+.modal-backdrop {
+    display: none !important;
+}
+
+#bulkEditModal .modal-dialog {
+    width: 100%;
+    max-width: 480px;
+    margin: 50px auto;
+    padding: 0 15px;
+}
+
+#bulkEditModal .modal-content {
+    background: #fff;
+    border: 0;
+    border-radius: 10px;
+    box-shadow: 0 10px 40px rgba(15, 23, 42, .25);
+    overflow: hidden;
+}
+
+#bulkEditModal .modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+
+    padding: 15px 20px;
+
+    background: #f8fafc;
+    border-bottom: 1px solid #e9eef5;
+}
+
+#bulkEditModal .modal-title {
+    margin: 0;
+
+    color: #1e293b;
+    font-size: 15px;
+    font-weight: 700;
+}
+
+#bulkEditModal .close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+
+    width: 26px;
+    height: 26px;
+
+    padding: 0;
+    border: 0;
+    border-radius: 6px;
+
+    background: transparent;
+    color: #94a3b8;
+
+    font-size: 18px;
+    line-height: 1;
+
+    cursor: pointer;
+}
+
+#bulkEditModal .close:hover {
+    background: #f1f5f9;
+    color: #475569;
+}
+
+#bulkEditModal .modal-body {
+    padding: 18px 20px;
+    max-height: 65vh;
+    overflow-y: auto;
+}
+
+#bulkEditModal .modal-footer {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+
+    padding: 14px 20px;
+
+    background: #f8fafc;
+    border-top: 1px solid #e9eef5;
+}
+
+.tf-form-group {
+    margin-bottom: 14px;
+}
+
+.tf-form-group:last-child {
+    margin-bottom: 0;
+}
+
+.tf-form-label {
+    display: block;
+    margin-bottom: 6px;
+
+    color: #475569;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.tf-form-input {
+    width: 100%;
+    height: 38px;
+
+    padding: 0 12px;
+
+    border: 1px solid #dbe2ea;
+    border-radius: 7px;
+
+    color: #334155;
+    font-size: 12px;
+
+    outline: none !important;
+    box-shadow: none !important;
+}
+
+.tf-form-input:focus {
+    border-color: #93c5fd;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, .08) !important;
+}
+
+.tf-btn-cancel {
+    height: 36px;
+    padding: 0 15px;
+
+    border: 1px solid #e2e8f0;
+    border-radius: 7px;
+
+    background: #f1f5f9;
+    color: #475569;
+
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.tf-btn-cancel:hover {
+    background: #e2e8f0;
+    color: #334155;
+}
+
+.tf-btn-submit {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+
+    height: 36px;
+    padding: 0 16px;
+
+    border: 0;
+    border-radius: 7px;
+
+    background: #2563eb;
+    color: #fff;
+
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.tf-btn-submit:hover {
+    background: #1d4ed8;
+    color: #fff;
+}
+
+
+/* =========================================================
    RESPONSIVE
 ========================================================= */
 
@@ -869,6 +1106,18 @@
 
     .tf-filter-buttons {
         margin-top: 10px;
+        width: 100%;
+    }
+
+    .tf-filter-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .tf-filter-buttons-row {
+        flex-direction: column;
+    }
+
+    .tf-filter-buttons-row .tf-btn-filter {
         width: 100%;
     }
 
@@ -902,21 +1151,11 @@
     .tf-pagination-info {
         width: 100%;
     }
+
+    #bulkEditModal .modal-dialog {
+        margin: 20px auto;
+    }
 }
-
-@media (min-width: 769px) {
-
-    .tf-filter-search-col {
-        width: 45%;
-    }
-
-    .tf-filter-area-col {
-        width: 25%;
-    }
-
-    .tf-filter-action-col {
-        width: 30%;
-    }
 
 }
 </style>
@@ -1006,20 +1245,54 @@
 
         <form method="GET" action="{{ route('spvplanner.tujuan.index') }}">
 
-            <div class="row align-items-end">
+            <div class="tf-filter-grid">
 
-                <div class="col-lg-5 col-md-6 tf-filter-search-col mb-2 mb-lg-0">
-                    <label class="tf-filter-label">Pencarian</label>
+                <div class="tf-filter-item">
+                    <label class="tf-filter-label">Pencarian Umum</label>
                     <div class="tf-search-wrapper">
                         <i class="fas fa-search"></i>
-                        <input type="text" name="search" class="form-control tf-search-input"
-                               value="{{ request('search') }}" placeholder="Cari nama tujuan...">
+                        <input type="text" name="search" class="tf-search-input"
+                               value="{{ request('search') }}" placeholder="Cari di semua kolom...">
                     </div>
                 </div>
 
-                <div class="col-lg-3 col-md-6 tf-filter-area-col mb-2 mb-lg-0">
+                <div class="tf-filter-item">
+                    <label class="tf-filter-label">Div</label>
+                    <input type="text" name="Div" class="tf-select-input"
+                           value="{{ request('Div') }}" placeholder="Semua Div">
+                </div>
+
+                <div class="tf-filter-item">
+                    <label class="tf-filter-label">Customer ID</label>
+                    <input type="text" name="customer_id" class="tf-select-input"
+                           value="{{ request('customer_id') }}" placeholder="Semua Customer ID">
+                </div>
+
+                <div class="tf-filter-item">
+                    <label class="tf-filter-label">Tujuan</label>
+                    <input type="text" name="tujuan" class="tf-select-input"
+                           value="{{ request('tujuan') }}" placeholder="Nama tujuan">
+                </div>
+
+                <div class="tf-filter-item">
+                    <label class="tf-filter-label">Distribution Channel</label>
+                    <input type="text" name="dist_channel" class="tf-select-input"
+                           value="{{ request('dist_channel') }}" placeholder="Semua channel">
+                </div>
+
+                <div class="tf-filter-item">
+                    <label class="tf-filter-label">Pulau</label>
+                    <select name="pulau" class="tf-select-input">
+                        <option value="">-- Semua Pulau --</option>
+                        @foreach ($list_pulau as $pulau)
+                            <option value="{{ $pulau }}" @selected(request('pulau') == $pulau)>{{ $pulau }}</option>
+                        @endforeach
+                    </select>
+                </div>
+
+                <div class="tf-filter-item">
                     <label class="tf-filter-label">Area</label>
-                    <select name="area" class="form-select tf-select-input">
+                    <select name="area" class="tf-select-input">
                         <option value="">-- Semua Area --</option>
                         @foreach ($list_area as $area)
                             <option value="{{ $area }}" @selected(request('area') == $area)>{{ $area }}</option>
@@ -1027,17 +1300,39 @@
                     </select>
                 </div>
 
-                <div class="col-lg-4 col-md-12 tf-filter-action-col">
-                    <div class="tf-filter-buttons">
-                        <button type="submit" class="btn btn-primary tf-btn-filter">
-                            <i class="fas fa-search mr-1"></i> Cari
-                        </button>
-                        <a href="{{ route('spvplanner.tujuan.index') }}" class="btn tf-btn-filter tf-btn-filter-reset">
-                            <i class="fas fa-sync-alt mr-1"></i> Reset
-                        </a>
-                    </div>
+                <div class="tf-filter-item">
+                    <label class="tf-filter-label">Planner</label>
+                    <input type="text" name="Planner" class="tf-select-input"
+                           value="{{ request('Planner') }}" placeholder="Semua Planner">
                 </div>
 
+                <div class="tf-filter-item">
+                    <label class="tf-filter-label">Monitoring</label>
+                    <input type="text" name="Monitoring" class="tf-select-input"
+                           value="{{ request('Monitoring') }}" placeholder="Semua Monitoring">
+                </div>
+
+                <div class="tf-filter-item">
+                    <label class="tf-filter-label">Biaya Kuli</label>
+                    <input type="text" name="biaya_kuli" class="tf-select-input"
+                           value="{{ request('biaya_kuli') }}" placeholder="Cari biaya kuli">
+                </div>
+
+                <div class="tf-filter-item">
+                    <label class="tf-filter-label">Transport Lead Time</label>
+                    <input type="text" name="transport_lead_time" class="tf-select-input"
+                           value="{{ request('transport_lead_time') }}" placeholder="Cari lead time">
+                </div>
+
+            </div>
+
+            <div class="tf-filter-buttons-row">
+                <button type="submit" class="tf-btn-filter" style="background:#2563eb;color:#fff;border:0;">
+                    <i class="fas fa-search mr-1"></i> Cari
+                </button>
+                <a href="{{ route('spvplanner.tujuan.index') }}" class="tf-btn-filter tf-btn-filter-reset" style="text-decoration:none;display:inline-flex;align-items:center;justify-content:center;">
+                    <i class="fas fa-sync-alt mr-1"></i> Reset
+                </a>
             </div>
 
         </form>
@@ -1107,6 +1402,11 @@
             <button type="button" id="btnDeleteAll" class="tf-btn-bulk tf-btn-bulk-all">
                 <i class="fas fa-trash-alt"></i>
                 Hapus Semua Data
+            </button>
+
+            <button type="button" id="btnEditSelected" class="tf-btn-bulk tf-btn-bulk-edit" disabled>
+                <i class="fas fa-edit"></i>
+                Edit Terpilih (<span id="selectedCountEdit">0</span>)
             </button>
 
             @if (method_exists($data, 'total'))
@@ -1183,11 +1483,11 @@
                                 <span class="tf-area-badge">{{ $row->area }}</span>
                             </td>
 
-                            <td class="tf-col-channel">
+                            <td class="tf-col-planner">
                                 <span class="tf-channel-text">{{ $row->Planner ?: '-' }}</span>
                             </td>
 
-                            <td class="tf-col-channel">
+                            <td class="tf-col-monitoring">
                                 <span class="tf-channel-text">{{ $row->Monitoring ?: '-' }}</span>
                             </td>
 
@@ -1221,7 +1521,7 @@
                         </tr>
                     @empty
                         <tr class="tf-empty-row">
-                            <td colspan="12">
+                            <td colspan="13">
                                 <div class="tf-empty-icon">
                                     <i class="fas fa-map-marker-alt"></i>
                                 </div>
@@ -1335,7 +1635,88 @@
 </div>
 
 {{-- =====================================================
-     JS: CHECKBOX, BULK DELETE, DELETE ALL, DELETE SINGLE
+     BULK EDIT MODAL
+====================================================== --}}
+
+<div class="modal fade" id="bulkEditModal" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
+
+      <form id="bulkEditForm" method="POST" action="{{ route('spvplanner.tujuan.bulk-update') }}">
+        @csrf
+        <div id="bulkEditIdsContainer"></div>
+
+        <div class="modal-header">
+          <h5 class="modal-title">Edit <span id="bulkEditCount">0</span> Data Terpilih</h5>
+          <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span>&times;</span></button>
+        </div>
+
+        <div class="modal-body">
+          <p class="text-muted" style="font-size:12px;">
+            Kosongkan field yang tidak ingin diubah — hanya field yang diisi yang akan diterapkan ke semua data terpilih.
+          </p>
+
+          <div class="tf-form-group">
+            <label class="tf-form-label">Div</label>
+            <input type="text" name="Div" class="tf-form-input" placeholder="Kosongkan jika tidak diubah">
+          </div>
+
+          <div class="tf-form-group">
+            <label class="tf-form-label">Distribution Channel</label>
+            <input type="text" name="dist_channel" class="tf-form-input" placeholder="Kosongkan jika tidak diubah">
+          </div>
+
+          <div class="tf-form-group">
+            <label class="tf-form-label">Pulau</label>
+            <input type="text" name="pulau" class="tf-form-input" placeholder="Kosongkan jika tidak diubah">
+          </div>
+
+          <div class="tf-form-group">
+            <label class="tf-form-label">Area</label>
+            <input type="text" name="area" class="tf-form-input" list="area-list-bulk" placeholder="Kosongkan jika tidak diubah">
+            <datalist id="area-list-bulk">
+                @foreach ($list_area as $area)
+                    <option value="{{ $area }}">
+                @endforeach
+            </datalist>
+          </div>
+
+          <div class="tf-form-group">
+            <label class="tf-form-label">Planner</label>
+            <input type="text" name="Planner" class="tf-form-input" placeholder="Kosongkan jika tidak diubah">
+          </div>
+
+          <div class="tf-form-group">
+            <label class="tf-form-label">Monitoring</label>
+            <input type="text" name="Monitoring" class="tf-form-input" placeholder="Kosongkan jika tidak diubah">
+          </div>
+
+          <div class="tf-form-group">
+            <label class="tf-form-label">Biaya Kuli</label>
+            <input type="text" name="biaya_kuli" class="tf-form-input" placeholder="Kosongkan jika tidak diubah">
+          </div>
+
+          <div class="tf-form-group">
+            <label class="tf-form-label">Transport Lead Time</label>
+            <input type="number" name="transport_lead_time" class="tf-form-input" min="0" placeholder="Kosongkan jika tidak diubah">
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="tf-btn-cancel" data-dismiss="modal">Batal</button>
+          <button type="submit" class="tf-btn-submit">
+              <i class="fas fa-save mr-1"></i> Simpan Perubahan
+          </button>
+        </div>
+      </form>
+
+    </div>
+  </div>
+</div>
+
+{{-- =====================================================
+     JS: CHECKBOX, BULK DELETE, DELETE ALL, DELETE SINGLE, BULK EDIT
+     (murni vanilla JS, tidak butuh jQuery / Bootstrap JS sama sekali)
 ====================================================== --}}
 
 <script>
@@ -1347,6 +1728,13 @@ document.addEventListener('DOMContentLoaded', function () {
     const selectedCountEl   = document.getElementById('selectedCount');
     const bulkForm          = document.getElementById('bulkForm');
     const csrfToken         = '{{ csrf_token() }}';
+
+    const btnEditSelected      = document.getElementById('btnEditSelected');
+    const selectedCountEditEl  = document.getElementById('selectedCountEdit');
+    const bulkEditForm         = document.getElementById('bulkEditForm');
+    const bulkEditIdsContainer = document.getElementById('bulkEditIdsContainer');
+    const bulkEditCount        = document.getElementById('bulkEditCount');
+    const bulkEditModal        = document.getElementById('bulkEditModal');
 
     function getRowChecks() {
         return document.querySelectorAll('.row-check');
@@ -1369,6 +1757,11 @@ document.addEventListener('DOMContentLoaded', function () {
             checkAll.checked = total > 0 && checked.length === total;
             checkAll.indeterminate = checked.length > 0 && checked.length < total;
         }
+
+        if (btnEditSelected) {
+            selectedCountEditEl.textContent = checked.length;
+            btnEditSelected.disabled = checked.length === 0;
+        }
     }
 
     checkAll?.addEventListener('change', function () {
@@ -1381,6 +1774,56 @@ document.addEventListener('DOMContentLoaded', function () {
     document.addEventListener('change', function (e) {
         if (e.target.classList && e.target.classList.contains('row-check')) {
             updateSelectedCount();
+        }
+    });
+
+    // ===== Modal Edit Terpilih (vanilla JS, TIDAK pakai jQuery/$) =====
+    function openBulkEditModal() {
+        bulkEditModal.classList.add('show');
+        bulkEditModal.setAttribute('aria-hidden', 'false');
+        document.body.style.overflow = 'hidden';
+    }
+
+    function closeBulkEditModal() {
+        bulkEditModal.classList.remove('show');
+        bulkEditModal.setAttribute('aria-hidden', 'true');
+        document.body.style.overflow = '';
+    }
+
+    btnEditSelected?.addEventListener('click', function () {
+        const checked = document.querySelectorAll('.row-check:checked');
+        if (checked.length === 0) return;
+
+        bulkEditForm.reset();
+
+        bulkEditIdsContainer.innerHTML = '';
+        checked.forEach(function (cb) {
+            const hidden = document.createElement('input');
+            hidden.type  = 'hidden';
+            hidden.name  = 'ids[]';
+            hidden.value = cb.value;
+            bulkEditIdsContainer.appendChild(hidden);
+        });
+
+        bulkEditCount.textContent = checked.length;
+
+        openBulkEditModal();
+    });
+
+    // Tombol close (x) & "Batal" — keduanya punya [data-dismiss="modal"]
+    bulkEditModal?.querySelectorAll('[data-dismiss="modal"]').forEach(function (el) {
+        el.addEventListener('click', closeBulkEditModal);
+    });
+
+    // Klik di area gelap luar modal-content untuk menutup
+    bulkEditModal?.addEventListener('click', function (e) {
+        if (e.target === bulkEditModal) closeBulkEditModal();
+    });
+
+    // Tombol Escape untuk menutup
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && bulkEditModal?.classList.contains('show')) {
+            closeBulkEditModal();
         }
     });
 

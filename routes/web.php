@@ -357,6 +357,8 @@ Route::prefix('sales')->name('sales.')->group(function () {
         ->name('pasuruan.summary.area');
         Route::get('/pasuruan/data-ajax', [PasuruanController::class, 'dataAjaxPasuruan'])
     ->name('pasuruan.dataAjax');
+  Route::post('/data-logistik-pasuruan/ajax', [SalesController::class, 'dataLogistikPasuruanAjax'])
+    ->name('data.pasuruan.ajax');
 });
 
 Route::middleware(['auth'])->prefix('spvplanner')->group(function () {
@@ -379,8 +381,17 @@ Route::post('/autosave-row/{id}', [App\Http\Controllers\Spv\SpvPlannerController
     Route::post('/spvplanner/tujuan-filter/bulk-destroy', [TujuanFilterController::class, 'bulkDestroy'])
     ->name('spvplanner.tujuan.bulk-destroy');
 
+    Route::post('/tujuan/bulk-update', [TujuanFilterController::class, 'bulkUpdate'])
+    ->name('spvplanner.tujuan.bulk-update');
+
 Route::delete('/spvplanner/tujuan-filter/destroy-all', [TujuanFilterController::class, 'destroyAll'])
     ->name('spvplanner.tujuan.destroy-all');
+
+Route::post('/spvplanner/data-planner/delete-filtered', [SpvPlannerController::class, 'deleteFiltered'])
+    ->name('spvplanner.deleteFiltered');
+
+Route::post('/spvplanner/data-pasuruan/delete-filtered', [SpvPlannerController::class, 'deleteFilteredPasuruan'])
+    ->name('spvplanner.pasuruan.deleteFiltered');
 
     Route::get('/dashboard', [SpvPlannerController::class, 'dashboard'])
         ->name('spvplanner.dashboard');
