@@ -3075,7 +3075,7 @@ $this->applyGlobalSearch($baseQuery, $searchValue, 'logistik_pengiriman');
             'tanggal_tiba_gudang_3'   => $request->tanggal_tiba_gudang_3,
             'tanggal_keluar_gudang_3' => $request->tanggal_keluar_gudang_3,
 
-            'tujuan'    => $request->tujuan,
+   
             'route'     => $request->route,
             'pulau'     => $request->pulau,
             'area'      => $request->area,
@@ -3129,6 +3129,7 @@ $this->applyGlobalSearch($baseQuery, $searchValue, 'logistik_pengiriman');
             'total_do_qty_car' => $request->total_do_qty_car,
             'nilai_muatan'     => $this->cleanMoney($request->nilai_muatan),
             'updated_at'       => now(),
+                     'tujuan'    => $request->tujuan,
         ];
 
         if ($autoBiaya === null) {
