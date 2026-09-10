@@ -756,10 +756,7 @@ tbody tr:last-child td{ border-bottom:none; }
     <h1>{{ $bongkar_delay }}</h1>
 </a>
 
-<a href="{{ route('sales.summary.area', request()->query()) }}" class="card blue">
-    <h4>Summary Area</h4>
-    <h1>{{ count($summary_area) }}</h1>
-</a>
+
 
 </div>
 
@@ -1269,7 +1266,7 @@ if (document.getElementById('shipmentMap')) {
             <strong>${a.area}</strong><br>
             Jumlah shipment: <b>${a.total_shipment}</b><br>
             Total nilai muatan: <b>Rp ${nilaiMuatan.toLocaleString('id-ID')}</b><br>
-            Total biaya kirim: Rp ${Number(a.total_biaya).toLocaleString('id-ID')}
+
         `);
 
         boundsList.push(koordinat);

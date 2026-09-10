@@ -269,7 +269,7 @@
                         <th>Ekspedisi</th>
                         <th class="editable">PIC</th>
                         <th class="editable">Status</th>
-                        <th class="editable">Alert</th>
+                        <th>Alert</th>
                         <th>Total DO Qty</th>
                         <th class="editable">Selisih Qty Do</th>
                         <th class="editable">Biaya Kuli</th>

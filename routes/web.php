@@ -785,6 +785,12 @@ Route::prefix('pasuruan')->group(function () {
     Route::get('/admin', [PasuruanController::class, 'admin'])
         ->name('pasuruan.admin');
 
+        // routes/web.php
+Route::post('spvplanner/pasuruan/archive-filtered', [PasuruanController::class, 'archiveFiltered'])
+    ->name('spvplanner.archive.filtered');
+Route::delete('spvplanner/pasuruan/delete-filtered', [PasuruanController::class, 'deleteFiltered'])
+    ->name('spvplanner.delete.filtered');
+
     Route::post('/data-ajax-pasuruan', [PasuruanController::class, 'dataAjaxPasuruan'])
         ->name('pasuruan.dataAjaxPasuruan');
 

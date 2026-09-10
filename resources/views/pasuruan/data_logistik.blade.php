@@ -190,26 +190,60 @@
                 transform: translateY(-2px);
             }
 
-            /* ================= ARCHIVE BUTTON ================= */
+            /* ================= ARCHIVE / DELETE BUTTONS ================= */
 
-            .archive-form {
+            .action-bar {
+                display: flex;
+                gap: 12px;
+                flex-wrap: wrap;
                 margin: 20px 0;
+                align-items: center;
             }
 
             .archive-btn {
                 background: linear-gradient(135deg, #2563eb, #1d4ed8);
                 color: white;
                 border: none;
-                padding: 15px 26px;
+                padding: 13px 22px;
                 border-radius: 12px;
-                font-size: 17px;
+                font-size: 15px;
                 font-weight: 600;
                 cursor: pointer;
                 transition: .3s;
+                display: inline-flex;
+                align-items: center;
+                gap: 8px;
+                box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
             }
 
             .archive-btn:hover {
                 transform: translateY(-2px);
+                background: linear-gradient(135deg, #1d4ed8, #1e40af);
+                box-shadow: 0 8px 18px rgba(37, 99, 235, 0.35);
+            }
+
+            .archive-btn:active {
+                transform: scale(0.98);
+            }
+
+            .delete-btn {
+                background: linear-gradient(135deg, #dc2626, #ef4444);
+                box-shadow: 0 4px 12px rgba(220, 38, 38, 0.25);
+            }
+
+            .delete-btn:hover {
+                background: linear-gradient(135deg, #b91c1c, #dc2626);
+                box-shadow: 0 8px 18px rgba(220, 38, 38, 0.35);
+            }
+
+            .filter-info-badge {
+                font-size: 14px;
+                font-weight: 600;
+                color: #475569;
+                background: #f1f5f9;
+                border: 1px dashed #cbd5e1;
+                padding: 10px 16px;
+                border-radius: 10px;
             }
 
             /* ================= BADGE ================= */
@@ -359,6 +393,16 @@
                 .import-box button {
                     width: 100%;
                 }
+
+                .action-bar {
+                    flex-direction: column;
+                    align-items: stretch;
+                }
+
+                .action-bar .archive-btn {
+                    width: 100%;
+                    justify-content: center;
+                }
             }
 
             .badge {
@@ -400,10 +444,6 @@
                 background: linear-gradient(135deg, #00e5ff, #9ca3af);
             }
 
-            .archive-form {
-                margin: 20px 0;
-            }
-
             .badge-green {
                 background: #22c55e;
             }
@@ -418,32 +458,6 @@
 
             .badge-orange {
                 background: #f97316;
-            }
-
-            .archive-btn {
-                background: linear-gradient(135deg, #2563eb, #1d4ed8);
-                color: white;
-                border: none;
-                padding: 12px 22px;
-                border-radius: 12px;
-                font-size: 14px;
-                font-weight: 600;
-                cursor: pointer;
-                transition: 0.3s ease;
-                box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
-                display: inline-flex;
-                align-items: center;
-                gap: 8px;
-            }
-
-            .archive-btn:hover {
-                transform: translateY(-2px);
-                background: linear-gradient(135deg, #1d4ed8, #1e40af);
-                box-shadow: 0 8px 18px rgba(37, 99, 235, 0.35);
-            }
-
-            .archive-btn:active {
-                transform: scale(0.98);
             }
 
             .badge.gray {
@@ -722,6 +736,12 @@ font-size: 16px;
 
         <h2>📦 DATA LOGISTIK</h2>
 
+        @if(session('success'))
+            <div class="filter-info-badge" style="background:#dcfce7;border-color:#22c55e;color:#166534;margin-bottom:16px;">
+                ✅ {{ session('success') }}
+            </div>
+        @endif
+
         <div class="import-box">
             <form action="{{ route('spvplanner.import.pasuruan') }}" method="POST" enctype="multipart/form-data">
                 @csrf
@@ -735,10 +755,34 @@ font-size: 16px;
             Export Excel
         </a>
 
-        <!-- HAPUS SEMUA -->
-        <form action="{{ route('spvplanner.archive') }}" method="POST"
-              onsubmit="return confirm('Pindahkan semua data ke Storage?')" class="archive-form">
+        <!-- ================= ARCHIVE / HAPUS SESUAI FILTER ================= -->
+        <div class="action-bar">
+            <button type="button" id="btnArchiveFiltered" class="archive-btn">
+                📦 Archive Sesuai Filter
+            </button>
+            <button type="button" id="btnDeleteFiltered" class="archive-btn delete-btn">
+                🗑️ Hapus Sesuai Filter
+            </button>
+            <span id="filterInfoBadge" class="filter-info-badge">Tanpa filter aktif (akan berlaku ke SEMUA data)</span>
+        </div>
+
+        <form id="archiveFilteredForm" action="{{ route('spvplanner.archive.filtered') }}" method="POST" style="display:none;">
             @csrf
+            <input type="hidden" name="planner" id="archivePlanner">
+            <input type="hidden" name="area" id="archiveArea">
+            <input type="hidden" name="date" id="archiveDate">
+            <input type="hidden" name="month" id="archiveMonth">
+            <input type="hidden" name="year" id="archiveYear">
+        </form>
+
+        <form id="deleteFilteredForm" action="{{ route('spvplanner.delete.filtered') }}" method="POST" style="display:none;">
+            @csrf
+            @method('DELETE')
+            <input type="hidden" name="planner" id="deletePlanner">
+            <input type="hidden" name="area" id="deleteArea">
+            <input type="hidden" name="date" id="deleteDate">
+            <input type="hidden" name="month" id="deleteMonth">
+            <input type="hidden" name="year" id="deleteYear">
         </form>
 
         <div class="filter-box">
@@ -777,6 +821,8 @@ font-size: 16px;
                         <option value="{{ $i }}">{{ $i }}</option>
                     @endfor
                 </select>
+
+                <a href="#" id="btnResetFilter">Reset</a>
 
             </form>
         </div>
@@ -960,9 +1006,95 @@ $.ajaxSetup({
             // tiap kali table di-draw / ganti halaman / filter.
         });
 
+        // ==========================================
+        // HELPER: ambil filter aktif dari filter-box
+        // ==========================================
+        function getActiveFilters() {
+            return {
+                planner: $('#filterPlanner').val() || '',
+                area:    $('#filterArea').val()    || '',
+                date:    $('#filterDate').val()    || '',
+                month:   $('#filterMonth').val()   || '',
+                year:    $('#filterYear').val()    || ''
+            };
+        }
+
+        function hasActiveFilter(f) {
+            return !!(f.planner || f.area || f.date || f.month || f.year);
+        }
+
+        function describeFilter(f) {
+            let parts = [];
+            if (f.planner) parts.push('Planner: ' + f.planner);
+            if (f.area)    parts.push('Area: ' + f.area);
+            if (f.date)    parts.push('Tanggal: ' + f.date);
+            if (f.month)   parts.push('Bulan: ' + f.month);
+            if (f.year)    parts.push('Tahun: ' + f.year);
+            return parts.length ? parts.join(', ') : 'Tanpa filter (SEMUA DATA)';
+        }
+
+        function updateFilterInfoBadge() {
+            let f = getActiveFilters();
+            $('#filterInfoBadge').text(
+                hasActiveFilter(f)
+                    ? 'Filter aktif -> ' + describeFilter(f)
+                    : 'Tanpa filter aktif (akan berlaku ke SEMUA data)'
+            );
+        }
+
         // Filter dropdown/date/month/year -> reload data dari server (bukan filter client-side lagi)
         $('#filterArea, #filterPlanner, #filterDate, #filterMonth, #filterYear').on('change', function() {
             table.ajax.reload();
+            updateFilterInfoBadge();
+        });
+
+        $('#btnResetFilter').on('click', function(e) {
+            e.preventDefault();
+            $('#filterForm')[0].reset();
+            table.ajax.reload();
+            updateFilterInfoBadge();
+        });
+
+        updateFilterInfoBadge();
+
+        // ==========================================
+        // ARCHIVE SESUAI FILTER
+        // ==========================================
+        $('#btnArchiveFiltered').on('click', function() {
+            let f = getActiveFilters();
+            let msg = hasActiveFilter(f)
+                ? 'Arsipkan data dengan filter berikut ke Storage?\n\n' + describeFilter(f)
+                : 'Tidak ada filter aktif. Ini akan mengarsipkan SEMUA data ke Storage. Lanjutkan?';
+
+            if (!confirm(msg)) return;
+
+            $('#archivePlanner').val(f.planner);
+            $('#archiveArea').val(f.area);
+            $('#archiveDate').val(f.date);
+            $('#archiveMonth').val(f.month);
+            $('#archiveYear').val(f.year);
+            $('#archiveFilteredForm').trigger('submit');
+        });
+
+        // ==========================================
+        // HAPUS SESUAI FILTER (permanen)
+        // ==========================================
+        $('#btnDeleteFiltered').on('click', function() {
+            let f = getActiveFilters();
+
+            if (!hasActiveFilter(f)) {
+                if (!confirm('Tidak ada filter aktif. Ini akan MENGHAPUS PERMANEN SEMUA data. Lanjutkan?')) return;
+                if (!confirm('Konfirmasi sekali lagi: HAPUS SEMUA DATA tanpa filter secara permanen?')) return;
+            } else {
+                if (!confirm('HAPUS PERMANEN data dengan filter berikut?\n\n' + describeFilter(f) + '\n\nData tidak dapat dikembalikan!')) return;
+            }
+
+            $('#deletePlanner').val(f.planner);
+            $('#deleteArea').val(f.area);
+            $('#deleteDate').val(f.date);
+            $('#deleteMonth').val(f.month);
+            $('#deleteYear').val(f.year);
+            $('#deleteFilteredForm').trigger('submit');
         });
     });
 

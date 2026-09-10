@@ -258,6 +258,50 @@ class PasuruanController extends Controller
     }
 
 
+    // PasuruanController.php
+private function applyFilter($query, Request $request)
+{
+    if ($request->filled('planner')) $query->where('planner', $request->planner);
+    if ($request->filled('area'))    $query->where('area', $request->area);
+    if ($request->filled('date'))    $query->whereDate('tanggal_naik', $request->date);
+    if ($request->filled('month'))   $query->whereMonth('tanggal_naik', $request->month);
+    if ($request->filled('year'))    $query->whereYear('tanggal_naik', $request->year);
+    return $query;
+}
+
+public function archiveFiltered(Request $request)
+{
+    $rows = $this->applyFilter(
+        LogistikPengirimanPasuruan::query(),
+        $request
+    )->get();
+
+    foreach ($rows as $row) {
+        ShipmentPasuruanArchive::create($row->toArray());
+        $row->delete();
+    }
+
+    return redirect()->back()->with(
+        'success',
+        $rows->count() . ' data berhasil diarsipkan.'
+    );
+}
+
+public function deleteFiltered(Request $request)
+{
+    $query = $this->applyFilter(
+        LogistikPengirimanPasuruan::query(),
+        $request
+    );
+
+    $count = $query->count();
+    $query->delete();
+
+    return redirect()->back()->with(
+        'success',
+        $count . ' data berhasil dihapus permanen.'
+    );
+}
     private function recalculateCr(string $noShipment): float
     {
         $rows = LogistikPengirimanPasuruan::where('no_shipment_pasuruan', $noShipment)->get();
@@ -848,61 +892,61 @@ class PasuruanController extends Controller
     }
 
 
-    private function applyFilter($query, $request)
-    {
+    // private function applyFilter($query, $request)
+    // {
 
-        // AREA
-        // FIXED: area -> area_pasuruan
-        if ($request->area) {
-            $query->where('area_pasuruan', $request->area);
-        }
+    //     // AREA
+    //     // FIXED: area -> area_pasuruan
+    //     if ($request->area) {
+    //         $query->where('area_pasuruan', $request->area);
+    //     }
 
-        if ($request->filled('pulau') && isset(self::PULAU_MAP[$request->pulau])) {
-            $query->whereIn('area_pasuruan', self::PULAU_MAP[$request->pulau]);
-        }
+    //     if ($request->filled('pulau') && isset(self::PULAU_MAP[$request->pulau])) {
+    //         $query->whereIn('area_pasuruan', self::PULAU_MAP[$request->pulau]);
+    //     }
 
-        // DIST CHANNEL
-        // FIXED: dist_channel -> dist_channel_pasuruan
-        if ($request->dist_channel) {
-            $query->where('dist_channel_pasuruan', $request->dist_channel);
-        }
+    //     // DIST CHANNEL
+    //     // FIXED: dist_channel -> dist_channel_pasuruan
+    //     if ($request->dist_channel) {
+    //         $query->where('dist_channel_pasuruan', $request->dist_channel);
+    //     }
 
-        // DATE
-        // ⚠️ PERHATIAN: kolom 'tanggal_naik_logistik' TIDAK ADA di skema tabel
-        // logistik_pengiriman_pasuruan yang Anda berikan. Sementara diganti ke
-        // 'tanggal_terima_po_pasuruan'. Ganti sesuai kolom tanggal yang benar
-        // (misalnya planning_loading_pasuruan atau tanggal_dpt_unit_pasuruan)
-        // jika asumsi ini salah.
-        if ($request->date) {
-            $query->whereDate(
-                'tanggal_terima_po_pasuruan',
-                $request->date
-            );
-        }
+    //     // DATE
+    //     // ⚠️ PERHATIAN: kolom 'tanggal_naik_logistik' TIDAK ADA di skema tabel
+    //     // logistik_pengiriman_pasuruan yang Anda berikan. Sementara diganti ke
+    //     // 'tanggal_terima_po_pasuruan'. Ganti sesuai kolom tanggal yang benar
+    //     // (misalnya planning_loading_pasuruan atau tanggal_dpt_unit_pasuruan)
+    //     // jika asumsi ini salah.
+    //     if ($request->date) {
+    //         $query->whereDate(
+    //             'tanggal_terima_po_pasuruan',
+    //             $request->date
+    //         );
+    //     }
 
-        // MONTH
-        if ($request->month) {
-            $query->whereMonth(
-                'tanggal_terima_po_pasuruan',
-                substr($request->month, 5, 2)
-            );
+    //     // MONTH
+    //     if ($request->month) {
+    //         $query->whereMonth(
+    //             'tanggal_terima_po_pasuruan',
+    //             substr($request->month, 5, 2)
+    //         );
 
-            $query->whereYear(
-                'tanggal_terima_po_pasuruan',
-                substr($request->month, 0, 4)
-            );
-        }
+    //         $query->whereYear(
+    //             'tanggal_terima_po_pasuruan',
+    //             substr($request->month, 0, 4)
+    //         );
+    //     }
 
-        // YEAR
-        if ($request->year) {
-            $query->whereYear(
-                'tanggal_terima_po_pasuruan',
-                $request->year
-            );
-        }
+    //     // YEAR
+    //     if ($request->year) {
+    //         $query->whereYear(
+    //             'tanggal_terima_po_pasuruan',
+    //             $request->year
+    //         );
+    //     }
 
-        return $query;
-    }
+    //     return $query;
+    // }
 
     // Catatan: getArea() sengaja TIDAK diubah karena mengambil dari tabel
     // 'logistik_pengiriman' (tanpa suffix _pasuruan) yang tampaknya memang

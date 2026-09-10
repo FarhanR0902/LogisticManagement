@@ -953,6 +953,20 @@ tbody tr:last-child td{ border-bottom:none; }
         </div>
     </div>
 
+    <div class="chart-box">
+        <h3>📈 Trend pengiriman bulanan</h3>
+        <div class="chart-wrapper">
+            <canvas id="chartTrendBulanan"></canvas>
+        </div>
+    </div>
+
+    <div class="chart-box">
+        <h3>🚚 Top 5 ekspedisi pemakaian</h3>
+        <div class="chart-wrapper">
+            <canvas id="chartTopEkspedisi"></canvas>
+        </div>
+    </div>
+
 </div>
 
 <!-- TABLE AREA -->
@@ -977,6 +991,37 @@ tbody tr:last-child td{ border-bottom:none; }
             <td class="num">{{ number_format($a->total_shipment) }}</td>
             <td class="num">Rp {{ number_format($a->total_biaya,0,',','.') }}</td>
             <td class="num">Rp {{ number_format($a->total_muatan,0,',','.') }}</td>
+        </tr>
+        @empty
+        <tr><td colspan="5" class="empty-row">Belum ada data</td></tr>
+        @endforelse
+        </tbody>
+    </table>
+    </div>
+</div>
+
+<!-- TABLE AREA ONTIME/DELAY -->
+<div class="table-box">
+    <h3>📍 Ketepatan waktu tiba per area (Top 10)</h3>
+    <div class="table-scroll">
+    <table>
+        <thead>
+        <tr>
+            <th>No</th>
+            <th>Area</th>
+            <th class="num">Total</th>
+            <th class="num">On Time</th>
+            <th class="num">Delay</th>
+        </tr>
+        </thead>
+        <tbody>
+        @forelse($summary_area_ontime as $key => $a)
+        <tr>
+            <td>{{ $key+1 }}</td>
+            <td>{{ $a->area_pasuruan }}</td>
+            <td class="num">{{ number_format($a->total) }}</td>
+            <td class="num"><span class="badge badge-green">{{ number_format($a->total_ontime) }}</span></td>
+            <td class="num"><span class="badge badge-red">{{ number_format($a->total_delay) }}</span></td>
         </tr>
         @empty
         <tr><td colspan="5" class="empty-row">Belum ada data</td></tr>
@@ -1091,6 +1136,67 @@ tbody tr:last-child td{ border-bottom:none; }
     </div>
 
 </div>
+
+<!-- TWO COL: SUMMARY PLANNER DETAIL + PIC MONITORING DETAIL -->
+<div class="two-col">
+
+    <div class="table-box">
+        <h3>👤 Summary planner (per nama)</h3>
+        <div class="table-scroll">
+        <table>
+            <thead>
+                <tr>
+                    <th>Planner</th>
+                    <th class="num">Total</th>
+                    <th class="num">On Time</th>
+                    <th class="num">Delay</th>
+                </tr>
+            </thead>
+            <tbody>
+                @forelse($summary_planner as $p)
+                <tr>
+                    <td>{{ $p->planner_pasuruan }}</td>
+                    <td class="num">{{ number_format($p->total) }}</td>
+                    <td class="num"><span class="badge badge-green">{{ number_format($p->total_ontime) }}</span></td>
+                    <td class="num"><span class="badge badge-red">{{ number_format($p->total_delay) }}</span></td>
+                </tr>
+                @empty
+                <tr><td colspan="4" class="empty-row">Belum ada data</td></tr>
+                @endforelse
+            </tbody>
+        </table>
+        </div>
+    </div>
+
+    <div class="table-box">
+        <h3>🧑‍💼 Summary PIC monitoring (per PIC)</h3>
+        <div class="table-scroll">
+        <table>
+            <thead>
+                <tr>
+                    <th>PIC</th>
+                    <th class="num">Total</th>
+                    <th class="num">On Time</th>
+                    <th class="num">Delay</th>
+                </tr>
+            </thead>
+            <tbody>
+                @forelse($summary_pic_monitoring as $p)
+                <tr>
+                    <td>{{ $p->pic_monitoring_pasuruan }}</td>
+                    <td class="num">{{ number_format($p->total) }}</td>
+                    <td class="num"><span class="badge badge-green">{{ number_format($p->total_ontime) }}</span></td>
+                    <td class="num"><span class="badge badge-red">{{ number_format($p->total_delay) }}</span></td>
+                </tr>
+                @empty
+                <tr><td colspan="4" class="empty-row">Belum ada data</td></tr>
+                @endforelse
+            </tbody>
+        </table>
+        </div>
+    </div>
+
+</div>
 </div>
 
 </div>
@@ -1194,6 +1300,72 @@ new Chart(document.getElementById('chartTujuan'), {
         maintainAspectRatio:false,
         plugins:{ legend:{ display:false } },
         scales:{ y:{ beginAtZero:true, grid:{ color:'#eef0f5' } }, x:{ grid:{ display:false } } }
+    }
+});
+
+// ================= TREND PENGIRIMAN BULANAN =================
+new Chart(document.getElementById('chartTrendBulanan'), {
+    type:'line',
+    data:{
+        labels:[
+            @foreach($trend_pengiriman_bulanan as $t)
+                '{{ $t->bulan }}',
+            @endforeach
+        ],
+        datasets:[{
+            label:'Jumlah shipment',
+            data:[
+                @foreach($trend_pengiriman_bulanan as $t)
+                    {{ $t->total }},
+                @endforeach
+            ],
+            borderColor:'#4f46e5',
+            backgroundColor:'rgba(79,70,229,.12)',
+            fill:true,
+            tension:0.35,
+            pointRadius:3
+        }]
+    },
+    options:{
+        responsive:true,
+        maintainAspectRatio:false,
+        plugins:{ legend:{ display:false } },
+        scales:{
+            y:{ beginAtZero:true, grid:{ color:'#eef0f5' } },
+            x:{ grid:{ display:false } }
+        }
+    }
+});
+
+// ================= TOP 5 EKSPEDISI PEMAKAIAN =================
+new Chart(document.getElementById('chartTopEkspedisi'), {
+    type:'bar',
+    data:{
+        labels:[
+            @foreach($top_ekspedisi_pemakaian as $e)
+                '{{ $e->ekspedisi_pasuruan }}',
+            @endforeach
+        ],
+        datasets:[{
+            data:[
+                @foreach($top_ekspedisi_pemakaian as $e)
+                    {{ $e->total }},
+                @endforeach
+            ],
+            backgroundColor:'#e11d48',
+            borderRadius:6,
+            maxBarThickness:36
+        }]
+    },
+    options:{
+        indexAxis:'y',
+        responsive:true,
+        maintainAspectRatio:false,
+        plugins:{ legend:{ display:false } },
+        scales:{
+            x:{ beginAtZero:true, grid:{ color:'#eef0f5' } },
+            y:{ grid:{ display:false } }
+        }
     }
 });
 

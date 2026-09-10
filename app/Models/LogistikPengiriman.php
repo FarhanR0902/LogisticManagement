@@ -15,6 +15,7 @@ class LogistikPengiriman extends Model
         'tanggal_naik_logistik',
         'rencana_kirim',
         'transport_lead_time',
+        'kubikasi',
         'planner',
         'no_shipment',
         'dist_channel',

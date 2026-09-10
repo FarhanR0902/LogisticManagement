@@ -834,44 +834,69 @@ tbody tr:last-child td{ border-bottom:none; }
 <!-- KPI -->
 <div class="section-label">Ringkasan status</div>
 
+<!-- KPI -->
+<div class="section-label">Ringkasan status</div>
+
 <div class="kpi-row">
 
-<a href="{{ url('/datalogistik') }}?{{ http_build_query(request()->query()) }}" class="card blue">
+<a href="{{ route('pasuruan.dataLogistik') }}" class="card blue">
     <h4>Total Shipment</h4>
     <h1>{{ $total_data }}</h1>
 </a>
 
-<a href="{{ route('manager.gudang.ontime', request()->query()) }}" class="card green">
+<a href="{{ route('pasuruan.gudang.ontime', [
+        'bulan' => request('month') ? substr(request('month'), 5, 2) : null,
+        'tahun' => request('year') ?: (request('month') ? substr(request('month'), 0, 4) : null),
+        'area'  => request('area'),
+    ]) }}" class="card green">
     <h4>Sudah Tiba Di Gudang</h4>
     <h1>{{ $gudang_ontime }}</h1>
 </a>
 
-<a href="{{ route('manager.gudang.delay', request()->query()) }}" class="card red">
+<a href="{{ route('pasuruan.gudang.delay', [
+        'bulan' => request('month') ? substr(request('month'), 5, 2) : null,
+        'tahun' => request('year') ?: (request('month') ? substr(request('month'), 0, 4) : null),
+        'area'  => request('area'),
+    ]) }}" class="card red">
     <h4>Belum Tiba Di Gudang</h4>
     <h1>{{ $gudang_delay }}</h1>
 </a>
 
-<a href="{{ route('manager.customer.ontime', request()->query()) }}" class="card teal">
+<a href="{{ route('pasuruan.tujuan.ontime', [
+        'bulan' => request('month') ? substr(request('month'), 5, 2) : null,
+        'tahun' => request('year') ?: (request('month') ? substr(request('month'), 0, 4) : null),
+        'area'  => request('area'),
+    ]) }}" class="card teal">
     <h4>Tiba Tujuan OnTime</h4>
     <h1>{{ $customer_ontime }}</h1>
 </a>
 
-<a href="{{ route('manager.customer.delay', request()->query()) }}" class="card orange">
+<a href="{{ route('pasuruan.tujuan.delay', [
+        'bulan' => request('month') ? substr(request('month'), 5, 2) : null,
+        'tahun' => request('year') ?: (request('month') ? substr(request('month'), 0, 4) : null),
+        'area'  => request('area'),
+    ]) }}" class="card orange">
     <h4>Tiba Tujuan Delay</h4>
     <h1>{{ $customer_delay }}</h1>
 </a>
 
-<a href="{{ route('manager.bongkar.ontime', request()->query()) }}" class="card purple">
+<a href="{{ route('pasuruan.bongkar.ontime', [
+        'tanggal_bongkar' => request('date'),
+        'area'            => request('area'),
+    ]) }}" class="card purple">
     <h4>Bongkar OnTime</h4>
     <h1>{{ $bongkar_ontime }}</h1>
 </a>
 
-<a href="{{ route('manager.bongkar.delay', request()->query()) }}" class="card dark">
+<a href="{{ route('pasuruan.bongkar.delay', [
+        'tanggal_bongkar' => request('date'),
+        'area'            => request('area'),
+    ]) }}" class="card dark">
     <h4>Bongkar Delay</h4>
     <h1>{{ $bongkar_delay }}</h1>
 </a>
 
-<a href="{{ route('manager.summary.area', request()->query()) }}" class="card blue">
+<a href="#summary-area-table" class="card blue">
     <h4>Summary Area</h4>
     <h1>{{ count($summary_area) }}</h1>
 </a>

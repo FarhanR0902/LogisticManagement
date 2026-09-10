@@ -299,6 +299,70 @@ class SpvPlannerController extends Controller
             })
             ->count();
 
+                    // ================= TOP EKSPEDISI PEMAKAIAN =================
+        $top_ekspedisi_pemakaian = (clone $base)
+            ->select('ekspedisi_pasuruan', DB::raw('COUNT(*) as total'))
+            ->whereNotNull('ekspedisi_pasuruan')
+            ->where('ekspedisi_pasuruan', '!=', '')
+            ->groupBy('ekspedisi_pasuruan')
+            ->orderByDesc('total')
+            ->limit(5)
+            ->get();
+
+        // ================= TREND PENGIRIMAN BULANAN =================
+        $trend_pengiriman_bulanan = (clone $base)
+            ->select(
+                DB::raw("DATE_FORMAT(tanggal_terima_po_pasuruan, '%Y-%m') as bulan"),
+                DB::raw('COUNT(*) as total')
+            )
+            ->whereNotNull('tanggal_terima_po_pasuruan')
+            ->groupBy('bulan')
+            ->orderBy('bulan')
+            ->get();
+
+        // ================= SUMMARY AREA ONTIME / DELAY =================
+        $summary_area_ontime = (clone $base)
+            ->select(
+                'area_pasuruan',
+                DB::raw('COUNT(*) as total'),
+                DB::raw("SUM(CASE WHEN tanggal_tiba_pasuruan IS NOT NULL AND estimasi_tiba_pasuruan IS NOT NULL AND DATEDIFF(DATE(tanggal_tiba_pasuruan), DATE(estimasi_tiba_pasuruan)) <= 0 THEN 1 ELSE 0 END) as total_ontime"),
+                DB::raw("SUM(CASE WHEN tanggal_tiba_pasuruan IS NOT NULL AND estimasi_tiba_pasuruan IS NOT NULL AND DATEDIFF(DATE(tanggal_tiba_pasuruan), DATE(estimasi_tiba_pasuruan)) > 0 THEN 1 ELSE 0 END) as total_delay")
+            )
+            ->whereNotNull('area_pasuruan')
+            ->where('area_pasuruan', '!=', '')
+            ->groupBy('area_pasuruan')
+            ->orderByDesc('total')
+            ->limit(10)
+            ->get();
+
+        // ================= SUMMARY PLANNER (per nama planner) =================
+        $summary_planner = (clone $base)
+            ->select(
+                'planner_pasuruan',
+                DB::raw('COUNT(*) as total'),
+                DB::raw("SUM(CASE WHEN rencana_kirim_pasuruan IS NOT NULL AND tanggal_dpt_unit_pasuruan IS NOT NULL AND DATE(tanggal_dpt_unit_pasuruan) <= DATE(rencana_kirim_pasuruan) THEN 1 ELSE 0 END) as total_ontime"),
+                DB::raw("SUM(CASE WHEN rencana_kirim_pasuruan IS NOT NULL AND tanggal_dpt_unit_pasuruan IS NOT NULL AND DATE(tanggal_dpt_unit_pasuruan) > DATE(rencana_kirim_pasuruan) THEN 1 ELSE 0 END) as total_delay")
+            )
+            ->whereNotNull('planner_pasuruan')
+            ->where('planner_pasuruan', '!=', '')
+            ->groupBy('planner_pasuruan')
+            ->orderByDesc('total')
+            ->get();
+
+        // ================= SUMMARY PIC MONITORING (per PIC) =================
+        $summary_pic_monitoring = (clone $base)
+            ->select(
+                'pic_monitoring_pasuruan',
+                DB::raw('COUNT(*) as total'),
+                DB::raw("SUM(CASE WHEN tanggal_tiba_pasuruan IS NOT NULL AND estimasi_tiba_pasuruan IS NOT NULL AND DATEDIFF(DATE(tanggal_tiba_pasuruan), DATE(estimasi_tiba_pasuruan)) <= 0 THEN 1 ELSE 0 END) as total_ontime"),
+                DB::raw("SUM(CASE WHEN tanggal_tiba_pasuruan IS NOT NULL AND estimasi_tiba_pasuruan IS NOT NULL AND DATEDIFF(DATE(tanggal_tiba_pasuruan), DATE(estimasi_tiba_pasuruan)) > 0 THEN 1 ELSE 0 END) as total_delay")
+            )
+            ->whereNotNull('pic_monitoring_pasuruan')
+            ->where('pic_monitoring_pasuruan', '!=', '')
+            ->groupBy('pic_monitoring_pasuruan')
+            ->orderByDesc('total')
+            ->get();
+
         $customer_ontime = (clone $base)
             ->whereNotNull('tanggal_tiba_pasuruan')
             ->whereNotNull('estimasi_tiba_pasuruan')
@@ -431,6 +495,13 @@ class SpvPlannerController extends Controller
             'totalBiayaKirim',
             'ekspedisi',
             'label',
+            'list_dist_channel',
+            'list_area',
+            'top_ekspedisi_pemakaian',
+            'trend_pengiriman_bulanan',
+            'summary_area_ontime',
+            'summary_planner',
+            'summary_pic_monitoring',
             'value',
             'planner_ontime',
             'planner_delay',
@@ -1203,34 +1274,34 @@ public function deleteFilteredPasuruan(Request $request)
 
         // ================= SUMMARY EKSPEDISI (jumlah dipakai + total biaya_kirim) =================
         // ================= SUMMARY EKSPEDISI (Top 10 jumlah dipakai + total biaya_kirim) =================
-        // $ekspedisi = (clone $base)
-        //     ->select(
-        //         'ekpedisi',
-        //         DB::raw('COUNT(*) as total'),
-        //         DB::raw('COALESCE(SUM(biaya_kirim),0) as total_biaya')
-        //     )
-        //     ->whereNotNull('ekpedisi')
-        //     ->where('ekpedisi', '!=', '')
-        //     ->groupBy('ekpedisi')
-        //     ->orderByDesc('total')
-        //     ->limit(10)
-        //     ->get();
-
-        // $label = $ekspedisi->pluck('ekpedisi');
-        // $value = $ekspedisi->pluck('total');
-
         $ekspedisi = (clone $base)
             ->select(
                 'ekpedisi',
                 DB::raw('COUNT(*) as total'),
-                DB::raw('COALESCE(SUM(biaya_kirim), 0) as total_biaya')
+                DB::raw('COALESCE(SUM(biaya_kirim),0) as total_biaya')
             )
             ->whereNotNull('ekpedisi')
             ->where('ekpedisi', '!=', '')
             ->groupBy('ekpedisi')
-            ->orderByDesc('total_biaya') // berdasarkan biaya kirim terbesar
+            ->orderByDesc('total')
             ->limit(10)
             ->get();
+
+        // $label = $ekspedisi->pluck('ekpedisi');
+        // $value = $ekspedisi->pluck('total');
+
+        // $ekspedisi = (clone $base)
+        //     ->select(
+        //         'ekpedisi',
+        //         DB::raw('COUNT(*) as total'),
+        //         DB::raw('COALESCE(SUM(biaya_kirim), 0) as total_biaya')
+        //     )
+        //     ->whereNotNull('ekpedisi')
+        //     ->where('ekpedisi', '!=', '')
+        //     ->groupBy('ekpedisi')
+        //     ->orderByDesc('total_biaya') // berdasarkan biaya kirim terbesar
+        //     ->limit(10)
+        //     ->get();
 
         $label = $ekspedisi->pluck('ekpedisi');
         $value = $ekspedisi->pluck('total_biaya');

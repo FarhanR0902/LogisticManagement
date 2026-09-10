@@ -18,6 +18,7 @@ class PlannerController extends Controller
         $data = $request->only([
             'create_tgl',
             'no_shipment',
+            // 'kubikasi',
             'planner',
             'dist_channel',
             'transport_lead_time',
@@ -49,6 +50,7 @@ class PlannerController extends Controller
             'pulau',
             'via_kirim'
         ]);
+        // $data['kubikasi'] = $this->cleanPersen($request->kubikasi);
 
         LogistikPengiriman::create(array_merge($data, $rumus));
 
@@ -174,7 +176,6 @@ class PlannerController extends Controller
             'transport_lead_time'   => $request->transport_lead_time,
             'planner'               => $request->planner,
             'no_shipment'           => $newNoShipment,
-
             'perubahan_mobil'       => $request->perubahan_mobil,
             'kategori_ekspedisi'    => $request->kategori_ekspedisi,
             'keterangan'            => $request->keterangan,
@@ -255,6 +256,7 @@ class PlannerController extends Controller
             'tujuan'           => $request->tujuan,
             'pulau'            => $request->pulau,
             'total_do_qty_car' => $request->total_do_qty_car,
+            //  'kubikasi'         => $this->cleanPersen($request->kubikasi),
             'nilai_muatan'     => $this->cleanMoney($request->nilai_muatan),
             'updated_at'       => now(),
         ];
@@ -379,7 +381,7 @@ class PlannerController extends Controller
             'tanggal_tiba_gudang_3'   => $request->tanggal_tiba_gudang_3,
             'tanggal_keluar_gudang_3' => $request->tanggal_keluar_gudang_3,
 
-            'tujuan'    => $request->tujuan,
+          
             'route'     => $request->route,
             'pulau'     => $request->pulau,
             'area'      => $request->area,
@@ -436,7 +438,10 @@ class PlannerController extends Controller
         // 3. UPDATE FIELD SPESIFIK PER ROW (per unit/per tujuan)
         // ====================================================
         $updateRow = [
+             'tujuan'           => $request->tujuan,
+            'pulau'            => $request->pulau,
             'total_do_qty_car' => $request->total_do_qty_car,
+            // 'kubikasi'         => $this->cleanPersen($request->kubikasi),
             'nilai_muatan'     => $this->cleanMoney($request->nilai_muatan),
             'updated_at'       => now(),
         ];
@@ -488,6 +493,25 @@ class PlannerController extends Controller
         $value = preg_replace('/[^0-9.]/', '', $value);
         return is_numeric($value) ? (float) $value : null;
     }
+
+    private function cleanPersen($value)
+{
+    if ($value === null || $value === '') return null;
+
+    // buang simbol % dan karakter selain angka & titik
+    $value = str_replace(',', '.', $value);
+    $value = preg_replace('/[^0-9.]/', '', $value);
+
+    if (!is_numeric($value)) return null;
+
+    $value = (float) $value;
+
+    // clamp 0 - 100
+    if ($value < 0) $value = 0;
+    if ($value > 100) $value = 100;
+
+    return round($value, 2);
+}
 
     private function cleanMoney($value)
     {
@@ -651,6 +675,10 @@ class PlannerController extends Controller
             $val = $value ? date('Y-m-d', strtotime($value)) : '';
             return '<input type="date" ' . $formAttr . ' name="' . $name . '" value="' . e($val) . '">';
         };
+        $formattedPersen = function ($angka) {
+    if ($angka === null || $angka === '') return '';
+    return number_format((float) $angka, 2, ',', '.') . '%';
+};
 
         $textInput = function ($name, $value, $extraClass = '') use ($formAttr) {
             return '<input type="text" ' . $formAttr . ' name="' . $name . '" class="' . $extraClass . '" value="' . e($value) . '">';
@@ -828,8 +856,12 @@ class PlannerController extends Controller
             $textInput('nilai_muatan', $formattedRupiah($r->nilai_muatan), 'row-nilai-muatan input-rupiah'),
             // 29 biaya kirim
             $textInput('biaya_kirim', $formattedRupiah($r->biaya_kirim), 'row-biaya-kirim input-rupiah'),
+          
+           
             // 30 cr
             '<input type="text" ' . $formAttr . ' name="cr" class="row-cr" readonly style="background:#f1f5f9;color:#0284c7;font-weight:600;" value="' . e(is_numeric($r->cr) ? number_format((float) $r->cr, 4) : $r->cr) . '">',
+              // Kubikasi
+            // '<input type="number" step="0.01" ' . $formAttr . ' name="kubikasi" value="' . e($r->kubikasi) . '">',
             // 31 status mobil
             $statusMobilHtml,
             // 32 lama waktu pencarian
