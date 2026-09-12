@@ -16,6 +16,27 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
     <style>
+        /* Kolom yang di-freeze butuh background solid supaya konten
+   di baliknya tidak keintip pas digeser */
+/* Kolom yang di-freeze butuh background solid supaya konten
+   di baliknya tidak keintip pas digeser */
+table.dataTable.dtfc-has-left td.dtfc-fixed-left,
+table.dataTable.dtfc-has-left th.dtfc-fixed-left {
+    background-color: #ffffff;
+    z-index: 3;
+}
+
+/* Baris yang lagi "dirty" (belum disave) — kolom bekunya
+   ikut warna oranye juga, biar konsisten */
+tr.row-dirty-pasuruan td.dtfc-fixed-left {
+    background-color: #fff7ed !important;
+}
+
+/* Garis pemisah di kolom ke-4 (Tujuan) — kolom terakhir yang dibekukan */
+table.dataTable.dtfc-has-left td:nth-child(4).dtfc-fixed-left,
+table.dataTable.dtfc-has-left th:nth-child(4).dtfc-fixed-left {
+    box-shadow: 3px 0 5px -2px rgba(0,0,0,0.15);
+}
         * {
             margin: 0;
             padding: 0;
@@ -263,6 +284,8 @@
 
     <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
     <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/fixedcolumns/4.3.0/js/dataTables.fixedColumns.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.datatables.net/fixedcolumns/4.3.0/css/fixedColumns.dataTables.min.css">
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </head>
 
@@ -509,21 +532,21 @@
                     </select>
                 </div>
 
-                <div class="card">
-                    <div class="table-responsive">
-                        <table id="tablePlanner" class="display nowrap table table-hover" style="width:100%">
+               <div class="card">
+    <table id="tablePlanner" class="display nowrap table table-hover" style="width:100%">
                             <thead>
                                 <tr>
                                     <th class="th-default">Tanggal Import</th>
                                     <th class="th-oren">Nama Planner</th>
                                     <th class="th-oren">No Shipment</th>
+                                     <th class="th-default">Tujuan</th>
                                     <th class="th-edit">Tanggal Terima Dari Admin</th>
                                     <th class="th-edit">Rencana Kirim</th>
                                     <th class="th-edit">Tanggal Dapat Unit</th>
                                     <th class="th-edit">Planning Loading <span style="color:#0047FF;font-weight:900;">Pasuruan</span></th>
                                     <th class="th-edit">Tanggal Tiba <span style="color:#0047FF;font-weight:900;">Pasuruan</span></th>
                                     <th class="th-edit">Tanggal Keluar <span style="color:#0047FF;font-weight:900;">Pasuruan</span></th>
-                                    <th class="th-default">Tujuan</th>
+                                   
                                     <th class="th-default">Route</th>
                                     <th class="th-default">Pulau</th>
                                     <th class="th-default">Area</th>
@@ -537,6 +560,7 @@
                                     <th class="th-oren">No Pol</th>
                                     <th class="th-system">Total Qty</th>
                                     <th class="th-system">Nilai Muatan</th>
+                                    <th class="th-system">Kubikasi (%)</th>
                                     <th class="th-system">Biaya Kirim</th>
                                     <th class="th-system">CR (%)</th>
                                     <th class="th-system">Status Mobil</th>
@@ -606,6 +630,70 @@
                         }
                         return '';
                     }
+                    function formatKePersenPasuruan(angka) {
+    if (angka === '' || angka === null || isNaN(angka)) return '';
+    let n = parseFloat(angka);
+    if (n < 0) n = 0;
+    if (n > 100) n = 100;
+    return n.toFixed(2).replace('.', ',') + '%';
+}
+
+function ambilAngkaPersenPasuruan(teks) {
+    if (!teks) return 0;
+    let bersih = String(teks).replace(/[^0-9.,]/g, '').replace(',', '.');
+    let n = parseFloat(bersih) || 0;
+    if (n < 0) n = 0;
+    if (n > 100) n = 100;
+    return n;
+}
+
+// Live formatting saat user mengetik di kolom kubikasi (per baris)
+$(document).on('focus', '.row-kubikasi-pasuruan', function() {
+    let raw = ambilAngkaPersenPasuruan($(this).val());
+    $(this).val(raw === 0 ? '' : String(raw).replace('.', ','));
+});
+
+$(document).on('input', '.row-kubikasi-pasuruan', function() {
+    let val = $(this).val().replace(/[^0-9,]/g, '');
+    let parts = val.split(',');
+    if (parts.length > 2) {
+        val = parts[0] + ',' + parts.slice(1).join('');
+    }
+    $(this).val(val);
+});
+
+$(document).on('blur', '.row-kubikasi-pasuruan', function() {
+    $(this).val(formatKePersenPasuruan(ambilAngkaPersenPasuruan($(this).val())));
+});
+$(document).on('focus', '.modal-kubikasi-pasuruan', function() {
+    let raw = ambilAngkaPersenPasuruan($(this).val());
+    $(this).val(raw === 0 ? '' : String(raw).replace('.', ','));
+});
+
+$(document).on('input', '.modal-kubikasi-pasuruan', function() {
+    let val = $(this).val().replace(/[^0-9,]/g, '');
+    let parts = val.split(',');
+    if (parts.length > 2) {
+        val = parts[0] + ',' + parts.slice(1).join('');
+    }
+    $(this).val(val);
+});
+
+$(document).on('blur', '.modal-kubikasi-pasuruan', function() {
+    $(this).val(formatKePersenPasuruan(ambilAngkaPersenPasuruan($(this).val())));
+});
+$('form').on('submit', function() {
+    $('.row-nilai-muatan, .row-biaya-kirim, .modal-nilai-muatan, .modal-biaya-kirim').each(function() {
+        let nilaiSekarang = $(this).val();
+        if (nilaiSekarang) {
+            $(this).val(nilaiSekarang.replace(/[^0-9]/g, ''));
+        }
+    });
+    // ⬅️ TAMBAHAN
+    $('.modal-kubikasi-pasuruan').each(function() {
+        $(this).val(ambilAngkaPersenPasuruan($(this).val()));
+    });
+});
 
                     function ambilAngkaMurni(teks) {
                         if (!teks) return 0;
@@ -767,29 +855,57 @@
                     // ========================================================
                     // INISIALISASI DATATABLES — SERVER-SIDE PROCESSING
                     // ========================================================
+                    // var table = $('#tablePlanner').DataTable({
+                    //     processing: true,
+                    //     serverSide: true,
+                    //     ordering: false, // controller belum baca parameter order; sorting selalu by id desc
+                    //     scrollX: true,
+                    //     pageLength: 10,
+                    //     lengthMenu: [10, 25, 50, 100, 250],
+                    //     ajax: {
+                    //         // Dipakai POST karena tabel ini punya banyak kolom —
+                    //         // GET bisa kena limit panjang URL (414).
+                    //         url: "{{ route('pasuruan.dataAjaxPasuruan') }}",
+                    //         type: 'POST',
+                    //         data: function(d) {
+                    //             d._token = "{{ csrf_token() }}";
+                    //             d.planner_filter = plannerFilter;
+                    //             d.area_filter = areaFilter;
+                    //             d.create_tgl_filter = createTglFilter;
+                    //         }
+                    //     },
+                    //     columnDefs: [{
+                    //         className: "dt-center",
+                    //         targets: [0, 25, 26, 27, 28, 29, 30]
+                    //     }],
+
                     var table = $('#tablePlanner').DataTable({
-                        processing: true,
-                        serverSide: true,
-                        ordering: false, // controller belum baca parameter order; sorting selalu by id desc
-                        scrollX: true,
-                        pageLength: 10,
-                        lengthMenu: [10, 25, 50, 100, 250],
-                        ajax: {
-                            // Dipakai POST karena tabel ini punya banyak kolom —
-                            // GET bisa kena limit panjang URL (414).
-                            url: "{{ route('pasuruan.dataAjaxPasuruan') }}",
-                            type: 'POST',
-                            data: function(d) {
-                                d._token = "{{ csrf_token() }}";
-                                d.planner_filter = plannerFilter;
-                                d.area_filter = areaFilter;
-                                d.create_tgl_filter = createTglFilter;
-                            }
-                        },
-                        columnDefs: [{
-                            className: "dt-center",
-                            targets: [0, 25, 26, 27, 28, 29, 30]
-                        }],
+    processing: true,
+    serverSide: true,
+    ordering: false, // controller belum baca parameter order; sorting selalu by id desc
+    scrollX: true,
+    scrollCollapse: true,        // ⬅️ BARU
+    fixedColumns: {               // ⬅️ BARU — freeze 4 kolom pertama
+        left: 4
+    },
+    pageLength: 10,
+    lengthMenu: [10, 25, 50, 100, 250],
+    ajax: {
+        // Dipakai POST karena tabel ini punya banyak kolom —
+        // GET bisa kena limit panjang URL (414).
+        url: "{{ route('pasuruan.dataAjaxPasuruan') }}",
+        type: 'POST',
+        data: function(d) {
+            d._token = "{{ csrf_token() }}";
+            d.planner_filter = plannerFilter;
+            d.area_filter = areaFilter;
+            d.create_tgl_filter = createTglFilter;
+        }
+    },
+    columnDefs: [{
+        className: "dt-center",
+        targets: [0, 25, 26, 27, 28, 29, 30]
+    }],
 
                         // ====================================================
                         // rowCallback — ambil id baris dari hidden form
@@ -834,7 +950,7 @@
                                 }
                             });
 
-                            this.api().columns.adjust();
+                                                   this.api().columns.adjust();
                         }
                     });
 
@@ -931,6 +1047,7 @@
                                 mobil_pasuruan: row.find('[name="mobil_pasuruan"]').val(),
                                 biaya_kuli_pasuruan: ambilAngkaMurni(row.find('[name="biaya_kuli_pasuruan"]').val()),
                                 nilai_muatan_pasuruan: ambilAngkaMurni(row.find('[name="nilai_muatan_pasuruan"]').val()),
+                                kubikasi_pasuruan: ambilAngkaPersenPasuruan(row.find('[name="kubikasi_pasuruan"]').val()),
                                 biaya_kirim_pasuruan: ambilAngkaMurni(row.find('[name="biaya_kirim_pasuruan"]').val()),
                                 cr_pasuruan: row.find('[name="cr_pasuruan"]').val(),
                                 reason_waktu_tiba_pasuruan: row.find('[name="reason_waktu_tiba_pasuruan"]').val(),
@@ -946,7 +1063,8 @@
                                 no_pol_pasuruan: row.find('[name="no_pol_pasuruan"]').val(),
                                 act_urutan_bongkar_pasuruan: row.find('[name="act_urutan_bongkar_pasuruan"]').val(),
                                 tanggal_tiba_pasuruan: row.find('[name="tanggal_tiba_pasuruan"]').val(),
-                                tanggal_bongkar_pasuruan: row.find('[name="tanggal_bongkar_pasuruan"]').val()
+                              tanggal_bongkar_pasuruan: row.find('[name="tanggal_bongkar_pasuruan"]').val(),
+act_pgi_date_pasuruan: row.find('[name="act_pgi_date_pasuruan"]').val()
                             },
                             success: function() {
                                 console.log("Saved " + id);

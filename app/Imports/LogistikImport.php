@@ -6,12 +6,13 @@ use Illuminate\Support\Facades\DB;
 use App\Models\LogistikPengiriman;
 use Maatwebsite\Excel\Concerns\ToModel;
 use Maatwebsite\Excel\Concerns\WithHeadingRow;
+use Maatwebsite\Excel\Concerns\WithCalculatedFormulas;
 use PhpOffice\PhpSpreadsheet\Shared\Date;
 use Maatwebsite\Excel\Concerns\WithEvents;
 use Maatwebsite\Excel\Events\AfterImport;
 use App\Models\TarifPengiriman;
 
-class LogistikImport implements ToModel, WithHeadingRow, WithEvents
+class LogistikImport implements ToModel, WithHeadingRow, WithEvents, WithCalculatedFormulas
 {
 
     private static $customerMap = null;
@@ -115,6 +116,11 @@ class LogistikImport implements ToModel, WithHeadingRow, WithEvents
 
     public function model(array $row)
     {
+         logger()->info('DEBUG ROW', [
+        'all_keys'           => array_keys($row),
+        'kategori_ekspedisi' => $row['kategori_ekspedisi'] ?? '❌ KEY TIDAK DITEMUKAN',
+        'via_kirim'          => $row['via_kirim'] ?? '❌ KEY TIDAK DITEMUKAN',
+    ]);
 
         // =============================
         // SENTUL (GUDANG 2)
@@ -175,6 +181,8 @@ class LogistikImport implements ToModel, WithHeadingRow, WithEvents
         // MONITORING (kolom tambahan)
         $totalDoCar = $this->cleanNumber($row['total_do_qty_car'] ?? null);
         $addtText4  = $this->cleanText($row['addt_text'] ?? null);
+        // KUBIKASI (%)
+$kubikasi = $this->cleanPersen($row['kubikasi'] ?? null);
 
         // ================= DATE =================
         $rencanaKirim        = $this->convertDate($row['rencana_kirim'] ?? null);
@@ -230,9 +238,11 @@ class LogistikImport implements ToModel, WithHeadingRow, WithEvents
                 : 'Delay';
         }
 
-        $act_pgi_date = isset($row['act_pgi_date']) && is_numeric($row['act_pgi_date'])
-            ? Date::excelToDateTimeObject($row['act_pgi_date'])->format('Y-m-d')
-            : null;
+        // $act_pgi_date = isset($row['act_pgi_date']) && is_numeric($row['act_pgi_date'])
+        //     ? Date::excelToDateTimeObject($row['act_pgi_date'])->format('Y-m-d')
+        //     : null;
+
+        $act_pgi_date = $this->convertDate($row['act_pgi_date'] ?? null);
 
         $custGrp5     = $this->cleanText($row['cust_grp_5_desc'] ?? null);
         $custGrp3     = $this->cleanText($row['cust_grp_3_desc'] ?? null);
@@ -422,6 +432,7 @@ class LogistikImport implements ToModel, WithHeadingRow, WithEvents
             'cr'                 => $this->cleanText($row['cr'] ?? null),
             'kategori_ekspedisi' => $this->cleanText($row['kategori_ekspedisi'] ?? null),
             'ekpedisi'           => $ekpedisi,
+            'kubikasi'           => $kubikasi, 
             'nama_driver'        => $this->cleanText($row['nama_driver'] ?? null),
             'no_pol'             => $this->cleanText($row['no_pol'] ?? ($row['nopol'] ?? null)),
 
@@ -555,6 +566,24 @@ class LogistikImport implements ToModel, WithHeadingRow, WithEvents
         return (float) $value;
     }
 
+    private function cleanPersen($value)
+{
+    if ($value === null || $value === '' || $value == '-') return null;
+
+    $value = str_replace('%', '', (string) $value);
+    $value = str_replace(',', '.', $value);
+    $value = preg_replace('/[^0-9.]/', '', $value);
+
+    if (!is_numeric($value)) return null;
+
+    $value = (float) $value;
+
+    if ($value < 0) $value = 0;
+    if ($value > 100) $value = 100;
+
+    return round($value, 2);
+}
+
     private function convertDate($value)
     {
         if (!$value || $value == '-' || $value == '#VALUE!') return null;
@@ -687,55 +716,51 @@ private function cleanNumberTarif($value): float
 
     return (float) $value;
 }
-    public function registerEvents(): array
-    {
-        return [
-            AfterImport::class => function () {
+  public function registerEvents(): array
+{
+    return [
+        AfterImport::class => function () {
 
-                // =====================================================
-                // SAFETY NET: kalau ternyata baris-baris dengan No
-                // Shipment yang sama TIDAK berurutan di file Excel
-                // (sehingga forward-fill saat model() tidak sempat
-                // menangkap semuanya), lakukan post-process di sini:
-                // isi Route / Mobil / Ekpedisi yang masih NULL/kosong
-                // dengan nilai non-kosong lain dari No Shipment yang
-                // sama (ambil salah satu yang ada).
-                //
-                // Ini jaring pengaman tambahan, bukan pengganti
-                // forward-fill di model() -- forward-fill tetap jalan
-                // duluan supaya kasus paling umum (baris berurutan)
-                // langsung benar dari awal.
-                // =====================================================
-                foreach (['route', 'mobil', 'ekpedisi'] as $col) {
-                    DB::statement("
-                        UPDATE logistik_pengiriman lp
-                        JOIN (
-                            SELECT no_shipment, MIN($col) AS val
-                            FROM logistik_pengiriman
-                            WHERE $col IS NOT NULL AND $col != ''
-                            GROUP BY no_shipment
-                        ) x ON lp.no_shipment = x.no_shipment
-                        SET lp.$col = x.val
-                        WHERE (lp.$col IS NULL OR lp.$col = '')
-                          AND lp.no_shipment IS NOT NULL
-                          AND lp.no_shipment != ''
-                    ");
-                }
-
+            foreach (['route', 'mobil', 'ekpedisi'] as $col) {
                 DB::statement("
                     UPDATE logistik_pengiriman lp
                     JOIN (
-                        SELECT
-                            no_shipment,
-                            MAX(biaya_kirim) AS biaya,
-                            SUM(nilai_muatan) AS muatan
+                        SELECT no_shipment, MIN($col) AS val
                         FROM logistik_pengiriman
+                        WHERE $col IS NOT NULL AND $col != ''
                         GROUP BY no_shipment
                     ) x ON lp.no_shipment = x.no_shipment
-                    SET lp.cr = IF(x.muatan = 0, 0, ROUND((x.biaya / x.muatan) * 100, 4))
+                    SET lp.$col = x.val
+                    WHERE (lp.$col IS NULL OR lp.$col = '')
+                      AND lp.no_shipment IS NOT NULL
+                      AND lp.no_shipment != ''
                 ");
+            }
 
-            },
-        ];
-    }
+            // ⬇️ FIX: CR sekarang dihitung PER BARIS berdasarkan kontribusi
+            // nilai_muatan baris itu terhadap total muatan shipment,
+            // konsisten dengan logic di SpvPlannerController (update/autosaveRow):
+            //   kontribusi = nilai_muatan_row / total_muatan
+            //   totalCR    = (total_biaya / total_muatan) * 100
+            //   crRow      = kontribusi * totalCR
+            DB::statement("
+                UPDATE logistik_pengiriman lp
+                JOIN (
+                    SELECT
+                        no_shipment,
+                        MAX(biaya_kirim) AS biaya,
+                        SUM(nilai_muatan) AS muatan
+                    FROM logistik_pengiriman
+                    GROUP BY no_shipment
+                ) x ON lp.no_shipment = x.no_shipment
+                SET lp.cr = IF(
+                    x.muatan = 0 OR lp.nilai_muatan <= 0,
+                    0,
+                    ROUND((lp.nilai_muatan * x.biaya) / (x.muatan * x.muatan) * 100, 4)
+                )
+            ");
+
+        },
+    ];
+}
 }

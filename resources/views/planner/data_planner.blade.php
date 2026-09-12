@@ -632,6 +632,7 @@
                                     <th class="th-system">Nilai Muatan</th>
                                     <th class="th-system">Biaya Kirim</th>
                                     <th class="th-system">CR (%)</th>
+                                       <th class="th-system">Kubikasi (%)</th>
 
                                     <th class="th-system">Status Mobil</th>
                                     <th class="th-system">Lama Waktu Pencarian</th>
@@ -667,597 +668,647 @@
                 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
             </div>
 
-            <script>
-                // ==========================================================
-                // MASTER TARIF (preload sekali saat halaman dibuka)
-                // ==========================================================
-                const tarifList = @json($tarifPengiriman);
+          <script>
+    // ==========================================================
+    // MASTER TARIF (preload sekali saat halaman dibuka)
+    // ==========================================================
+    const tarifList = @json($tarifPengiriman);
 
-                function normalizeStr(v) {
-                    if (!v) return '';
-                    v = String(v).replace(/\u00A0/g, ' ');
-                    v = v.replace(/\s*-\s*/g, '-');
-                    v = v.replace(/\s+/g, ' ').trim();
-                    return v.toLowerCase();
+    function normalizeStr(v) {
+        if (!v) return '';
+        v = String(v).replace(/\u00A0/g, ' ');
+        v = v.replace(/\s*-\s*/g, '-');
+        v = v.replace(/\s+/g, ' ').trim();
+        return v.toLowerCase();
+    }
+
+    function normalizeMobilStr(v) {
+        if (!v) return '';
+        v = String(v).replace(/\u00A0/g, ' ');
+        v = v.replace(/\s+/g, ' ').trim();
+        return v.toLowerCase();
+    }
+
+    function cariTarif(route, mobil, ekpedisi) {
+        if (!route || !mobil) return null;
+
+        const routeKey    = normalizeStr(route);
+        const mobilKey    = normalizeMobilStr(mobil);
+        const ekpedisiKey = ekpedisi ? normalizeStr(ekpedisi) : '';
+
+        const candidates = tarifList.filter(t => normalizeStr(t.route) === routeKey);
+
+        if (candidates.length === 0) return null;
+
+        if (ekpedisiKey !== '') {
+            const strict = candidates.find(t =>
+                normalizeStr(t.ekpedisi) === ekpedisiKey &&
+                normalizeMobilStr(t.mobil).startsWith(mobilKey)
+            );
+            if (strict) return strict;
+        }
+
+        return candidates.find(t =>
+            normalizeMobilStr(t.mobil).startsWith(mobilKey)
+        ) || null;
+    }
+
+    $(document).ready(function() {
+
+        // ========================================================
+        // HELPER RUPIAH
+        // ========================================================
+        function formatKeRupiah(angka) {
+            if (!angka) return '';
+            let stringMurni = String(angka).split('.')[0];
+            let angkaMurni = stringMurni.replace(/[^0-9]/g, '');
+            if (angkaMurni) {
+                return 'Rp ' + String(angkaMurni).replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+            }
+            return '';
+        }
+
+        // ========================================================
+        // HELPER PERSEN (KUBIKASI)
+        // ========================================================
+        function formatKePersen(angka) {
+            if (angka === '' || angka === null || isNaN(angka)) return '';
+            let n = parseFloat(angka);
+            if (n < 0) n = 0;
+            if (n > 100) n = 100;
+            return n.toFixed(2).replace('.', ',') + '%';
+        }
+
+        function ambilAngkaPersen(teks) {
+            if (!teks) return 0;
+            let bersih = String(teks).replace(/[^0-9.,]/g, '').replace(',', '.');
+            let n = parseFloat(bersih) || 0;
+            if (n < 0) n = 0;
+            if (n > 100) n = 100;
+            return n;
+        }
+
+       // ===== KUBIKASI (ROW) =====
+// Saat fokus: lepas format % biar gampang diedit angka mentahnya
+$(document).on('focus', '.row-kubikasi', function() {
+    let raw = ambilAngkaPersen($(this).val());
+    $(this).val(raw === 0 ? '' : String(raw).replace('.', ','));
+});
+
+// Saat ngetik: cuma bolehin angka & 1 koma, TANPA format % dulu
+$(document).on('input', '.row-kubikasi', function() {
+    let val = $(this).val().replace(/[^0-9,]/g, '');
+    let parts = val.split(',');
+    if (parts.length > 2) {
+        val = parts[0] + ',' + parts.slice(1).join('');
+    }
+    $(this).val(val);
+    markRowDirty($(this));
+});
+
+// Saat selesai (blur): baru diformat jadi xx,xx%
+$(document).on('blur', '.row-kubikasi', function() {
+    $(this).val(formatKePersen(ambilAngkaPersen($(this).val())));
+});
+
+// ===== KUBIKASI (MODAL) =====
+$(document).on('focus', '.modal-kubikasi', function() {
+    let raw = ambilAngkaPersen($(this).val());
+    $(this).val(raw === 0 ? '' : String(raw).replace('.', ','));
+});
+
+$(document).on('input', '.modal-kubikasi', function() {
+    let val = $(this).val().replace(/[^0-9,]/g, '');
+    let parts = val.split(',');
+    if (parts.length > 2) {
+        val = parts[0] + ',' + parts.slice(1).join('');
+    }
+    $(this).val(val);
+});
+
+$(document).on('blur', '.modal-kubikasi', function() {
+    $(this).val(formatKePersen(ambilAngkaPersen($(this).val())));
+});
+
+        function ambilAngkaMurni(teks) {
+            if (!teks) return 0;
+            let bersih = String(teks).replace(/[^0-9]/g, '');
+            return parseFloat(bersih) || 0;
+        }
+
+        // Row sudah datang dari server dalam format Rupiah/format akhir,
+        // fungsi ini hanya jaga-jaga untuk input baru di modal.
+        function jalankanMaskingRupiahModal() {
+            $('.modal-nilai-muatan, .modal-biaya-kirim').each(function() {
+                let v = $(this).val();
+                if (v && !v.includes('Rp')) {
+                    $(this).val(formatKeRupiah(v));
+                }
+            });
+        }
+
+        // ========================================================
+        // FILTER STATE
+        // ========================================================
+        var areaFilter = '';
+        var plannerFilter = '';
+        var createTglFilter = '';
+
+        // ========================================================
+        // INIT DATATABLES - SERVER SIDE
+        // ========================================================
+        var table = $('#tablePlanner').DataTable({
+            serverSide: true,
+            processing: true,
+            scrollX: true,
+            autoWidth: false,
+            pageLength: 10,
+            searchDelay: 400,
+            ajax: {
+                url: "{{ route('planner.data.ajax') }}",
+                type: 'POST',
+                data: function(d) {
+                    d.planner_filter = plannerFilter;
+                    d.area_filter = areaFilter;
+                    d.create_tgl_filter = createTglFilter;
+                    d._token = '{{ csrf_token() }}';
+                },
+                beforeSend: function() {
+                    $('#dtLoadingOverlay').css('display', 'flex');
+                },
+                complete: function() {
+                    $('#dtLoadingOverlay').hide();
+                }
+            },
+            columnDefs: [{
+                className: "dt-center",
+                targets: [0, 1, 2, 27, 32, 34, 35, 38, 39, 40, 44]
+            }],
+            rowCallback: function(row, data, index) {
+                let $row = $(row);
+                let deleteLink = $row.find('a[href*="/planner/delete/"]').attr('href');
+                let id = deleteLink ? deleteLink.split('/').pop() : null;
+                if (id) {
+                    $row.attr('data-id', id);
+                    $row.addClass('autosave-row');
+                }
+            },
+            drawCallback: function() {
+                jalankanMaskingRupiahModal();
+                initSelect2Row();
+                hitungSemuaCostRatioTabel();
+                updateDateColor();
+                this.api().columns.adjust();
+            }
+        });
+
+        // ========================================================
+        // HITUNG CR (LIVE PREVIEW)
+        // ========================================================
+        function hitungSemuaCostRatioTabel() {
+
+            var shipmentGroups = {};
+
+            $('#tablePlanner tbody tr').each(function() {
+                var row = $(this);
+                var noShipment = (row.find('.row-no-shipment').val() || '').trim();
+                if (!noShipment) return;
+
+                var muatan = ambilAngkaMurni(row.find('.row-nilai-muatan').val());
+                var biaya = ambilAngkaMurni(row.find('.row-biaya-kirim').val());
+
+                if (!shipmentGroups[noShipment]) {
+                    shipmentGroups[noShipment] = { totalMuatan: 0, totalBiaya: 0 };
                 }
 
-                function normalizeMobilStr(v) {
-                    if (!v) return '';
-                    v = String(v).replace(/\u00A0/g, ' ');
-                    v = v.replace(/\s+/g, ' ').trim();
-                    return v.toLowerCase();
+                shipmentGroups[noShipment].totalMuatan += muatan;
+                shipmentGroups[noShipment].totalBiaya = Math.max(
+                    shipmentGroups[noShipment].totalBiaya,
+                    biaya
+                );
+            });
+
+            $('#tablePlanner tbody tr').each(function() {
+                var row = $(this);
+                var noShipment = (row.find('.row-no-shipment').val() || '').trim();
+                var crInput = row.find('.row-cr');
+                var costRatio = 0;
+
+                if (noShipment && shipmentGroups[noShipment]) {
+                    var totalMuatan = shipmentGroups[noShipment].totalMuatan;
+                    var totalBiaya = shipmentGroups[noShipment].totalBiaya;
+                    var nilaiMuatanBaris = ambilAngkaMurni(row.find('.row-nilai-muatan').val());
+
+                    if (totalMuatan > 0 && nilaiMuatanBaris > 0) {
+                        var totalCR = (totalBiaya / totalMuatan) * 100;
+                        var kontribusi = nilaiMuatanBaris / totalMuatan;
+                        costRatio = kontribusi * totalCR;
+                    }
+
+                    crInput.val(costRatio > 0 ? costRatio.toFixed(4) + '%' : '0.0000%');
+                } else {
+                    var nilaiMuatanMurni = ambilAngkaMurni(row.find('.row-nilai-muatan').val());
+                    var biayaMurni = ambilAngkaMurni(row.find('.row-biaya-kirim').val());
+
+                    if (nilaiMuatanMurni > 0) {
+                        costRatio = (biayaMurni / nilaiMuatanMurni) * 100;
+                    }
+
+                    crInput.val(costRatio > 0 ? costRatio.toFixed(4) + '%' : '-');
                 }
+            });
+        }
 
-                function cariTarif(route, mobil, ekpedisi) {
-                    if (!route || !mobil) return null;
+        $(document).on('input', '.row-nilai-muatan', function() {
+            $(this).val(formatKeRupiah(ambilAngkaMurni($(this).val())));
+            hitungSemuaCostRatioTabel();
+            markRowDirty($(this));
+        });
 
-                    const routeKey    = normalizeStr(route);
-                    const mobilKey    = normalizeMobilStr(mobil);
-                    const ekpedisiKey = ekpedisi ? normalizeStr(ekpedisi) : '';
+        $(document).on('input', '.row-biaya-kirim', function() {
+            $(this).val(formatKeRupiah(ambilAngkaMurni($(this).val())));
+            hitungSemuaCostRatioTabel();
+            markRowDirty($(this));
+        });
 
-                    const candidates = tarifList.filter(t => normalizeStr(t.route) === routeKey);
+        $(document).on('input', '.modal-nilai-muatan, .modal-biaya-kirim', function() {
+            var muatanModal = ambilAngkaMurni($('.modal-nilai-muatan').val());
+            var biayaModal = ambilAngkaMurni($('.modal-biaya-kirim').val());
+            var crModal = 0;
+            if (muatanModal > 0) {
+                crModal = (biayaModal / muatanModal) * 100;
+            }
+            $('.modal-cr').val(crModal.toFixed(4) + '%');
+        });
 
-                    if (candidates.length === 0) return null;
-
-                    if (ekpedisiKey !== '') {
-                        const strict = candidates.find(t =>
-                            normalizeStr(t.ekpedisi) === ekpedisiKey &&
-                            normalizeMobilStr(t.mobil).startsWith(mobilKey)
-                        );
-                        if (strict) return strict;
-                    }
-
-                    return candidates.find(t =>
-                        normalizeMobilStr(t.mobil).startsWith(mobilKey)
-                    ) || null;
+        // Proteksi backend: kembalikan ke angka murni sebelum submit form modal
+        $('form').on('submit', function() {
+            $('.modal-nilai-muatan, .modal-biaya-kirim').each(function() {
+                let nilaiSekarang = $(this).val();
+                if (nilaiSekarang) {
+                    $(this).val(nilaiSekarang.replace(/[^0-9]/g, ''));
                 }
+            });
+            $('.modal-kubikasi').each(function() {
+                $(this).val(ambilAngkaPersen($(this).val()));
+            });
+        });
 
-                $(document).ready(function() {
+        // =========================
+        // SELECT2 (filter atas)
+        // =========================
+        $('#filterPlanner, #filterArea').select2({
+            theme: 'bootstrap-5',
+            width: '100%',
+            placeholder: function() { return $(this).find('option:first').text(); },
+            allowClear: true
+        });
 
-                    // ========================================================
-                    // HELPER RUPIAH
-                    // ========================================================
-                    function formatKeRupiah(angka) {
-                        if (!angka) return '';
-                        let stringMurni = String(angka).split('.')[0];
-                        let angkaMurni = stringMurni.replace(/[^0-9]/g, '');
-                        if (angkaMurni) {
-                            return 'Rp ' + String(angkaMurni).replace(/\B(?=(\d{3})+(?!\d))/g, ".");
-                        }
-                        return '';
-                    }
-
-                    function ambilAngkaMurni(teks) {
-                        if (!teks) return 0;
-                        let bersih = String(teks).replace(/[^0-9]/g, '');
-                        return parseFloat(bersih) || 0;
-                    }
-
-                    // Row sudah datang dari server dalam format Rupiah/format akhir,
-                    // fungsi ini hanya jaga-jaga untuk input baru di modal.
-                    function jalankanMaskingRupiahModal() {
-                        $('.modal-nilai-muatan, .modal-biaya-kirim').each(function() {
-                            let v = $(this).val();
-                            if (v && !v.includes('Rp')) {
-                                $(this).val(formatKeRupiah(v));
-                            }
-                        });
-                    }
-
-                    // ========================================================
-                    // FILTER STATE
-                    // ========================================================
-                    var areaFilter = '';
-                    var plannerFilter = '';
-                    var createTglFilter = '';
-
-                    // ========================================================
-                    // INIT DATATABLES - SERVER SIDE
-                    // ========================================================
-                    var table = $('#tablePlanner').DataTable({
-                        serverSide: true,
-                        processing: true,
-                        scrollX: true,
-                        autoWidth: false,
-                        pageLength: 10,
-                        searchDelay: 400,
-                        ajax: {
-                            url: "{{ route('planner.data.ajax') }}",
-                            type: 'POST',
-                            data: function(d) {
-                                d.planner_filter = plannerFilter;
-                                d.area_filter = areaFilter;
-                                d.create_tgl_filter = createTglFilter;
-                                d._token = '{{ csrf_token() }}';
-                            },
-                            beforeSend: function() {
-                                $('#dtLoadingOverlay').css('display', 'flex');
-                            },
-                            complete: function() {
-                                $('#dtLoadingOverlay').hide();
-                            }
-                        },
-                        columnDefs: [{
-                            className: "dt-center",
-                            targets: [0, 1, 2, 27, 31, 33, 34, 37, 38, 39, 43]
-                        }],
-                        rowCallback: function(row, data, index) {
-                            // data terakhir array kolom biasa; kita simpan id lewat data attribute
-                            // id diselipkan lewat kolom Hapus (delete link) -> ambil dari sana
-                            let $row = $(row);
-                            let deleteLink = $row.find('a[href*="/planner/delete/"]').attr('href');
-                            let id = deleteLink ? deleteLink.split('/').pop() : null;
-                            if (id) {
-                                $row.attr('data-id', id);
-                                $row.addClass('autosave-row');
-                            }
-                        },
-                        drawCallback: function() {
-                            jalankanMaskingRupiahModal();
-                            initSelect2Row();
-                            hitungSemuaCostRatioTabel();
-                            updateDateColor();
-                            this.api().columns.adjust();
-                        }
-                    });
-
-                    // ========================================================
-                    // HITUNG CR (LIVE PREVIEW) - hanya di baris yang sedang tampil
-                    // (halaman aktif, max ~10-25 baris karena server-side)
-                    // ========================================================
-                    function hitungSemuaCostRatioTabel() {
-
-                        var shipmentGroups = {};
-
-                        $('#tablePlanner tbody tr').each(function() {
-                            var row = $(this);
-                            var noShipment = (row.find('.row-no-shipment').val() || '').trim();
-                            if (!noShipment) return;
-
-                            var muatan = ambilAngkaMurni(row.find('.row-nilai-muatan').val());
-                            var biaya = ambilAngkaMurni(row.find('.row-biaya-kirim').val());
-
-                            if (!shipmentGroups[noShipment]) {
-                                shipmentGroups[noShipment] = { totalMuatan: 0, totalBiaya: 0 };
-                            }
-
-                            shipmentGroups[noShipment].totalMuatan += muatan;
-                            shipmentGroups[noShipment].totalBiaya = Math.max(
-                                shipmentGroups[noShipment].totalBiaya,
-                                biaya
-                            );
-                        });
-
-                        $('#tablePlanner tbody tr').each(function() {
-                            var row = $(this);
-                            var noShipment = (row.find('.row-no-shipment').val() || '').trim();
-                            var crInput = row.find('.row-cr');
-                            var costRatio = 0;
-
-                            if (noShipment && shipmentGroups[noShipment]) {
-                                var totalMuatan = shipmentGroups[noShipment].totalMuatan;
-                                var totalBiaya = shipmentGroups[noShipment].totalBiaya;
-                                var nilaiMuatanBaris = ambilAngkaMurni(row.find('.row-nilai-muatan').val());
-
-                                if (totalMuatan > 0 && nilaiMuatanBaris > 0) {
-                                    var totalCR = (totalBiaya / totalMuatan) * 100;
-                                    var kontribusi = nilaiMuatanBaris / totalMuatan;
-                                    costRatio = kontribusi * totalCR;
-                                }
-
-                                crInput.val(costRatio > 0 ? costRatio.toFixed(4) + '%' : '0.0000%');
-                            } else {
-                                var nilaiMuatanMurni = ambilAngkaMurni(row.find('.row-nilai-muatan').val());
-                                var biayaMurni = ambilAngkaMurni(row.find('.row-biaya-kirim').val());
-
-                                if (nilaiMuatanMurni > 0) {
-                                    costRatio = (biayaMurni / nilaiMuatanMurni) * 100;
-                                }
-
-                                crInput.val(costRatio > 0 ? costRatio.toFixed(4) + '%' : '-');
-                            }
-                        });
-                    }
-
-                    $(document).on('input', '.row-nilai-muatan', function() {
-                        $(this).val(formatKeRupiah(ambilAngkaMurni($(this).val())));
-                        hitungSemuaCostRatioTabel();
-                        markRowDirty($(this));
-                    });
-
-                    $(document).on('input', '.row-biaya-kirim', function() {
-                        $(this).val(formatKeRupiah(ambilAngkaMurni($(this).val())));
-                        hitungSemuaCostRatioTabel();
-                        markRowDirty($(this));
-                    });
-
-                    $(document).on('input', '.modal-nilai-muatan, .modal-biaya-kirim', function() {
-                        var muatanModal = ambilAngkaMurni($('.modal-nilai-muatan').val());
-                        var biayaModal = ambilAngkaMurni($('.modal-biaya-kirim').val());
-                        var crModal = 0;
-                        if (muatanModal > 0) {
-                            crModal = (biayaModal / muatanModal) * 100;
-                        }
-                        $('.modal-cr').val(crModal.toFixed(4) + '%');
-                    });
-
-                    // Proteksi backend: kembalikan ke angka murni sebelum submit form modal
-                    $('form').on('submit', function() {
-                        $('.modal-nilai-muatan, .modal-biaya-kirim').each(function() {
-                            let nilaiSekarang = $(this).val();
-                            if (nilaiSekarang) {
-                                $(this).val(nilaiSekarang.replace(/[^0-9]/g, ''));
-                            }
-                        });
-                    });
-
-                    // =========================
-                    // SELECT2 (filter atas)
-                    // =========================
-                    $('#filterPlanner, #filterArea').select2({
+        // Select2 untuk dropdown DI DALAM baris
+        function initSelect2Row() {
+            $('#tablePlanner tbody tr .select2-row').each(function() {
+                if (!$(this).hasClass('select2-hidden-accessible')) {
+                    $(this).select2({
                         theme: 'bootstrap-5',
-                        width: '100%',
-                        placeholder: function() { return $(this).find('option:first').text(); },
+                        width: '150px',
+                        dropdownAutoWidth: true,
+                        dropdownParent: $('body'),
+                        placeholder: 'Cari...',
                         allowClear: true
                     });
 
-                    // Select2 untuk dropdown DI DALAM baris (hanya baris yang sedang tampil,
-                    // karena server-side otomatis hanya render 1 halaman)
-                    function initSelect2Row() {
-                        $('#tablePlanner tbody tr .select2-row').each(function() {
-                            if (!$(this).hasClass('select2-hidden-accessible')) {
-                                $(this).select2({
-                                    theme: 'bootstrap-5',
-                                    width: '150px',
-                                    dropdownAutoWidth: true,
-                                    dropdownParent: $('body'),
-                                    placeholder: 'Cari...',
-                                    allowClear: true
-                                });
-
-                                if ($(this).is('.row-route, .row-mobil, .row-ekpedisi')) {
-                                    $(this).off('select2:select.autotarif').on('select2:select.autotarif', function() {
-                                        let row = $(this).closest('tr');
-                                        cariBiayaKirimRow(row);
-                                        markRowDirty($(this));
-                                    });
-                                }
-
-                                $(this).off('select2:select.dirty select2:clear.dirty')
-                                    .on('select2:select.dirty select2:clear.dirty', function() {
-                                        markRowDirty($(this));
-                                    });
-                            }
-                        });
-                    }
-
-                    function cariBiayaKirimRow(row) {
-                        let route    = row.find('[name="route"]').val();
-                        let mobil    = row.find('[name="mobil"]').val();
-                        let ekpedisi = row.find('[name="ekpedisi"]').val();
-
-                        if (!route || !mobil) return;
-
-                        let tarif = cariTarif(route, mobil, ekpedisi);
-
-                        if (tarif && tarif.biaya_kirim) {
-                            let biayaInput = row.find('.row-biaya-kirim');
-                            biayaInput.val(tarif.biaya_kirim).trigger('input');
-                        }
-                    }
-
-                    // ======================
-                    // FILTER: Area / Planner / Tanggal Import
-                    // (kirim ulang ke server, bukan filter DOM)
-                    // ======================
-                    $('#filterArea').on('change', function() {
-                        areaFilter = $(this).val();
-                        table.draw();
-                    });
-
-                    $('#filterPlanner').on('change', function() {
-                        plannerFilter = $(this).val();
-                        table.draw();
-                    });
-
-                    $('#filterCreateTgl').on('change', function() {
-                        createTglFilter = $(this).val();
-                        table.draw();
-                    });
-
-                    $('#btnExport').on('click', function(e) {
-                        e.preventDefault();
-                        let planner = $('#filterPlanner').val() || '';
-                        let area = $('#filterArea').val() || '';
-                        let url = "{{ route('planner.export') }}" +
-                            "?planner=" + encodeURIComponent(planner) +
-                            "&area=" + encodeURIComponent(area);
-                        window.location.href = url;
-                    });
-
-                    // ==========================================================
-                    // DIRTY TRACKING + SAVE ALL (autosave per baris, tetap sama)
-                    // ==========================================================
-                    let dirtyRows = new Set();
-
-                    function updateUnsavedBadge() {
-                        if (dirtyRows.size > 0) {
-                            $('#unsavedCount').text(dirtyRows.size).show();
-                        } else {
-                            $('#unsavedCount').hide();
-                        }
-                    }
-
-                    function markRowDirty($el) {
-                        let row = $el.closest('tr');
-                        let id = row.data('id');
-                        if (id) {
-                            dirtyRows.add(id);
-                            updateUnsavedBadge();
-                        }
-                    }
-
-                    $(document).on('change input',
-                        '#tablePlanner input, #tablePlanner select, #tablePlanner textarea',
-                        function() {
+                    if ($(this).is('.row-route, .row-mobil, .row-ekpedisi')) {
+                        $(this).off('select2:select.autotarif').on('select2:select.autotarif', function() {
+                            let row = $(this).closest('tr');
+                            cariBiayaKirimRow(row);
                             markRowDirty($(this));
-                        }
-                    );
-
-                    function saveRow(id) {
-                        let row = $('tr[data-id="' + id + '"]');
-
-                        return $.ajax({
-                            url: '/planner/autosave-row/' + id,
-                            type: 'POST',
-                            data: {
-                                _token: '{{ csrf_token() }}',
-
-                                planner: row.find('[name="planner"]').val(),
-                                no_shipment: row.find('[name="no_shipment"]').val(),
-
-                                tanggal_naik_logistik: row.find('[name="tanggal_naik_logistik"]').val(),
-                                rencana_kirim: row.find('[name="rencana_kirim"]').val(),
-                                tanggal_dpt_unit: row.find('[name="tanggal_dpt_unit"]').val(),
-
-                                planning_loading: row.find('[name="planning_loading"]').val(),
-                                tanggal_tiba_gudang: row.find('[name="tanggal_tiba_gudang"]').val(),
-                                tanggal_keluar_gudang: row.find('[name="tanggal_keluar_gudang"]').val(),
-
-                                planning_loading_2: row.find('[name="planning_loading_2"]').val(),
-                                tanggal_tiba_gudang_2: row.find('[name="tanggal_tiba_gudang_2"]').val(),
-                                tanggal_keluar_gudang_2: row.find('[name="tanggal_keluar_gudang_2"]').val(),
-
-                                planning_loading_3: row.find('[name="planning_loading_3"]').val(),
-                                tanggal_tiba_gudang_3: row.find('[name="tanggal_tiba_gudang_3"]').val(),
-                                tanggal_keluar_gudang_3: row.find('[name="tanggal_keluar_gudang_3"]').val(),
-
-                                tujuan: row.find('[name="tujuan"]').val(),
-                                route: row.find('[name="route"]').val(),
-                                pulau: row.find('[name="pulau"]').val(),
-                                area: row.find('[name="area"]').val(),
-                                via_kirim: row.find('[name="via_kirim"]').val(),
-
-                                dist_channel: row.find('[name="dist_channel"]').val(),
-                                kategori_ekspedisi: row.find('[name="kategori_ekspedisi"]').val(),
-                                ekpedisi: row.find('[name="ekpedisi"]').val(),
-                                transport_lead_time: row.find('[name="transport_lead_time"]').val(),
-
-                                nama_driver: row.find('[name="nama_driver"]').val(),
-                                no_pol: row.find('[name="no_pol"]').val(),
-                                mobil: row.find('[name="mobil"]').val(),
-                                total_do_qty_car: row.find('[name="total_do_qty_car"]').val(),
-
-                                nilai_muatan: ambilAngkaMurni(row.find('[name="nilai_muatan"]').val()),
-                                biaya_kirim: ambilAngkaMurni(row.find('[name="biaya_kirim"]').val()),
-                                cr: row.find('[name="cr"]').val()
-                            },
-                            success: function() {
-                                console.log("Saved " + id);
-                            },
-                            error: function(xhr) {
-                                console.log("Gagal save row " + id, xhr.status, xhr.responseText);
-                            }
                         });
                     }
 
-                    $('#btnSaveAll').on('click', function() {
-                        if (dirtyRows.size === 0) {
-                            alert('Belum ada perubahan untuk disimpan.');
-                            return;
-                        }
+                    $(this).off('select2:select.dirty select2:clear.dirty')
+                        .on('select2:select.dirty select2:clear.dirty', function() {
+                            markRowDirty($(this));
+                        });
+                }
+            });
+        }
 
-                        let btn = $(this);
-                        btn.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin"></i> Menyimpan...');
+        function cariBiayaKirimRow(row) {
+            let route    = row.find('[name="route"]').val();
+            let mobil    = row.find('[name="mobil"]').val();
+            let ekpedisi = row.find('[name="ekpedisi"]').val();
 
-                        let ids = Array.from(dirtyRows);
-                        let requests = ids.map(id => saveRow(id));
+            if (!route || !mobil) return;
 
-                        $.when.apply($, requests)
-                            .done(function() {
-                                dirtyRows.clear();
-                                updateUnsavedBadge();
-                                alert('Semua perubahan (' + ids.length + ' baris) berhasil disimpan!');
-                                loadAlertControl();
-                                table.ajax.reload(null, false); // refresh data tanpa reset halaman
-                            })
-                            .fail(function() {
-                                alert('Sebagian data gagal disimpan, cek console.');
-                            })
-                            .always(function() {
-                                btn.prop('disabled', false)
-                                   .html('<i class="fa-solid fa-floppy-disk"></i> Save <span id="unsavedCount" class="badge bg-danger rounded-pill" style="display:none;">0</span>');
-                            });
-                    });
+            let tarif = cariTarif(route, mobil, ekpedisi);
 
-                    // ==========================================================
-                    // ALERT CONTROL — sekarang lewat AJAX ringan, BUKAN scan DOM
-                    // ==========================================================
-                   function loadAlertControl() {
-    $.getJSON("{{ route('planner.alerts') }}", {
-        planner_filter: plannerFilter,
-        area_filter: areaFilter
-    }, function(res) {
-        renderMissingFieldSummaryPlanner(res.missingSummary || {});
-        renderAlertControlPlanner(res.alerts || []);
-    }).fail(function() {
-        $('#missingFieldSummary').html('<span class="badge gray">Gagal memuat</span>');
-        $('#alertControlList').html('<div class="p-2" style="color:#ef4444;">Gagal memuat data</div>');
-    });
-}
+            if (tarif && tarif.biaya_kirim) {
+                let biayaInput = row.find('.row-biaya-kirim');
+                biayaInput.val(tarif.biaya_kirim).trigger('input');
+            }
+        }
 
-                    function renderMissingFieldSummaryPlanner(missingSummary) {
-                        let entries = Object.entries(missingSummary).sort((a, b) => b[1] - a[1]);
+        // ======================
+        // FILTER: Area / Planner / Tanggal Import
+        // ======================
+        $('#filterArea').on('change', function() {
+            areaFilter = $(this).val();
+            table.draw();
+            loadAlertControl();
+        });
 
-                        if (entries.length === 0) {
-                            $('#missingFieldSummary').html('<span class="badge green">✅ Semua data lengkap</span>');
-                            return;
-                        }
+        $('#filterPlanner').on('change', function() {
+            plannerFilter = $(this).val();
+            table.draw();
+            loadAlertControl();
+        });
 
-                        let html = entries.map(function(e) {
-                            return '<span class="badge red">' + e[0] + ': ' + e[1] + '</span>';
-                        }).join(' ');
+        $('#filterCreateTgl').on('change', function() {
+            createTglFilter = $(this).val();
+            table.draw();
+        });
 
-                        $('#missingFieldSummary').html(html);
-                    }
+        $('#btnExport').on('click', function(e) {
+            e.preventDefault();
+            let planner = $('#filterPlanner').val() || '';
+            let area = $('#filterArea').val() || '';
+            let url = "{{ route('planner.export') }}" +
+                "?planner=" + encodeURIComponent(planner) +
+                "&area=" + encodeURIComponent(area);
+            window.location.href = url;
+        });
 
-                    function renderAlertControlPlanner(alertList) {
-                        $('#alertControlCount').text(alertList.length + ' Alert');
+        // ==========================================================
+        // DIRTY TRACKING + SAVE ALL
+        // ==========================================================
+        let dirtyRows = new Set();
 
-                        if (alertList.length === 0) {
-                            $('#alertControlList').html('<div class="p-2" style="color:#22c55e;">✅ Semua shipment sudah lengkap datanya</div>');
-                            return;
-                        }
+        function updateUnsavedBadge() {
+            if (dirtyRows.size > 0) {
+                $('#unsavedCount').text(dirtyRows.size).show();
+            } else {
+                $('#unsavedCount').hide();
+            }
+        }
 
-                        let html = alertList.map(function(a) {
-                            let sev = a.emptyCount >= 4 ? 'red' : a.emptyCount >= 2 ? 'orange' : 'yellow';
-                            return '' +
-                                '<div class="alert-item" data-id="' + a.id + '">' +
-                                    '<div class="alert-top">' +
-                                        '<b>🚚 ' + a.shipment + '</b>' +
-                                        '<span class="badge ' + sev + '">' + a.emptyCount + ' kosong</span>' +
-                                    '</div>' +
-                                    '<div class="alert-missing">Belum diisi: ' + a.missing.join(', ') + '</div>' +
-                                '</div>';
-                        }).join('');
+        function markRowDirty($el) {
+            let row = $el.closest('tr');
+            let id = row.data('id');
+            if (id) {
+                dirtyRows.add(id);
+                updateUnsavedBadge();
+            }
+        }
 
-                        $('#alertControlList').html(html);
-                    }
+        $(document).on('change input',
+            '#tablePlanner input, #tablePlanner select, #tablePlanner textarea',
+            function() {
+                markRowDirty($(this));
+            }
+        );
 
-                    // Klik item alert -> cari baris via search DataTables server-side,
-                    // lalu highlight begitu ketemu.
-                    $(document).on('click', '.alert-item', function() {
-                        let id = $(this).data('id');
-                        let shipmentText = $(this).find('b').text().replace('🚚', '').trim();
+        function saveRow(id) {
+            let row = $('tr[data-id="' + id + '"]');
 
-                        // pakai search box DataTables (server-side) untuk lompat ke shipment terkait
-                        table.search(shipmentText).draw();
+            return $.ajax({
+                url: '/planner/autosave-row/' + id,
+                type: 'POST',
+                data: {
+                    _token: '{{ csrf_token() }}',
 
-                        setTimeout(function() {
-                            let $row = $('#tablePlanner tr[data-id="' + id + '"]');
-                            if ($row.length) {
-                                $row.addClass('highlight-row');
-                                $row.get(0).scrollIntoView({ behavior: 'smooth', block: 'center' });
-                                setTimeout(function() { $row.removeClass('highlight-row'); }, 2000);
-                            }
-                        }, 500);
-                    });
+                    planner: row.find('[name="planner"]').val(),
+                    no_shipment: row.find('[name="no_shipment"]').val(),
 
+                    tanggal_naik_logistik: row.find('[name="tanggal_naik_logistik"]').val(),
+                    rencana_kirim: row.find('[name="rencana_kirim"]').val(),
+                    tanggal_dpt_unit: row.find('[name="tanggal_dpt_unit"]').val(),
+
+                    planning_loading: row.find('[name="planning_loading"]').val(),
+                    tanggal_tiba_gudang: row.find('[name="tanggal_tiba_gudang"]').val(),
+                    tanggal_keluar_gudang: row.find('[name="tanggal_keluar_gudang"]').val(),
+
+                    planning_loading_2: row.find('[name="planning_loading_2"]').val(),
+                    tanggal_tiba_gudang_2: row.find('[name="tanggal_tiba_gudang_2"]').val(),
+                    tanggal_keluar_gudang_2: row.find('[name="tanggal_keluar_gudang_2"]').val(),
+
+                    planning_loading_3: row.find('[name="planning_loading_3"]').val(),
+                    tanggal_tiba_gudang_3: row.find('[name="tanggal_tiba_gudang_3"]').val(),
+                    tanggal_keluar_gudang_3: row.find('[name="tanggal_keluar_gudang_3"]').val(),
+
+                    tujuan: row.find('[name="tujuan"]').val(),
+                    route: row.find('[name="route"]').val(),
+                    pulau: row.find('[name="pulau"]').val(),
+                    area: row.find('[name="area"]').val(),
+                    via_kirim: row.find('[name="via_kirim"]').val(),
+
+                    dist_channel: row.find('[name="dist_channel"]').val(),
+                    kategori_ekspedisi: row.find('[name="kategori_ekspedisi"]').val(),
+                    ekpedisi: row.find('[name="ekpedisi"]').val(),
+                    transport_lead_time: row.find('[name="transport_lead_time"]').val(),
+
+                    nama_driver: row.find('[name="nama_driver"]').val(),
+                    no_pol: row.find('[name="no_pol"]').val(),
+                    mobil: row.find('[name="mobil"]').val(),
+                    total_do_qty_car: row.find('[name="total_do_qty_car"]').val(),
+
+                    nilai_muatan: ambilAngkaMurni(row.find('[name="nilai_muatan"]').val()),
+                    biaya_kirim: ambilAngkaMurni(row.find('[name="biaya_kirim"]').val()),
+                    cr: row.find('[name="cr"]').val(),
+                    kubikasi: ambilAngkaPersen(row.find('[name="kubikasi"]').val())
+                },
+                success: function() {
+                    console.log("Saved " + id);
+                },
+                error: function(xhr) {
+                    console.log("Gagal save row " + id, xhr.status, xhr.responseText);
+                }
+            });
+        }
+
+        $('#btnSaveAll').on('click', function() {
+            if (dirtyRows.size === 0) {
+                alert('Belum ada perubahan untuk disimpan.');
+                return;
+            }
+
+            let btn = $(this);
+            btn.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin"></i> Menyimpan...');
+
+            let ids = Array.from(dirtyRows);
+            let requests = ids.map(id => saveRow(id));
+
+            $.when.apply($, requests)
+                .done(function() {
+                    dirtyRows.clear();
+                    updateUnsavedBadge();
+                    alert('Semua perubahan (' + ids.length + ' baris) berhasil disimpan!');
                     loadAlertControl();
-                    $('#filterArea').on('change', function() {
-    areaFilter = $(this).val();
-    table.draw();
-    loadAlertControl();
-});
-
-$('#filterPlanner').on('change', function() {
-    plannerFilter = $(this).val();
-    table.draw();
-    loadAlertControl();
-});
-
-                    function showToastMsgPlanner(msg) {
-                        let toast = $('<div class="toast"><strong>Perhatian</strong>' + msg + '</div>');
-                        $('#toastContainer').append(toast);
-                        setTimeout(function() {
-                            toast.fadeOut(400, function() { toast.remove(); });
-                        }, 6000);
-                    }
-
-                    function updateDateColor() {
-                        $('#tablePlanner input[type="date"]').each(function() {
-                            if ($(this).val()) {
-                                $(this).removeClass('input-empty').addClass('input-filled');
-                            } else {
-                                $(this).removeClass('input-filled').addClass('input-empty');
-                            }
-                        });
-                    }
-
-                    $(document).on('change', '#tablePlanner input[type="date"]', function() {
-                        updateDateColor();
-                    });
-
-                    document.addEventListener('paste', function(e) {
-                        let el = document.activeElement;
-                        if (el.type !== 'date') return;
-
-                        e.preventDefault();
-                        let txt = (e.clipboardData || window.clipboardData).getData('text').trim();
-
-                        let m = txt.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-                        if (m) {
-                            let hasil = m[3] + '-' + m[2].padStart(2, '0') + '-' + m[1].padStart(2, '0');
-                            el.value = hasil;
-                            el.dispatchEvent(new Event('change'));
-                            return;
-                        }
-
-                        if (/^\d{4}-\d{2}-\d{2}$/.test(txt)) {
-                            el.value = txt;
-                            el.dispatchEvent(new Event('change'));
-                        }
-                    });
-
-                    $(document).on('copy', 'input[type="date"]', function(e) {
-                        e.preventDefault();
-                        const value = $(this).val();
-                        e.originalEvent.clipboardData.setData('text/plain', value);
-                    });
-
-                    $(document).on('paste', 'input[type="date"]', function(e) {
-                        e.preventDefault();
-                        const pasted = (e.originalEvent || e).clipboardData.getData('text').trim();
-                        if (/^\d{4}-\d{2}-\d{2}$/.test(pasted)) {
-                            $(this).val(pasted).trigger('change');
-                        }
-                    });
-
-                    $('.select2-modal').select2({
-                        theme: 'bootstrap-5',
-                        dropdownParent: $('#addModal'),
-                        width: '100%'
-                    });
+                    table.ajax.reload(null, false);
+                })
+                .fail(function() {
+                    alert('Sebagian data gagal disimpan, cek console.');
+                })
+                .always(function() {
+                    btn.prop('disabled', false)
+                       .html('<i class="fa-solid fa-floppy-disk"></i> Save <span id="unsavedCount" class="badge bg-danger rounded-pill" style="display:none;">0</span>');
                 });
+        });
 
-                $('#formGudang23').on('submit', function(e) {
-                    e.preventDefault();
-                    $.ajax({
-                        url: "{{ route('planner.updateGudang23') }}",
-                        type: "POST",
-                        data: $(this).serialize(),
-                        success: function(res) {
-                            alert(res.message);
-                            $('#modalGudang23').modal('hide');
-                            location.reload();
-                        },
-                        error: function(xhr) {
-                            console.log(xhr.responseText);
-                            alert('Gagal update data');
-                        }
-                    });
-                });
-            </script>
+        // ==========================================================
+        // ALERT CONTROL
+        // ==========================================================
+        function loadAlertControl() {
+            $.getJSON("{{ route('planner.alerts') }}", {
+                planner_filter: plannerFilter,
+                area_filter: areaFilter
+            }, function(res) {
+                renderMissingFieldSummaryPlanner(res.missingSummary || {});
+                renderAlertControlPlanner(res.alerts || []);
+            }).fail(function() {
+                $('#missingFieldSummary').html('<span class="badge gray">Gagal memuat</span>');
+                $('#alertControlList').html('<div class="p-2" style="color:#ef4444;">Gagal memuat data</div>');
+            });
+        }
+
+        function renderMissingFieldSummaryPlanner(missingSummary) {
+            let entries = Object.entries(missingSummary).sort((a, b) => b[1] - a[1]);
+
+            if (entries.length === 0) {
+                $('#missingFieldSummary').html('<span class="badge green">✅ Semua data lengkap</span>');
+                return;
+            }
+
+            let html = entries.map(function(e) {
+                return '<span class="badge red">' + e[0] + ': ' + e[1] + '</span>';
+            }).join(' ');
+
+            $('#missingFieldSummary').html(html);
+        }
+
+        function renderAlertControlPlanner(alertList) {
+            $('#alertControlCount').text(alertList.length + ' Alert');
+
+            if (alertList.length === 0) {
+                $('#alertControlList').html('<div class="p-2" style="color:#22c55e;">✅ Semua shipment sudah lengkap datanya</div>');
+                return;
+            }
+
+            let html = alertList.map(function(a) {
+                let sev = a.emptyCount >= 4 ? 'red' : a.emptyCount >= 2 ? 'orange' : 'yellow';
+                return '' +
+                    '<div class="alert-item" data-id="' + a.id + '">' +
+                        '<div class="alert-top">' +
+                            '<b>🚚 ' + a.shipment + '</b>' +
+                            '<span class="badge ' + sev + '">' + a.emptyCount + ' kosong</span>' +
+                        '</div>' +
+                        '<div class="alert-missing">Belum diisi: ' + a.missing.join(', ') + '</div>' +
+                    '</div>';
+            }).join('');
+
+            $('#alertControlList').html(html);
+        }
+
+        // Klik item alert -> cari baris via search DataTables server-side
+        $(document).on('click', '.alert-item', function() {
+            let id = $(this).data('id');
+            let shipmentText = $(this).find('b').text().replace('🚚', '').trim();
+
+            table.search(shipmentText).draw();
+
+            setTimeout(function() {
+                let $row = $('#tablePlanner tr[data-id="' + id + '"]');
+                if ($row.length) {
+                    $row.addClass('highlight-row');
+                    $row.get(0).scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    setTimeout(function() { $row.removeClass('highlight-row'); }, 2000);
+                }
+            }, 500);
+        });
+
+        loadAlertControl();
+
+        function showToastMsgPlanner(msg) {
+            let toast = $('<div class="toast"><strong>Perhatian</strong>' + msg + '</div>');
+            $('#toastContainer').append(toast);
+            setTimeout(function() {
+                toast.fadeOut(400, function() { toast.remove(); });
+            }, 6000);
+        }
+
+        function updateDateColor() {
+            $('#tablePlanner input[type="date"]').each(function() {
+                if ($(this).val()) {
+                    $(this).removeClass('input-empty').addClass('input-filled');
+                } else {
+                    $(this).removeClass('input-filled').addClass('input-empty');
+                }
+            });
+        }
+
+        $(document).on('change', '#tablePlanner input[type="date"]', function() {
+            updateDateColor();
+        });
+
+        document.addEventListener('paste', function(e) {
+            let el = document.activeElement;
+            if (el.type !== 'date') return;
+
+            e.preventDefault();
+            let txt = (e.clipboardData || window.clipboardData).getData('text').trim();
+
+            let m = txt.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+            if (m) {
+                let hasil = m[3] + '-' + m[2].padStart(2, '0') + '-' + m[1].padStart(2, '0');
+                el.value = hasil;
+                el.dispatchEvent(new Event('change'));
+                return;
+            }
+
+            if (/^\d{4}-\d{2}-\d{2}$/.test(txt)) {
+                el.value = txt;
+                el.dispatchEvent(new Event('change'));
+            }
+        });
+
+        $(document).on('copy', 'input[type="date"]', function(e) {
+            e.preventDefault();
+            const value = $(this).val();
+            e.originalEvent.clipboardData.setData('text/plain', value);
+        });
+
+        $(document).on('paste', 'input[type="date"]', function(e) {
+            e.preventDefault();
+            const pasted = (e.originalEvent || e).clipboardData.getData('text').trim();
+            if (/^\d{4}-\d{2}-\d{2}$/.test(pasted)) {
+                $(this).val(pasted).trigger('change');
+            }
+        });
+
+        $('.select2-modal').select2({
+            theme: 'bootstrap-5',
+            dropdownParent: $('#addModal'),
+            width: '100%'
+        });
+    });
+
+    $('#formGudang23').on('submit', function(e) {
+        e.preventDefault();
+        $.ajax({
+            url: "{{ route('planner.updateGudang23') }}",
+            type: "POST",
+            data: $(this).serialize(),
+            success: function(res) {
+                alert(res.message);
+                $('#modalGudang23').modal('hide');
+                location.reload();
+            },
+            error: function(xhr) {
+                console.log(xhr.responseText);
+                alert('Gagal update data');
+            }
+        });
+    });
+</script>
 
 </body>
 

@@ -511,6 +511,7 @@
                             <th>Nilai Muatan</th>
                             <th>Biaya Kirim</th>
                             <th>CR</th>
+                             <th>Kubikasi</th>
                             <th>Kategori Ekspedisi</th>
                             <th>Ekspedisi</th>
                             <th>Tanggal Dapat Unit</th>
@@ -641,7 +642,7 @@
                     { data: 55 }, { data: 56 }, { data: 57 }, { data: 58 }, { data: 59 },
                     { data: 60 }, { data: 61 }, { data: 62 }, { data: 63 }, { data: 64 },
                     { data: 65 }, { data: 66 }, { data: 67 }, { data: 68 }, { data: 69 },
-                    { data: 70 }, { data: 71 }, { data: 72 }, { data: 73 }
+                    { data: 70 }, { data: 71 }, { data: 72 }, { data: 73 }, { data: 74 }
                 ]
             });
 

@@ -261,11 +261,11 @@
                 <thead>
                     <tr>
                         <th>Tanggal Keluar Gudang</th>
-                        <th>Act PGI Date</th>
+                       <th class="editable">Act PGI Date</th> 
                         <th>Dist Channel</th>
                         <th>Area</th>
                         <th>No Shipment</th>
-                        <th>Tujuan</th>
+                       <th class="editable">Tujuan</th>   
                         <th>Ekspedisi</th>
                         <th class="editable">PIC</th>
                         <th class="editable">Status</th>
@@ -520,6 +520,7 @@ $(window).on('resize', function() {
                             action_required: row.find('[name="action_required"]').val(),
                             act_urutan_bongkar: row.find('[name="act_urutan_bongkar"]').val(),
                             tanggal_tiba: row.find('[name="tanggal_tiba"]').val(),
+                             tujuan: row.find('[name="tujuan"]').val(),
                             tanggal_bongkar: row.find('[name="tanggal_bongkar"]').val(),
                             reason_tiba: row.find('[name="reason_tiba"]').val(),
                             reason_bongkar: row.find('[name="reason_bongkar"]').val(),
@@ -565,7 +566,8 @@ $(window).on('resize', function() {
                         $(this).select2({
                             width: 'resolve',
                             placeholder: 'Pilih Reason',
-                            allowClear: true
+  allowClear: true,
+            dropdownParent: $('body')
                         });
                     });
                 }

@@ -37,7 +37,7 @@ class UserController extends Controller
             'username' => 'required|unique:users',
             'password' => 'required',
             'role' => 'required',
-            'dist_channel' => 'required',
+             'dist_channel' => 'required_if:role,sales',
         ]);
 
         User::create([

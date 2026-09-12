@@ -452,6 +452,7 @@ class LogistikController extends Controller
                 'nilai_muatan_fmt'            => 'Rp ' . number_format((float) $r->nilai_muatan, 0, ',', '.'),
                 'biaya_kirim_fmt'             => 'Rp ' . number_format((float) $r->biaya_kirim, 0, ',', '.'),
                 'cr_fmt'                      => $this->formatCR($this->computeCR($r, $shipmentAgg)),
+                'kubikasi_fmt'                => $this->formatPersen($r->kubikasi ?? null),
                 'kategori_ekspedisi_badge'    => $this->badgeKategoriEkspedisi($r->kategori_ekspedisi),
                 'ekpedisi'                    => $r->ekpedisi,
                 'tanggal_dpt_unit_fmt'        => $this->fmtDate($r->tanggal_dpt_unit),
@@ -495,7 +496,7 @@ class LogistikController extends Controller
                 'total_biaya_kuli'            => $r->total_biaya_kuli ? 'Rp ' . number_format($r->total_biaya_kuli, 0, ',', '.') : '',
                 'selisih_qty'                 => $r->selisih_qty,
                 'remarks_qty'                 => $r->remarks_qty,
-                'create_tgl'                  => $r->create_tgl ? Carbon::parse($r->create_tgl)->format('d/m/Y H:i') : '-',
+                'act_pgi_date'                  => $r->act_pgi_date ? Carbon::parse($r->act_pgi_date)->format('d/m/Y') : '-',
 
                 'atd'                         => $r->atd,
                 'ata'                         => $r->ata,
@@ -1080,6 +1081,13 @@ class LogistikController extends Controller
 
         return $kontribusi * $totalCR;
     }
+    private function formatPersen($value): string
+{
+    if ($value === null || $value === '') {
+        return '-';
+    }
+    return number_format((float) $value, 2, ',', '.') . '%';
+}
 
     private function formatCR(float $cr): string
     {
@@ -1253,7 +1261,7 @@ class LogistikController extends Controller
             $badge = 'green';
         } elseif (!empty($tibaAkhir)) {
             $status = 'SUDAH TIBA TUJUAN';
-            $badge = 'success';
+            $badge = 'pink';
         } else {
             $status = '-';
             $badge = 'gray';

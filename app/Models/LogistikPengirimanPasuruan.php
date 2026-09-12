@@ -59,6 +59,7 @@ class LogistikPengirimanPasuruan extends Model
 
     'tanggal_terima_po_pasuruan',
     'rencana_kirim_pasuruan',
+    'kubikasi_pasuruan',
     'transport_lead_time_pasuruan',
 
     'planner_pasuruan',

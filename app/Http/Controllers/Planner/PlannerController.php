@@ -18,7 +18,7 @@ class PlannerController extends Controller
         $data = $request->only([
             'create_tgl',
             'no_shipment',
-            // 'kubikasi',
+            'kubikasi',
             'planner',
             'dist_channel',
             'transport_lead_time',
@@ -50,7 +50,7 @@ class PlannerController extends Controller
             'pulau',
             'via_kirim'
         ]);
-        // $data['kubikasi'] = $this->cleanPersen($request->kubikasi);
+        $data['kubikasi'] = $this->cleanPersen($request->kubikasi);
 
         LogistikPengiriman::create(array_merge($data, $rumus));
 
@@ -256,7 +256,7 @@ class PlannerController extends Controller
             'tujuan'           => $request->tujuan,
             'pulau'            => $request->pulau,
             'total_do_qty_car' => $request->total_do_qty_car,
-            //  'kubikasi'         => $this->cleanPersen($request->kubikasi),
+             'kubikasi'         => $this->cleanPersen($request->kubikasi),
             'nilai_muatan'     => $this->cleanMoney($request->nilai_muatan),
             'updated_at'       => now(),
         ];
@@ -441,7 +441,7 @@ class PlannerController extends Controller
              'tujuan'           => $request->tujuan,
             'pulau'            => $request->pulau,
             'total_do_qty_car' => $request->total_do_qty_car,
-            // 'kubikasi'         => $this->cleanPersen($request->kubikasi),
+            'kubikasi'         => $this->cleanPersen($request->kubikasi),
             'nilai_muatan'     => $this->cleanMoney($request->nilai_muatan),
             'updated_at'       => now(),
         ];
@@ -860,8 +860,8 @@ class PlannerController extends Controller
            
             // 30 cr
             '<input type="text" ' . $formAttr . ' name="cr" class="row-cr" readonly style="background:#f1f5f9;color:#0284c7;font-weight:600;" value="' . e(is_numeric($r->cr) ? number_format((float) $r->cr, 4) : $r->cr) . '">',
-              // Kubikasi
-            // '<input type="number" step="0.01" ' . $formAttr . ' name="kubikasi" value="' . e($r->kubikasi) . '">',
+// SESUDAH — text input, diformat pakai helper yang sudah ada
+$textInput('kubikasi', $formattedPersen($r->kubikasi), 'row-kubikasi'),
             // 31 status mobil
             $statusMobilHtml,
             // 32 lama waktu pencarian
@@ -901,12 +901,13 @@ public function alerts(Request $request)
         'mobil'       => 'Mobil',
         'ekpedisi'    => 'Ekspedisi',
         'route'       => 'Route',
+        'kubikasi'       => 'Kubikasi',
         'nama_driver' => 'Nama Driver',
         'no_pol'      => 'No Pol',
     ];
 
     $query = DB::table('logistik_pengiriman')
-        ->select('id', 'no_shipment', 'mobil', 'ekpedisi', 'route', 'nama_driver', 'no_pol');
+        ->select('id', 'no_shipment', 'mobil', 'ekpedisi', 'route', 'kubikasi', 'nama_driver', 'no_pol');
 
     // ===== FILTER ikut sama seperti dataAjax() =====
     if ($request->filled('planner_filter')) {
@@ -920,6 +921,7 @@ public function alerts(Request $request)
             $q->whereNull('mobil')->orWhere('mobil', '')
               ->orWhereNull('ekpedisi')->orWhere('ekpedisi', '')
               ->orWhereNull('route')->orWhere('route', '')
+              ->orWhereNull('kubikasi')->orWhere('kubikasi', '')
               ->orWhereNull('nama_driver')->orWhere('nama_driver', '')
               ->orWhereNull('no_pol')->orWhere('no_pol', '');
         })

@@ -1,5 +1,6 @@
 <?php
 
+
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
@@ -21,6 +22,7 @@ class PasuruanController extends Controller
         'no_shipment_pasuruan',
         'biaya_kuli_pasuruan',
         'total_biaya_kuli_pasuruan',
+        'kubikasi_pasuruan',
         'tanggal_terima_po_pasuruan',
         'rencana_kirim_pasuruan',
         'transport_lead_time_pasuruan',
@@ -261,14 +263,51 @@ class PasuruanController extends Controller
     // PasuruanController.php
 private function applyFilter($query, Request $request)
 {
-    if ($request->filled('planner')) $query->where('planner', $request->planner);
-    if ($request->filled('area'))    $query->where('area', $request->area);
-    if ($request->filled('date'))    $query->whereDate('tanggal_naik', $request->date);
-    if ($request->filled('month'))   $query->whereMonth('tanggal_naik', $request->month);
-    if ($request->filled('year'))    $query->whereYear('tanggal_naik', $request->year);
+    if ($request->filled('planner')) {
+        $query->where('planner_pasuruan', $request->planner);
+    }
+
+    if ($request->filled('area')) {
+        $query->where('area_pasuruan', $request->area);
+    }
+
+    if ($request->filled('date')) {
+        $query->whereDate('tanggal_terima_po_pasuruan', $request->date);
+    }
+
+    if ($request->filled('month')) {
+        $query->whereMonth('tanggal_terima_po_pasuruan', $request->month);
+    }
+
+    if ($request->filled('year')) {
+        $query->whereYear('tanggal_terima_po_pasuruan', $request->year);
+    }
+
+    // Ikutkan juga kata kunci dari search box DataTables,
+    // supaya Archive/Hapus bisa berlaku ke hasil pencarian, bukan cuma dropdown.
+    if ($request->filled('search')) {
+        $searchValue = trim((string) $request->input('search'));
+
+        $query->where(function ($q) use ($searchValue) {
+            $cols = [
+                'planner_pasuruan', 'no_shipment_pasuruan', 'tujuan_pasuruan',
+                'route_pasuruan', 'pulau_pasuruan', 'area_pasuruan',
+                'via_kirim_pasuruan', 'dist_channel_pasuruan',
+                'kategori_ekspedisi_pasuruan', 'ekspedisi_pasuruan', 'mobil_pasuruan',
+            ];
+            foreach ($cols as $col) {
+                $q->orWhere($col, 'like', "%{$searchValue}%");
+            }
+        });
+    }
+
     return $query;
 }
-
+private function invalidatePlannerAreaCachePasuruan(): void
+{
+    Cache::forget('pasuruan_list_planner_pasuruan');
+    Cache::forget('pasuruan_list_area_pasuruan');
+}
 public function archiveFiltered(Request $request)
 {
     $rows = $this->applyFilter(
@@ -301,6 +340,19 @@ public function deleteFiltered(Request $request)
         'success',
         $count . ' data berhasil dihapus permanen.'
     );
+}
+
+public function import(Request $request)
+{
+    $request->validate([
+        'file' => 'required|mimes:xlsx,xls,csv',
+    ]);
+
+    Excel::import(new PasuruanImport, $request->file('file'));
+
+    return redirect()
+        ->route('pasuruan.dataLogistik')
+        ->with('success', 'Data Pasuruan berhasil diimport.');
 }
     private function recalculateCr(string $noShipment): float
     {
@@ -961,18 +1013,6 @@ public function deleteFiltered(Request $request)
             ->get();
     }
 
-    public function import(Request $request)
-    {
-        $request->validate([
-            'file' => 'required|mimes:xlsx,xls,csv',
-        ]);
-
-        Excel::import(new PasuruanImport, $request->file('file'));
-
-        return redirect()
-            ->route('pasuruan.dataLogistik')
-            ->with('success', 'Data Pasuruan berhasil diimport.');
-    }
 
     public function archiveAll()
     {
@@ -1123,6 +1163,8 @@ public function dataLogistikAjaxPasuruan(Request $request)
         48 => 'route_pasuruan',
         50 => 'pulau_pasuruan',
         51 => 'via_kirim_pasuruan',
+        52 => 'kubikasi_pasuruan',
+
     ];
 
     $orderColIndex = (int) $request->input('order.0.column', 0);
@@ -1149,9 +1191,10 @@ public function dataLogistikAjaxPasuruan(Request $request)
             'lead_time'                => $r->transport_lead_time_pasuruan,
             'planner'                  => $r->planner_pasuruan,
             'no_shipment'              => $r->no_shipment_pasuruan,
+             'tujuan'                   => $r->tujuan_pasuruan,
             'posisi_mobil_badge'       => $this->badgeStatusPosisiMobilPasuruan($r),
             'dist_channel_badge'       => $this->badgeDistChannelPasuruan($r->dist_channel_pasuruan),
-            'tujuan'                   => $r->tujuan_pasuruan,
+           
             'area'                     => $r->area_pasuruan,
             'ketersediaan_badge'       => $this->badgeKetersediaanUnitPasuruan($r),
             'mobil'                    => $r->mobil_pasuruan,
@@ -1159,6 +1202,9 @@ public function dataLogistikAjaxPasuruan(Request $request)
             'nilai_muatan_fmt'         => 'Rp ' . number_format((float) $r->nilai_muatan_pasuruan, 0, ',', '.'),
             'biaya_kirim_fmt'          => 'Rp ' . number_format((float) $r->biaya_kirim_pasuruan, 0, ',', '.'),
             'cr_fmt'                   => $this->formatCR($this->computeCRPasuruan($r, $agg)),
+            'kubikasi_pasuruan' => $r->kubikasi_pasuruan !== null
+    ? number_format((float) $r->kubikasi_pasuruan, 2, ',', '.') . '%'
+    : '-',
             'kategori_ekspedisi_badge' => $this->badgeKategoriEkspedisiPasuruan($r->kategori_ekspedisi_pasuruan),
             'ekspedisi'                => $r->ekspedisi_pasuruan,
             'tanggal_dpt_fmt'          => $r->tanggal_dpt_unit_pasuruan ? date('d-m-Y', strtotime($r->tanggal_dpt_unit_pasuruan)) : '-',
@@ -1559,6 +1605,7 @@ private function badgeStatusAlertPasuruan($r): string
             'mobil_pasuruan'                => 'nullable|string|max:100',
             'nilai_muatan_pasuruan'         => 'nullable|string',
             'biaya_kirim_pasuruan'          => 'nullable|string',
+            'kubikasi_pasuruan'             => 'nullable|string',
             'kategori_ekspedisi_pasuruan'   => 'nullable|string|max:100',
             'ekspedisi_pasuruan'             => 'nullable|string|max:100',
             'tanggal_terima_po_pasuruan'    => 'nullable|date',
@@ -1588,6 +1635,7 @@ private function badgeStatusAlertPasuruan($r): string
         // Bersihkan format "Rp 1.000.000" jadi angka murni sebelum disimpan
         $validated['nilai_muatan_pasuruan'] = $this->parseRupiah($validated['nilai_muatan_pasuruan'] ?? null);
         $validated['biaya_kuli_pasuruan']   = $this->parseRupiah($validated['biaya_kuli_pasuruan'] ?? null);
+        $validated['kubikasi_pasuruan']     = $this->cleanPersenPasuruan($validated['kubikasi_pasuruan'] ?? null); // ⬅️ TAMBAHAN
 
         // BIAYA KIRIM OTOMATIS (Route + Mobil + Ekspedisi), fallback ke input manual
         $autoBiayaKirim = $this->cariBiayaKirimOtomatisPasuruan(
@@ -1665,6 +1713,13 @@ private function badgeStatusAlertPasuruan($r): string
         if (array_key_exists('nilai_muatan_pasuruan', $data)) {
             $data['nilai_muatan_pasuruan'] = $this->parseRupiah($data['nilai_muatan_pasuruan']);
         }
+        if (array_key_exists('nilai_muatan_pasuruan', $data)) {
+    $data['nilai_muatan_pasuruan'] = $this->parseRupiah($data['nilai_muatan_pasuruan']);
+}
+
+if (array_key_exists('kubikasi_pasuruan', $data)) {
+    $data['kubikasi_pasuruan'] = $this->cleanPersenPasuruan($data['kubikasi_pasuruan']); // ⬅️ TAMBAHAN
+}
 
         // ============================================================
         // BIAYA KIRIM OTOMATIS (Route + Mobil + Ekspedisi)
@@ -1856,7 +1911,13 @@ private function badgeStatusAlertPasuruan($r): string
         if (array_key_exists('nilai_muatan_pasuruan', $data)) {
             $data['nilai_muatan_pasuruan'] = $this->parseRupiah($data['nilai_muatan_pasuruan']);
         }
+        if (array_key_exists('nilai_muatan_pasuruan', $data)) {
+    $data['nilai_muatan_pasuruan'] = $this->parseRupiah($data['nilai_muatan_pasuruan']);
+}
 
+if (array_key_exists('kubikasi_pasuruan', $data)) {
+    $data['kubikasi_pasuruan'] = $this->cleanPersenPasuruan($data['kubikasi_pasuruan']); // ⬅️ TAMBAHAN
+}
         // ============================================================
         // BIAYA KIRIM OTOMATIS (Route + Mobil + Ekspedisi)
         // ============================================================
@@ -1926,6 +1987,24 @@ private function badgeStatusAlertPasuruan($r): string
         return redirect()->route('pasuruan.admin')
             ->with('success', 'Data berhasil dihapus.');
     }
+
+    private function cleanPersenPasuruan($value): ?float
+{
+    if ($value === null || $value === '' || $value == '-') return null;
+
+    $value = str_replace('%', '', (string) $value);
+    $value = str_replace(',', '.', $value);
+    $value = preg_replace('/[^0-9.]/', '', $value);
+
+    if (!is_numeric($value)) return null;
+
+    $value = (float) $value;
+
+    if ($value < 0) $value = 0;
+    if ($value > 100) $value = 100;
+
+    return round($value, 2);
+}
 
     /**
      * Ubah "Rp 1.000.000" / "1.000.000" jadi angka murni (float).
@@ -2135,6 +2214,11 @@ private function renderRowColumnsPasuruan($r, array $lists)
         return $angkaMurni ? 'Rp ' . number_format((float) $angkaMurni, 0, ',', '.') : '';
     };
 
+    $formattedPersenPasuruan = function ($angka) {
+    if ($angka === null || $angka === '') return '';
+    return number_format((float) $angka, 2, ',', '.') . '%';
+};
+
     // Status Mobil
     $statusMobilHtml = !empty($r->tanggal_dpt_unit_pasuruan)
         ? '<span class="badge-status bg-success text-white">SUDAH DAPAT</span>'
@@ -2187,13 +2271,14 @@ private function renderRowColumnsPasuruan($r, array $lists)
         $hiddenForm . ($r->created_at ? \Carbon\Carbon::parse($r->created_at)->format('d/m/Y') : '-'),
         $textInput('planner_pasuruan', $r->planner_pasuruan),
         $textInput('no_shipment_pasuruan', $r->no_shipment_pasuruan, 'row-no-shipment'),
+          $textInput('tujuan_pasuruan', $r->tujuan_pasuruan),
         $dateInput('tanggal_terima_po_pasuruan', $r->tanggal_terima_po_pasuruan),
         $dateInput('rencana_kirim_pasuruan', $r->rencana_kirim_pasuruan),
         $dateInput('tanggal_dpt_unit_pasuruan', $r->tanggal_dpt_unit_pasuruan),
         $dateInput('planning_loading_pasuruan', $r->planning_loading_pasuruan),
         $dateInput('tanggal_tiba_gudang_pasuruan', $r->tanggal_tiba_gudang_pasuruan),
         $dateInput('tanggal_keluar_gudang_pasuruan', $r->tanggal_keluar_gudang_pasuruan),
-        $textInput('tujuan_pasuruan', $r->tujuan_pasuruan),
+      
         $buildSelect('route_pasuruan', $r->route_pasuruan, $lists['routeOptions'], 'row-route select-tarif-row'),
         $textInput('pulau_pasuruan', $r->pulau_pasuruan),
         $textInput('area_pasuruan', $r->area_pasuruan),
@@ -2206,7 +2291,9 @@ private function renderRowColumnsPasuruan($r, array $lists)
         $textInput('nama_driver_pasuruan', $r->nama_driver_pasuruan),
         $textInput('no_pol_pasuruan', $r->no_pol_pasuruan),
         '<input type="number" ' . $formAttr . ' name="total_do_pasuruan" value="' . e($r->total_do_pasuruan) . '">',
+        
         $textInput('nilai_muatan_pasuruan', $formattedRupiah($r->nilai_muatan_pasuruan), 'row-nilai-muatan input-rupiah'),
+        $textInput('kubikasi_pasuruan', $formattedPersenPasuruan($r->kubikasi_pasuruan), 'row-kubikasi-pasuruan'),
         $textInput('biaya_kirim_pasuruan', $formattedRupiah($r->biaya_kirim_pasuruan), 'row-biaya-kirim input-rupiah'),
         '<input type="text" ' . $formAttr . ' name="cr_pasuruan" class="row-cr" readonly style="background:#f1f5f9;color:#0284c7;font-weight:600;" value="' . e(is_numeric($r->cr_pasuruan) ? number_format((float) $r->cr_pasuruan, 4) . '%' : $r->cr_pasuruan) . '">',
         $statusMobilHtml,
@@ -2214,8 +2301,8 @@ private function renderRowColumnsPasuruan($r, array $lists)
         $slaMobilHtml,
         $r->route_pasuruan ? explode('-', trim($r->route_pasuruan))[0] : '-',
         $textInput('pic_monitoring_pasuruan', $r->pic_monitoring_pasuruan),
-        $r->created_at ? \Carbon\Carbon::parse($r->created_at)->format('d/m/Y') : '-',
-        '<input type="number" ' . $formAttr . ' name="act_urutan_bongkar_pasuruan" value="' . e($r->act_urutan_bongkar_pasuruan) . '">',
+       $dateInput('act_pgi_date_pasuruan', $r->act_pgi_date_pasuruan),
+'<input type="number" ' . $formAttr . ' name="act_urutan_bongkar_pasuruan" value="' . e($r->act_urutan_bongkar_pasuruan) . '">',
         '<input type="number" ' . $formAttr . ' name="selisih_quantity_pasuruan" value="' . e(($r->selisih_quantity_pasuruan === null || (float)$r->selisih_quantity_pasuruan === 0.0) ? '' : $r->selisih_quantity_pasuruan) . '">',
         '<input type="number" ' . $formAttr . ' name="actual_delivery_quantity_pasuruan" value="' . e($r->actual_delivery_quantity_pasuruan) . '" readonly style="background:#f1f5f9;">',
         '<input type="text" ' . $formAttr . ' name="biaya_kuli_pasuruan" class="rupiah-input" value="' . e($r->biaya_kuli_pasuruan ? number_format($r->biaya_kuli_pasuruan, 0, ',', '.') : '') . '">',

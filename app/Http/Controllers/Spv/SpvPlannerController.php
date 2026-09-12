@@ -1482,6 +1482,7 @@ public function deleteFilteredPasuruan(Request $request)
             'create_tgl',
             'no_shipment',
             'planner',
+            'kubikasi', 
             'dist_channel',
             'transport_lead_time',
             'tujuan',
@@ -1720,10 +1721,11 @@ public function deleteFilteredPasuruan(Request $request)
                     'updated_at'  => now(),
                 ]);
         }
-
+       
         $updateRow = [
             'tujuan'           => $request->tujuan,
             'pulau'            => $request->pulau,
+             'kubikasi'         => $this->cleanPersen($request->kubikasi), 
             'total_do_qty_car' => $request->total_do_qty_car,
             'nilai_muatan'     => $this->cleanMoney($request->nilai_muatan),
             'updated_at'       => now(),
@@ -1769,6 +1771,24 @@ public function deleteFilteredPasuruan(Request $request)
 
         return back()->with('success', 'Data berhasil diperbarui');
     }
+
+     private function cleanPersen($value)
+{
+    if ($value === null || $value === '') return null;
+
+    $value = str_replace(',', '.', $value);
+    $value = preg_replace('/[^0-9.]/', '', $value);
+
+    if (!is_numeric($value)) return null;
+
+    $value = (float) $value;
+
+    if ($value < 0) $value = 0;
+    if ($value > 100) $value = 100;
+
+    return round($value, 2);
+}
+
 
     private function cleanCr($value)
     {
@@ -1914,6 +1934,11 @@ public function deleteFilteredPasuruan(Request $request)
      */
     private function renderRowColumns($r, array $lists)
     {
+
+    $formattedPersen = function ($angka) {
+    if ($angka === null || $angka === '') return '';
+    return number_format((float) $angka, 2, ',', '.') . '%';
+};
         $id = $r->id;
         $formAttr = 'form="form-update-' . $id . '"';
 
@@ -2099,6 +2124,8 @@ public function deleteFilteredPasuruan(Request $request)
             $textInput('biaya_kirim', $formattedRupiah($r->biaya_kirim), 'row-biaya-kirim input-rupiah'),
             // 30 cr
             '<input type="text" ' . $formAttr . ' name="cr" class="row-cr" readonly style="background:#f1f5f9;color:#0284c7;font-weight:600;" value="' . e(is_numeric($r->cr) ? number_format((float) $r->cr, 4) : $r->cr) . '">',
+            // 31 kubikasi
+$textInput('kubikasi', $formattedPersen($r->kubikasi), 'row-kubikasi'),
             // 31 status mobil
             $statusMobilHtml,
             // 32 lama waktu pencarian
@@ -2138,12 +2165,13 @@ public function deleteFilteredPasuruan(Request $request)
             'mobil'       => 'Mobil',
             'ekpedisi'    => 'Ekspedisi',
             'route'       => 'Route',
+            'kubikasi'    => 'Kubikasi',
             'nama_driver' => 'Nama Driver',
             'no_pol'      => 'No Pol',
         ];
 
         $query = DB::table('logistik_pengiriman')
-            ->select('id', 'no_shipment', 'mobil', 'ekpedisi', 'route', 'nama_driver', 'no_pol');
+            ->select('id', 'no_shipment', 'mobil', 'ekpedisi', 'route', 'nama_driver', 'no_pol', 'kubikasi');
 
         if ($request->filled('planner_filter')) {
             $query->where('planner', $request->input('planner_filter'));
@@ -2157,6 +2185,7 @@ public function deleteFilteredPasuruan(Request $request)
                 ->orWhereNull('ekpedisi')->orWhere('ekpedisi', '')
                 ->orWhereNull('route')->orWhere('route', '')
                 ->orWhereNull('nama_driver')->orWhere('nama_driver', '')
+                  ->orWhereNull('kubikasi')->orWhere('kubikasi', '')
                 ->orWhereNull('no_pol')->orWhere('no_pol', '');
         })
             ->get();
@@ -2367,6 +2396,9 @@ $this->applyGlobalSearch($baseQuery, $searchValue, 'logistik_pengiriman');
      */
     private function renderFullDataRow($r)
     {
+        $formattedKubikasi = ($r->kubikasi !== null && $r->kubikasi !== '')
+    ? number_format((float) $r->kubikasi, 2, ',', '.') . '%'
+    : '-';
         $badgeSla = function ($sla) {
             $sla = trim((string) $sla);
             if ($sla === '' || $sla === '-' || $sla === 'null') {
@@ -2708,6 +2740,7 @@ $this->applyGlobalSearch($baseQuery, $searchValue, 'logistik_pengiriman');
             $fmtRupiah($r->nilai_muatan),
             $fmtRupiah($r->biaya_kirim),
             is_numeric($r->cr) ? number_format((float) $r->cr, 4, ',', '.') . '%' : ($r->cr ?? '-'),
+            $formattedKubikasi,
             $kategoriHtml,
             $r->ekpedisi,
             $r->tanggal_dpt_unit ? date('d-m-Y', strtotime($r->tanggal_dpt_unit)) : '-',
@@ -2743,7 +2776,7 @@ $this->applyGlobalSearch($baseQuery, $searchValue, 'logistik_pengiriman');
             $fmtRupiahOrBlank($r->total_biaya_kuli),
             $r->selisih_qty,
             $r->remarks_qty,
-            $r->create_tgl ? \Carbon\Carbon::parse($r->create_tgl)->format('d/m/Y H:i') : '-',
+            $r->act_pgi_date ? \Carbon\Carbon::parse($r->act_pgi_date)->format('d/m/Y') : '-',
             $r->atd,
             $r->ata,
             $statusGudang ? $statusGudang['status'] : $estimasiShow,
@@ -3127,6 +3160,7 @@ $this->applyGlobalSearch($baseQuery, $searchValue, 'logistik_pengiriman');
 
         $updateRow = [
             'total_do_qty_car' => $request->total_do_qty_car,
+             'kubikasi'         => $this->cleanPersen($request->kubikasi),  
             'nilai_muatan'     => $this->cleanMoney($request->nilai_muatan),
             'updated_at'       => now(),
                      'tujuan'    => $request->tujuan,

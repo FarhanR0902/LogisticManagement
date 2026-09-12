@@ -743,11 +743,11 @@ font-size: 16px;
         @endif
 
         <div class="import-box">
-            <form action="{{ route('spvplanner.import.pasuruan') }}" method="POST" enctype="multipart/form-data">
-                @csrf
-                <input type="file" name="file" required>
-                <button type="submit">📤 Import Excel</button>
-            </form>
+          <form action="{{ route('pasuruan.import') }}" method="POST" enctype="multipart/form-data">
+    @csrf
+    <input type="file" name="file" required accept=".xlsx,.xls,.csv">
+    <button type="submit">📤 Import Excel</button>
+</form>
         </div>
 
         <a href="#" id="btnExportExcel" class="btn-export">
@@ -765,26 +765,26 @@ font-size: 16px;
             </button>
             <span id="filterInfoBadge" class="filter-info-badge">Tanpa filter aktif (akan berlaku ke SEMUA data)</span>
         </div>
+<form id="archiveFilteredForm" action="{{ route('pasuruan.archiveFiltered') }}" method="POST" style="display:none;">
+    @csrf
+    <input type="hidden" name="planner" id="archivePlanner">
+    <input type="hidden" name="area" id="archiveArea">
+    <input type="hidden" name="date" id="archiveDate">
+    <input type="hidden" name="month" id="archiveMonth">
+    <input type="hidden" name="year" id="archiveYear">
+    <input type="hidden" name="search" id="archiveSearch">
+</form>
 
-        <form id="archiveFilteredForm" action="{{ route('spvplanner.archive.filtered') }}" method="POST" style="display:none;">
-            @csrf
-            <input type="hidden" name="planner" id="archivePlanner">
-            <input type="hidden" name="area" id="archiveArea">
-            <input type="hidden" name="date" id="archiveDate">
-            <input type="hidden" name="month" id="archiveMonth">
-            <input type="hidden" name="year" id="archiveYear">
-        </form>
-
-        <form id="deleteFilteredForm" action="{{ route('spvplanner.delete.filtered') }}" method="POST" style="display:none;">
-            @csrf
-            @method('DELETE')
-            <input type="hidden" name="planner" id="deletePlanner">
-            <input type="hidden" name="area" id="deleteArea">
-            <input type="hidden" name="date" id="deleteDate">
-            <input type="hidden" name="month" id="deleteMonth">
-            <input type="hidden" name="year" id="deleteYear">
-        </form>
-
+<form id="deleteFilteredForm" action="{{ route('pasuruan.deleteFiltered') }}" method="POST" style="display:none;">
+    @csrf
+    @method('DELETE')
+    <input type="hidden" name="planner" id="deletePlanner">
+    <input type="hidden" name="area" id="deleteArea">
+    <input type="hidden" name="date" id="deleteDate">
+    <input type="hidden" name="month" id="deleteMonth">
+    <input type="hidden" name="year" id="deleteYear">
+    <input type="hidden" name="search" id="deleteSearch">
+</form>
         <div class="filter-box">
             <form id="filterForm">
 
@@ -847,6 +847,7 @@ font-size: 16px;
                         <th>Nilai Muatan</th>
                         <th>Biaya Kirim</th>
                         <th>CR</th>
+                          <th>Kubikasi %</th>
                         <th>Kategori Ekspedisi</th>
                         <th>Ekspedisi</th>
                         <th>Tanggal Dapat Unit</th>
@@ -943,6 +944,7 @@ $.ajaxSetup({
                 { data: 'nilai_muatan_fmt' },
                 { data: 'biaya_kirim_fmt' },
                 { data: 'cr_fmt' },
+                { data: 'kubikasi_pasuruan' },
                 { data: 'kategori_ekspedisi_badge' },
                 { data: 'ekspedisi' },
                 { data: 'tanggal_dpt_fmt' },
@@ -1009,15 +1011,117 @@ $.ajaxSetup({
         // ==========================================
         // HELPER: ambil filter aktif dari filter-box
         // ==========================================
-        function getActiveFilters() {
-            return {
-                planner: $('#filterPlanner').val() || '',
-                area:    $('#filterArea').val()    || '',
-                date:    $('#filterDate').val()    || '',
-                month:   $('#filterMonth').val()   || '',
-                year:    $('#filterYear').val()    || ''
-            };
-        }
+     function getActiveFilters() {
+    return {
+        planner: $('#filterPlanner').val() || '',
+        area:    $('#filterArea').val()    || '',
+        date:    $('#filterDate').val()    || '',
+        month:   $('#filterMonth').val()   || '',
+        year:    $('#filterYear').val()    || '',
+        search:  table.search() || ''   // ambil dari search box DataTables yang lagi aktif
+    };
+}
+
+function hasActiveFilter(f) {
+    return !!(f.planner || f.area || f.date || f.month || f.year || f.search);
+}
+
+function describeFilter(f) {
+    let parts = [];
+    if (f.planner) parts.push('Planner: ' + f.planner);
+    if (f.area)    parts.push('Area: ' + f.area);
+    if (f.date)    parts.push('Tanggal: ' + f.date);
+    if (f.month)   parts.push('Bulan: ' + f.month);
+    if (f.year)    parts.push('Tahun: ' + f.year);
+    if (f.search)  parts.push('Pencarian: "' + f.search + '"');
+    return parts.length ? parts.join(', ') : 'Tanpa filter (SEMUA DATA)';
+}
+
+// function updateFilterInfoBadge() {
+//     let f = getActiveFilters();
+//     $('#filterInfoBadge').text(
+//         hasActiveFilter(f)
+//             // ? 'Filter aktif -> ' + describeFilter(f)
+//             // : 'Tanpa filter aktif (akan berlaku ke SEMUA data)'
+//     );
+// }
+
+// Filter dropdown/date/month/year -> reload data dari server
+$('#filterArea, #filterPlanner, #filterDate, #filterMonth, #filterYear').on('change', function() {
+    table.ajax.reload();
+    updateFilterInfoBadge();
+});
+
+// BARU: search box bawaan DataTables juga update badge info real-time
+table.on('search.dt', function() {
+    updateFilterInfoBadge();
+});
+
+$('#btnResetFilter').on('click', function(e) {
+    e.preventDefault();
+    $('#filterForm')[0].reset();
+    table.search('');       // BARU: reset juga search box DataTables
+    table.ajax.reload();
+    updateFilterInfoBadge();
+});
+
+updateFilterInfoBadge();
+
+// ==========================================
+// ARCHIVE SESUAI FILTER
+// ==========================================
+$('#btnArchiveFiltered').on('click', function() {
+    let f = getActiveFilters();
+    let msg = hasActiveFilter(f)
+        ? 'Arsipkan data dengan filter berikut ke Storage?\n\n' + describeFilter(f)
+        : 'Tidak ada filter aktif. Ini akan mengarsipkan SEMUA data ke Storage. Lanjutkan?';
+
+    if (!confirm(msg)) return;
+
+    $('#archivePlanner').val(f.planner);
+    $('#archiveArea').val(f.area);
+    $('#archiveDate').val(f.date);
+    $('#archiveMonth').val(f.month);
+    $('#archiveYear').val(f.year);
+    $('#archiveSearch').val(f.search);
+    $('#archiveFilteredForm').trigger('submit');
+});
+
+// ==========================================
+// HAPUS SESUAI FILTER (permanen)
+// ==========================================
+$('#btnDeleteFiltered').on('click', function() {
+    let f = getActiveFilters();
+
+    if (!hasActiveFilter(f)) {
+        if (!confirm('Tidak ada filter aktif. Ini akan MENGHAPUS PERMANEN SEMUA data. Lanjutkan?')) return;
+        if (!confirm('Konfirmasi sekali lagi: HAPUS SEMUA DATA tanpa filter secara permanen?')) return;
+    } else {
+        if (!confirm('HAPUS PERMANEN data dengan filter berikut?\n\n' + describeFilter(f) + '\n\nData tidak dapat dikembalikan!')) return;
+    }
+
+    $('#deletePlanner').val(f.planner);
+    $('#deleteArea').val(f.area);
+    $('#deleteDate').val(f.date);
+    $('#deleteMonth').val(f.month);
+    $('#deleteYear').val(f.year);
+    $('#deleteSearch').val(f.search);
+    $('#deleteFilteredForm').trigger('submit');
+});
+function hasActiveFilter(f) {
+    return !!(f.planner || f.area || f.date || f.month || f.year || f.search);
+}
+
+function describeFilter(f) {
+    let parts = [];
+    if (f.planner) parts.push('Planner: ' + f.planner);
+    if (f.area)    parts.push('Area: ' + f.area);
+    if (f.date)    parts.push('Tanggal: ' + f.date);
+    if (f.month)   parts.push('Bulan: ' + f.month);
+    if (f.year)    parts.push('Tahun: ' + f.year);
+    if (f.search)  parts.push('Pencarian: "' + f.search + '"');   // BARU
+    return parts.length ? parts.join(', ') : 'Tanpa filter (SEMUA DATA)';
+}
 
         function hasActiveFilter(f) {
             return !!(f.planner || f.area || f.date || f.month || f.year);
@@ -1060,21 +1164,41 @@ $.ajaxSetup({
         // ==========================================
         // ARCHIVE SESUAI FILTER
         // ==========================================
-        $('#btnArchiveFiltered').on('click', function() {
-            let f = getActiveFilters();
-            let msg = hasActiveFilter(f)
-                ? 'Arsipkan data dengan filter berikut ke Storage?\n\n' + describeFilter(f)
-                : 'Tidak ada filter aktif. Ini akan mengarsipkan SEMUA data ke Storage. Lanjutkan?';
+     $('#btnArchiveFiltered').on('click', function() {
+    let f = getActiveFilters();
+    let msg = hasActiveFilter(f)
+        ? 'Arsipkan data dengan filter berikut ke Storage?\n\n' + describeFilter(f)
+        : 'Tidak ada filter aktif. Ini akan mengarsipkan SEMUA data ke Storage. Lanjutkan?';
 
-            if (!confirm(msg)) return;
+    if (!confirm(msg)) return;
 
-            $('#archivePlanner').val(f.planner);
-            $('#archiveArea').val(f.area);
-            $('#archiveDate').val(f.date);
-            $('#archiveMonth').val(f.month);
-            $('#archiveYear').val(f.year);
-            $('#archiveFilteredForm').trigger('submit');
-        });
+    $('#archivePlanner').val(f.planner);
+    $('#archiveArea').val(f.area);
+    $('#archiveDate').val(f.date);
+    $('#archiveMonth').val(f.month);
+    $('#archiveYear').val(f.year);
+    $('#archiveSearch').val(f.search);   // BARU
+    $('#archiveFilteredForm').trigger('submit');
+});
+
+$('#btnDeleteFiltered').on('click', function() {
+    let f = getActiveFilters();
+
+    if (!hasActiveFilter(f)) {
+        if (!confirm('Tidak ada filter aktif. Ini akan MENGHAPUS PERMANEN SEMUA data. Lanjutkan?')) return;
+        if (!confirm('Konfirmasi sekali lagi: HAPUS SEMUA DATA tanpa filter secara permanen?')) return;
+    } else {
+        if (!confirm('HAPUS PERMANEN data dengan filter berikut?\n\n' + describeFilter(f) + '\n\nData tidak dapat dikembalikan!')) return;
+    }
+
+    $('#deletePlanner').val(f.planner);
+    $('#deleteArea').val(f.area);
+    $('#deleteDate').val(f.date);
+    $('#deleteMonth').val(f.month);
+    $('#deleteYear').val(f.year);
+    $('#deleteSearch').val(f.search);   // BARU
+    $('#deleteFilteredForm').trigger('submit');
+});
 
         // ==========================================
         // HAPUS SESUAI FILTER (permanen)

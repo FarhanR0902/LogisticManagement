@@ -90,6 +90,11 @@ class MonitoringController extends Controller
             return LogistikPengiriman::whereNotNull('pic_monitoring')
                 ->distinct()->orderBy('pic_monitoring')->pluck('pic_monitoring');
         });
+         $tujuanList = Cache::remember('monitoring_tujuan_list', 3600, function () {
+        return DB::table('tujuanfillterr')
+            ->whereNotNull('tujuan')->where('tujuan', '!=', '')
+            ->distinct()->orderBy('tujuan')->pluck('tujuan');
+    });
 
         $akurasiTiba = Cache::remember('monitoring_akurasi_tiba', 3600, function () {
             return DB::table('akurasi3')->distinct()->pluck('akurasi_waktu_tiba');
@@ -114,6 +119,7 @@ class MonitoringController extends Controller
         return view('monitoring.data_monitoring', compact(
             'areaList',
             'picList',
+             'tujuanList', 
             'akurasiTiba',
             'akurasiBongkar',
             'akurasiQty',
@@ -192,7 +198,7 @@ class MonitoringController extends Controller
         // sengaja tidak dimasukkan -> disable orderable di JS.
         $orderColumnMap = [
             0  => 'tanggal_keluar_gudang',
-            1  => 'create_tgl',
+           1  => 'act_pgi_date',
             2  => 'dist_channel',
             3  => 'area',
             4  => 'no_shipment',
@@ -275,8 +281,13 @@ class MonitoringController extends Controller
         $akurasiQty = Cache::remember('monitoring_akurasi_qty', 3600, function () {
             return DB::table('akurasi3')->distinct()->pluck('remarks_qty');
         });
+        $tujuanList = Cache::remember('monitoring_tujuan_list', 3600, function () {
+    return DB::table('tujuanfillterr')
+        ->whereNotNull('tujuan')->where('tujuan', '!=', '')
+        ->distinct()->orderBy('tujuan')->pluck('tujuan');
+});
 
-        $lists = compact('akurasiTiba', 'akurasiBongkar', 'akurasiQty');
+       $lists = compact('akurasiTiba', 'akurasiBongkar', 'akurasiQty', 'tujuanList');
 
         $data = [];
         foreach ($rows as $r) {
@@ -429,16 +440,16 @@ if ($blocked) {
 $blocked
     ? '<span class="badge red">' . e($blockedLabel) . '</span>'
     : ($keluar ? '<span class="badge green">' . date('d-m-Y', $keluar) . '</span>' : '-'),
-            // 1 Act PGI Date (editable)
-                  e($r->create_tgl),
+         // 1 Act PGI Date (editable) — pakai kolom act_pgi_date, bukan create_tgl
+'<input type="date" name="act_pgi_date" value="' . ($r->act_pgi_date ? date('Y-m-d', strtotime($r->act_pgi_date)) : '') . '">',
             // 2 Dist Channel
             e($r->dist_channel),
             // 3 Area
             e($r->area),
             // 4 No Shipment
             e($r->no_shipment),
-            // 5 Tujuan
-            e($r->tujuan),
+ // 5 Tujuan (editable, searchable dropdown dari tujuanfillterr)
+$selectBox('tujuan', $r->tujuan, $lists['tujuanList'], 'Pilih Tujuan'),
             // 6 Ekspedisi
             e($r->ekpedisi),
             // 7 PIC (editable)
@@ -645,6 +656,7 @@ $blocked
         }
 
         $logistik->reason_tiba    = $request->reason_tiba;
+        $logistik->tujuan         = $request->input('tujuan', $logistik->tujuan);
         $logistik->reason_bongkar = $request->reason_bongkar;
 
         $logistik->pic_monitoring   = $request->pic_monitoring;

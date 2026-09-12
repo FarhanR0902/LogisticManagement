@@ -632,6 +632,7 @@
                                     <th class="th-system">Nilai Muatan</th>
                                     <th class="th-system">Biaya Kirim</th>
                                     <th class="th-system">CR (%)</th>
+                                    <th class="th-system">Kubikasi (%)</th>
 
                                     <th class="th-system">Status Mobil</th>
                                     <th class="th-system">Lama Waktu Pencarian</th>
@@ -714,6 +715,62 @@
 
                 $(document).ready(function() {
 
+                function formatKePersen(angka) {
+    if (angka === '' || angka === null || isNaN(angka)) return '';
+    let n = parseFloat(angka);
+    if (n < 0) n = 0;
+    if (n > 100) n = 100;
+    return n.toFixed(2).replace('.', ',') + '%';
+}
+
+function ambilAngkaPersen(teks) {
+    if (!teks) return 0;
+    let bersih = String(teks).replace(/[^0-9.,]/g, '').replace(',', '.');
+    let n = parseFloat(bersih) || 0;
+    if (n < 0) n = 0;
+    if (n > 100) n = 100;
+    return n;
+}
+
+// ROW — pakai pola focus/input/blur biar bisa multi-digit (lihat penjelasan sebelumnya)
+$(document).on('focus', '.row-kubikasi', function() {
+    let raw = ambilAngkaPersen($(this).val());
+    $(this).val(raw === 0 ? '' : String(raw).replace('.', ','));
+});
+
+$(document).on('input', '.row-kubikasi', function() {
+    let val = $(this).val().replace(/[^0-9,]/g, '');
+    let parts = val.split(',');
+    if (parts.length > 2) {
+        val = parts[0] + ',' + parts.slice(1).join('');
+    }
+    $(this).val(val);
+    markRowDirty($(this));
+});
+
+$(document).on('blur', '.row-kubikasi', function() {
+    $(this).val(formatKePersen(ambilAngkaPersen($(this).val())));
+});
+
+// MODAL
+$(document).on('focus', '.modal-kubikasi', function() {
+    let raw = ambilAngkaPersen($(this).val());
+    $(this).val(raw === 0 ? '' : String(raw).replace('.', ','));
+});
+
+$(document).on('input', '.modal-kubikasi', function() {
+    let val = $(this).val().replace(/[^0-9,]/g, '');
+    let parts = val.split(',');
+    if (parts.length > 2) {
+        val = parts[0] + ',' + parts.slice(1).join('');
+    }
+    $(this).val(val);
+});
+
+$(document).on('blur', '.modal-kubikasi', function() {
+    $(this).val(formatKePersen(ambilAngkaPersen($(this).val())));
+});
+
                     // ========================================================
                     // HELPER RUPIAH
                     // ========================================================
@@ -779,7 +836,7 @@
                         },
                         columnDefs: [{
                             className: "dt-center",
-                            targets: [0, 1, 2, 27, 31, 33, 34, 37, 38, 39, 43]
+targets: [0, 1, 2, 27, 32, 34, 35, 38, 39, 40, 44]
                         }],
                         rowCallback: function(row, data, index) {
                             // data terakhir array kolom biasa; kita simpan id lewat data attribute
@@ -889,7 +946,10 @@
                                 $(this).val(nilaiSekarang.replace(/[^0-9]/g, ''));
                             }
                         });
+                         $('.modal-kubikasi').each(function() {
+        $(this).val(ambilAngkaPersen($(this).val()));
                     });
+                     });
 
                     // =========================
                     // SELECT2 (filter atas)
@@ -1050,7 +1110,8 @@
 
                                 nilai_muatan: ambilAngkaMurni(row.find('[name="nilai_muatan"]').val()),
                                 biaya_kirim: ambilAngkaMurni(row.find('[name="biaya_kirim"]').val()),
-                                cr: row.find('[name="cr"]').val()
+                                cr: row.find('[name="cr"]').val(),
+                                kubikasi: ambilAngkaPersen(row.find('[name="kubikasi"]').val())
                             },
                             success: function() {
                                 console.log("Saved " + id);

@@ -27,7 +27,10 @@
             margin-left: 260px;
             padding: 30px;
         }
-
+     .pink, .badge-pink {
+    background: #00ffe1 !important;
+    color: #000 !important;
+}
         h2 {
             font-size: 34px;
             font-weight: 700;
@@ -454,6 +457,7 @@
                         <th>Nilai Muatan</th>
                         <th>Biaya Kirim</th>
                         <th>CR</th>
+                         <th>Kubikasi</th>
                         <th>Kategori Ekspedisi</th>
                         <th>Ekspedisi</th>
                         <th>Tanggal Dapat Unit</th>
@@ -582,6 +586,7 @@
                     { data: 'nilai_muatan_fmt', name: 'nilai_muatan' },
                     { data: 'biaya_kirim_fmt', name: 'biaya_kirim' },
                     { data: 'cr_fmt', name: 'cr', orderable: false, searchable: false },
+                    { data: 'kubikasi_fmt', name: 'kubikasi', orderable: false, searchable: false },
                     { data: 'kategori_ekspedisi_badge', name: 'kategori_ekspedisi' },
                     { data: 'ekpedisi', name: 'ekpedisi' },
                     { data: 'tanggal_dpt_unit_fmt', name: 'tanggal_dpt_unit' },
@@ -625,7 +630,7 @@
                     { data: 'total_biaya_kuli', name: 'total_biaya_kuli' },
                     { data: 'selisih_qty', name: 'selisih_qty' },
                     { data: 'remarks_qty', name: 'remarks_qty' },
-                    { data: 'create_tgl', name: 'create_tgl' },
+                    { data: 'act_pgi_date', name: 'act_pgi_date' },
 
                     { data: 'atd', name: 'atd' },
                     { data: 'ata', name: 'ata' },

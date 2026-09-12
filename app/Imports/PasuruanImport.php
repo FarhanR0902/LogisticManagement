@@ -151,6 +151,7 @@ class PasuruanImport implements ToModel, WithHeadingRow, WithEvents
 
         // ================= NUMBER =================
         $leadTimeFromFile  = (int) $this->cleanNumber($row['transport_lead_time_pasuruan'] ?? 0);
+        $kubikasi = $this->cleanPersen($row['kubikasi_pasuruan'] ?? $row['kubikasi'] ?? null);
         $nilaiMuatan       = $this->cleanNumber($row['nilai_muatan_pasuruan'] ?? null);
         $totalDo           = $this->cleanNumber($row['total_do_pasuruan'] ?? null);
         $actualDeliveryQty = $this->cleanNumber($row['actual_delivery_quantity_pasuruan'] ?? null);
@@ -369,6 +370,7 @@ class PasuruanImport implements ToModel, WithHeadingRow, WithEvents
             'perubahan_mobil_pasuruan'      => $perubahanMobil,
 
             'nilai_muatan_pasuruan'         => $nilaiMuatan,
+            'kubikasi_pasuruan'             => $kubikasi,
             'biaya_kirim_pasuruan'          => $biayaKirim,
             'biaya_kuli_pasuruan'           => $biayaKuli,
             'cr_pasuruan'                   => $cr,
@@ -470,6 +472,23 @@ class PasuruanImport implements ToModel, WithHeadingRow, WithEvents
     }
 
     // ================= HELPERS =================
+
+    private function cleanPersen($value): ?float
+{
+    if ($value === null || $value === '' || $value === '-') return null;
+
+    $value = str_replace('%', '', (string) $value);
+    $value = str_replace(',', '.', $value);
+    $value = preg_replace('/[^0-9.]/', '', $value);
+
+    if (!is_numeric($value)) return null;
+
+    $num = (float) $value;
+    if ($num < 0) $num = 0;
+    if ($num > 100) $num = 100;
+
+    return round($num, 2);
+}
 
     private function cleanText($value)
     {
