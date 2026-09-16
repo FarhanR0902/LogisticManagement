@@ -26,7 +26,6 @@ $dashboard_url = match($role) {
 'jess' => route('jess.dashboard'),
 'developer' => route('developer.dashboard'),
 'admin_pasuruan' => route('pasuruan.admin'),
-'kota' => route('kota.dashboard'),
 default => url('/dashboard'),
 };
 
@@ -597,28 +596,7 @@ $currentRoute = request()->route()->getName() ?? '';
             </a>
         </li>
 
-        @endif
-
-        {{-- ================= KOTA ================= --}}
-        @if($role === 'kota' || $role === 'developer')
-
-        <li>
-            <a href="{{ route('kota.dashboard') }}"
-                class="{{ request()->routeIs('kota.dashboard') ? 'active' : '' }}">
-                📊 Dashboard Kota
-            </a>
-        </li>
-
-        <li>
-            <a href="{{ route('kota.datalogistik') }}"
-                class="{{ request()->routeIs('kota.datalogistik') || request()->routeIs('kota.datalogistik.ajax') ? 'active' : '' }}">
-                🚚 Data Monitoring Kota
-            </a>
-        </li>
-
-        @endif
-
-        {{-- ================= ACCOUNT ================= --}}
+        @endif {{-- ================= ACCOUNT ================= --}}
 
 
         <li>

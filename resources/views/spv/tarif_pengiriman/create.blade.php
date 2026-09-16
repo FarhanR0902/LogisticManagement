@@ -174,6 +174,8 @@
                         's_2' => 'S2',
                         'valid_from' => 'Valid From',
                         'valid_to' => 'Valid To',
+                        'tonase' => 'Tonase',
+                        'kubikasi' => 'Kubikasi',
                     ];
                 @endphp
 

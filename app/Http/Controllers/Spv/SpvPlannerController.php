@@ -55,6 +55,93 @@ class SpvPlannerController extends Controller
         );
     }
 
+    private function cariKapasitasTarif($route, $mobil, $ekpedisi = null)
+    {
+        if (!$route || !$mobil) {
+            return ['kubikasi' => null, 'tonase' => null];
+        }
+
+        $normalize = function ($v) {
+            if (!$v) return '';
+            $v = str_replace("\xc2\xa0", ' ', $v);
+            $v = preg_replace('/\s*-\s*/', '-', $v);
+            $v = preg_replace('/\s+/', ' ', trim($v));
+            return mb_strtolower($v);
+        };
+
+        $routeKey    = $normalize($route);
+        $mobilKey    = $normalize($mobil);
+        $ekpedisiKey = $ekpedisi ? $normalize($ekpedisi) : '';
+
+        $candidates = DB::table('tarif_pengiriman')
+            ->whereNotNull('route')
+            ->whereNotNull('mobil')
+            ->get()
+            ->filter(fn($t) => $normalize($t->route) === $routeKey);
+
+        if ($candidates->isEmpty()) {
+            return ['kubikasi' => null, 'tonase' => null];
+        }
+
+        $match = null;
+
+        if ($ekpedisiKey !== '') {
+            $match = $candidates->first(function ($t) use ($normalize, $ekpedisiKey, $mobilKey) {
+                return $normalize($t->ekpedisi) === $ekpedisiKey
+                    && str_starts_with($normalize($t->mobil), $mobilKey);
+            });
+        }
+
+        if (!$match) {
+            $match = $candidates->first(fn($t) => str_starts_with($normalize($t->mobil), $mobilKey));
+        }
+
+        return [
+            'kubikasi' => $match->kubikasi ?? null,
+            'tonase'   => $match->tonase ?? null,
+        ];
+    }
+
+    private function hitungHasilOptimal($totalKubik, $kubikasi, $totalTonase, $tonase)
+    {
+        $hasilKubik  = null;
+        $hasilTonase = null;
+
+        if ($kubikasi !== null && (float) $kubikasi > 0 && $totalKubik !== null) {
+            $hasilKubik = round(((float) $totalKubik / (float) $kubikasi) * 100, 2);
+        }
+
+        if ($tonase !== null && (float) $tonase > 0 && $totalTonase !== null) {
+            $hasilTonase = round(((float) $totalTonase / (float) $tonase) * 100, 2);
+        }
+
+        $pengirimanOptimal = null;
+        if ($hasilKubik !== null || $hasilTonase !== null) {
+            $pengirimanOptimal = (($hasilKubik >= 85) || ($hasilTonase >= 85))
+                ? 'OPTIMAL'
+                : 'TIDAK OPTIMAL';
+        }
+
+        return [
+            'hasil_kubik'        => $hasilKubik,
+            'hasil_tonase'       => $hasilTonase,
+            'pengiriman_optimal' => $pengirimanOptimal,
+        ];
+    }
+
+    private function cleanDecimalPlanner($value): ?float
+    {
+        if ($value === null || $value === '' || $value === '-') return null;
+
+        $value = trim((string) $value);
+
+        // titik = pemisah ribuan, koma = desimal (format Indonesia)
+        $value = str_replace('.', '', $value);
+        $value = str_replace(',', '.', $value);
+
+        return is_numeric($value) ? (float) $value : null;
+    }
+
     /**
      * =====================================================
      * TARIF PENGIRIMAN (CRUD)
@@ -299,7 +386,7 @@ class SpvPlannerController extends Controller
             })
             ->count();
 
-                    // ================= TOP EKSPEDISI PEMAKAIAN =================
+        // ================= TOP EKSPEDISI PEMAKAIAN =================
         $top_ekspedisi_pemakaian = (clone $base)
             ->select('ekspedisi_pasuruan', DB::raw('COUNT(*) as total'))
             ->whereNotNull('ekspedisi_pasuruan')
@@ -593,7 +680,7 @@ class SpvPlannerController extends Controller
             $baseQuery->whereYear('tanggal_terima_po_pasuruan', $request->year);
         }
 
-      $this->applyGlobalSearch($baseQuery, $searchValue, 'logistik_pengiriman_pasuruan');
+        $this->applyGlobalSearch($baseQuery, $searchValue, 'logistik_pengiriman_pasuruan');
 
         $recordsFiltered = (clone $baseQuery)->count();
 
@@ -640,141 +727,141 @@ class SpvPlannerController extends Controller
     }
 
     public function deleteFiltered(Request $request)
-{
-    $baseQuery = LogistikPengiriman::query();
+    {
+        $baseQuery = LogistikPengiriman::query();
 
-    // filter dari halaman data_planner
-    if ($request->filled('planner_filter')) {
-        $baseQuery->where('planner', $request->input('planner_filter'));
-    }
-    if ($request->filled('create_tgl_filter')) {
-        $baseQuery->whereDate('create_tgl', $request->input('create_tgl_filter'));
-    }
+        // filter dari halaman data_planner
+        if ($request->filled('planner_filter')) {
+            $baseQuery->where('planner', $request->input('planner_filter'));
+        }
+        if ($request->filled('create_tgl_filter')) {
+            $baseQuery->whereDate('create_tgl', $request->input('create_tgl_filter'));
+        }
 
-    // filter dari halaman full_data_logistik
-    if ($request->filled('date')) {
-        $baseQuery->whereDate('tanggal_naik_logistik', $request->date);
-    }
-    if ($request->filled('month')) {
-        $baseQuery->whereMonth('tanggal_naik_logistik', $request->month);
-    }
-    if ($request->filled('year')) {
-        $baseQuery->whereYear('tanggal_naik_logistik', $request->year);
-    }
-    if ($request->filled('pic_monitoring')) {
-        $baseQuery->where('pic_monitoring', $request->pic_monitoring);
-    }
+        // filter dari halaman full_data_logistik
+        if ($request->filled('date')) {
+            $baseQuery->whereDate('tanggal_naik_logistik', $request->date);
+        }
+        if ($request->filled('month')) {
+            $baseQuery->whereMonth('tanggal_naik_logistik', $request->month);
+        }
+        if ($request->filled('year')) {
+            $baseQuery->whereYear('tanggal_naik_logistik', $request->year);
+        }
+        if ($request->filled('pic_monitoring')) {
+            $baseQuery->where('pic_monitoring', $request->pic_monitoring);
+        }
 
-    // filter umum (dipakai kedua halaman)
-    if ($request->filled('area_filter')) {
-        $baseQuery->where('area', $request->input('area_filter'));
-    } elseif ($request->filled('area')) {
-        $baseQuery->where('area', $request->area);
-    }
+        // filter umum (dipakai kedua halaman)
+        if ($request->filled('area_filter')) {
+            $baseQuery->where('area', $request->input('area_filter'));
+        } elseif ($request->filled('area')) {
+            $baseQuery->where('area', $request->area);
+        }
 
-    $this->applyGlobalSearch(
-        $baseQuery,
-        (string) $request->input('search_value', ''),
-        'logistik_pengiriman'
-    );
+        $this->applyGlobalSearch(
+            $baseQuery,
+            (string) $request->input('search_value', ''),
+            'logistik_pengiriman'
+        );
 
-    // GUARD PENTING: kalau tidak ada filter & search sama sekali, TOLAK
-    // supaya orang tidak sengaja hapus SEMUA data karena lupa isi filter.
-    $hasCondition = $request->filled('planner_filter')
-        || $request->filled('create_tgl_filter')
-        || $request->filled('date')
-        || $request->filled('month')
-        || $request->filled('year')
-        || $request->filled('pic_monitoring')
-        || $request->filled('area_filter')
-        || $request->filled('area')
-        || trim((string) $request->input('search_value', '')) !== '';
+        // GUARD PENTING: kalau tidak ada filter & search sama sekali, TOLAK
+        // supaya orang tidak sengaja hapus SEMUA data karena lupa isi filter.
+        $hasCondition = $request->filled('planner_filter')
+            || $request->filled('create_tgl_filter')
+            || $request->filled('date')
+            || $request->filled('month')
+            || $request->filled('year')
+            || $request->filled('pic_monitoring')
+            || $request->filled('area_filter')
+            || $request->filled('area')
+            || trim((string) $request->input('search_value', '')) !== '';
 
-    if (!$hasCondition) {
+        if (!$hasCondition) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Aktifkan minimal 1 filter atau kata kunci pencarian sebelum menghapus.',
+            ], 422);
+        }
+
+        $count = (clone $baseQuery)->count();
+
+        if ($count === 0) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Tidak ada data yang cocok untuk dihapus.',
+            ]);
+        }
+
+        $baseQuery->delete();
+
         return response()->json([
-            'success' => false,
-            'message' => 'Aktifkan minimal 1 filter atau kata kunci pencarian sebelum menghapus.',
-        ], 422);
-    }
-
-    $count = (clone $baseQuery)->count();
-
-    if ($count === 0) {
-        return response()->json([
-            'success' => false,
-            'message' => 'Tidak ada data yang cocok untuk dihapus.',
+            'success' => true,
+            'deleted' => $count,
+            'message' => "{$count} data berhasil dihapus.",
         ]);
     }
 
-    $baseQuery->delete();
+    /**
+     * Sama seperti di atas tapi untuk tabel Pasuruan.
+     */
+    public function deleteFilteredPasuruan(Request $request)
+    {
+        $baseQuery = LogistikPengirimanPasuruan::query();
 
-    return response()->json([
-        'success' => true,
-        'deleted' => $count,
-        'message' => "{$count} data berhasil dihapus.",
-    ]);
-}
+        if ($request->filled('planner')) {
+            $baseQuery->where('planner_pasuruan', $request->planner);
+        }
+        if ($request->filled('area')) {
+            $baseQuery->where('area_pasuruan', $request->area);
+        }
+        if ($request->filled('date')) {
+            $baseQuery->whereDate('tanggal_terima_po_pasuruan', $request->date);
+        }
+        if ($request->filled('month')) {
+            $baseQuery->whereMonth('tanggal_terima_po_pasuruan', $request->month);
+        }
+        if ($request->filled('year')) {
+            $baseQuery->whereYear('tanggal_terima_po_pasuruan', $request->year);
+        }
 
-/**
- * Sama seperti di atas tapi untuk tabel Pasuruan.
- */
-public function deleteFilteredPasuruan(Request $request)
-{
-    $baseQuery = LogistikPengirimanPasuruan::query();
+        $this->applyGlobalSearch(
+            $baseQuery,
+            (string) $request->input('search_value', ''),
+            'logistik_pengiriman_pasuruan'
+        );
 
-    if ($request->filled('planner')) {
-        $baseQuery->where('planner_pasuruan', $request->planner);
-    }
-    if ($request->filled('area')) {
-        $baseQuery->where('area_pasuruan', $request->area);
-    }
-    if ($request->filled('date')) {
-        $baseQuery->whereDate('tanggal_terima_po_pasuruan', $request->date);
-    }
-    if ($request->filled('month')) {
-        $baseQuery->whereMonth('tanggal_terima_po_pasuruan', $request->month);
-    }
-    if ($request->filled('year')) {
-        $baseQuery->whereYear('tanggal_terima_po_pasuruan', $request->year);
-    }
+        $hasCondition = $request->filled('planner')
+            || $request->filled('area')
+            || $request->filled('date')
+            || $request->filled('month')
+            || $request->filled('year')
+            || trim((string) $request->input('search_value', '')) !== '';
 
-    $this->applyGlobalSearch(
-        $baseQuery,
-        (string) $request->input('search_value', ''),
-        'logistik_pengiriman_pasuruan'
-    );
+        if (!$hasCondition) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Aktifkan minimal 1 filter atau kata kunci pencarian sebelum menghapus.',
+            ], 422);
+        }
 
-    $hasCondition = $request->filled('planner')
-        || $request->filled('area')
-        || $request->filled('date')
-        || $request->filled('month')
-        || $request->filled('year')
-        || trim((string) $request->input('search_value', '')) !== '';
+        $count = (clone $baseQuery)->count();
 
-    if (!$hasCondition) {
+        if ($count === 0) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Tidak ada data yang cocok untuk dihapus.',
+            ]);
+        }
+
+        $baseQuery->delete();
+
         return response()->json([
-            'success' => false,
-            'message' => 'Aktifkan minimal 1 filter atau kata kunci pencarian sebelum menghapus.',
-        ], 422);
-    }
-
-    $count = (clone $baseQuery)->count();
-
-    if ($count === 0) {
-        return response()->json([
-            'success' => false,
-            'message' => 'Tidak ada data yang cocok untuk dihapus.',
+            'success' => true,
+            'deleted' => $count,
+            'message' => "{$count} data berhasil dihapus.",
         ]);
     }
-
-    $baseQuery->delete();
-
-    return response()->json([
-        'success' => true,
-        'deleted' => $count,
-        'message' => "{$count} data berhasil dihapus.",
-    ]);
-}
     /**
      * Bangun 1 baris untuk halaman Data Pasuruan.
      * Urutan array HARUS sinkron dengan urutan <th> di
@@ -1105,27 +1192,27 @@ public function deleteFilteredPasuruan(Request $request)
             })
             ->count();
 
-            $top_ekspedisi_pemakaian = (clone $base)
-    ->select(
-        'ekpedisi',
-        DB::raw('COUNT(*) as total')
-    )
-    ->whereNotNull('ekpedisi')
-    ->where('ekpedisi', '!=', '')
-    ->groupBy('ekpedisi')
-    ->orderByDesc('total')
-    ->limit(5)
-    ->get();
+        $top_ekspedisi_pemakaian = (clone $base)
+            ->select(
+                'ekpedisi',
+                DB::raw('COUNT(*) as total')
+            )
+            ->whereNotNull('ekpedisi')
+            ->where('ekpedisi', '!=', '')
+            ->groupBy('ekpedisi')
+            ->orderByDesc('total')
+            ->limit(5)
+            ->get();
 
-    $trend_pengiriman_bulanan = (clone $base)
-    ->select(
-        DB::raw("DATE_FORMAT(tanggal_naik_logistik, '%Y-%m') as bulan"),
-        DB::raw('COUNT(*) as total')
-    )
-    ->whereNotNull('tanggal_naik_logistik')
-    ->groupBy('bulan')
-    ->orderBy('bulan')
-    ->get();
+        $trend_pengiriman_bulanan = (clone $base)
+            ->select(
+                DB::raw("DATE_FORMAT(tanggal_naik_logistik, '%Y-%m') as bulan"),
+                DB::raw('COUNT(*) as total')
+            )
+            ->whereNotNull('tanggal_naik_logistik')
+            ->groupBy('bulan')
+            ->orderBy('bulan')
+            ->get();
 
 
         $customer_ontime = (clone $base)
@@ -1359,15 +1446,15 @@ public function deleteFilteredPasuruan(Request $request)
             ->orderByDesc('total')
             ->get();
 
-            $summary_kategori_ekspedisi = (clone $base)
-    ->select(
-        'kategori_ekspedisi',
-        DB::raw('COUNT(*) as total')
-    )
-    ->whereNotNull('kategori_ekspedisi')
-    ->where('kategori_ekspedisi', '!=', '')
-    ->groupBy('kategori_ekspedisi')
-    ->get();
+        $summary_kategori_ekspedisi = (clone $base)
+            ->select(
+                'kategori_ekspedisi',
+                DB::raw('COUNT(*) as total')
+            )
+            ->whereNotNull('kategori_ekspedisi')
+            ->where('kategori_ekspedisi', '!=', '')
+            ->groupBy('kategori_ekspedisi')
+            ->get();
 
         $label = $ekspedisi->pluck('ekpedisi');
         $value = $ekspedisi->pluck('total');
@@ -1455,20 +1542,20 @@ public function deleteFilteredPasuruan(Request $request)
     }
 
     private function applyGlobalSearch($query, string $searchValue, string $table)
-{
-    $searchValue = trim($searchValue);
-    if ($searchValue === '') {
-        return $query;
-    }
-
-    $columns = DB::getSchemaBuilder()->getColumnListing($table);
-
-    return $query->where(function ($q) use ($columns, $searchValue) {
-        foreach ($columns as $col) {
-            $q->orWhere($col, 'like', "%{$searchValue}%");
+    {
+        $searchValue = trim($searchValue);
+        if ($searchValue === '') {
+            return $query;
         }
-    });
-}
+
+        $columns = DB::getSchemaBuilder()->getColumnListing($table);
+
+        return $query->where(function ($q) use ($columns, $searchValue) {
+            foreach ($columns as $col) {
+                $q->orWhere($col, 'like', "%{$searchValue}%");
+            }
+        });
+    }
     /**
      * =====================================================
      * STORE (Add New Shipment)
@@ -1482,7 +1569,7 @@ public function deleteFilteredPasuruan(Request $request)
             'create_tgl',
             'no_shipment',
             'planner',
-            'kubikasi', 
+            'kubikasi',
             'dist_channel',
             'transport_lead_time',
             'tujuan',
@@ -1495,7 +1582,6 @@ public function deleteFilteredPasuruan(Request $request)
             'cr',
             'kategori_ekspedisi',
             'ekpedisi',
-
             'tanggal_naik_logistik',
             'rencana_kirim',
             'tanggal_dpt_unit',
@@ -1511,8 +1597,26 @@ public function deleteFilteredPasuruan(Request $request)
             'keterangan',
             'route',
             'pulau',
-            'via_kirim'
+            'via_kirim',
         ]);
+
+        $kapasitas = $this->cariKapasitasTarif($request->route, $request->mobil, $request->ekpedisi);
+
+        $data['kubikasi']     = $kapasitas['kubikasi'] ?? $this->cleanPersen($request->kubikasi);
+        $data['tonase']       = $kapasitas['tonase'];
+        $data['total_kubik']  = $this->cleanDecimalPlanner($request->total_kubik);
+        $data['total_tonase'] = $this->cleanDecimalPlanner($request->total_tonase);
+
+        $hasil = $this->hitungHasilOptimal(
+            $data['total_kubik'],
+            $data['kubikasi'],
+            $data['total_tonase'],
+            $data['tonase']
+        );
+
+        $data['hasil_kubik']        = $hasil['hasil_kubik'];
+        $data['hasil_tonase']       = $hasil['hasil_tonase'];
+        $data['pengiriman_optimal'] = $hasil['pengiriman_optimal'];
 
         LogistikPengiriman::create(array_merge($data, $rumus));
 
@@ -1721,11 +1825,11 @@ public function deleteFilteredPasuruan(Request $request)
                     'updated_at'  => now(),
                 ]);
         }
-       
+
         $updateRow = [
             'tujuan'           => $request->tujuan,
             'pulau'            => $request->pulau,
-             'kubikasi'         => $this->cleanPersen($request->kubikasi), 
+            'kubikasi'         => $this->cleanPersen($request->kubikasi),
             'total_do_qty_car' => $request->total_do_qty_car,
             'nilai_muatan'     => $this->cleanMoney($request->nilai_muatan),
             'updated_at'       => now(),
@@ -1772,22 +1876,22 @@ public function deleteFilteredPasuruan(Request $request)
         return back()->with('success', 'Data berhasil diperbarui');
     }
 
-     private function cleanPersen($value)
-{
-    if ($value === null || $value === '') return null;
+    private function cleanPersen($value)
+    {
+        if ($value === null || $value === '') return null;
 
-    $value = str_replace(',', '.', $value);
-    $value = preg_replace('/[^0-9.]/', '', $value);
+        $value = str_replace(',', '.', $value);
+        $value = preg_replace('/[^0-9.]/', '', $value);
 
-    if (!is_numeric($value)) return null;
+        if (!is_numeric($value)) return null;
 
-    $value = (float) $value;
+        $value = (float) $value;
 
-    if ($value < 0) $value = 0;
-    if ($value > 100) $value = 100;
+        if ($value < 0) $value = 0;
+        if ($value > 100) $value = 100;
 
-    return round($value, 2);
-}
+        return round($value, 2);
+    }
 
 
     private function cleanCr($value)
@@ -1895,7 +1999,7 @@ public function deleteFilteredPasuruan(Request $request)
         }
 
         // ===== GLOBAL SEARCH (kolom-kolom penting saja) =====
-      $this->applyGlobalSearch($baseQuery, $searchValue, 'logistik_pengiriman');
+        $this->applyGlobalSearch($baseQuery, $searchValue, 'logistik_pengiriman');
 
         $recordsFiltered = (clone $baseQuery)->count();
 
@@ -1935,10 +2039,16 @@ public function deleteFilteredPasuruan(Request $request)
     private function renderRowColumns($r, array $lists)
     {
 
-    $formattedPersen = function ($angka) {
-    if ($angka === null || $angka === '') return '';
-    return number_format((float) $angka, 2, ',', '.') . '%';
-};
+        $formattedPersen = function ($angka) {
+            if ($angka === null || $angka === '') return '';
+            return number_format((float) $angka, 2, ',', '.') . '%';
+        };
+
+        // TAMBAHIN INI — buat total_kubik & total_tonase, tanpa simbol %
+        $formattedDesimal = function ($angka) {
+            if ($angka === null || $angka === '') return '';
+            return number_format((float) $angka, 3, ',', '');
+        };
         $id = $r->id;
         $formAttr = 'form="form-update-' . $id . '"';
 
@@ -2125,10 +2235,26 @@ public function deleteFilteredPasuruan(Request $request)
             // 30 cr
             '<input type="text" ' . $formAttr . ' name="cr" class="row-cr" readonly style="background:#f1f5f9;color:#0284c7;font-weight:600;" value="' . e(is_numeric($r->cr) ? number_format((float) $r->cr, 4) : $r->cr) . '">',
             // 31 kubikasi
-$textInput('kubikasi', $formattedPersen($r->kubikasi), 'row-kubikasi'),
-            // 31 status mobil
+            // 31 kubikasi
+            $textInput('kubikasi', $formattedPersen($r->kubikasi), 'row-kubikasi'),
+            // 31b tonase (readonly, hasil lookup tarif)
+            '<input type="text" readonly style="background:#f1f5f9;" value="' . e($r->tonase !== null ? number_format((float)$r->tonase, 2, ',', '.') . '%' : '-') . '">',
+            // 31c total kubik (manual input)
+            // 31c total kubik (manual input)
+            $textInput('total_kubik', $formattedDesimal($r->total_kubik), 'row-total-kubik'),
+            // total tonase (manual input)
+            $textInput('total_tonase', $formattedDesimal($r->total_tonase), 'row-total-tonase'),
+            // hasil kubik
+            '<span>' . e($r->hasil_kubik !== null ? number_format((float)$r->hasil_kubik, 2, ',', '.') . '%' : '-') . '</span>',
+            // hasil tonase
+            '<span>' . e($r->hasil_tonase !== null ? number_format((float)$r->hasil_tonase, 2, ',', '.') . '%' : '-') . '</span>',
+            // pengiriman optimal
+            $r->pengiriman_optimal === 'OPTIMAL'
+                ? '<span class="badge green">✅ Optimal</span>'
+                : ($r->pengiriman_optimal ? '<span class="badge orange">⚠️ Tidak Optimal</span>' : '<span class="badge gray">-</span>'),
+            // status mobil
             $statusMobilHtml,
-            // 32 lama waktu pencarian
+            // lama waktu pencarian
             '<span class="text-primary fw-medium">' . e($r->lama_waktu_pencarian) . '</span>',
             // 33 sla dapat mobil
             $slaMobilHtml,
@@ -2185,7 +2311,7 @@ $textInput('kubikasi', $formattedPersen($r->kubikasi), 'row-kubikasi'),
                 ->orWhereNull('ekpedisi')->orWhere('ekpedisi', '')
                 ->orWhereNull('route')->orWhere('route', '')
                 ->orWhereNull('nama_driver')->orWhere('nama_driver', '')
-                  ->orWhereNull('kubikasi')->orWhere('kubikasi', '')
+                ->orWhereNull('kubikasi')->orWhere('kubikasi', '')
                 ->orWhereNull('no_pol')->orWhere('no_pol', '');
         })
             ->get();
@@ -2366,7 +2492,7 @@ $textInput('kubikasi', $formattedPersen($r->kubikasi), 'row-kubikasi'),
             $baseQuery->where('area', $request->area);
         }
 
-$this->applyGlobalSearch($baseQuery, $searchValue, 'logistik_pengiriman');
+        $this->applyGlobalSearch($baseQuery, $searchValue, 'logistik_pengiriman');
 
         $recordsFiltered = (clone $baseQuery)->count();
 
@@ -2397,8 +2523,8 @@ $this->applyGlobalSearch($baseQuery, $searchValue, 'logistik_pengiriman');
     private function renderFullDataRow($r)
     {
         $formattedKubikasi = ($r->kubikasi !== null && $r->kubikasi !== '')
-    ? number_format((float) $r->kubikasi, 2, ',', '.') . '%'
-    : '-';
+            ? number_format((float) $r->kubikasi, 2, ',', '.') . '%'
+            : '-';
         $badgeSla = function ($sla) {
             $sla = trim((string) $sla);
             if ($sla === '' || $sla === '-' || $sla === 'null') {
@@ -2741,6 +2867,14 @@ $this->applyGlobalSearch($baseQuery, $searchValue, 'logistik_pengiriman');
             $fmtRupiah($r->biaya_kirim),
             is_numeric($r->cr) ? number_format((float) $r->cr, 4, ',', '.') . '%' : ($r->cr ?? '-'),
             $formattedKubikasi,
+            $r->tonase !== null ? number_format((float) $r->tonase, 2, ',', '.') . '%' : '-',
+            $r->total_kubik !== null ? number_format((float) $r->total_kubik, 2, ',', '.') : '-',
+            $r->total_tonase !== null ? number_format((float) $r->total_tonase, 2, ',', '.') : '-',
+            $r->hasil_kubik !== null ? number_format((float) $r->hasil_kubik, 2, ',', '.') . '%' : '-',
+            $r->hasil_tonase !== null ? number_format((float) $r->hasil_tonase, 2, ',', '.') . '%' : '-',
+            $r->pengiriman_optimal === 'OPTIMAL'
+                ? '<span class="badge green">✅ Optimal</span>'
+                : ($r->pengiriman_optimal ? '<span class="badge orange">⚠️ Belum Optimal</span>' : '<span class="badge gray">-</span>'),
             $kategoriHtml,
             $r->ekpedisi,
             $r->tanggal_dpt_unit ? date('d-m-Y', strtotime($r->tanggal_dpt_unit)) : '-',
@@ -3108,7 +3242,7 @@ $this->applyGlobalSearch($baseQuery, $searchValue, 'logistik_pengiriman');
             'tanggal_tiba_gudang_3'   => $request->tanggal_tiba_gudang_3,
             'tanggal_keluar_gudang_3' => $request->tanggal_keluar_gudang_3,
 
-   
+
             'route'     => $request->route,
             'pulau'     => $request->pulau,
             'area'      => $request->area,
@@ -3158,12 +3292,30 @@ $this->applyGlobalSearch($baseQuery, $searchValue, 'logistik_pengiriman');
                 ]);
         }
 
+        $kapasitas = $this->cariKapasitasTarif($request->route, $request->mobil, $request->ekpedisi);
+
+        $totalKubik  = $this->cleanDecimalPlanner($request->total_kubik);
+        $totalTonase = $this->cleanDecimalPlanner($request->total_tonase);
+
+        $hasil = $this->hitungHasilOptimal(
+            $totalKubik,
+            $kapasitas['kubikasi'],
+            $totalTonase,
+            $kapasitas['tonase']
+        );
+
         $updateRow = [
-            'total_do_qty_car' => $request->total_do_qty_car,
-             'kubikasi'         => $this->cleanPersen($request->kubikasi),  
-            'nilai_muatan'     => $this->cleanMoney($request->nilai_muatan),
-            'updated_at'       => now(),
-                     'tujuan'    => $request->tujuan,
+            'total_do_qty_car'   => $request->total_do_qty_car,
+            'kubikasi'           => $kapasitas['kubikasi'] ?? $this->cleanPersen($request->kubikasi),
+            'tonase'             => $kapasitas['tonase'],
+            'total_kubik'        => $totalKubik,
+            'total_tonase'       => $totalTonase,
+            'hasil_kubik'        => $hasil['hasil_kubik'],
+            'hasil_tonase'       => $hasil['hasil_tonase'],
+            'pengiriman_optimal' => $hasil['pengiriman_optimal'],
+            'nilai_muatan'       => $this->cleanMoney($request->nilai_muatan),
+            'updated_at'         => now(),
+            'tujuan'             => $request->tujuan,
         ];
 
         if ($autoBiaya === null) {

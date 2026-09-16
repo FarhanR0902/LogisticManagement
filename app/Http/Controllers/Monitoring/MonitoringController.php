@@ -321,16 +321,16 @@ class MonitoringController extends Controller
             return '<input type="number" name="' . $name . '" value="' . e($value) . '">';
         };
 
-        $selectBox = function ($name, $selected, $options, $placeholder) {
-            $html = '<select name="' . $name . '" class="reason-select searchable-select">';
-            $html .= '<option value="">' . e($placeholder) . '</option>';
-            foreach ($options as $opt) {
-                $sel = ((string) $selected === (string) $opt) ? ' selected' : '';
-                $html .= '<option value="' . e($opt) . '"' . $sel . '>' . e($opt) . '</option>';
-            }
-            $html .= '</select>';
-            return $html;
-        };
+   $selectBox = function ($name, $selected, $options, $placeholder) {
+    $html = '<select name="' . $name . '" class="reason-select searchable-select" data-placeholder="' . e($placeholder) . '">';
+    $html .= '<option value="">' . e($placeholder) . '</option>';
+    foreach ($options as $opt) {
+        $sel = ((string) $selected === (string) $opt) ? ' selected' : '';
+        $html .= '<option value="' . e($opt) . '"' . $sel . '>' . e($opt) . '</option>';
+    }
+    $html .= '</select>';
+    return $html;
+};
 
         $keluar   = $r->_keluar ?? null;
         $blocked  = $r->_blocked ?? false;
@@ -448,8 +448,7 @@ $blocked
             e($r->area),
             // 4 No Shipment
             e($r->no_shipment),
- // 5 Tujuan (editable, searchable dropdown dari tujuanfillterr)
-$selectBox('tujuan', $r->tujuan, $lists['tujuanList'], 'Pilih Tujuan'),
+ e($r->tujuan),
             // 6 Ekspedisi
             e($r->ekpedisi),
             // 7 PIC (editable)

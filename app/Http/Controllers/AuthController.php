@@ -68,6 +68,7 @@ class AuthController extends Controller
             'jess' => redirect()->route('jess.dashboard'),
 
             'admin_pasuruan' => redirect()->route('pasuruan.dashboard'),
+            'kota' => redirect()->route('kota.dashboard'),
 
             'spv_pasuruan' => redirect()->route('spvpasuruan.admin'),
 

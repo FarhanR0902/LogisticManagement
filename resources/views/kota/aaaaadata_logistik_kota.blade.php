@@ -7,7 +7,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    <title>DATA MONITORING</title>
+    <title>DATA MONITORING KOTA</title>
 
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
@@ -20,113 +20,60 @@
 
     <style>
         body { background: #f3f4f6; font-family: 'Segoe UI'; margin: 0; }
-
         .container-fluid { margin-left: 250px; width: calc(100% - 250px); padding: 20px; }
-
         .title { font-size: 24px; font-weight: bold; margin-bottom: 20px; color: #111827; }
-
-        .card {
-            background: #fff; padding: 15px; border-radius: 12px;
-            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.08); overflow: auto; width: 100%;
-        }
-
-        .d-none { display: none !important; }
-
-        .filter-box {
-            display: flex; gap: 10px; flex-wrap: nowrap; align-items: center;
-            margin-bottom: 15px; overflow-x: auto;
-        }
-        .filter-box form { display: flex; gap: 10px; align-items: center; flex-wrap: nowrap; }
+        .card { background: #fff; padding: 15px; border-radius: 12px; box-shadow: 0 5px 20px rgba(0,0,0,.08); overflow: auto; width: 100%; }
+        .filter-box { display: flex; gap: 10px; flex-wrap: nowrap; align-items: center; margin-bottom: 15px; overflow-x: auto; }
         .filter-box select { min-width: 180px; white-space: nowrap; }
-
         table { width: 100%; border-collapse: collapse; font-size: 20px; white-space: nowrap; }
-
         th { background: #111827; color: #fff; padding: 14px; font-size: 15px; text-align: center; }
         th.editable { background: linear-gradient(135deg, #2563eb, #1e40af); }
-
         td { border: 1px solid #e5e7eb; padding: 10px; font-size: 14px; }
-
-        input, select {
-            width: 100%; font-size: 14px; padding: 8px; border: 1px solid #d1d5db; border-radius: 5px;
-        }
-
+        input, select { width: 100%; font-size: 14px; padding: 8px; border: 1px solid #d1d5db; border-radius: 5px; }
         .save-btn { background: #22c55e; border: none; color: #fff; padding: 7px 12px; border-radius: 6px; }
-
         .badge { padding: 5px 8px; border-radius: 20px; color: #fff; font-size: 11px; display: inline-block; }
-
-        .green { background: #22c55e; }
-        .red { background: #ef4444; }
-        .orange { background: #f59e0b; }
-        .blue { background: #2563eb; }
-        .gray { background: #9ca3af; }
-
-        #tableMonitoring { width: 100% !important; }
-        #tableMonitoring th { text-align: left; vertical-align: middle; }
-        #tableMonitoring td { vertical-align: middle; white-space: nowrap; }
-        #tableMonitoring input[type=text] { min-width: 120px; }
-        #tableMonitoring input[type=number] { width: 70px; }
-        #tableMonitoring input[type=datetime-local] { width: 170px; }
-        #tableMonitoring .save-btn { width: 70px; }
-        #tableMonitoring .badge { display: inline-block; min-width: 70px; text-align: center; }
-
+        .green { background: #22c55e; } .red { background: #ef4444; } .orange { background: #f59e0b; }
+        .blue { background: #2563eb; } .gray { background: #9ca3af; }
+        #tableMonitoringKota { width: 100% !important; }
+        #tableMonitoringKota th { text-align: left; vertical-align: middle; }
+        #tableMonitoringKota td { vertical-align: middle; white-space: nowrap; }
+        #tableMonitoringKota input[type=text] { min-width: 120px; }
+        #tableMonitoringKota input[type=number] { width: 70px; }
+        #tableMonitoringKota input[type=datetime-local] { width: 170px; }
+        #tableMonitoringKota .save-btn { width: 70px; }
+        #tableMonitoringKota .badge { display: inline-block; min-width: 70px; text-align: center; }
         .select2-container { min-width: 140px !important; }
         .select2-selection { height: 32px !important; }
         .dataTables_wrapper { overflow-x: auto; width: 100%; }
-
-        .input-filled { background: #bbf7d0 !important; border: 2px solid #16a34a !important; }
-        .input-empty { background: #fecaca !important; border: 2px solid #dc2626 !important; }
-
         .toast-container { position: fixed; top: 20px; right: 20px; width: 350px; z-index: 99999; }
-
-        .toast {
-            background: #111827; color: #fff; padding: 12px 14px; border-radius: 10px;
-            margin-bottom: 10px; box-shadow: 0 10px 25px rgba(0, 0, 0, .3);
-            animation: slideIn .3s ease; border-left: 5px solid #f59e0b; font-size: 12px;
-        }
+        .toast { background: #111827; color: #fff; padding: 12px 14px; border-radius: 10px; margin-bottom: 10px; box-shadow: 0 10px 25px rgba(0,0,0,.3); animation: slideIn .3s ease; border-left: 5px solid #f59e0b; font-size: 12px; }
         .toast strong { display: block; margin-bottom: 5px; color: #fbbf24; }
-
-        @keyframes slideIn {
-            from { transform: translateX(120%); opacity: 0; }
-            to { transform: translateX(0); opacity: 1; }
-        }
-
-        .summary-row { display: flex; gap: 15px; flex-wrap: wrap; margin-bottom: 15px; align-items: flex-start; }
+        @keyframes slideIn { from { transform: translateX(120%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
         .missing-field-box { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-
-        #alertControlBox { width: 100%; }
-        #alertControlBox .box-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
-        #alertControlBox .box-header b { font-size: 15px; color: #111827; }
-
-        #alertControlList { max-height: 260px; overflow-y: auto; }
-
-        .alert-item {
-            background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 10px;
-            padding: 10px 12px; margin-bottom: 8px; cursor: pointer; transition: all .15s ease;
-        }
+        #alertControlBoxKota { width: 100%; }
+        #alertControlBoxKota .box-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        #alertControlBoxKota .box-header b { font-size: 15px; color: #111827; }
+        #alertControlListKota { max-height: 260px; overflow-y: auto; }
+        .alert-item { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; cursor: pointer; transition: all .15s ease; }
         .alert-item:hover { background: #f3f4f6; transform: translateY(-1px); }
         .alert-item .alert-top { display: flex; justify-content: space-between; align-items: center; }
         .alert-item .alert-missing { font-size: 12px; color: #6b7280; margin-top: 4px; white-space: normal; }
-
-        .highlight-row td { background: #fde68a !important; transition: background-color .3s ease; }
-
         .completeness-badge { white-space: normal; max-width: 220px; line-height: 1.4; }
-
-        #tableMonitoring select.status-select { min-width: 160px !important; width: 160px !important; }
-        #tableMonitoring td:has(select.status-select) { min-width: 160px; }
+        #tableMonitoringKota select.status-select { min-width: 160px !important; width: 160px !important; }
+        #tableMonitoringKota td:has(select.status-select) { min-width: 160px; }
     </style>
-
 </head>
 
 <body>
 
     <!-- MODAL -->
-    <div class="modal fade" id="shipModal" tabindex="-1">
+    <div class="modal fade" id="shipModalKota" tabindex="-1">
         <div class="modal-dialog modal-lg">
             <div class="modal-content">
-                <form action="/monitoring/update-transport-laut" method="POST">
+                <form action="{{ route('kota.update-transport-laut') }}" method="POST">
                     @csrf
                     <div class="modal-header">
-                        <h5 class="modal-title">Shipment Laut</h5>
+                        <h5 class="modal-title">Shipment Laut - Kota</h5>
                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body">
@@ -136,8 +83,8 @@
                                 <select name="no_shipment" class="form-select searchable">
                                     <option value="">Pilih Shipment</option>
                                     @foreach($shipmentList as $s)
-                                    <option value="{{ $s->no_shipment }}">
-                                        {{ $s->no_shipment }} - {{ $s->tujuan }}
+                                    <option value="{{ $s->no_shipment_kota }}">
+                                        {{ $s->no_shipment_kota }} - {{ $s->tujuan_kota }}
                                     </option>
                                     @endforeach
                                 </select>
@@ -173,65 +120,56 @@
         </div>
     </div>
 
-    <div class="toast-container" id="toastContainer"></div>
+    <div class="toast-container" id="toastContainerKota"></div>
 
     <div class="container-fluid px-3">
         @if(session('success'))
         <div class="alert alert-success">{{ session('success') }}</div>
         @endif
 
-        <div class="title">🚚 DATA MONITORING</div>
-
-        <div class="mb-3">
-            <a href="{{ route('monitoring.export', [
-                'pic_monitoring' => request('pic_monitoring'),
-                'area' => request('area')
-            ]) }}" class="btn btn-success">
-                Export Excel
-            </a>
-        </div>
+        <div class="title">🏙️ DATA MONITORING KOTA</div>
 
         {{-- FILTER --}}
         <div class="filter-box">
-            <select class="searchable" id="filter_pic_monitoring">
+            <select class="searchable" id="filter_pic_monitoring_kota">
                 <option value="">PIC Monitoring</option>
                 @foreach($picList as $pic)
                 <option value="{{ $pic }}">{{ $pic }}</option>
                 @endforeach
             </select>
 
-            <select class="searchable" id="filter_area">
+            <select class="searchable" id="filter_area_kota">
                 <option value="">AREA</option>
                 @foreach($areaList as $area)
                 <option value="{{ $area }}">{{ $area }}</option>
                 @endforeach
             </select>
 
-            <select class="searchable" id="filter_bulan">
+            <select class="searchable" id="filter_bulan_kota">
                 <option value="">BULAN</option>
                 @for($i=1; $i<=12; $i++)
                     <option value="{{ $i }}">{{ $i }}</option>
                 @endfor
             </select>
 
-            <select class="searchable" id="filter_tahun">
+            <select class="searchable" id="filter_tahun_kota">
                 <option value="">TAHUN</option>
                 @for($i=2023; $i<=2030; $i++)
                     <option value="{{ $i }}">{{ $i }}</option>
                 @endfor
             </select>
 
-            <button type="button" class="btn btn-secondary btn-sm" id="btnResetFilter" style="height:38px;">
+            <button type="button" class="btn btn-secondary btn-sm" id="btnResetFilterKota" style="height:38px;">
                 🔄 Reset Filter
             </button>
         </div>
 
         <div class="col-md-3">
             <label class="form-label fw-bold">Filter Tanggal Keluar Gudang</label>
-            <input type="date" id="filterKeluarGudangTgl" class="form-control">
+            <input type="date" id="filterKeluarGudangTglKota" class="form-control">
         </div>
 
-        <button class="btn btn-primary mb-3" data-bs-toggle="modal" data-bs-target="#shipModal">
+        <button class="btn btn-primary mb-3" data-bs-toggle="modal" data-bs-target="#shipModalKota">
             + Shipment Laut
         </button>
 
@@ -240,32 +178,32 @@
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
                 <b style="font-size:14px; color:#374151;">📋 Field belum lengkap:</b>
             </div>
-            <div class="missing-field-box" id="missingFieldSummary">
+            <div class="missing-field-box" id="missingFieldSummaryKota">
                 <span class="badge gray">Menghitung...</span>
             </div>
         </div>
 
-        {{-- ===== ALERT CONTROL BOX (data dari endpoint ringan /monitoring/alerts) ===== --}}
-        <div class="card mb-3" id="alertControlBox">
+        {{-- ===== ALERT CONTROL BOX ===== --}}
+        <div class="card mb-3" id="alertControlBoxKota">
             <div class="box-header">
                 <b>🔔 Alert Control — Lewat Estimasi Tiba</b>
-                <span class="badge red" id="alertControlCount">0 Alert</span>
+                <span class="badge red" id="alertControlCountKota">0 Alert</span>
             </div>
-            <div id="alertControlList">
+            <div id="alertControlListKota">
                 <div class="p-2" style="color:#6b7280; font-size:13px;">Memuat data...</div>
             </div>
         </div>
 
         <div class="card">
-            <table id="tableMonitoring" class="display nowrap">
+            <table id="tableMonitoringKota" class="display nowrap">
                 <thead>
                     <tr>
                         <th>Tanggal Keluar Gudang</th>
-                       <th class="editable">Act PGI Date</th> 
+                        <th class="editable">Act PGI Date</th>
                         <th>Dist Channel</th>
                         <th>Area</th>
                         <th>No Shipment</th>
-                       <th class="editable">Tujuan</th>   
+                        <th class="editable">Tujuan</th>
                         <th>Ekspedisi</th>
                         <th class="editable">PIC</th>
                         <th class="editable">Status</th>
@@ -303,34 +241,32 @@
             <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 
             <script>
-                let table;
-                let saveTimer;
+                let tableKota;
+                let saveTimerKota;
 
                 $(document).ready(function() {
 
-                    // ================= DATATABLES SERVER-SIDE =================
-                    table = $('#tableMonitoring').DataTable({
+                    tableKota = $('#tableMonitoringKota').DataTable({
                         processing: true,
                         serverSide: true,
-                         autoWidth: false,
-                        searchDelay: 600, // debounce, jangan tembak query tiap keystroke
+                        autoWidth: false,
+                        searchDelay: 600,
                         ajax: {
-                            url: "{{ route('monitoring.datalogistik.ajax') }}",
+                            url: "{{ route('kota.datalogistik.ajax') }}",
                             data: function(d) {
-                                d.pic_monitoring = $('#filter_pic_monitoring').val();
-                                d.area = $('#filter_area').val();
-                                d.bulan = $('#filter_bulan').val();
-                                d.tahun = $('#filter_tahun').val();
-                                d.keluar_gudang_tgl = $('#filterKeluarGudangTgl').val();
+                                d.pic_monitoring = $('#filter_pic_monitoring_kota').val();
+                                d.area = $('#filter_area_kota').val();
+                                d.bulan = $('#filter_bulan_kota').val();
+                                d.tahun = $('#filter_tahun_kota').val();
+                                d.keluar_gudang_tgl = $('#filterKeluarGudangTglKota').val();
                             }
                         },
                         scrollX: true,
                         scrollCollapse: true,
-                        autoWidth: false,
                         pageLength: 10,
                         lengthMenu: [10, 25, 50, 100],
-                        ordering: true, // sorting dikirim ke backend (dataAjax) via parameter order
-                        order: [[4, 'asc']], // default: No Shipment ascending
+                        ordering: true,
+                        order: [[4, 'asc']],
                         deferRender: true,
                         language: {
                             search: "Cari:",
@@ -347,96 +283,89 @@
                             { width: "150px", targets: [5] },
                             { width: "180px", targets: [10, 13, 18, 21] },
                             { width: "220px", targets: [33] },
-                            // kolom badge/HTML hasil kalkulasi -> tidak ada kolom DB
-                            // 1:1 buat di-sort, jadi matikan klik-sort di sini saja
                             { orderable: false, targets: [9, 22, 33, 34] },
                         ],
                         createdRow: function(row, data, dataIndex) {
-                            // ambil id dari tombol SAVE (kolom terakhir) supaya row bisa dicari nanti
                             let $btn = $(row).find('.save-btn');
                             $(row).attr('data-id', $btn.data('id'));
                         }
                     });
 
-                    // filter berubah -> reload dari server (bukan hitung ulang di JS)
-                    $('#filter_pic_monitoring, #filter_area, #filter_bulan, #filter_tahun, #filterKeluarGudangTgl')
+                    $('#filter_pic_monitoring_kota, #filter_area_kota, #filter_bulan_kota, #filter_tahun_kota, #filterKeluarGudangTglKota')
                         .on('change', function() {
-                            table.draw();
-                            loadAlertControl(false);
+                            tableKota.draw();
+                            loadAlertControlKota(false);
                         });
 
-                    $('#btnResetFilter').on('click', function() {
-                        $('#filter_pic_monitoring, #filter_area, #filter_bulan, #filter_tahun').val('').trigger('change.select2');
-                        $('#filterKeluarGudangTgl').val('');
-                        table.draw();
-                        loadAlertControl(false);
+                    $('#btnResetFilterKota').on('click', function() {
+                        $('#filter_pic_monitoring_kota, #filter_area_kota, #filter_bulan_kota, #filter_tahun_kota').val('').trigger('change.select2');
+                        $('#filterKeluarGudangTglKota').val('');
+                        tableKota.draw();
+                        loadAlertControlKota(false);
                     });
 
                     $('.filter-box .searchable').select2({ width: '180px' });
-                    $('#shipModal .searchable').select2({ width: '100%', dropdownParent: $('#shipModal') });
+                    $('#shipModalKota .searchable').select2({ width: '100%', dropdownParent: $('#shipModalKota') });
 
-                    $('#shipModal form').on('submit', function(e) {
+                    $('#shipModalKota form').on('submit', function(e) {
                         e.preventDefault();
                         $.ajax({
                             url: $(this).attr('action'),
                             type: 'POST',
                             data: $(this).serialize(),
                             success: function(res) {
-                                $('#shipModal').modal('hide');
-                                $('#shipModal form')[0].reset();
+                                $('#shipModalKota').modal('hide');
+                                $('#shipModalKota form')[0].reset();
                                 alert(res.message);
-                                table.draw();
+                                tableKota.draw();
                             },
                             error: function() { alert('Gagal update data'); }
                         });
                     });
 
-                    // init select2 utk kolom reason & re-init tiap kali draw (hanya utk baris yg tampil, ringan)
-              table.on('draw.dt', function() {
-    initReasonSelect();
-    // recalculate lebar header vs body setelah select2/badge/input ke-render
-    setTimeout(function() {
-        table.columns.adjust();
-    }, 0);
-});
+                    tableKota.on('draw.dt', function() {
+                        initReasonSelectKota();
+                        setTimeout(function() {
+                            tableKota.columns.adjust();
+                        }, 0);
+                    });
 
-$(window).on('resize', function() {
-    if (table) {
-        table.columns.adjust();
-    }
-});
+                    $(window).on('resize', function() {
+                        if (tableKota) {
+                            tableKota.columns.adjust();
+                        }
+                    });
 
-                    // ================= ALERT CONTROL (dari endpoint ringan) =================
-                    loadAlertControl(true);
+                    loadAlertControlKota(true);
                 });
 
-                function loadAlertControl(showToastIfAny) {
+                function loadAlertControlKota(showToastIfAny) {
                     $.ajax({
-                        url: "{{ route('monitoring.alerts') }}",
+                        url: "{{ route('kota.alerts') }}",
                         type: 'GET',
                         data: {
-                            pic_monitoring: $('#filter_pic_monitoring').val(),
-                            area: $('#filter_area').val(),
-                            bulan: $('#filter_bulan').val(),
-                            tahun: $('#filter_tahun').val(),
-                            keluar_gudang_tgl: $('#filterKeluarGudangTgl').val(),
+                            pic_monitoring: $('#filter_pic_monitoring_kota').val(),
+                            area: $('#filter_area_kota').val(),
+                            bulan: $('#filter_bulan_kota').val(),
+                            tahun: $('#filter_tahun_kota').val(),
+                            keluar_gudang_tgl: $('#filterKeluarGudangTglKota').val(),
                         },
                         success: function(res) {
-                            renderMissingFieldSummary(res.missingSummary);
-                            renderAlertControl(res.alerts, res.totalAlert);
+                            renderMissingFieldSummaryKota(res.missingSummary);
+                            renderAlertControlKota(res.alerts, res.totalAlert);
 
                             if (showToastIfAny && res.alerts.length > 0) {
-                                showToastMsg('⚠ ' + res.totalAlert + ' shipment sudah lewat estimasi tiba, tapi Tgl Tiba/Tgl Bongkar belum diisi');
+                                showToastMsgKota('⚠ ' + res.totalAlert + ' shipment sudah lewat estimasi tiba, tapi Tgl Tiba/Tgl Bongkar belum diisi');
                             }
                         }
                     });
                 }
 
-                function renderMissingFieldSummary(missingSummary) {
+                function renderMissingFieldSummaryKota(missingSummary) {
                     let entries = Object.entries(missingSummary || {}).sort((a, b) => b[1] - a[1]);
 
                     if (entries.length === 0) {
-                        $('#missingFieldSummary').html('<span class="badge green">✅ Semua data lengkap</span>');
+                        $('#missingFieldSummaryKota').html('<span class="badge green">✅ Semua data lengkap</span>');
                         return;
                     }
 
@@ -444,14 +373,14 @@ $(window).on('resize', function() {
                         return '<span class="badge red">' + e[0] + ': ' + e[1] + '</span>';
                     }).join(' ');
 
-                    $('#missingFieldSummary').html(html);
+                    $('#missingFieldSummaryKota').html(html);
                 }
 
-                function renderAlertControl(alertList, totalAlert) {
-                    $('#alertControlCount').text((totalAlert ?? alertList.length) + ' Alert');
+                function renderAlertControlKota(alertList, totalAlert) {
+                    $('#alertControlCountKota').text((totalAlert ?? alertList.length) + ' Alert');
 
                     if (!alertList || alertList.length === 0) {
-                        $('#alertControlList').html('<div class="p-2" style="color:#22c55e;">✅ Tidak ada shipment yang lewat estimasi tiba</div>');
+                        $('#alertControlListKota').html('<div class="p-2" style="color:#22c55e;">✅ Tidak ada shipment yang lewat estimasi tiba</div>');
                         return;
                     }
 
@@ -468,37 +397,35 @@ $(window).on('resize', function() {
                             '</div>';
                     }).join('');
 
-                    $('#alertControlList').html(html);
+                    $('#alertControlListKota').html(html);
                 }
 
-                // Klik item alert -> filter tabel by no_shipment (server-side search),
-                // bukan scroll-highlight (karena datanya paginated, row belum tentu di halaman ini)
-                $(document).on('click', '.alert-item', function() {
+                $(document).on('click', '#alertControlListKota .alert-item', function() {
                     let shipment = $(this).data('shipment');
-                    table.search(shipment).draw();
-                    $('html, body').animate({ scrollTop: $('#tableMonitoring').offset().top - 80 }, 400);
+                    tableKota.search(shipment).draw();
+                    $('html, body').animate({ scrollTop: $('#tableMonitoringKota').offset().top - 80 }, 400);
                 });
 
-                function showToastMsg(msg) {
+                function showToastMsgKota(msg) {
                     let toast = $('<div class="toast"><strong>Perhatian</strong>' + msg + '</div>');
-                    $('#toastContainer').append(toast);
+                    $('#toastContainerKota').append(toast);
                     setTimeout(function() {
                         toast.fadeOut(400, function() { toast.remove(); });
                     }, 6000);
                 }
 
-                function formatRupiah(angka) {
+                function formatRupiahKota(angka) {
                     return 'Rp ' + Number(angka).toLocaleString('id-ID');
                 }
 
-                $(document).on('input', 'input[name="qty_monitoring"], input[name="biaya_kuli"]', function() {
+                $(document).on('input', '#tableMonitoringKota input[name="qty_monitoring"], #tableMonitoringKota input[name="biaya_kuli"]', function() {
                     let row = $(this).closest('tr');
                     let qty = parseInt(row.find('input[name="qty_monitoring"]').val()) || 0;
                     let biaya = parseInt(row.find('input[name="biaya_kuli"]').val()) || 0;
-                    row.find('input[name="total_biaya_kuli"]').val(formatRupiah(qty * biaya));
+                    row.find('input[name="total_biaya_kuli"]').val(formatRupiahKota(qty * biaya));
                 });
 
-                $(document).on('input', '[name="total_do_qty_car"], [name="selisih_qty"]', function() {
+                $(document).on('input', '#tableMonitoringKota [name="total_do_qty_car"], #tableMonitoringKota [name="selisih_qty"]', function() {
                     let row = $(this).closest('tr');
                     let total = parseFloat(row.find('[name="total_do_qty_car"]').val()) || 0;
                     let selisih = parseFloat(row.find('[name="selisih_qty"]').val()) || 0;
@@ -510,7 +437,7 @@ $(window).on('resize', function() {
                     let id = $(btnEl).data('id');
 
                     $.ajax({
-                        url: '/monitoring/update/' + id,
+                        url: '/kota/update/' + id,
                         type: 'POST',
                         data: {
                             _token: '{{ csrf_token() }}',
@@ -520,7 +447,7 @@ $(window).on('resize', function() {
                             action_required: row.find('[name="action_required"]').val(),
                             act_urutan_bongkar: row.find('[name="act_urutan_bongkar"]').val(),
                             tanggal_tiba: row.find('[name="tanggal_tiba"]').val(),
-                             tujuan: row.find('[name="tujuan"]').val(),
+                            tujuan: row.find('[name="tujuan"]').val(),
                             tanggal_bongkar: row.find('[name="tanggal_bongkar"]').val(),
                             reason_tiba: row.find('[name="reason_tiba"]').val(),
                             reason_bongkar: row.find('[name="reason_bongkar"]').val(),
@@ -540,8 +467,7 @@ $(window).on('resize', function() {
                             row.find('.save-btn').prop('disabled', false).text('SAVE');
                             row.find('.save-status').html('✅ Saved');
                             setTimeout(function() { row.find('.save-status').html(''); }, 2000);
-                            // refresh alert control ringan (bukan reload semua tabel)
-                            loadAlertControl(false);
+                            loadAlertControlKota(false);
                         },
                         error: function() {
                             row.find('.save-btn').prop('disabled', false).text('SAVE');
@@ -550,27 +476,26 @@ $(window).on('resize', function() {
                     });
                 }
 
-                // Auto-save saat input berubah (hanya baris yang sedang tampil, jadi ringan)
-                $(document).on('change', '#tableMonitoring input, #tableMonitoring select', function() {
+                $(document).on('change', '#tableMonitoringKota input, #tableMonitoringKota select', function() {
                     let row = $(this).closest('tr');
                     let btn = row.find('.save-btn')[0];
-                    clearTimeout(saveTimer);
-                    saveTimer = setTimeout(function() { saveRow(btn); }, 500);
+                    clearTimeout(saveTimerKota);
+                    saveTimerKota = setTimeout(function() { saveRow(btn); }, 500);
                 });
 
-              function initReasonSelect() {
-    $('.searchable-select').each(function() {
-        if ($(this).hasClass('select2-hidden-accessible')) {
-            $(this).select2('destroy');
-        }
-        $(this).select2({
-            width: 'resolve',
-            placeholder: $(this).data('placeholder') || 'Pilih...',
-            allowClear: true,
-            dropdownParent: $('body')
-        });
-    });
-}
+                function initReasonSelectKota() {
+                    $('#tableMonitoringKota .searchable-select').each(function() {
+                        if ($(this).hasClass('select2-hidden-accessible')) {
+                            $(this).select2('destroy');
+                        }
+                        $(this).select2({
+                            width: 'resolve',
+                            placeholder: $(this).data('placeholder') || 'Pilih...',
+                            allowClear: true,
+                            dropdownParent: $('body')
+                        });
+                    });
+                }
             </script>
 
         </div>

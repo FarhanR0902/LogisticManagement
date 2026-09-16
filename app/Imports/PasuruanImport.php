@@ -12,6 +12,7 @@ use PhpOffice\PhpSpreadsheet\Shared\Date;
 use Maatwebsite\Excel\Concerns\WithEvents;
 use Maatwebsite\Excel\Events\AfterImport;
 
+
 class PasuruanImport implements ToModel, WithHeadingRow, WithEvents
 {
     private static $customerMap = null;
@@ -27,6 +28,14 @@ class PasuruanImport implements ToModel, WithHeadingRow, WithEvents
 
     // Nama tabel master tarif di database
     private const TARIF_TABLE = 'tarif_pengiriman';
+
+    //   private $lastNoShipment = null;
+    // private $lastRoute      = null;
+    // private $lastMobil      = null;
+    // private $lastEkpedisi   = null;
+    private $imported = 0;
+private $skipped  = 0;
+
 
     // =====================================================
     // FORWARD-FILL STATE (untuk kolom yang di Excel-nya hasil MERGED
@@ -45,9 +54,16 @@ class PasuruanImport implements ToModel, WithHeadingRow, WithEvents
     private $lastRoute      = null;
     private $lastMobil      = null;
     private $lastEkpedisi   = null;
+    private $lastTotalKubik  = null;   // ⬅️ TAMBAHAN
+private $lastTotalTonase = null;
 
     public function __construct()
     {
+
+    self::$tarifByRoute = DB::table(self::TARIF_TABLE)
+    ->select('ekpedisi', 'route', 'mobil', 'biaya_kirim', 'kubikasi', 'tonase')
+    ->get()
+    ->groupBy(fn($row) => $this->normalize($row->route));
         // =====================================================
         // MASTER DATA: tujuan -> dist_channel, pulau, area, planner,
         // pic monitoring, biaya_kuli, transport_lead_time.
@@ -76,6 +92,28 @@ class PasuruanImport implements ToModel, WithHeadingRow, WithEvents
                 ->keyBy(fn($row) => strtolower(trim($row->tujuan)));
         }
 
+        // setelah forward-fill route/mobil/ekspedisi + totalKubik/totalTonase...
+
+// LOOKUP TARIF LEBIH DULU (dipindah ke atas, sebelum hasilKubik/hasilTonase)
+
+
+// $biayaKirim = $tarifRow
+//     ? $this->cleanNumberTarif($tarifRow->biaya_kirim)
+// $tarifRow = $this->findTarif($route, $ekspedisi, $mobil);    : $this->cleanNumber($row['biaya_kirim_pasuruan'] ?? null);
+
+// // KAPASITAS dari master tarif, bukan dari Excel
+// $kubikasi = $tarifRow ? $this->cleanPersen($tarifRow->kubikasi) : null;
+// $tonase   = $tarifRow ? $this->cleanPersen($tarifRow->tonase)   : null;
+
+// // baru hitung hasil kubik/tonase pakai $kubikasi & $tonase dari tarif
+// $hasilKubik = ($kubikasi !== null && $kubikasi > 0 && $totalKubik !== null)
+//     ? round(($totalKubik / $kubikasi) * 100, 2)
+//     : null;
+
+// $hasilTonase = ($tonase !== null && $tonase > 0 && $totalTonase !== null)
+//     ? round(($totalTonase / $tonase) * 100, 2)
+//     : null;
+
         // =====================================================
         // MASTER HARGA: route -> daftar kandidat (ekpedisi, mobil, biaya_kirim)
         //
@@ -92,6 +130,8 @@ class PasuruanImport implements ToModel, WithHeadingRow, WithEvents
                 ->groupBy(fn($row) => $this->normalize($row->route));
         }
     }
+    public function getImportedCount(): int { return $this->imported; }
+public function getSkippedCount(): int { return $this->skipped; }
 
         public function batchSize(): int
     {
@@ -105,6 +145,12 @@ class PasuruanImport implements ToModel, WithHeadingRow, WithEvents
 
     public function model(array $row)
     {
+          $noShipmentCheck = $this->cleanText($row['no_shipment_pasuruan'] ?? null);
+
+    if (empty($noShipmentCheck)) {
+        $this->skipped++;
+        return null;
+    }
         // ================= DATE =================
         $tanggalTerimaPo     = $this->convertDate($row['tanggal_terima_po_pasuruan'] ?? null);
         $rencanaKirim        = $this->convertDate($row['rencana_kirim_pasuruan'] ?? null);
@@ -151,7 +197,8 @@ class PasuruanImport implements ToModel, WithHeadingRow, WithEvents
 
         // ================= NUMBER =================
         $leadTimeFromFile  = (int) $this->cleanNumber($row['transport_lead_time_pasuruan'] ?? 0);
-        $kubikasi = $this->cleanPersen($row['kubikasi_pasuruan'] ?? $row['kubikasi'] ?? null);
+        // $kubikasi = $this->cleanPersen($row['kubikasi_pasuruan'] ?? $row['kubikasi'] ?? null);
+        //  $tonase = $this->cleanPersen($row['tonase_pasuruan'] ?? $row['tonase'] ?? null);
         $nilaiMuatan       = $this->cleanNumber($row['nilai_muatan_pasuruan'] ?? null);
         $totalDo           = $this->cleanNumber($row['total_do_pasuruan'] ?? null);
         $actualDeliveryQty = $this->cleanNumber($row['actual_delivery_quantity_pasuruan'] ?? null);
@@ -168,25 +215,131 @@ class PasuruanImport implements ToModel, WithHeadingRow, WithEvents
         // terisi, SELAMA masih di No Shipment yang sama. Begitu No
         // Shipment berubah, cache di-reset.
         // =====================================================
-        $noShipment = $this->cleanText($row['no_shipment_pasuruan'] ?? null);
+//         $noShipment = $this->cleanText($row['no_shipment_pasuruan'] ?? null);
 
-        if ($noShipment !== $this->lastNoShipment) {
-            $this->lastRoute    = null;
-            $this->lastMobil    = null;
-            $this->lastEkpedisi = null;
-        }
+//         if ($noShipment !== $this->lastNoShipment) {
+//             $this->lastRoute    = null;
+//             $this->lastMobil    = null;
+//             $this->lastEkpedisi = null;
+//                 $this->lastTotalKubik  = null;   // ⬅️ TAMBAHAN
+//     $this->lastTotalTonase = null;
+//         }
 
-        $route    = $this->cleanText($row['route_pasuruan'] ?? null)    ?: $this->lastRoute;
-        $mobil    = $this->cleanText($row['mobil_pasuruan'] ?? null)    ?: $this->lastMobil;
-        $ekspedisi = $this->cleanText($row['ekspedisi_pasuruan'] ?? null) ?: $this->lastEkpedisi;
+//         $route    = $this->cleanText($row['route_pasuruan'] ?? null)    ?: $this->lastRoute;
+//         $mobil    = $this->cleanText($row['mobil_pasuruan'] ?? null)    ?: $this->lastMobil;
+//         $ekspedisi = $this->cleanText($row['ekspedisi_pasuruan'] ?? null) ?: $this->lastEkpedisi;
 
-        if ($route)     $this->lastRoute    = $route;
-        if ($mobil)     $this->lastMobil    = $mobil;
-        if ($ekspedisi) $this->lastEkpedisi = $ekspedisi;
+//         // if ($route)     $this->lastRoute    = $route;
+//         // if ($mobil)     $this->lastMobil    = $mobil;
+//         // if ($ekspedisi) $this->lastEkpedisi = $ekspedisi;
 
-        $this->lastNoShipment = $noShipment;
+//         // $this->lastNoShipment = $noShipment;
 
-        $tujuan = $this->cleanText($row['tujuan_pasuruan'] ?? null);
+//         // $tujuan = $this->cleanText($row['tujuan_pasuruan'] ?? null);
+
+//         if ($route)     $this->lastRoute    = $route;
+// if ($mobil)     $this->lastMobil    = $mobil;
+// if ($ekspedisi) $this->lastEkpedisi = $ekspedisi;
+
+// // =====================================================
+// // TOTAL KUBIK / TOTAL TONASE: forward-fill sama persis
+// // seperti Route/Mobil/Ekspedisi (merged cell di Excel)
+// // =====================================================
+// $totalKubik  = $this->cleanDecimal($row['total_kubikasi_pasuruan'] ?? $row['total_kubik_pasuruan'] ?? null)  ?? $this->lastTotalKubik;
+// $totalTonase = $this->cleanDecimal($row['total_tonase_pasuruan'] ?? null) ?? $this->lastTotalTonase;
+
+// if ($totalKubik !== null)  $this->lastTotalKubik  = $totalKubik;
+// if ($totalTonase !== null) $this->lastTotalTonase = $totalTonase;
+
+// $this->lastNoShipment = $noShipment;
+
+// // =====================================================
+// // HASIL KUBIK / HASIL TONASE (%): total_kubik_pasuruan /
+// // total_tonase_pasuruan (muatan aktual dari Excel) dibagi
+// // kubikasi_pasuruan / tonase_pasuruan (kapasitas), dalam persen
+// // =====================================================
+// $hasilKubik = ($kubikasi !== null && $kubikasi > 0 && $totalKubik !== null)
+//     ? round(($totalKubik / $kubikasi) * 100, 2)
+//     : null;
+
+// $hasilTonase = ($tonase !== null && $tonase > 0 && $totalTonase !== null)
+//     ? round(($totalTonase / $tonase) * 100, 2)
+//     : null;
+
+// $pengirimanOptimal = null;
+// if ($hasilKubik !== null || $hasilTonase !== null) {
+//     $pengirimanOptimal = (($hasilKubik >= 85) || ($hasilTonase >= 85))
+//         ? 'OPTIMAL'
+//         : 'TIDAK OPTIMAL';
+// }
+
+// =====================================================
+// FORWARD-FILL: No Shipment, Route, Mobil, Ekspedisi
+// =====================================================
+$noShipment = $this->cleanText($row['no_shipment_pasuruan'] ?? null);
+
+if ($noShipment !== $this->lastNoShipment) {
+    $this->lastRoute       = null;
+    $this->lastMobil       = null;
+    $this->lastEkpedisi    = null;
+    $this->lastTotalKubik  = null;
+    $this->lastTotalTonase = null;
+}
+
+$route     = $this->cleanText($row['route_pasuruan'] ?? null)     ?: $this->lastRoute;
+$mobil     = $this->cleanText($row['mobil_pasuruan'] ?? null)     ?: $this->lastMobil;
+$ekspedisi = $this->cleanText($row['ekspedisi_pasuruan'] ?? null) ?: $this->lastEkpedisi;
+
+if ($route)     $this->lastRoute    = $route;
+if ($mobil)     $this->lastMobil    = $mobil;
+if ($ekspedisi) $this->lastEkpedisi = $ekspedisi;
+
+// =====================================================
+// TOTAL KUBIK / TOTAL TONASE: forward-fill (merged cell di Excel)
+// =====================================================
+$totalKubik  = $this->cleanDecimal($row['total_kubikasi_pasuruan'] ?? $row['total_kubik_pasuruan'] ?? null)  ?? $this->lastTotalKubik;
+$totalTonase = $this->cleanDecimal($row['total_tonase_pasuruan'] ?? null) ?? $this->lastTotalTonase;
+
+if ($totalKubik !== null)  $this->lastTotalKubik  = $totalKubik;
+if ($totalTonase !== null) $this->lastTotalTonase = $totalTonase;
+
+$this->lastNoShipment = $noShipment;
+
+$tujuan = $this->cleanText($row['tujuan_pasuruan'] ?? null);
+
+// =====================================================
+// LOOKUP TARIF (Route + Ekpedisi + Mobil) — dipakai untuk
+// biaya_kirim DAN kapasitas kubikasi/tonase
+// =====================================================
+$tarifRow = $this->findTarif($route, $ekspedisi, $mobil);
+
+$biayaKirim = $tarifRow
+    ? $this->cleanNumberTarif($tarifRow->biaya_kirim)
+    : $this->cleanNumber($row['biaya_kirim_pasuruan'] ?? null);
+
+// KAPASITAS dari master tarif, bukan dari Excel
+$kubikasi = $tarifRow ? $this->cleanPersen($tarifRow->kubikasi) : null;
+$tonase   = $tarifRow ? $this->cleanPersen($tarifRow->tonase)   : null;
+
+// =====================================================
+// HASIL KUBIK / HASIL TONASE (%)
+// =====================================================
+$hasilKubik = ($kubikasi !== null && $kubikasi > 0 && $totalKubik !== null)
+    ? round(($totalKubik / $kubikasi) * 100, 2)
+    : null;
+
+$hasilTonase = ($tonase !== null && $tonase > 0 && $totalTonase !== null)
+    ? round(($totalTonase / $tonase) * 100, 2)
+    : null;
+
+$pengirimanOptimal = null;
+if ($hasilKubik !== null || $hasilTonase !== null) {
+    $pengirimanOptimal = (($hasilKubik >= 85) || ($hasilTonase >= 85))
+        ? 'OPTIMAL'
+        : 'TIDAK OPTIMAL';
+}
+
+$tujuan = $this->cleanText($row['tujuan_pasuruan'] ?? null);
 
         // =====================================================
         // BIAYA KIRIM: lookup ke master_harga berdasarkan Route (exact,
@@ -195,10 +348,10 @@ class PasuruanImport implements ToModel, WithHeadingRow, WithEvents
         // Excel kalau tidak ada yang cocok. SAMA PERSIS seperti logic
         // biaya_kirim di LogistikImport.
         // =====================================================
-        $tarifRow   = $this->findTarif($route, $ekspedisi, $mobil);
-        $biayaKirim = $tarifRow
-            ? $this->cleanNumberTarif($tarifRow->biaya_kirim)
-            : $this->cleanNumber($row['biaya_kirim_pasuruan'] ?? null);
+        // $tarifRow   = $this->findTarif($route, $ekspedisi, $mobil);
+        // $biayaKirim = $tarifRow
+        //     ? $this->cleanNumberTarif($tarifRow->biaya_kirim)
+        //     : $this->cleanNumber($row['biaya_kirim_pasuruan'] ?? null);
 
         // =====================================================
         // LOOKUP MASTER (SUDAH DIFILTER Div = 'Pasuruan' DI CONSTRUCTOR)
@@ -350,6 +503,7 @@ class PasuruanImport implements ToModel, WithHeadingRow, WithEvents
         // ================= CREATE TGL =================
         $createTgl = date('Y-m-d H:i:s');
 
+        $this->imported++;
         return new LogistikPengirimanPasuruan([
 
             // ================= BASIC =================
@@ -370,7 +524,13 @@ class PasuruanImport implements ToModel, WithHeadingRow, WithEvents
             'perubahan_mobil_pasuruan'      => $perubahanMobil,
 
             'nilai_muatan_pasuruan'         => $nilaiMuatan,
-            'kubikasi_pasuruan'             => $kubikasi,
+           'kubikasi_pasuruan'             => $kubikasi,
+'tonase_pasuruan'               => $tonase,
+'total_kubik_pasuruan'          => $totalKubik,
+'total_tonase_pasuruan'         => $totalTonase,
+'hasil_kubik_pasuruan'          => $hasilKubik,
+'hasil_tonase_pasuruan'         => $hasilTonase,
+'pengiriman_optimal_pasuruan'   => $pengirimanOptimal,
             'biaya_kirim_pasuruan'          => $biayaKirim,
             'biaya_kuli_pasuruan'           => $biayaKuli,
             'cr_pasuruan'                   => $cr,
@@ -446,6 +606,34 @@ class PasuruanImport implements ToModel, WithHeadingRow, WithEvents
             'updated_at' => now(),
         ]);
     }
+
+    /**
+ * Parser angka desimal polos (BUKAN persen, BUKAN Rupiah) untuk
+ * kolom Total Kubik / Total Tonase. Titik dianggap desimal beneran
+ * (bukan pemisah ribuan) — sama persis seperti LogistikImport,
+ * supaya skalanya sinkron dengan kubikasi_pasuruan/tonase_pasuruan
+ * (kapasitas mobil) yang juga angka kecil.
+ */
+private function cleanDecimal($value): ?float
+{
+    if ($value === null || $value === '' || $value === '-') {
+        return null;
+    }
+
+    if (is_numeric($value)) {
+        return (float) $value;
+    }
+
+    $value = trim((string) $value);
+
+    if (preg_match('/^\d+,\d+$/', $value)) {
+        $value = str_replace(',', '.', $value);
+    } else {
+        $value = str_replace(',', '', $value);
+    }
+
+    return is_numeric($value) ? (float) $value : null;
+}
 
     private function generateStatusAlert($sla_tiba, $sla_bongkar)
     {

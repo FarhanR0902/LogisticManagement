@@ -15,6 +15,7 @@ use App\Http\Controllers\Spv\TarifPengirimanController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\LogistikController;
 use App\Http\Controllers\Planner\PlannerController;
+use App\Http\Controllers\Kota\KotaController;
 use App\Http\Controllers\Monitoring\MonitoringController;
 use App\Http\Controllers\Manager\ManagerController;
 use App\Http\Controllers\PasuruanController;
@@ -369,6 +370,17 @@ Route::post('/spvplanner/data-ajax', [App\Http\Controllers\Spv\SpvPlannerControl
     ->name('full.data.logistik.ajax');
     Route::get('/data-logistik-pasuruan', [SpvPlannerController::class, 'dataLogistikPasuruan'])
         ->name('spvplanner.data.pasuruan');
+        Route::post('/spvplanner/tarif/import', [App\Http\Controllers\Spv\TarifPengirimanController::class, 'import'])
+    ->name('spvplanner.tarif.import');
+
+    Route::delete('/spvplanner/tarif/bulk-destroy', [App\Http\Controllers\Spv\TarifPengirimanController::class, 'bulkDestroy'])
+    ->name('spvplanner.tarif.bulk-destroy');
+
+Route::delete('/spvplanner/tarif/destroy-all', [App\Http\Controllers\Spv\TarifPengirimanController::class, 'destroyAll'])
+    ->name('spvplanner.tarif.destroy-all');
+
+Route::post('/spvplanner/tarif/bulk-update', [App\Http\Controllers\Spv\TarifPengirimanController::class, 'bulkUpdate'])
+    ->name('spvplanner.tarif.bulk-update');
 
     // route baru untuk AJAX DataTables
   Route::post('/data-logistik-pasuruan/ajax', [SpvPlannerController::class, 'dataLogistikPasuruanAjax'])
@@ -829,4 +841,26 @@ Route::prefix('pasuruan')->group(function () {
     Route::post('/update-transport-laut', [PasuruanController::class, 'updateTransportLaut'])
         ->name('pasuruan.updateTransportLaut');
 });
+
+Route::prefix('kota')->name('kota.')->group(function () {
+ 
+    Route::get('/dashboard', [KotaController::class, 'dashboard'])->name('dashboard');
+ 
+    Route::get('/data-monitoring', [KotaController::class, 'dataLogistik'])->name('datalogistik');
+Route::post('/data-monitoring/ajax', [KotaController::class, 'dataAjax'])->name('datalogistik.ajax');
+ 
+    Route::get('/alerts', [KotaController::class, 'alerts'])->name('alerts');
+ 
+    Route::put('/update/{id}', [KotaController::class, 'updateMonitoring'])->name('update');
+    Route::post('/update-transport-laut', [KotaController::class, 'updateTransportLaut'])->name('update-transport-laut');
+ 
+});
+ 
+/*
+|--------------------------------------------------------------------------
+| Dipakai di logic redirect role, contoh:
+|--------------------------------------------------------------------------
+| 'kota' => redirect()->route('kota.dashboard'),
+*/
+ 
 Route::fallback(fn() => redirect('/login'));

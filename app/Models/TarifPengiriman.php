@@ -27,6 +27,8 @@ class TarifPengiriman extends Model
         's_1',
         's_2',
         'valid_from',
+        'kubikasi',
+        'tonase',
         'valid_to',
     ];
 

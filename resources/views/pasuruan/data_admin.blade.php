@@ -560,7 +560,13 @@ table.dataTable.dtfc-has-left th:nth-child(4).dtfc-fixed-left {
                                     <th class="th-oren">No Pol</th>
                                     <th class="th-system">Total Qty</th>
                                     <th class="th-system">Nilai Muatan</th>
-                                    <th class="th-system">Kubikasi (%)</th>
+                                   <th class="th-system">Kubikasi (Kapasitas)</th>
+<th class="th-system">Tonase (Kapasitas)</th>
+<th class="th-oren">Total Kubik</th>
+<th class="th-oren">Total Tonase</th>
+<th class="th-system">Hasil Kubik (%)</th>
+<th class="th-system">Hasil Tonase (%)</th>
+<th class="th-system">Pengiriman Optimal</th>
                                     <th class="th-system">Biaya Kirim</th>
                                     <th class="th-system">CR (%)</th>
                                     <th class="th-system">Status Mobil</th>
@@ -902,10 +908,10 @@ $('form').on('submit', function() {
             d.create_tgl_filter = createTglFilter;
         }
     },
-    columnDefs: [{
-        className: "dt-center",
-        targets: [0, 25, 26, 27, 28, 29, 30]
-    }],
+columnDefs: [{
+    className: "dt-center",
+    targets: [0, 24, 25, 26, 31, 32, 33, 34, 35, 36]
+}],
 
                         // ====================================================
                         // rowCallback — ambil id baris dari hidden form

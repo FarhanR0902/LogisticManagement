@@ -848,6 +848,12 @@ font-size: 16px;
                         <th>Biaya Kirim</th>
                         <th>CR</th>
                           <th>Kubikasi %</th>
+                           <th>Tonase</th>
+                            <th>Total Kubik</th>
+                        <th>Total Tonase</th>
+                        <th>Hasil Kubik</th>
+                        <th>Hasil Tonase</th>
+                        <th>Pengiriman Optimal</th>
                         <th>Kategori Ekspedisi</th>
                         <th>Ekspedisi</th>
                         <th>Tanggal Dapat Unit</th>
@@ -945,6 +951,12 @@ $.ajaxSetup({
                 { data: 'biaya_kirim_fmt' },
                 { data: 'cr_fmt' },
                 { data: 'kubikasi_pasuruan' },
+                 { data: 'tonase_pasuruan' },
+                   { data: 'total_kubik_fmt' },
+                { data: 'total_tonase_fmt' },
+                { data: 'hasil_kubik_fmt' },
+                { data: 'hasil_tonase_fmt' },
+                { data: 'pengiriman_optimal_badge' },
                 { data: 'kategori_ekspedisi_badge' },
                 { data: 'ekspedisi' },
                 { data: 'tanggal_dpt_fmt' },

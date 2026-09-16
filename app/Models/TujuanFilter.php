@@ -20,6 +20,7 @@ class TujuanFilter extends Model
         'dist_channel',
         'pulau',
         'area',
+        'tonase',
         'Planner',
         'Monitoring',
         'biaya_kuli',

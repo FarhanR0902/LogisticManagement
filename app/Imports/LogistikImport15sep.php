@@ -40,22 +40,16 @@ class LogistikImport implements ToModel, WithHeadingRow, WithEvents, WithCalcula
     // No Shipment tsb. Kalau No Shipment BERUBAH, cache di-reset supaya
     // tidak "bocor" ke shipment lain.
     //
-    // Total Kubik / Total Tonase (kapasitas armada per shipment) juga
-    // hasil merged cell dengan pola yang SAMA PERSIS -> forward-fill
-    // pakai mekanisme yang sama.
-    //
     // CATATAN: ini hanya valid kalau baris-baris dengan No Shipment
     // yang sama letaknya BERURUTAN di file Excel (kondisi normal untuk
     // hasil export dengan merged cell). Kalau suatu saat baris dengan
     // No Shipment yang sama ternyata TIDAK berurutan, logic ini perlu
     // diganti jadi post-process per grup (lihat AfterImport).
     // =====================================================
-    private $lastNoShipment  = null;
-    private $lastRoute       = null;
-    private $lastMobil       = null;
-    private $lastEkpedisi    = null;
-    private $lastTotalKubik  = null;
-    private $lastTotalTonase = null;
+    private $lastNoShipment = null;
+    private $lastRoute      = null;
+    private $lastMobil      = null;
+    private $lastEkpedisi   = null;
     private $imported = 0;
 private $skipped  = 0;
    public function getImportedCount(): int { return $this->imported; }
@@ -117,12 +111,12 @@ public function getSkippedCount(): int { return $this->skipped; }
         //      route yang sama dengan mobil prefix-match (ambil yang
         //      pertama ketemu).
         // =====================================================
-     if (self::$tarifByRoute === null) {
-    self::$tarifByRoute = DB::table(self::TARIF_TABLE)
-        ->select('ekpedisi', 'route', 'mobil', 'biaya_kirim', 'kubikasi', 'tonase')
-        ->get()
-        ->groupBy(fn($row) => $this->normalize($row->route));
-}
+        if (self::$tarifByRoute === null) {
+            self::$tarifByRoute = DB::table(self::TARIF_TABLE)
+                ->select('ekpedisi', 'route', 'mobil', 'biaya_kirim')
+                ->get()
+                ->groupBy(fn($row) => $this->normalize($row->route));
+        }
     }
 
     public function model(array $row)
@@ -199,14 +193,9 @@ public function getSkippedCount(): int { return $this->skipped; }
         $totalDoCar = $this->cleanNumber($row['total_do_qty_car'] ?? null);
         $addtText4  = $this->cleanText($row['addt_text'] ?? null);
         // KUBIKASI (%)
-// KUBIKASI (%)
-$kubikasi = $this->cleanPersen($this->pick($row, [
-    'kubikasi', 'kubikasi_persen', 'kubikasi_1'
-]));
+$kubikasi = $this->cleanPersen($row['kubikasi'] ?? null);
 
-$tonase = $this->cleanPersen($this->pick($row, [
-    'tonase', 'tonase_persen'
-]));
+$tonase = $this->cleanPersen($row['tonase'] ?? null);
 
         // ================= DATE =================
         $rencanaKirim        = $this->convertDate($row['rencana_kirim'] ?? null);
@@ -276,30 +265,26 @@ $tonase = $this->cleanPersen($this->pick($row, [
         $serviceAgent = $this->cleanText($row['service_agent'] ?? null);
 
         // =====================================================
-        // FORWARD-FILL: No Shipment, Route, Mobil, Ekpedisi, Total
-        // Kubik, Total Tonase
+        // FORWARD-FILL: No Shipment, Route, Mobil, Ekpedisi
         //
         // Di file Excel sumbernya, untuk beberapa No Shipment, kolom
-        // Route / Mobil / Ekpedisi / Total Kubik / Total Tonase hanya
-        // terisi di baris PERTAMA dari shipment tsb (efek merged cell).
-        // Baris-baris berikutnya untuk No Shipment yang SAMA datang
-        // KOSONG di kolom-kolom tsb.
+        // Route / Mobil / Ekpedisi hanya terisi di baris PERTAMA dari
+        // shipment tsb (efek merged cell). Baris-baris berikutnya untuk
+        // No Shipment yang SAMA datang KOSONG di kolom-kolom tsb.
         //
         // Supaya semua baris untuk No Shipment yang sama tetap punya
-        // nilai yang benar (bukan null), kita forward-fill dari nilai
-        // terakhir yang terisi, SELAMA masih di No Shipment yang sama.
-        // Begitu No Shipment berubah, cache-nya di-reset, supaya nilai
-        // lama tidak "bocor" ke shipment berikutnya.
+        // Route/Mobil/Ekpedisi yang benar (bukan null), kita forward-fill
+        // dari nilai terakhir yang terisi, SELAMA masih di No Shipment
+        // yang sama. Begitu No Shipment berubah, cache-nya di-reset,
+        // supaya nilai lama tidak "bocor" ke shipment berikutnya.
         // =====================================================
         $noShipment = $this->cleanText($row['no_shipment'] ?? null);
 
         // No Shipment baru/berbeda dari baris sebelumnya -> reset cache
         if ($noShipment !== $this->lastNoShipment) {
-            $this->lastRoute       = null;
-            $this->lastMobil       = null;
-            $this->lastEkpedisi    = null;
-            $this->lastTotalKubik  = null;
-            $this->lastTotalTonase = null;
+            $this->lastRoute    = null;
+            $this->lastMobil    = null;
+            $this->lastEkpedisi = null;
         }
 
         // ambil nilai baris ini; kalau kosong, pakai nilai terakhir yg valid
@@ -308,23 +293,10 @@ $tonase = $this->cleanPersen($this->pick($row, [
         $mobil    = $this->cleanText($row['mobil'] ?? null)    ?: $this->lastMobil;
         $ekpedisi = $this->cleanText($row['ekpedisi'] ?? null) ?: $this->lastEkpedisi;
 
-        // Total Kubik (M3) / Total Tonase (Ton) -> kapasitas armada untuk
-        // shipment ini, sama seperti Route/Mobil hanya terisi di baris
-        // pertama per No Shipment
-$totalKubik = $this->cleanDecimal($this->pick($row, [
-    'total_kubik', 'total_kubik_m3', 'total_kubik_m_3', 'totalkubik'
-])) ?? $this->lastTotalKubik;
-
-$totalTonase = $this->cleanDecimal($this->pick($row, [
-    'total_tonase', 'total_tonase_ton', 'totaltonase'
-])) ?? $this->lastTotalTonase;
-
         // simpan sebagai referensi untuk baris berikutnya
         if ($route)    $this->lastRoute    = $route;
         if ($mobil)    $this->lastMobil    = $mobil;
         if ($ekpedisi) $this->lastEkpedisi = $ekpedisi;
-        if ($totalKubik !== null)  $this->lastTotalKubik  = $totalKubik;
-        if ($totalTonase !== null) $this->lastTotalTonase = $totalTonase;
 
         $this->lastNoShipment = $noShipment;
 
@@ -340,25 +312,6 @@ $totalTonase = $this->cleanDecimal($this->pick($row, [
         $biayaKirim = $tarifRow
             ? $this->cleanNumberTarif($tarifRow->biaya_kirim)
             : $this->cleanNumber($row['biaya_kirim_rp'] ?? null);
-            $kubikasi = $tarifRow ? $this->cleanPersen($tarifRow->kubikasi ?? null) : null;
-$tonase   = $tarifRow ? $this->cleanPersen($tarifRow->tonase ?? null)   : null;
-
-$hasilKubik = ($kubikasi !== null && $kubikasi > 0 && $totalKubik !== null)
-    ? round(($totalKubik / $kubikasi) * 100, 2)
-    : null;
-
-$hasilTonase = ($tonase !== null && $tonase > 0 && $totalTonase !== null)
-    ? round(($totalTonase / $tonase) * 100, 2)
-    : null;
-
-// PENGIRIMAN OPTIMAL: otomatis "OPTIMAL" kalau salah satu dari
-// Hasil Kubik / Hasil Tonase sudah >= 85%
-$pengirimanOptimal = null;
-if ($hasilKubik !== null || $hasilTonase !== null) {
-    $pengirimanOptimal = (($hasilKubik >= 85) || ($hasilTonase >= 85))
-        ? 'OPTIMAL'
-        : 'TIDAK OPTIMAL';
-}
 
         $tujuan    = $this->cleanText($row['tujuan'] ?? null);
         $tujuanKey = preg_replace('/\s+/', ' ', trim(strtolower($tujuan)));
@@ -495,11 +448,6 @@ if ($hasilKubik !== null || $hasilTonase !== null) {
             'ekpedisi'           => $ekpedisi,
             'kubikasi'           => $kubikasi, 
              'tonase'           => $tonase, 
- 'total_kubik'        => $totalKubik,
-            'total_tonase'       => $totalTonase,
-            'hasil_kubik'        => $hasilKubik,
-            'hasil_tonase'       => $hasilTonase,
-            'pengiriman_optimal' => $pengirimanOptimal,
             'nama_driver'        => $this->cleanText($row['nama_driver'] ?? null),
             'no_pol'             => $this->cleanText($row['no_pol'] ?? ($row['nopol'] ?? null)),
 
@@ -651,39 +599,6 @@ if ($hasilKubik !== null || $hasilTonase !== null) {
     return round($value, 2);
 }
 
-    /**
-     * Parser angka desimal polos (BUKAN persen, BUKAN Rupiah) untuk
-     * kolom seperti Total Kubik / Total Tonase. Beda dengan cleanNumber()
-     * yang mengasumsikan "." sebagai pemisah ribuan (format Rupiah) -
-     * di sini "." dianggap titik desimal beneran (mis. "23.546" = dua
-     * puluh tiga koma lima ratus empat puluh enam), sesuai format angka
-     * apa adanya dari kolom Total Kubik/Total Tonase di file Excel.
-     * Tetap mendukung koma sebagai desimal (mis. "23,546") kalau suatu
-     * saat sumber datanya pakai format Indonesia.
-     */
-    private function cleanDecimal($value): ?float
-    {
-        if ($value === null || $value === '' || $value === '-') {
-            return null;
-        }
-
-        if (is_numeric($value)) {
-            return (float) $value;
-        }
-
-        $value = trim((string) $value);
-
-        // format "23,546" (koma sebagai desimal, tanpa titik ribuan)
-        if (preg_match('/^\d+,\d+$/', $value)) {
-            $value = str_replace(',', '.', $value);
-        } else {
-            // buang kemungkinan pemisah ribuan koma, sisakan titik desimal
-            $value = str_replace(',', '', $value);
-        }
-
-        return is_numeric($value) ? (float) $value : null;
-    }
-
     private function convertDate($value)
     {
         if (!$value || $value == '-' || $value == '#VALUE!') return null;
@@ -795,16 +710,6 @@ if ($hasilKubik !== null || $hasilTonase !== null) {
         $mobilMaster = $this->normalizeMobil($row->mobil);
         return str_starts_with($mobilMaster, $mobilExcel);
     });
-}
-
-private function pick(array $row, array $keys)
-{
-    foreach ($keys as $k) {
-        if (isset($row[$k]) && $row[$k] !== '' && $row[$k] !== '-') {
-            return $row[$k];
-        }
-    }
-    return null;
 }
 
     /**

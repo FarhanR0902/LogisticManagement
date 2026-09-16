@@ -176,6 +176,7 @@
                         <option value="monitoring">Monitoring</option>
 
                         <option value="manager">Manager</option>
+                        <option value="kota">Kota</option>
 
 
                

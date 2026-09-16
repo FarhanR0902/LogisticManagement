@@ -633,6 +633,12 @@
                                     <th class="th-system">Biaya Kirim</th>
                                     <th class="th-system">CR (%)</th>
                                        <th class="th-system">Kubikasi (%)</th>
+                                       <th class="th-system">Tonase (%)</th>
+<th class="th-edit">Total Kubik</th>
+<th class="th-edit">Total Tonase</th>
+<th class="th-system">Hasil Kubik</th>
+<th class="th-system">Hasil Tonase</th>
+<th class="th-system">Pengiriman Optimal</th>
 
                                     <th class="th-system">Status Mobil</th>
                                     <th class="th-system">Lama Waktu Pencarian</th>
@@ -790,7 +796,18 @@ $(document).on('blur', '.modal-kubikasi', function() {
     $(this).val(formatKePersen(ambilAngkaPersen($(this).val())));
 });
 
-        function ambilAngkaMurni(teks) {
+// ===== TOTAL KUBIKASI & TOTAL TONASE (ROW) — larang titik, cuma boleh koma =====
+$(document).on('input', '.row-total-kubikasi, .row-total-tonase', function() {
+    let val = $(this).val().replace(/[^0-9,]/g, '');
+    let parts = val.split(',');
+    if (parts.length > 2) {
+        val = parts[0] + ',' + parts.slice(1).join('');
+    }
+    $(this).val(val);
+    markRowDirty($(this));
+});
+
+function ambilAngkaMurni(teks) {
             if (!teks) return 0;
             let bersih = String(teks).replace(/[^0-9]/g, '');
             return parseFloat(bersih) || 0;
@@ -1105,6 +1122,8 @@ $(document).on('blur', '.modal-kubikasi', function() {
                     kategori_ekspedisi: row.find('[name="kategori_ekspedisi"]').val(),
                     ekpedisi: row.find('[name="ekpedisi"]').val(),
                     transport_lead_time: row.find('[name="transport_lead_time"]').val(),
+total_kubik: row.find('[name="total_kubik"]').val(),   // cari elemen by name="total_kubikasi", tapi key ke server tetap "total_kubik"
+total_tonase: row.find('[name="total_tonase"]').val(),
 
                     nama_driver: row.find('[name="nama_driver"]').val(),
                     no_pol: row.find('[name="no_pol"]').val(),

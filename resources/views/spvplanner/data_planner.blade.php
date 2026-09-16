@@ -632,7 +632,13 @@
                                     <th class="th-system">Nilai Muatan</th>
                                     <th class="th-system">Biaya Kirim</th>
                                     <th class="th-system">CR (%)</th>
-                                    <th class="th-system">Kubikasi (%)</th>
+                                      <th class="th-system">Kubikasi (%)</th>
+                                       <th class="th-system">Tonase (%)</th>
+<th class="th-edit">Total Kubik</th>
+<th class="th-edit">Total Tonase</th>
+<th class="th-system">Hasil Kubik</th>
+<th class="th-system">Hasil Tonase</th>
+<th class="th-system">Pengiriman Optimal</th>
 
                                     <th class="th-system">Status Mobil</th>
                                     <th class="th-system">Lama Waktu Pencarian</th>
@@ -770,6 +776,21 @@ $(document).on('input', '.modal-kubikasi', function() {
 $(document).on('blur', '.modal-kubikasi', function() {
     $(this).val(formatKePersen(ambilAngkaPersen($(this).val())));
 });
+
+// ===== TOTAL KUBIK & TOTAL TONASE (ROW) — larang titik, cuma boleh koma =====
+$(document).on('input', '.row-total-kubik, .row-total-tonase', function() {
+    let val = $(this).val().replace(/[^0-9,]/g, '');
+    let parts = val.split(',');
+    if (parts.length > 2) {
+        val = parts[0] + ',' + parts.slice(1).join('');
+    }
+    $(this).val(val);
+    markRowDirty($(this));
+});
+
+                    // ========================================================
+                    // HELPER RUPIAH
+                    // ========================================================
 
                     // ========================================================
                     // HELPER RUPIAH
@@ -1107,7 +1128,8 @@ targets: [0, 1, 2, 27, 32, 34, 35, 38, 39, 40, 44]
                                 no_pol: row.find('[name="no_pol"]').val(),
                                 mobil: row.find('[name="mobil"]').val(),
                                 total_do_qty_car: row.find('[name="total_do_qty_car"]').val(),
-
+                                  total_kubik: row.find('[name="total_kubik"]').val(),
+  total_tonase: row.find('[name="total_tonase"]').val(),
                                 nilai_muatan: ambilAngkaMurni(row.find('[name="nilai_muatan"]').val()),
                                 biaya_kirim: ambilAngkaMurni(row.find('[name="biaya_kirim"]').val()),
                                 cr: row.find('[name="cr"]').val(),

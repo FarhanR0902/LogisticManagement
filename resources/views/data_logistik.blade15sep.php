@@ -459,11 +459,6 @@
                         <th>CR</th>
                          <th>Kubikasi</th>
                          <th>Tonase</th>
-                         <th>Total Kubik</th>
-                         <th>Total Tonase</th>
-                         <th>Hasil Kubik</th>
-                         <th>Hasil Tonase</th>
-                         <th>Pengiriman Optimal</th>
                         <th>Kategori Ekspedisi</th>
                         <th>Ekspedisi</th>
                         <th>Tanggal Dapat Unit</th>
@@ -594,11 +589,6 @@
                     { data: 'cr_fmt', name: 'cr', orderable: false, searchable: false },
                     { data: 'kubikasi_fmt', name: 'kubikasi', orderable: false, searchable: false },
                      { data: 'tonase_fmt', name: 'tonase', orderable: false, searchable: false },
-                     { data: 'total_kubik_fmt', name: 'total_kubik', orderable: false, searchable: false },
-                     { data: 'total_tonase_fmt', name: 'total_tonase', orderable: false, searchable: false },
-                     { data: 'hasil_kubik_fmt', name: 'hasil_kubik', orderable: false, searchable: false },
-                     { data: 'hasil_tonase_fmt', name: 'hasil_tonase', orderable: false, searchable: false },
-                     { data: 'pengiriman_optimal_badge', name: 'pengiriman_optimal', orderable: false, searchable: false },
                     { data: 'kategori_ekspedisi_badge', name: 'kategori_ekspedisi' },
                     { data: 'ekpedisi', name: 'ekpedisi' },
                     { data: 'tanggal_dpt_unit_fmt', name: 'tanggal_dpt_unit' },

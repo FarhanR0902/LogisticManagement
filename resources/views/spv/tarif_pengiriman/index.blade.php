@@ -835,8 +835,338 @@
 
 }
 
-</style>
+.tarif-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin-bottom: 20px;
+}
 
+.tarif-title {
+    font-size: 20px;
+    font-weight: 700;
+    color: #0f172a;
+    margin: 0;
+}
+
+.tarif-subtitle {
+    font-size: 13px;
+    color: #64748b;
+}
+
+.tarif-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+/* ===== Tombol Tambah Data (referensi, biar konsisten) ===== */
+.btn-add {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 16px;
+    background: #22c55e;
+    color: #fff;
+    border-radius: 10px;
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 600;
+    transition: .2s;
+}
+.btn-add:hover {
+    background: #16a34a;
+    color: #fff;
+}
+
+/* ===== Form Import ===== */
+.import-form {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: #fff;
+    border: 1px solid #cbd5e1;
+    border-radius: 10px;
+    padding: 4px;
+}
+
+/* Input file asli disembunyikan, diganti label custom */
+.file-input-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 12px;
+    background: #f1f5f9;
+    color: #475569;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    white-space: nowrap;
+    max-width: 180px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    transition: .2s;
+}
+.file-input-label:hover {
+    background: #e2e8f0;
+}
+.file-input-label input[type="file"] {
+    display: none;
+}
+.file-input-label span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.btn-import {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    background: #2563eb;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: .2s;
+}
+.btn-import:hover {
+    background: #1d4ed8;
+}
+
+/* ===== Responsive ===== */
+@media (max-width: 768px) {
+    .tarif-header {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .tarif-actions {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .import-form {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .file-input-label {
+        max-width: 100%;
+        justify-content: center;
+    }
+}.col-check {
+    width: 40px;
+    min-width: 40px;
+    text-align: center !important;
+}
+
+.tarif-table tbody tr.row-selected td {
+    background: #eff6ff;
+}
+
+.bulk-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.btn-bulk {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    height: 32px;
+    padding: 0 12px;
+    border-radius: 6px;
+    border: 1px solid #fecaca;
+    background: #fef2f2;
+    color: #dc2626;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: .15s ease;
+    white-space: nowrap;
+}
+.btn-bulk:hover:not(:disabled) {
+    background: #fee2e2;
+    color: #b91c1c;
+}
+.btn-bulk:disabled {
+    opacity: .5;
+    cursor: not-allowed;
+}
+.btn-bulk-all {
+    background: #dc2626;
+    border-color: #dc2626;
+    color: #fff;
+}
+.btn-bulk-all:hover {
+    background: #b91c1c;
+    color: #fff;
+}
+.btn-bulk-edit {
+    border-color: #bfdbfe;
+    background: #eff6ff;
+    color: #2563eb;
+}
+.btn-bulk-edit:hover:not(:disabled) {
+    background: #dbeafe;
+    color: #1d4ed8;
+}
+
+/* ===== Modal Bulk Edit ===== */
+#bulkEditModal.modal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 1050;
+    overflow-x: hidden;
+    overflow-y: auto;
+    background: rgba(15, 23, 42, .55);
+}
+#bulkEditModal.modal.show {
+    display: block;
+}
+.modal-backdrop {
+    display: none !important;
+}
+#bulkEditModal .modal-dialog {
+    width: 100%;
+    max-width: 480px;
+    margin: 50px auto;
+    padding: 0 15px;
+}
+#bulkEditModal .modal-content {
+    background: #fff;
+    border: 0;
+    border-radius: 10px;
+    box-shadow: 0 10px 40px rgba(15, 23, 42, .25);
+    overflow: hidden;
+}
+#bulkEditModal .modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 15px 20px;
+    background: #f8fafc;
+    border-bottom: 1px solid #e9eef5;
+}
+#bulkEditModal .modal-title {
+    margin: 0;
+    color: #1e293b;
+    font-size: 15px;
+    font-weight: 700;
+}
+#bulkEditModal .close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: #94a3b8;
+    font-size: 18px;
+    line-height: 1;
+    cursor: pointer;
+}
+#bulkEditModal .close:hover {
+    background: #f1f5f9;
+    color: #475569;
+}
+#bulkEditModal .modal-body {
+    padding: 18px 20px;
+    max-height: 65vh;
+    overflow-y: auto;
+}
+#bulkEditModal .modal-footer {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    padding: 14px 20px;
+    background: #f8fafc;
+    border-top: 1px solid #e9eef5;
+}
+.form-group-tf {
+    margin-bottom: 14px;
+}
+.form-group-tf:last-child {
+    margin-bottom: 0;
+}
+.form-label-tf {
+    display: block;
+    margin-bottom: 6px;
+    color: #475569;
+    font-size: 12px;
+    font-weight: 600;
+}
+.form-input-tf {
+    width: 100%;
+    height: 38px;
+    padding: 0 12px;
+    border: 1px solid #dbe2ea;
+    border-radius: 7px;
+    color: #334155;
+    font-size: 12px;
+    outline: none !important;
+    box-shadow: none !important;
+}
+.form-input-tf:focus {
+    border-color: #93c5fd;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, .08) !important;
+}
+.btn-cancel-tf {
+    height: 36px;
+    padding: 0 15px;
+    border: 1px solid #e2e8f0;
+    border-radius: 7px;
+    background: #f1f5f9;
+    color: #475569;
+    font-size: 12px;
+    font-weight: 600;
+}
+.btn-cancel-tf:hover {
+    background: #e2e8f0;
+    color: #334155;
+}
+.btn-submit-tf {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    height: 36px;
+    padding: 0 16px;
+    border: 0;
+    border-radius: 7px;
+    background: #2563eb;
+    color: #fff;
+    font-size: 12px;
+    font-weight: 600;
+}
+.btn-submit-tf:hover {
+    background: #1d4ed8;
+    color: #fff;
+}
+
+@media (max-width: 768px) {
+    .bulk-actions { width: 100%; }
+    .btn-bulk { flex: 1; }
+    #bulkEditModal .modal-dialog { margin: 20px auto; }
+}
+
+</style>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 <div class="container-fluid tarif-page">
 
 
@@ -850,23 +1180,35 @@
         <h4 class="tarif-title">
             Data Tarif Pengiriman
         </h4>
-
         <span class="tarif-subtitle">
             Master tarif pengiriman
         </span>
     </div>
 
-    <a href="{{ route('spvplanner.tarif.create') }}"
-       class="btn-add">
+    <div class="tarif-actions">
 
-        <i class="fas fa-plus"></i>
+        <a href="{{ route('spvplanner.tarif.create') }}" class="btn-add">
+            <i class="fas fa-plus"></i>
+            Tambah Data
+        </a>
 
-        Tambah Data
+        <form action="{{ route('spvplanner.tarif.import') }}" method="POST" enctype="multipart/form-data" class="import-form">
+            @csrf
+            <label class="file-input-label">
+                <i class="fas fa-file-csv"></i>
+                <span id="fileNameLabel">Pilih File CSV</span>
+                <input type="file" name="file" accept=".csv,.txt" required
+                       onchange="document.getElementById('fileNameLabel').innerText = this.files[0]?.name || 'Pilih File CSV'">
+            </label>
+            <button type="submit" class="btn-import">
+                <i class="fas fa-upload"></i>
+                Import CSV
+            </button>
+        </form>
 
-    </a>
+    </div>
 
 </div>
-
 
 {{-- =====================================================
      SUCCESS
@@ -1018,336 +1360,163 @@
 
     {{-- TABLE HEADER --}}
 
-    <div class="table-top">
+   <div class="table-top">
 
-        <div class="table-heading">
-
-            <h6 class="table-title">
-
-                <i class="fas fa-list mr-1"></i>
-
-                Daftar Tarif Pengiriman
-
-            </h6>
-
-            <div class="table-description">
-                Data master tarif pengiriman
-            </div>
-
+    <div class="table-heading">
+        <h6 class="table-title">
+            <i class="fas fa-list mr-1"></i>
+            Daftar Tarif Pengiriman
+        </h6>
+        <div class="table-description">
+            Data master tarif pengiriman
         </div>
+    </div>
 
+    <div class="bulk-actions">
+
+        <button type="button" id="btnDeleteSelected" class="btn-bulk" disabled>
+            <i class="fas fa-trash"></i>
+            Hapus Terpilih (<span id="selectedCount">0</span>)
+        </button>
+
+        <button type="button" id="btnDeleteAll" class="btn-bulk btn-bulk-all">
+            <i class="fas fa-trash-alt"></i>
+            Hapus Semua Data
+        </button>
+
+        <button type="button" id="btnEditSelected" class="btn-bulk btn-bulk-edit" disabled>
+            <i class="fas fa-edit"></i>
+            Edit Terpilih (<span id="selectedCountEdit">0</span>)
+        </button>
 
         @if(method_exists($data, 'total'))
-
             <span class="data-count">
-
                 <i class="fas fa-database"></i>
-
-                {{ number_format($data->total(), 0, ',', '.') }}
-
-                Data
-
+                {{ number_format($data->total(), 0, ',', '.') }} Data
             </span>
-
         @endif
 
     </div>
 
+</div>
+
 
     {{-- TABLE --}}
 
-    <div class="table-wrapper">
+  <div class="table-wrapper">
+
+    <form id="bulkForm" method="POST" action="{{ route('spvplanner.tarif.bulk-destroy') }}">
+        @csrf
+        @method('DELETE')
 
         <table class="tarif-table">
 
             <thead>
-
                 <tr>
-
-                    <th class="col-no">
-                        No
+                    <th class="col-check">
+                        <input type="checkbox" id="checkAll" title="Pilih Semua di Halaman Ini">
                     </th>
-
-                    <th class="col-agent">
-                        Service Agent
-                    </th>
-
-                    <th class="col-ekspedisi">
-                        Ekspedisi
-                    </th>
-
-                    <th class="col-sh center">
-                        SH
-                    </th>
-
-                    <th class="col-mobil">
-                        Mobil
-                    </th>
-
-                    <th class="col-routew">
-                        Route W
-                    </th>
-
-                    <th class="col-route">
-                        Route
-                    </th>
-
-                    <th class="col-biaya">
-                        Biaya Kirim
-                    </th>
-
-                    <th class="col-unit center">
-                        Unit
-                    </th>
-
-                    <th class="col-s center">
-                        S1
-                    </th>
-
-                    <th class="col-s center">
-                        S2
-                    </th>
-
-                    <th class="col-date">
-                        Valid From
-                    </th>
-
-                    <th class="col-date">
-                        Valid To
-                    </th>
-
-                    {{-- STICKY ACTION --}}
-
-                    <th class="col-action action-sticky">
-                        Aksi
-                    </th>
-
+                    <th class="col-no">No</th>
+                    <th class="col-agent">Service Agent</th>
+                    <th class="col-ekspedisi">Ekspedisi</th>
+                    <th class="col-sh center">SH</th>
+                    <th class="col-mobil">Mobil</th>
+                    <th class="col-routew">Route W</th>
+                    <th class="col-route">Route</th>
+                    <th class="col-biaya">Biaya Kirim</th>
+                    <th class="col-unit center">Unit</th>
+                    <th class="col-s center">S1</th>
+                    <th class="col-s center">S2</th>
+                    <th class="col-date">Valid From</th>
+                    <th class="col-date">Valid To</th>
+                    <th class="col-date">Tonase</th>
+                    <th class="col-date">Kubikasi</th>
+                    <th class="col-action action-sticky">Aksi</th>
                 </tr>
-
             </thead>
-
 
             <tbody>
 
                 @forelse($data as $item)
 
-                    <tr>
+                    <tr data-row-id="{{ $item->id }}">
 
-                        {{-- NO --}}
+                        <td class="col-check">
+                            <input type="checkbox" name="ids[]" value="{{ $item->id }}" class="row-check">
+                        </td>
 
                         <td class="col-no">
-
                             @if(method_exists($data, 'firstItem'))
-
                                 {{ $data->firstItem() + $loop->index }}
-
                             @else
-
                                 {{ $loop->iteration }}
-
                             @endif
-
                         </td>
-
-
-                        {{-- SERVICE AGENT --}}
 
                         <td class="col-agent">
-
                             @if(!empty($item->servc_agent))
-
-                                <span class="agent-badge">
-
-                                    {{ $item->servc_agent }}
-
-                                </span>
-
+                                <span class="agent-badge">{{ $item->servc_agent }}</span>
                             @else
-
                                 -
-
                             @endif
-
                         </td>
-
-
-                        {{-- EKSPEDISI --}}
 
                         <td class="col-ekspedisi">
-
-                            <span class="ekspedisi-text">
-
-                                {{ $item->ekpedisi ?: '-' }}
-
-                            </span>
-
+                            <span class="ekspedisi-text">{{ $item->ekpedisi ?: '-' }}</span>
                         </td>
 
-
-                        {{-- SH --}}
-
-                        <td class="col-sh center">
-
-                            {{ $item->sh ?: '-' }}
-
-                        </td>
-
-
-                        {{-- MOBIL --}}
+                        <td class="col-sh center">{{ $item->sh ?: '-' }}</td>
 
                         <td class="col-mobil">
-
-                            <span class="mobil-text">
-
-                                {{ $item->mobil ?: '-' }}
-
-                            </span>
-
+                            <span class="mobil-text">{{ $item->mobil ?: '-' }}</span>
                         </td>
 
-
-                        {{-- ROUTE W --}}
-
-                        <td class="col-routew">
-
-                            {{ $item->routew ?: '-' }}
-
-                        </td>
-
-
-                        {{-- ROUTE --}}
+                        <td class="col-routew">{{ $item->routew ?: '-' }}</td>
 
                         <td class="col-route">
-
-                            <div class="route-text"
-                                 title="{{ $item->route }}">
-
+                            <div class="route-text" title="{{ $item->route }}">
                                 {{ $item->route ?: '-' }}
-
                             </div>
-
                         </td>
-
-
-                        {{-- BIAYA KIRIM --}}
 
                         <td class="col-biaya biaya-text">
-
                             @php
-
                                 $rawBiaya = trim((string) ($item->biaya_kirim ?? ''));
-
                                 $cleanBiaya = preg_replace('/[^0-9]/', '', $rawBiaya);
-
                             @endphp
-
                             @if($cleanBiaya !== '' && (float) $cleanBiaya > 0)
-
                                 Rp {{ number_format((float) $cleanBiaya, 0, ',', '.') }}
-
                             @else
-
                                 -
-
                             @endif
-
                         </td>
 
-
-                        {{-- UNIT --}}
-
-                        <td class="col-unit center">
-
-                            {{ $item->unit ?: '-' }}
-
-                        </td>
-
-
-                        {{-- S1 --}}
-
-                        <td class="col-s center">
-
-                            {{ $item->s_1 ?: '-' }}
-
-                        </td>
-
-
-                        {{-- S2 --}}
-
-                        <td class="col-s center">
-
-                            {{ $item->s_2 ?: '-' }}
-
-                        </td>
-
-
-                        {{-- VALID FROM --}}
-
-                        <td class="col-date date-text">
-
-                            {{ $item->valid_from ?: '-' }}
-
-                        </td>
-
-
-                        {{-- VALID TO --}}
-
-                        <td class="col-date date-text">
-
-                            {{ $item->valid_to ?: '-' }}
-
-                        </td>
-
-
-                        {{-- =================================================
-                             ACTION
-                        ================================================== --}}
+                        <td class="col-unit center">{{ $item->unit ?: '-' }}</td>
+                        <td class="col-s center">{{ $item->s_1 ?: '-' }}</td>
+                        <td class="col-s center">{{ $item->s_2 ?: '-' }}</td>
+                        <td class="col-date date-text">{{ $item->valid_from ?: '-' }}</td>
+                        <td class="col-date date-text">{{ $item->valid_to ?: '-' }}</td>
+                        <td class="col-date date-text">{{ $item->tonase ?: '-' }}</td>
+                        <td class="col-date date-text">{{ $item->kubikasi ?: '-' }}</td>
 
                         <td class="col-action action-sticky">
-
                             <div class="action-wrapper">
 
-                                {{-- EDIT --}}
-
                                 <a href="{{ route('spvplanner.tarif.edit', $item->id) }}"
-                                   class="action-btn action-edit"
-                                   title="Edit Data">
-
+                                   class="action-btn action-edit" title="Edit Data">
                                     <i class="fas fa-edit"></i>
-
                                     <span>Edit</span>
-
                                 </a>
 
-
-                                {{-- DELETE --}}
-
-                                <form
-                                    action="{{ route('spvplanner.tarif.destroy', $item->id) }}"
-                                    method="POST"
-                                    style="display:inline !important; margin:0 !important;"
-                                    onsubmit="return confirm('Yakin ingin menghapus data ini?')"
-                                >
-
-                                    @csrf
-
-                                    @method('DELETE')
-
-                                    <button
-                                        type="submit"
-                                        class="action-btn action-delete"
-                                        title="Hapus Data"
-                                    >
-
-                                        <i class="fas fa-trash"></i>
-                                         <span>Hapus</span>
-
-                                    </button>
-
-                                </form>
+                                <button type="button"
+                                        class="action-btn action-delete btn-delete-single"
+                                        data-id="{{ $item->id }}"
+                                        title="Hapus Data">
+                                    <i class="fas fa-trash"></i>
+                                    <span>Hapus</span>
+                                </button>
 
                             </div>
-
                         </td>
 
                     </tr>
@@ -1355,29 +1524,13 @@
                 @empty
 
                     <tr class="empty-row">
-
-                        <td colspan="14">
-
+                        <td colspan="17">
                             <div class="empty-icon">
-
                                 <i class="fas fa-file-invoice"></i>
-
                             </div>
-
-                            <div class="empty-title">
-
-                                Belum ada data tarif
-
-                            </div>
-
-                            <p class="empty-description">
-
-                                Data tarif pengiriman belum tersedia.
-
-                            </p>
-
+                            <div class="empty-title">Belum ada data tarif</div>
+                            <p class="empty-description">Data tarif pengiriman belum tersedia.</p>
                         </td>
-
                     </tr>
 
                 @endforelse
@@ -1386,8 +1539,9 @@
 
         </table>
 
-    </div>
+    </form>
 
+</div>
 
     {{-- =====================================================
          PAGINATION
@@ -1592,5 +1746,256 @@
 </div>
 
 </div>
+<div class="modal fade" id="bulkEditModal" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
 
+      <form id="bulkEditForm" method="POST" action="{{ route('spvplanner.tarif.bulk-update') }}">
+        @csrf
+        <div id="bulkEditIdsContainer"></div>
+
+        <div class="modal-header">
+          <h5 class="modal-title">Edit <span id="bulkEditCount">0</span> Data Terpilih</h5>
+          <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span>&times;</span></button>
+        </div>
+
+        <div class="modal-body">
+          <p class="text-muted" style="font-size:12px;">
+            Kosongkan field yang tidak ingin diubah — hanya field yang diisi yang akan diterapkan ke semua data terpilih.
+          </p>
+
+          <div class="form-group-tf">
+            <label class="form-label-tf">Service Agent</label>
+            <input type="text" name="servc_agent" class="form-input-tf" placeholder="Kosongkan jika tidak diubah">
+          </div>
+
+          <div class="form-group-tf">
+            <label class="form-label-tf">Ekspedisi</label>
+            <input type="text" name="ekpedisi" class="form-input-tf" placeholder="Kosongkan jika tidak diubah">
+          </div>
+
+          <div class="form-group-tf">
+            <label class="form-label-tf">Mobil</label>
+            <input type="text" name="mobil" class="form-input-tf" placeholder="Kosongkan jika tidak diubah">
+          </div>
+
+          <div class="form-group-tf">
+            <label class="form-label-tf">Route</label>
+            <input type="text" name="route" class="form-input-tf" placeholder="Kosongkan jika tidak diubah">
+          </div>
+
+          <div class="form-group-tf">
+            <label class="form-label-tf">Route W</label>
+            <input type="text" name="routew" class="form-input-tf" placeholder="Kosongkan jika tidak diubah">
+          </div>
+
+          <div class="form-group-tf">
+            <label class="form-label-tf">Biaya Kirim</label>
+            <input type="text" name="biaya_kirim" class="form-input-tf" placeholder="Kosongkan jika tidak diubah">
+          </div>
+
+          <div class="form-group-tf">
+            <label class="form-label-tf">Tonase</label>
+            <input type="text" name="tonase" class="form-input-tf" placeholder="Kosongkan jika tidak diubah">
+          </div>
+
+          <div class="form-group-tf">
+            <label class="form-label-tf">Kubikasi</label>
+            <input type="text" name="kubikasi" class="form-input-tf" placeholder="Kosongkan jika tidak diubah">
+          </div>
+
+          <div class="form-group-tf">
+            <label class="form-label-tf">Valid From</label>
+            <input type="text" name="valid_from" class="form-input-tf" placeholder="Kosongkan jika tidak diubah">
+          </div>
+
+          <div class="form-group-tf">
+            <label class="form-label-tf">Valid To</label>
+            <input type="text" name="valid_to" class="form-input-tf" placeholder="Kosongkan jika tidak diubah">
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn-cancel-tf" data-dismiss="modal">Batal</button>
+          <button type="submit" class="btn-submit-tf">
+              <i class="fas fa-save mr-1"></i> Simpan Perubahan
+          </button>
+        </div>
+      </form>
+
+    </div>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+
+    const checkAll          = document.getElementById('checkAll');
+    const btnDeleteSelected = document.getElementById('btnDeleteSelected');
+    const btnDeleteAll      = document.getElementById('btnDeleteAll');
+    const selectedCountEl   = document.getElementById('selectedCount');
+    const bulkForm          = document.getElementById('bulkForm');
+    const csrfToken         = '{{ csrf_token() }}';
+
+    const btnEditSelected      = document.getElementById('btnEditSelected');
+    const selectedCountEditEl  = document.getElementById('selectedCountEdit');
+    const bulkEditForm         = document.getElementById('bulkEditForm');
+    const bulkEditIdsContainer = document.getElementById('bulkEditIdsContainer');
+    const bulkEditCount        = document.getElementById('bulkEditCount');
+    const bulkEditModal        = document.getElementById('bulkEditModal');
+
+    function getRowChecks() {
+        return document.querySelectorAll('.row-check');
+    }
+
+    function updateSelectedCount() {
+        const checked = document.querySelectorAll('.row-check:checked');
+
+        selectedCountEl.textContent = checked.length;
+        btnDeleteSelected.disabled = checked.length === 0;
+
+        getRowChecks().forEach(function (cb) {
+            const tr = cb.closest('tr');
+            if (tr) tr.classList.toggle('row-selected', cb.checked);
+        });
+
+        const total = getRowChecks().length;
+        if (checkAll) {
+            checkAll.checked = total > 0 && checked.length === total;
+            checkAll.indeterminate = checked.length > 0 && checked.length < total;
+        }
+
+        if (btnEditSelected) {
+            selectedCountEditEl.textContent = checked.length;
+            btnEditSelected.disabled = checked.length === 0;
+        }
+    }
+
+    checkAll?.addEventListener('change', function () {
+        getRowChecks().forEach(function (cb) {
+            cb.checked = checkAll.checked;
+        });
+        updateSelectedCount();
+    });
+
+    document.addEventListener('change', function (e) {
+        if (e.target.classList && e.target.classList.contains('row-check')) {
+            updateSelectedCount();
+        }
+    });
+
+    function openBulkEditModal() {
+        bulkEditModal.classList.add('show');
+        bulkEditModal.setAttribute('aria-hidden', 'false');
+        document.body.style.overflow = 'hidden';
+    }
+
+    function closeBulkEditModal() {
+        bulkEditModal.classList.remove('show');
+        bulkEditModal.setAttribute('aria-hidden', 'true');
+        document.body.style.overflow = '';
+    }
+
+    btnEditSelected?.addEventListener('click', function () {
+        const checked = document.querySelectorAll('.row-check:checked');
+        if (checked.length === 0) return;
+
+        bulkEditForm.reset();
+
+        bulkEditIdsContainer.innerHTML = '';
+        checked.forEach(function (cb) {
+            const hidden = document.createElement('input');
+            hidden.type  = 'hidden';
+            hidden.name  = 'ids[]';
+            hidden.value = cb.value;
+            bulkEditIdsContainer.appendChild(hidden);
+        });
+
+        bulkEditCount.textContent = checked.length;
+
+        openBulkEditModal();
+    });
+
+    bulkEditModal?.querySelectorAll('[data-dismiss="modal"]').forEach(function (el) {
+        el.addEventListener('click', closeBulkEditModal);
+    });
+
+    bulkEditModal?.addEventListener('click', function (e) {
+        if (e.target === bulkEditModal) closeBulkEditModal();
+    });
+
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && bulkEditModal?.classList.contains('show')) {
+            closeBulkEditModal();
+        }
+    });
+
+    btnDeleteSelected?.addEventListener('click', function () {
+        const checked = document.querySelectorAll('.row-check:checked');
+        if (checked.length === 0) return;
+
+        if (confirm('Yakin ingin menghapus ' + checked.length + ' data tarif yang dipilih?')) {
+            bulkForm.submit();
+        }
+    });
+
+    btnDeleteAll?.addEventListener('click', function () {
+        const confirmText = prompt('Ini akan menghapus SEMUA data tarif tanpa terkecuali.\nKetik "HAPUS SEMUA" untuk konfirmasi:');
+
+        if (confirmText === null) return;
+
+        if (confirmText.trim().toUpperCase() !== 'HAPUS SEMUA') {
+            alert('Konfirmasi tidak sesuai, aksi dibatalkan.');
+            return;
+        }
+
+        btnDeleteAll.disabled = true;
+
+        fetch("{{ route('spvplanner.tarif.destroy-all') }}", {
+            method: 'DELETE',
+            headers: {
+                'X-CSRF-TOKEN': csrfToken,
+                'Accept': 'application/json',
+            }
+        })
+        .then(function (res) { return res.json(); })
+        .then(function (data) {
+            alert(data.message || 'Semua data berhasil dihapus');
+            window.location.reload();
+        })
+        .catch(function () {
+            alert('Gagal menghapus semua data');
+            btnDeleteAll.disabled = false;
+        });
+    });
+
+    document.addEventListener('click', function (e) {
+        const btn = e.target.closest('.btn-delete-single');
+        if (!btn) return;
+
+        const id = btn.dataset.id;
+        if (!confirm('Yakin ingin menghapus tarif ini?')) return;
+
+        btn.disabled = true;
+
+        fetch('/spvplanner/tarif/' + id, {
+            method: 'DELETE',
+            headers: {
+                'X-CSRF-TOKEN': csrfToken,
+                'Accept': 'application/json',
+            }
+        })
+        .then(function (res) { return res.json(); })
+        .then(function (data) {
+            alert(data.message || 'Data berhasil dihapus');
+            window.location.reload();
+        })
+        .catch(function () {
+            alert('Gagal menghapus data');
+            btn.disabled = false;
+        });
+    });
+
+});
+</script>
 @endsection

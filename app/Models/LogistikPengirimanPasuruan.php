@@ -59,6 +59,18 @@ class LogistikPengirimanPasuruan extends Model
 
     'tanggal_terima_po_pasuruan',
     'rencana_kirim_pasuruan',
+    'tonase_pasuruan',
+    'total_kubik_pasuruan',
+    'total_tonase_pasuruan',
+    'hasil_kubik_pasuruan',
+    'tonase_pasuruan',              // ⬅️ TAMBAHAN (sebelumnya belum ada)
+    'total_kubik_pasuruan',         // ⬅️ TAMBAHAN
+    'total_tonase_pasuruan',        // ⬅️ TAMBAHAN
+    'hasil_kubik_pasuruan',         // ⬅️ TAMBAHAN
+    'hasil_tonase_pasuruan',        // ⬅️ TAMBAHAN
+    'pengiriman_optimal_pasuruan', 
+    'hasil_tonase_pasuruan',
+    'pengiriman_optimal_pasuruan',
     'kubikasi_pasuruan',
     'transport_lead_time_pasuruan',
 

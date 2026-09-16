@@ -193,6 +193,7 @@ class UserController extends Controller
             'spvplanner' => redirect()->route('spvplanner.dashboard'),
             'spvmonitoring' => redirect()->route('spvmonitoring.dashboard'),
             'developer' => redirect()->route('developer.dashboard'),
+            'kota' => redirect()->route('kota.dashboard'),
             'cmd' => redirect()->route('cmd.dashboard'),
             'pasuruan', 'admin_pasuruan' => redirect()->route('pasuruan.dashboard'),
             default => redirect('/login')->with('success', 'Registrasi berhasil! Silakan login.'),

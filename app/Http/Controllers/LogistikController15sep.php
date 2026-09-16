@@ -456,11 +456,6 @@ class LogistikController extends Controller
                 'cr_fmt'                      => $this->formatCR($this->computeCR($r, $shipmentAgg)),
                 'kubikasi_fmt'                => $this->formatPersen($r->kubikasi ?? null),
                 'tonase_fmt'                  => $this->formatTonase($r->tonase ?? null),
-               'total_kubik_fmt'  => $this->formatKubik($r->total_kubik ?? null),
-'total_tonase_fmt' => $this->formatTonase($r->total_tonase ?? null),
-                'hasil_kubik_fmt'             => $this->formatHasilPersen($this->computeHasilKubik($r)),
-                'hasil_tonase_fmt'            => $this->formatHasilPersen($this->computeHasilTonase($r)),
-                'pengiriman_optimal_badge'    => $this->badgePengirimanOptimal($r),
                 'kategori_ekspedisi_badge'    => $this->badgeKategoriEkspedisi($r->kategori_ekspedisi),
                 'ekpedisi'                    => $r->ekpedisi,
                 'tanggal_dpt_unit_fmt'        => $this->fmtDate($r->tanggal_dpt_unit),
@@ -1096,103 +1091,13 @@ class LogistikController extends Controller
     }
     return number_format((float) $value, 2, ',', '.') . '%';
 }
-// private function formatTonase($value): string
-// {
-//     if ($value === null || $value === '') {
-//         return '-';
-//     }
-//     return number_format((float) $value, 2, ',', '.') . ' Ton';
-// }
-
-    /** Format nilai kubikasi mentah (M3) — dipakai untuk Total_Kubik */
-private function formatKubik($value): string
-{
-    if ($value === null || $value === '') {
-        return '-';
-    }
-    return number_format((float) $value, 2, ',', '.');
-}
-
 private function formatTonase($value): string
 {
     if ($value === null || $value === '') {
         return '-';
     }
-    return number_format((float) $value, 2, ',', '.');
+    return number_format((float) $value, 2, ',', '.') . ' Ton';
 }
-
-    /**
-     * Hasil kubikasi = kubikasi aktual dibanding Total_Kubik (kapasitas), dalam persen.
-     * hasil_Kubik = kubikasi / Total_Kubik * 100
-     */
-private function computeHasilKubik($r): ?float
-{
-    $totalMuatan = (float) ($r->total_kubik ?? 0);
-    $kapasitas   = (float) ($r->kubikasi ?? 0);
-
-    if ($kapasitas <= 0) {
-        return null;
-    }
-
-    return ($totalMuatan / $kapasitas) * 100;
-}
-
-private function computeHasilTonase($r): ?float
-{
-    $totalMuatan = (float) ($r->total_tonase ?? 0);
-    $kapasitas   = (float) ($r->tonase ?? 0);
-
-    if ($kapasitas <= 0) {
-        return null;
-    }
-
-    return ($totalMuatan / $kapasitas) * 100;
-}
-
-    /**
-     * Hasil tonase = tonase aktual dibanding Total_Tonase (kapasitas), dalam persen.
-     * hasil_Tonase = tonase / Total_Tonase * 100
-     */
-    // private function computeHasilTonase($r): ?float
-    // {
-    //     $total = (float) ($r->Total_Tonase ?? 0);
-    //     $aktual = (float) ($r->tonase ?? 0);
-
-    //     if ($total <= 0) {
-    //         return null;
-    //     }
-
-    //     return ($aktual / $total) * 100;
-    // }
-
-    private function formatHasilPersen(?float $value): string
-    {
-        if ($value === null) {
-            return '-';
-        }
-        return number_format($value, 2, ',', '.') . '%';
-    }
-
-    /**
-     * Badge Pengiriman Optimal: optimal jika SALAH SATU dari hasil_Kubik
-     * atau hasil_Tonase di atas 85%.
-     */
-    private function badgePengirimanOptimal($r): string
-    {
-        $hasilKubik  = $this->computeHasilKubik($r);
-        $hasilTonase = $this->computeHasilTonase($r);
-
-        if ($hasilKubik === null && $hasilTonase === null) {
-            return '<span class="badge gray">-</span>';
-        }
-
-       $isOptimal = ($hasilKubik !== null && $hasilKubik >= 85)
-    || ($hasilTonase !== null && $hasilTonase >= 85);
-
-        return $isOptimal
-            ? '<span class="badge green">✅ Optimal</span>'
-            : '<span class="badge orange">⚠️ Tidak Optimal</span>';
-    }
 
     private function formatCR(float $cr): string
     {

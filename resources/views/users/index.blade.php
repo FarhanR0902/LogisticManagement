@@ -150,6 +150,9 @@ table tr:hover{
 .role-spvplanner{
     background:#b91048;
 }
+.role-kota{
+    background:#b91048;
+}
 .role-admin_pasuruan{
     background:#ccec29;
 }

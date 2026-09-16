@@ -13,6 +13,8 @@ class PlannerController extends Controller
 {
     public function store(Request $request)
     {
+        $data['total_kubik']  = $this->cleanDecimalPlanner($request->total_kubik);
+$data['total_tonase'] = $this->cleanDecimalPlanner($request->total_tonase);
         $rumus = $this->hitungSla($request);
 
         $data = $request->only([
@@ -51,6 +53,24 @@ class PlannerController extends Controller
             'via_kirim'
         ]);
         $data['kubikasi'] = $this->cleanPersen($request->kubikasi);
+        $kapasitas = $this->cariKapasitasTarif($request->route, $request->mobil, $request->ekpedisi);
+
+$data['kubikasi'] = $kapasitas['kubikasi'] ?? $this->cleanPersen($request->kubikasi);
+$data['tonase']   = $kapasitas['tonase'];
+
+$data['total_kubik']  = $this->cleanDecimalPlanner($request->total_kubik);
+$data['total_tonase'] = $this->cleanDecimalPlanner($request->total_tonase);
+
+$hasil = $this->hitungHasilOptimal(
+    $data['total_kubik'],
+    $data['kubikasi'],
+    $data['total_tonase'],
+    $data['tonase']
+);
+
+$data['hasil_kubik']         = $hasil['hasil_kubik'];
+$data['hasil_tonase']        = $hasil['hasil_tonase'];
+$data['pengiriman_optimal']  = $hasil['pengiriman_optimal'];
 
         LogistikPengiriman::create(array_merge($data, $rumus));
 
@@ -252,14 +272,32 @@ class PlannerController extends Controller
         // ====================================================
         // 3. UPDATE FIELD YANG SPESIFIK PER ROW / PER TUJUAN
         // ====================================================
-        $updateRow = [
-            'tujuan'           => $request->tujuan,
-            'pulau'            => $request->pulau,
-            'total_do_qty_car' => $request->total_do_qty_car,
-             'kubikasi'         => $this->cleanPersen($request->kubikasi),
-            'nilai_muatan'     => $this->cleanMoney($request->nilai_muatan),
-            'updated_at'       => now(),
-        ];
+      $kapasitas = $this->cariKapasitasTarif($request->route, $request->mobil, $request->ekpedisi);
+
+$totalKubik  = $this->cleanDecimalPlanner($request->total_kubik);
+$totalTonase = $this->cleanDecimalPlanner($request->total_tonase);
+
+$hasil = $this->hitungHasilOptimal(
+    $totalKubik,
+    $kapasitas['kubikasi'],
+    $totalTonase,
+    $kapasitas['tonase']
+);
+
+$updateRow = [
+    'tujuan'             => $request->tujuan,
+    'pulau'              => $request->pulau,
+    'total_do_qty_car'   => $request->total_do_qty_car,
+    'kubikasi'           => $kapasitas['kubikasi'] ?? $this->cleanPersen($request->kubikasi),
+    'tonase'             => $kapasitas['tonase'],
+    'total_kubik'        => $totalKubik,
+    'total_tonase'       => $totalTonase,
+    'hasil_kubik'        => $hasil['hasil_kubik'],
+    'hasil_tonase'       => $hasil['hasil_tonase'],
+    'pengiriman_optimal' => $hasil['pengiriman_optimal'],
+    'nilai_muatan'       => $this->cleanMoney($request->nilai_muatan),
+    'updated_at'         => now(),
+];
 
         if ($autoBiaya === null) {
             $updateRow['biaya_kirim'] = $this->cleanMoney($request->biaya_kirim);
@@ -437,14 +475,43 @@ class PlannerController extends Controller
         // ====================================================
         // 3. UPDATE FIELD SPESIFIK PER ROW (per unit/per tujuan)
         // ====================================================
-        $updateRow = [
-             'tujuan'           => $request->tujuan,
-            'pulau'            => $request->pulau,
-            'total_do_qty_car' => $request->total_do_qty_car,
-            'kubikasi'         => $this->cleanPersen($request->kubikasi),
-            'nilai_muatan'     => $this->cleanMoney($request->nilai_muatan),
-            'updated_at'       => now(),
-        ];
+       // ====================================================
+// 3. UPDATE FIELD SPESIFIK PER ROW (per unit/per tujuan)
+// ====================================================
+$kapasitas = $this->cariKapasitasTarif($request->route, $request->mobil, $request->ekpedisi);
+
+$totalKubik  = $this->cleanDecimalPlanner($request->total_kubik);
+$totalTonase = $this->cleanDecimalPlanner($request->total_tonase);
+
+$hasil = $this->hitungHasilOptimal(
+    $totalKubik,
+    $kapasitas['kubikasi'],
+    $totalTonase,
+    $kapasitas['tonase']
+);
+
+$updateRow = [
+    'tujuan'             => $request->tujuan,
+    'pulau'              => $request->pulau,
+    'total_do_qty_car'   => $request->total_do_qty_car,
+    'kubikasi'           => $kapasitas['kubikasi'] ?? $this->cleanPersen($request->kubikasi),
+    'tonase'             => $kapasitas['tonase'],
+    'total_kubik'        => $totalKubik,
+    'total_tonase'       => $totalTonase,
+    'hasil_kubik'        => $hasil['hasil_kubik'],
+    'hasil_tonase'       => $hasil['hasil_tonase'],
+    'pengiriman_optimal' => $hasil['pengiriman_optimal'],
+    'nilai_muatan'       => $this->cleanMoney($request->nilai_muatan),
+    'updated_at'         => now(),
+];
+
+if ($autoBiaya === null) {
+    $updateRow['biaya_kirim'] = $biayaKirim;
+}
+
+DB::table('logistik_pengiriman')
+    ->where('id', $id)
+    ->update($updateRow);
 
         if ($autoBiaya === null) {
             $updateRow['biaya_kirim'] = $biayaKirim;
@@ -812,7 +879,9 @@ class PlannerController extends Controller
             // 1
             $textInput('planner', $r->planner),
             // 2
-            $textInput('no_shipment', $r->no_shipment, 'row-no-shipment'),
+// 2
+'<span class="fw-medium">' . e($r->no_shipment) . '</span>'
+. '<input type="hidden" ' . $formAttr . ' name="no_shipment" value="' . e($r->no_shipment) . '">',
             // 3-14 tanggal
             $dateInput('tanggal_naik_logistik', $r->tanggal_naik_logistik),
             $dateInput('rencana_kirim', $r->rencana_kirim),
@@ -827,7 +896,9 @@ class PlannerController extends Controller
             $dateInput('tanggal_tiba_gudang_3', $r->tanggal_tiba_gudang_3),
             $dateInput('tanggal_keluar_gudang_3', $r->tanggal_keluar_gudang_3),
             // 15 tujuan
-            $buildSelect('tujuan', $r->tujuan, $lists['tujuanList'], 'row-tujuan'),
+           // 15 tujuan
+'<span class="fw-medium">' . e($r->tujuan) . '</span>'
+. '<input type="hidden" ' . $formAttr . ' name="tujuan" value="' . e($r->tujuan) . '">',
             // 16 route (required)
             $buildSelect('route', $r->route, $lists['routeList'], 'row-route'),
             // 17 pulau
@@ -862,6 +933,23 @@ class PlannerController extends Controller
             '<input type="text" ' . $formAttr . ' name="cr" class="row-cr" readonly style="background:#f1f5f9;color:#0284c7;font-weight:600;" value="' . e(is_numeric($r->cr) ? number_format((float) $r->cr, 4) : $r->cr) . '">',
 // SESUDAH — text input, diformat pakai helper yang sudah ada
 $textInput('kubikasi', $formattedPersen($r->kubikasi), 'row-kubikasi'),
+// tonase (readonly, hasil lookup tarif)
+'<input type="text" readonly style="background:#f1f5f9;" value="' . e($r->tonase !== null ? number_format((float)$r->tonase, 2, ',', '.') . '%' : '-') . '">',
+
+// total kubik (manual)
+$textInput('total_kubik', $r->total_kubik, 'row-total-kubikasi'),
+$textInput('total_tonase', $r->total_tonase, 'row-total-tonase'),
+
+// hasil kubik
+'<span>' . e($r->hasil_kubik !== null ? number_format((float)$r->hasil_kubik, 2, ',', '.') . '%' : '-') . '</span>',
+
+// hasil tonase
+'<span>' . e($r->hasil_tonase !== null ? number_format((float)$r->hasil_tonase, 2, ',', '.') . '%' : '-') . '</span>',
+
+// pengiriman optimal badge
+$r->pengiriman_optimal === 'OPTIMAL'
+    ? '<span class="badge green">✅ Optimal</span>'
+    : ($r->pengiriman_optimal ? '<span class="badge orange">⚠️ Tidak Optimal</span>' : '<span class="badge gray">-</span>'),
             // 31 status mobil
             $statusMobilHtml,
             // 32 lama waktu pencarian
@@ -889,6 +977,97 @@ $textInput('kubikasi', $formattedPersen($r->kubikasi), 'row-kubikasi'),
         ];
     }
 
+
+    private function cariKapasitasTarif($route, $mobil, $ekpedisi = null)
+{
+    if (!$route || !$mobil) {
+        return ['kubikasi' => null, 'tonase' => null];
+    }
+
+    $normalize = function ($v) {
+        if (!$v) return '';
+        $v = str_replace("\xc2\xa0", ' ', $v);
+        $v = preg_replace('/\s*-\s*/', '-', $v);
+        $v = preg_replace('/\s+/', ' ', trim($v));
+        return mb_strtolower($v);
+    };
+
+    $routeKey    = $normalize($route);
+    $mobilKey    = $normalize($mobil);
+    $ekpedisiKey = $ekpedisi ? $normalize($ekpedisi) : '';
+
+    $candidates = DB::table('tarif_pengiriman')
+        ->whereNotNull('route')
+        ->whereNotNull('mobil')
+        ->get()
+        ->filter(fn($t) => $normalize($t->route) === $routeKey);
+
+    if ($candidates->isEmpty()) {
+        return ['kubikasi' => null, 'tonase' => null];
+    }
+
+    $match = null;
+
+    if ($ekpedisiKey !== '') {
+        $match = $candidates->first(function ($t) use ($normalize, $ekpedisiKey, $mobilKey) {
+            return $normalize($t->ekpedisi) === $ekpedisiKey
+                && str_starts_with($normalize($t->mobil), $mobilKey);
+        });
+    }
+
+    if (!$match) {
+        $match = $candidates->first(fn($t) => str_starts_with($normalize($t->mobil), $mobilKey));
+    }
+
+    return [
+        'kubikasi' => $match->kubikasi ?? null,
+        'tonase'   => $match->tonase ?? null,
+    ];
+}
+
+private function hitungHasilOptimal($totalKubik, $kubikasi, $totalTonase, $tonase)
+{
+    $hasilKubik  = null;
+    $hasilTonase = null;
+
+    if ($kubikasi !== null && (float) $kubikasi > 0 && $totalKubik !== null) {
+        $hasilKubik = round(((float) $totalKubik / (float) $kubikasi) * 100, 2);
+    }
+
+    if ($tonase !== null && (float) $tonase > 0 && $totalTonase !== null) {
+        $hasilTonase = round(((float) $totalTonase / (float) $tonase) * 100, 2);
+    }
+
+    $pengirimanOptimal = null;
+    if ($hasilKubik !== null || $hasilTonase !== null) {
+        $pengirimanOptimal = (($hasilKubik >= 85) || ($hasilTonase >= 85))
+            ? 'OPTIMAL'
+            : 'TIDAK OPTIMAL';
+    }
+
+    return [
+        'hasil_kubik'         => $hasilKubik,
+        'hasil_tonase'        => $hasilTonase,
+        'pengiriman_optimal'  => $pengirimanOptimal,
+    ];
+}
+
+private function cleanDecimalPlanner($value): ?float
+{
+    if ($value === null || $value === '' || $value === '-') return null;
+
+    if (is_numeric($value)) return (float) $value;
+
+    $value = trim((string) $value);
+
+    if (preg_match('/^\d+,\d+$/', $value)) {
+        $value = str_replace(',', '.', $value);
+    } else {
+        $value = str_replace(',', '', $value);
+    }
+
+    return is_numeric($value) ? (float) $value : null;
+}
     /**
      * =====================================================
      * ALERT CONTROL (ringkasan field kosong) — query ringan,

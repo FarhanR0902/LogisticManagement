@@ -188,7 +188,7 @@ class TujuanFilterController extends Controller
             $query->where('area', $request->area);
         }
 
-        $data = $query->orderBy('tujuan')->paginate(100)->withQueryString();
+        $data = $query->orderBy('tujuan')->paginate(10)->withQueryString();
 
         $list_area = TujuanFilter::select('area')
             ->distinct()
