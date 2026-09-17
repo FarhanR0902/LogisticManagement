@@ -930,12 +930,7 @@ tbody tr:last-child td{ border-bottom:none; }
 
 <div class="chart-grid">
 
-       <div class="chart-box">
-        <h3>🚚 Ekspedisi </h3>
-        <div class="chart-wrapper">
-            <canvas id="chartTopEkspedisi"></canvas>
-        </div>
-    </div>
+   
         <div class="chart-box">
         <h3>📈 Trend Pengiriman per Bulan</h3>
         <div class="chart-wrapper">
@@ -994,6 +989,37 @@ tbody tr:last-child td{ border-bottom:none; }
         </tbody>
     </table>
     </div>
+</div>
+
+<div class="table-box">
+    <h3>✅ Summary Pengiriman Optimal</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>Status</th>
+                <th class="num">Total</th>
+                <th class="num">Persentase</th>
+            </tr>
+        </thead>
+        <tbody>
+        @php
+            $totalOptimalData = $summary_pengiriman_optimal->sum('total');
+        @endphp
+        @forelse($summary_pengiriman_optimal as $po)
+            <tr>
+                <td>{{ $po->pengiriman_optimal }}</td>
+                <td class="num">{{ number_format($po->total) }}</td>
+                <td class="num">
+                    <span class="badge {{ $po->pengiriman_optimal === 'OPTIMAL' ? 'badge-green' : 'badge-red' }}">
+                        {{ $totalOptimalData > 0 ? number_format(($po->total / $totalOptimalData) * 100, 2) : 0 }}%
+                    </span>
+                </td>
+            </tr>
+        @empty
+            <tr><td colspan="3" class="empty-row">Belum ada data pengiriman optimal</td></tr>
+        @endforelse
+        </tbody>
+    </table>
 </div>
 <!-- TABLE EKSPEDISI (jumlah pemakaian + biaya kirim) -->
 <div class="table-box">
@@ -1219,7 +1245,7 @@ tbody tr:last-child td{ border-bottom:none; }
 
 </div>
 
-<!-- ================= CHART JS ================= -->
+<<!-- ================= CHART JS ================= -->
 <script>
 
 const labels = @json($label ?? []);
@@ -1229,43 +1255,6 @@ const chartFont = { family: "'Inter', sans-serif", size: 12 };
 Chart.defaults.font = chartFont;
 Chart.defaults.color = '#64748b';
 
-new Chart(document.getElementById('chartEkspedisi'), {
-    type:'bar',
-    data:{
-        labels:labels,
-        datasets:[{
-            label:'Kategori Ekspedisi',
-            data:values,
-            backgroundColor:'#4f46e5',
-            borderRadius:6,
-            maxBarThickness:36
-        }]
-    },
-    options:{
-        responsive:true,
-        maintainAspectRatio:false,
-        plugins:{ legend:{ display:false } },
-        scales:{ y:{ beginAtZero:true, grid:{ color:'#eef0f5' } }, x:{ grid:{ display:false } } }
-    }
-});
-
-// new Chart(document.getElementById('chartBongkar'), {
-//     type:'doughnut',
-//     data:{
-//         labels:['On Time','Delay'],
-//         datasets:[{
-//             data:[{{ $bongkar_ontime }},{{ $bongkar_delay }}],
-//             backgroundColor:['#8b5cf6','#e11d48'],
-//             borderWidth:0
-//         }]
-//     },
-//     options:{
-//         responsive:true,
-//         maintainAspectRatio:false,
-//         cutout:'65%',
-//         plugins:{ legend:{ position:'bottom' } }
-//     }
-// });
 const topEkspedisiData = @json($top_ekspedisi_pemakaian ?? []);
 
 new Chart(document.getElementById('chartTopEkspedisi'), {
@@ -1318,6 +1307,7 @@ new Chart(document.getElementById('chartTrendBulanan'), {
         }
     }
 });
+
 const kategoriEkspedisiData = @json($summary_kategori_ekspedisi ?? []);
 
 new Chart(document.getElementById('chartKategoriEkspedisi'), {
@@ -1605,7 +1595,12 @@ if (document.getElementById('shipmentMap')) {
 
         } else {
 
-            h
+            html += `<div style="background:#eefbf1;border:1px solid #16a34a;color:#166534;
+                        padding:12px 14px;border-radius:10px;font-size:13px;">
+                        ✅ ${matched.length} area cocok ditampilkan di peta.
+                        ${unmatched.length > 0 ? '⚠️ ' + unmatched.length + ' area belum ada koordinatnya: ' + unmatched.join(', ') : ''}
+                      </div>`;
+
         }
 
         debugBox.innerHTML = html;

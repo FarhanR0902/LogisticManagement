@@ -1455,6 +1455,15 @@ class SpvPlannerController extends Controller
             ->where('kategori_ekspedisi', '!=', '')
             ->groupBy('kategori_ekspedisi')
             ->get();
+            $summary_pengiriman_optimal = (clone $base)
+    ->select(
+        'pengiriman_optimal',
+        DB::raw('COUNT(*) as total')
+    )
+    ->whereNotNull('pengiriman_optimal')
+    ->where('pengiriman_optimal', '!=', '')
+    ->groupBy('pengiriman_optimal')
+    ->get();
 
         $label = $ekspedisi->pluck('ekpedisi');
         $value = $ekspedisi->pluck('total');
@@ -1510,6 +1519,7 @@ class SpvPlannerController extends Controller
             'customer_delay',
             'bongkar_ontime',
             'summary_kategori_ekspedisi',
+            'summary_pengiriman_optimal', 
             'bongkar_delay',
             'summary_area',
             'summary_tujuan',
