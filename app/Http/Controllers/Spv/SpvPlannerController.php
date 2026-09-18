@@ -1,7 +1,7 @@
 <?php
 
 namespace App\Http\Controllers\Spv;
-
+use App\Imports\UpdateQtyPgiImport;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -101,6 +101,42 @@ class SpvPlannerController extends Controller
             'tonase'   => $match->tonase ?? null,
         ];
     }
+
+    
+public function importQtyPgi(Request $request)
+{
+    $request->validate([
+        'file' => 'required|mimes:xlsx,xls,csv',
+    ]);
+
+    $import = new UpdateQtyPgiImport;
+    Excel::import($import, $request->file('file'));
+
+    $message = "Qty DO: {$import->getQtyUpdated()} baris berhasil diupdate.";
+
+    if ($import->getQtySkipped() > 0) {
+        $message .= " {$import->getQtySkipped()} baris dilewati.";
+    }
+    if (!empty($import->getQtyNotFound())) {
+        $message .= " Qty tidak ketemu: " . implode(' | ', array_slice($import->getQtyNotFound(), 0, 5));
+        if (count($import->getQtyNotFound()) > 5) {
+            $message .= " (dan " . (count($import->getQtyNotFound()) - 5) . " lainnya)";
+        }
+    }
+    if (!empty($import->getQtyAmbiguous())) {
+        $message .= " Qty ambigu: " . implode(' | ', array_slice($import->getQtyAmbiguous(), 0, 5));
+    }
+
+    $message .= " || PGI Date: {$import->getPgiUpdated()} baris berhasil diupdate.";
+
+    if (!empty($import->getPgiNotFound())) {
+        $message .= " PGI tidak ketemu: " . implode(', ', array_slice($import->getPgiNotFound(), 0, 5));
+    }
+
+    return redirect()
+        ->back()
+        ->with('success', $message);
+}
 
     private function hitungHasilOptimal($totalKubik, $kubikasi, $totalTonase, $tonase)
     {

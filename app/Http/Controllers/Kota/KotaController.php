@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Kota;
 
 use App\Http\Controllers\Controller;
+use App\Imports\LogistikKotaImport;
+use Maatwebsite\Excel\Facades\Excel;
 use App\Models\LogistikPengirimanKota;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -58,6 +60,20 @@ class KotaController extends Controller
             'summary_area'
         ));
     }
+
+    public function import(Request $request)
+{
+    $request->validate([
+        'file' => 'required|mimes:xlsx,xls,csv',
+    ]);
+
+    $import = new LogistikKotaImport;
+    Excel::import($import, $request->file('file'));
+
+    return redirect()
+        ->route('kota.datalogistik')
+        ->with('success', "Import selesai. Masuk: {$import->getImportedCount()}, Skip: {$import->getSkippedCount()}");
+}
 
     // =====================================================
     // HALAMAN DATA MONITORING KOTA

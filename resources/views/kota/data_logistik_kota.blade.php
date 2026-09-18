@@ -292,6 +292,13 @@
 
         <div class="toolbar">
             <a href="#" id="btnCekAlert" class="btn-alert">🔔 Cek Alert Pending</a>
+            <form action="{{ route('kota.import') }}" method="POST" enctype="multipart/form-data" class="d-flex align-items-center" style="gap:10px;">
+    @csrf
+    <input type="file" name="file" accept=".xlsx,.xls,.csv" required style="padding:10px;border-radius:10px;border:1px solid #cbd5e1;">
+    <button type="submit" class="btn-export" style="background:#2563eb;">
+        📥 Import Excel
+    </button>
+</form>
         </div>
 
         <div class="filter-box">

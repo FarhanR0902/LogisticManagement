@@ -420,6 +420,16 @@
                 <button type="submit">📤 Import Excel</button>
             </form>
         </div>
+        <div class="import-box">
+            <form action="{{ route('logistik.importQtyPgi') }}" method="POST" enctype="multipart/form-data" class="d-flex align-items-center gap-2">
+    @csrf
+    <input type="file" name="file" accept=".xlsx,.xls,.csv" class="form-control" style="max-width:300px;" required>
+    <button type="submit" class="btn btn-primary d-flex align-items-center gap-2">
+        <i class="fa-solid fa-file-import"></i>
+        Import Qty DO & PGI Date
+    </button>
+</form>
+        </div>
 
        <a href="#" id="btnExportExcel" class="btn-export">
     <i class="fa fa-file-excel"></i>
