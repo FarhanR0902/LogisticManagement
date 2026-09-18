@@ -857,6 +857,18 @@ Route::prefix('kota')->name('kota.')->group(function () {
     ->name('import');
 });
 
+
+Route::get('/debug-cek-shipment', function () {
+    $data = \App\Models\LogistikPengiriman::where('no_shipment', '4200067817')
+        ->get(['id', 'no_shipment', 'total_kubik', 'total_tonase', 'hasil_kubik', 'hasil_tonase', 'create_tgl']);
+
+    return response()->json([
+        'db_connection' => config('database.default'),
+        'db_database'   => config('database.connections.' . config('database.default') . '.database'),
+        'db_host'       => config('database.connections.' . config('database.default') . '.host'),
+        'data'          => $data,
+    ]);
+});
 /*
 |--------------------------------------------------------------------------
 | Dipakai di logic redirect role, contoh:
