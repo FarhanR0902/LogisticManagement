@@ -261,6 +261,9 @@ Route::prefix('manager')->group(function () {
 Route::get('/pasuruan/gudang/ontime', [PasuruanController::class, 'gudangOntimePasuruan'])
     ->name('pasuruan.gudang.ontime');
 
+Route::post('/pasuruan/update-qty-pgi', [PasuruanController::class, 'updateQtyPgi'])
+     ->name('pasuruan.updateQtyPgi');
+
 Route::get('/pasuruan/gudang/delay', [PasuruanController::class, 'gudangDelayPasuruan'])
     ->name('pasuruan.gudang.delay');
 
@@ -867,6 +870,26 @@ Route::get('/debug-cek-shipment', function () {
         'db_database'   => config('database.connections.' . config('database.default') . '.database'),
         'db_host'       => config('database.connections.' . config('database.default') . '.host'),
         'data'          => $data,
+    ]);
+});
+
+Route::get('/debug-clear-cache', function () {
+    $result = [];
+
+    if (function_exists('opcache_reset')) {
+        $result['opcache_reset'] = opcache_reset();
+    } else {
+        $result['opcache_reset'] = 'opcache function not available';
+    }
+
+    \Illuminate\Support\Facades\Artisan::call('config:clear');
+    \Illuminate\Support\Facades\Artisan::call('cache:clear');
+    \Illuminate\Support\Facades\Artisan::call('view:clear');
+    \Illuminate\Support\Facades\Artisan::call('route:clear');
+
+    return response()->json([
+        'status' => 'cleared',
+        'result' => $result,
     ]);
 });
 /*

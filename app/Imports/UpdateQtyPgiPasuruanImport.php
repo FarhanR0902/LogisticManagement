@@ -2,15 +2,28 @@
 
 namespace App\Imports;
 
-use App\Models\LogistikPengiriman;
+use App\Models\LogistikPengirimanPasuruan;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Schema;
 use Maatwebsite\Excel\Concerns\ToCollection;
+use Maatwebsite\Excel\Concerns\WithCalculatedFormulas;
 use Maatwebsite\Excel\Concerns\WithHeadingRow;
 use PhpOffice\PhpSpreadsheet\Shared\Date;
-use Illuminate\Support\Collection;
 
-class UpdateQtyPgiImport implements ToCollection, WithHeadingRow
+/**
+ * Update parsial data Pasuruan dari Excel:
+ *   1) Total DO Qty            (kunci: no_shipment + tujuan)
+ *   2) Act PGI Date            (kunci: no_shipment)
+ *   3) Kubikasi / Tonase / Total Kubik / Total Tonase (kunci: no_shipment)
+ *
+ * Header Excel dibaca fleksibel: dengan atau tanpa suffix "_pasuruan".
+ * Kolom yang kosong di Excel TIDAK menimpa data lama.
+ */
+class UpdateQtyPgiPasuruanImport implements ToCollection, WithHeadingRow, WithCalculatedFormulas
 {
-    // ===== hasil proses total_do_qty_car (kunci: no_shipment + tujuan) =====
+    private const TABLE = 'logistik_pengiriman_pasuruan';
+
+    // ===== hasil proses total_do (kunci: no_shipment + tujuan) =====
     private int $qtyUpdated = 0;
     private array $qtyNotFound = [];
     private array $qtyAmbiguous = [];
@@ -31,6 +44,15 @@ class UpdateQtyPgiImport implements ToCollection, WithHeadingRow
     private array $pgiProcessed = [];
     private array $kubikTonaseProcessed = [];
 
+    // daftar kolom yang benar-benar ada di tabel (supaya update tidak
+    // error "Unknown column" kalau ada kolom hasil_* yang belum dibuat)
+    private array $existingColumns = [];
+
+    public function __construct()
+    {
+        $this->existingColumns = array_flip(Schema::getColumnListing(self::TABLE));
+    }
+
     // ================= GETTERS =================
     public function getQtyUpdated(): int { return $this->qtyUpdated; }
     public function getQtyNotFound(): array { return $this->qtyNotFound; }
@@ -48,8 +70,11 @@ class UpdateQtyPgiImport implements ToCollection, WithHeadingRow
     public function collection(Collection $rows)
     {
         foreach ($rows as $row) {
+            $row = $row->toArray();
 
-            $noShipment = $this->cleanText($row['no_shipment'] ?? null);
+            $noShipment = $this->cleanText($this->pick($row, [
+                'no_shipment_pasuruan', 'no_shipment',
+            ]));
 
             if (empty($noShipment)) {
                 $this->qtySkipped++;
@@ -59,16 +84,24 @@ class UpdateQtyPgiImport implements ToCollection, WithHeadingRow
             }
 
             // =====================================================
-            // 1) TOTAL DO QTY CAR (kunci: no_shipment + tujuan)
-            //    Independen — hanya jalan kalau kolom ini ADA & terisi.
+            // 1) TOTAL DO QTY (kunci: no_shipment + tujuan)
+            //    Independen: hanya jalan kalau kolom ini ADA & terisi.
             // =====================================================
-            $tujuan = $this->cleanText($row['tujuan'] ?? null);
-            $qty    = $this->cleanNumber($row['total_do_qty_car'] ?? null);
+            $tujuan = $this->cleanText($this->pick($row, [
+                'tujuan_pasuruan', 'tujuan',
+            ]));
+
+            $qty = $this->cleanNumber($this->pick($row, [
+                'total_do_qty_car_pasuruan',
+                'total_do_qty_car',
+                'total_do_pasuruan',
+                'total_do',
+            ]));
 
             if (!empty($tujuan) && $qty !== null) {
 
-                $matches = LogistikPengiriman::where('no_shipment', $noShipment)
-                    ->where('tujuan', $tujuan)
+                $matches = LogistikPengirimanPasuruan::where('no_shipment_pasuruan', $noShipment)
+                    ->where('tujuan_pasuruan', $tujuan)
                     ->get();
 
                 if ($matches->isEmpty()) {
@@ -76,7 +109,7 @@ class UpdateQtyPgiImport implements ToCollection, WithHeadingRow
                 } elseif ($matches->count() > 1) {
                     $this->qtyAmbiguous[] = "{$noShipment} - {$tujuan} ({$matches->count()} baris)";
                 } else {
-                    $matches->first()->update(['total_do_qty_car' => $qty]);
+                    $matches->first()->update(['total_do_pasuruan' => $qty]);
                     $this->qtyUpdated++;
                 }
             } else {
@@ -85,14 +118,16 @@ class UpdateQtyPgiImport implements ToCollection, WithHeadingRow
 
             // =====================================================
             // 2) ACT PGI DATE (kunci: no_shipment saja)
-            //    Independen — hanya jalan kalau kolom ini ADA & terisi.
+            //    Independen: hanya jalan kalau kolom ini ADA & terisi.
             // =====================================================
-            $pgiDate = $this->convertDate($row['act_pgi_date'] ?? null);
+            $pgiDate = $this->convertDate($this->pick($row, [
+                'act_pgi_date_pasuruan', 'act_pgi_date',
+            ]));
 
             if ($pgiDate !== null && !isset($this->pgiProcessed[$noShipment])) {
 
-                $affected = LogistikPengiriman::where('no_shipment', $noShipment)
-                    ->update(['act_pgi_date' => $pgiDate]);
+                $affected = LogistikPengirimanPasuruan::where('no_shipment_pasuruan', $noShipment)
+                    ->update(['act_pgi_date_pasuruan' => $pgiDate]);
 
                 if ($affected === 0) {
                     $this->pgiNotFound[] = $noShipment;
@@ -109,15 +144,24 @@ class UpdateQtyPgiImport implements ToCollection, WithHeadingRow
             // =====================================================
             // 3) KUBIKASI / TONASE / TOTAL KUBIK / TOTAL TONASE
             //    (kunci: no_shipment saja, level-shipment)
-            //    Independen — hanya jalan kalau MINIMAL SATU dari
+            //    Independen: hanya jalan kalau MINIMAL SATU dari
             //    4 kolom ini ADA & terisi di baris ini.
             // =====================================================
             if (!isset($this->kubikTonaseProcessed[$noShipment])) {
 
-                $kubikasiNew    = $this->cleanPersen($row['kubikasi'] ?? null);
-                $tonaseNew      = $this->cleanPersen($row['tonase'] ?? null);
-                $totalKubikNew  = $this->cleanDecimal($row['total_kubik'] ?? null);
-                $totalTonaseNew = $this->cleanDecimal($row['total_tonase'] ?? null);
+                $kubikasiNew = $this->cleanPersen($this->pick($row, [
+                    'kubikasi_pasuruan', 'kubikasi',
+                ]));
+                $tonaseNew = $this->cleanPersen($this->pick($row, [
+                    'tonase_pasuruan', 'tonase',
+                ]));
+                $totalKubikNew = $this->cleanDecimal($this->pick($row, [
+                    'total_kubik_pasuruan', 'total_kubikasi_pasuruan',
+                    'total_kubik', 'total_kubikasi',
+                ]));
+                $totalTonaseNew = $this->cleanDecimal($this->pick($row, [
+                    'total_tonase_pasuruan', 'total_tonase',
+                ]));
 
                 $adaInputBaru = $kubikasiNew !== null || $tonaseNew !== null
                     || $totalKubikNew !== null || $totalTonaseNew !== null;
@@ -128,7 +172,7 @@ class UpdateQtyPgiImport implements ToCollection, WithHeadingRow
 
                     // ambil 1 baris existing sebagai representasi nilai
                     // yang SEKARANG ada di DB untuk shipment ini
-                    $existing = LogistikPengiriman::where('no_shipment', $noShipment)->first();
+                    $existing = LogistikPengirimanPasuruan::where('no_shipment_pasuruan', $noShipment)->first();
 
                     if (!$existing) {
                         $this->kubikTonaseNotFound[] = $noShipment;
@@ -136,10 +180,10 @@ class UpdateQtyPgiImport implements ToCollection, WithHeadingRow
 
                         // gabung: kolom yang TIDAK diisi di Excel kali ini
                         // -> pakai nilai lama yang sudah ada di DB
-                        $kubikasiFinal    = $kubikasiNew    ?? $existing->kubikasi;
-                        $tonaseFinal      = $tonaseNew      ?? $existing->tonase;
-                        $totalKubikFinal  = $totalKubikNew  ?? $existing->total_kubik;
-                        $totalTonaseFinal = $totalTonaseNew ?? $existing->total_tonase;
+                        $kubikasiFinal    = $kubikasiNew    ?? $existing->kubikasi_pasuruan;
+                        $tonaseFinal      = $tonaseNew      ?? $existing->tonase_pasuruan;
+                        $totalKubikFinal  = $totalKubikNew  ?? $existing->total_kubik_pasuruan;
+                        $totalTonaseFinal = $totalTonaseNew ?? $existing->total_tonase_pasuruan;
 
                         $hasilKubik = ($kubikasiFinal !== null && $kubikasiFinal > 0 && $totalKubikFinal !== null)
                             ? round(($totalKubikFinal / $kubikasiFinal) * 100, 2)
@@ -151,31 +195,37 @@ class UpdateQtyPgiImport implements ToCollection, WithHeadingRow
 
                         $pengirimanOptimal = null;
                         if ($hasilKubik !== null || $hasilTonase !== null) {
-                            $pengirimanOptimal = (($hasilKubik >= 85) || ($hasilTonase >= 85))
+                            $pengirimanOptimal = (($hasilKubik !== null && $hasilKubik >= 85)
+                                || ($hasilTonase !== null && $hasilTonase >= 85))
                                 ? 'OPTIMAL'
                                 : 'TIDAK OPTIMAL';
                         }
 
                         // hanya kolom yang BENAR-BENAR diisi di Excel kali ini
-                        // yang ditulis ulang ke DB untuk field mentahnya;
+                        // yang ditulis ulang untuk field mentahnya;
                         // hasil_kubik/hasil_tonase/pengiriman_optimal selalu
-                        // ikut ditulis ulang karena itu turunan dari nilai
+                        // ikut ditulis ulang karena turunan dari nilai
                         // gabungan (lama + baru) yang paling up to date.
                         $payload = array_filter([
-                            'kubikasi'     => $kubikasiNew,
-                            'tonase'       => $tonaseNew,
-                            'total_kubik'  => $totalKubikNew,
-                            'total_tonase' => $totalTonaseNew,
+                            'kubikasi_pasuruan'     => $kubikasiNew,
+                            'tonase_pasuruan'       => $tonaseNew,
+                            'total_kubik_pasuruan'  => $totalKubikNew,
+                            'total_tonase_pasuruan' => $totalTonaseNew,
                         ], fn($v) => $v !== null);
 
-                        $payload['hasil_kubik']        = $hasilKubik;
-                        $payload['hasil_tonase']       = $hasilTonase;
-                        $payload['pengiriman_optimal'] = $pengirimanOptimal;
+                        $payload['hasil_kubik_pasuruan']        = $hasilKubik;
+                        $payload['hasil_tonase_pasuruan']       = $hasilTonase;
+                        $payload['pengiriman_optimal_pasuruan'] = $pengirimanOptimal;
 
-                        $affected = LogistikPengiriman::where('no_shipment', $noShipment)
-                            ->update($payload);
+                        // buang kolom yang tidak ada di tabel (anti "Unknown column")
+                        $payload = array_intersect_key($payload, $this->existingColumns);
 
-                        $this->kubikTonaseUpdated += $affected;
+                        if (!empty($payload)) {
+                            $affected = LogistikPengirimanPasuruan::where('no_shipment_pasuruan', $noShipment)
+                                ->update($payload);
+
+                            $this->kubikTonaseUpdated += $affected;
+                        }
                     }
 
                 } else {
@@ -186,6 +236,19 @@ class UpdateQtyPgiImport implements ToCollection, WithHeadingRow
     }
 
     // ================= HELPERS =================
+
+    /**
+     * Ambil nilai pertama yang terisi dari beberapa kemungkinan nama header.
+     */
+    private function pick(array $row, array $keys)
+    {
+        foreach ($keys as $k) {
+            if (isset($row[$k]) && $row[$k] !== '' && $row[$k] !== '-') {
+                return $row[$k];
+            }
+        }
+        return null;
+    }
 
     private function cleanText($value)
     {

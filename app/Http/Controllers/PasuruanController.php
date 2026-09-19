@@ -6,6 +6,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\LogistikPengirimanPasuruan;
 use Illuminate\Support\Facades\Cache;
+use App\Imports\UpdateQtyPgiPasuruanImport;
 use App\Models\LogistikPengiriman;
 use Illuminate\Support\Facades\DB;
 use Maatwebsite\Excel\Facades\Excel;
@@ -258,6 +259,32 @@ class PasuruanController extends Controller
                 break;
         }
     }
+
+    public function updateQtyPgi(Request $request)
+{
+    $request->validate([
+        'file' => 'required|mimes:xlsx,xls,csv',
+    ]);
+
+    $import = new UpdateQtyPgiPasuruanImport();
+    Excel::import($import, $request->file('file'));
+
+    $message = "Update selesai. "
+        . "Total DO: {$import->getQtyUpdated()} baris diupdate. "
+        . "Act PGI Date: {$import->getPgiUpdated()} baris diupdate. "
+        . "Kubikasi/Tonase: {$import->getKubikTonaseUpdated()} baris diupdate.";
+
+    $notFound = array_merge(
+        array_map(fn($x) => "Total DO tidak ketemu: {$x}", $import->getQtyNotFound()),
+        array_map(fn($x) => "Total DO ambigu (lebih dari 1 baris): {$x}", $import->getQtyAmbiguous()),
+        array_map(fn($x) => "PGI tidak ketemu: {$x}", $import->getPgiNotFound()),
+        array_map(fn($x) => "Kubik/Tonase tidak ketemu: {$x}", $import->getKubikTonaseNotFound())
+    );
+
+    return redirect()->back()
+        ->with('success', $message)
+        ->with('not_found_list', $notFound);
+}
 
 
     // PasuruanController.php

@@ -742,13 +742,21 @@ font-size: 16px;
             </div>
         @endif
 
-        <div class="import-box">
-          <form action="{{ route('pasuruan.import') }}" method="POST" enctype="multipart/form-data">
-    @csrf
-    <input type="file" name="file" required accept=".xlsx,.xls,.csv">
-    <button type="submit">📤 Import Excel</button>
-</form>
-        </div>
+       <div class="import-box">
+    <form action="{{ route('pasuruan.import') }}" method="POST" enctype="multipart/form-data">
+        @csrf
+        <input type="file" name="file" required accept=".xlsx,.xls,.csv">
+        <button type="submit">📤 Import Excel</button>
+    </form>
+
+    <form action="{{ route('pasuruan.updateQtyPgi') }}" method="POST" enctype="multipart/form-data" style="margin-top:12px;">
+        @csrf
+        <input type="file" name="file" required accept=".xlsx,.xls,.csv">
+        <button type="submit" style="background: linear-gradient(135deg, #f59e0b, #d97706);">
+            🔄 Update Qty / PGI / Kubik-Tonase
+        </button>
+    </form>
+</div>
 
         <a href="#" id="btnExportExcel" class="btn-export">
             <i class="fa fa-file-excel"></i>

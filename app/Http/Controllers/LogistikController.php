@@ -256,21 +256,29 @@ class LogistikController extends Controller
     /* =========================================================
      * IMPORT EXCEL
      * ========================================================= */
-    public function import(Request $request)
-    {
-        $request->validate([
-            'file' => 'required|mimes:xlsx,xls,csv'
-        ]);
-
-        Excel::import(new LogistikImport, $request->file('file'));
-
-        // dropdown cache & agregat bisa berubah setelah import -> flush cache
-        Cache::forget('list_area');
-        Cache::forget('list_dist_channel');
-        Cache::forget('list_pic_monitoring');
-
-        return back()->with('success', 'Import berhasil');
+  public function import(Request $request)
+{
+    $request->validate([
+        'file' => 'required|mimes:xlsx,xls,csv',
+    ]);
+ 
+    $import = new LogistikImport();
+    Excel::import($import, $request->file('file'));
+ 
+    $message = "Import selesai: {$import->getInsertedCount()} baris baru, {$import->getUpdatedCount()} baris ditimpa (update).";
+ 
+    if ($import->getSkippedCount() > 0) {
+        $message .= " {$import->getSkippedCount()} baris dilewati (No Shipment/Tujuan kosong).";
     }
+    if ($import->getFailedCount() > 0) {
+        $message .= " {$import->getFailedCount()} baris GAGAL karena error.";
+    }
+ 
+    return redirect()->back()
+        ->with('success', $message)
+        ->with('failed_list', $import->getFailedList());
+}
+ 
 
     /* =========================================================
      * DIST CHANNEL SESSION FILTER (tetap sama)
@@ -431,10 +439,14 @@ class LogistikController extends Controller
         $shipmentAgg = Cache::remember('logistik_shipment_agg', 300, fn() => $this->shipmentAggregates());
 
         // ---------- BANGUN BARIS OUTPUT (hanya untuk baris yang tampil) ----------
-        $data = $rows->map(function ($r) use ($shipmentAgg) {
-            $estimasi = $this->computeEstimasiDanAlert($r);
-            
-            $estimasiAdmin = $this->computeEstimasiAdmin($r);
+      $data = $rows->map(function ($r) use ($shipmentAgg) {
+    $estimasi = $this->computeEstimasiDanAlert($r);
+    
+    $estimasiAdmin = $this->computeEstimasiAdmin($r);
+
+    if ($r->no_shipment === '4200067817') {
+      
+    }
 
             return [
                 'tanggal_naik_logistik_fmt'   => $this->fmtDate($r->tanggal_naik_logistik),
@@ -531,6 +543,7 @@ class LogistikController extends Controller
                 'estimasi_admin_status_badge' => $this->badgeEstimasiAdmin($r),
             ];
         });
+        
 
         return response()->json([
             'draw'            => (int) $request->input('draw', 1),

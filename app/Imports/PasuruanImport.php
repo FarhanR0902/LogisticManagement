@@ -5,6 +5,7 @@ namespace App\Imports;
 use Illuminate\Support\Facades\DB;
 use App\Models\LogistikPengirimanPasuruan;
 use Maatwebsite\Excel\Concerns\ToModel;
+ use App\Imports\UpdateQtyPgiPasuruanImport;
 use Maatwebsite\Excel\Concerns\WithHeadingRow;
 use Maatwebsite\Excel\Concerns\WithBatchInserts;   // <-- tambah
 use Maatwebsite\Excel\Concerns\WithChunkReading;
@@ -606,6 +607,32 @@ $tujuan = $this->cleanText($row['tujuan_pasuruan'] ?? null);
             'updated_at' => now(),
         ]);
     }
+
+    public function updateQtyPgi(Request $request)
+{
+    $request->validate([
+        'file' => 'required|mimes:xlsx,xls,csv',
+    ]);
+ 
+    $import = new UpdateQtyPgiPasuruanImport();
+    Excel::import($import, $request->file('file'));
+ 
+    $message = "Update selesai. "
+        . "Total DO: {$import->getQtyUpdated()} baris diupdate. "
+        . "Act PGI Date: {$import->getPgiUpdated()} baris diupdate. "
+        . "Kubikasi/Tonase: {$import->getKubikTonaseUpdated()} baris diupdate.";
+ 
+    $notFound = array_merge(
+        array_map(fn($x) => "Total DO tidak ketemu: {$x}", $import->getQtyNotFound()),
+        array_map(fn($x) => "Total DO ambigu (lebih dari 1 baris): {$x}", $import->getQtyAmbiguous()),
+        array_map(fn($x) => "PGI tidak ketemu: {$x}", $import->getPgiNotFound()),
+        array_map(fn($x) => "Kubik/Tonase tidak ketemu: {$x}", $import->getKubikTonaseNotFound())
+    );
+ 
+    return redirect()->back()
+        ->with('success', $message)
+        ->with('not_found_list', $notFound);
+}
 
     /**
  * Parser angka desimal polos (BUKAN persen, BUKAN Rupiah) untuk
