@@ -544,6 +544,9 @@
 .tf-col-transport_lead_time {
     min-width: 150px;
 }
+.tf-col-divisi {
+    min-width: 150px;
+}
 
 .tf-col-status {
     width: 100px;
@@ -1443,6 +1446,7 @@
                         <th class="tf-col-monitoring">Monitoring</th>
                         <th class="tf-col-biaya_kuli">Biaya Kuli</th>
                         <th class="tf-col-transport_lead_time">Transport Lead Time</th>
+                        <th class="tf-col-divisi">Divisi</th>
                         <th class="tf-col-action tf-action-sticky">Aksi</th>
                     </tr>
                 </thead>
@@ -1497,6 +1501,10 @@
 
                             <td class="tf-col-transport_lead_time">
                                 <span class="tf-channel-text">{{ $row->transport_lead_time ?: '-' }}</span>
+                            </td>
+
+                            <td class="tf-col-divisi">
+                                <span class="tf-channel-text">{{ $row->divisi ?: '-' }}</span>
                             </td>
 
                             <td class="tf-col-action tf-action-sticky">

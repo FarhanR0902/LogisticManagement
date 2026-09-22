@@ -726,6 +726,11 @@ tbody tr:last-child td{ border-bottom:none; }
     <h1>{{ $total_data }}</h1>
 </a>
 
+<a href="{{ route('sales.intransit', request()->query()) }}" class="card blue">
+    <h4>In Transit</h4>
+    <h1>{{ $total_in_transit }}</h1>
+</a>
+
 <a href="{{ route('sales.gudang.ontime', request()->query()) }}" class="card green">
     <h4>Gudang MS OnTime</h4>
     <h1>{{ $gudang_ontime }}</h1>

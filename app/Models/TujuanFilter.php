@@ -25,6 +25,7 @@ class TujuanFilter extends Model
         'Monitoring',
         'biaya_kuli',
         'transport_lead_time',
+        'divisi',
     ];
 
     public function setAreaAttribute($value): void

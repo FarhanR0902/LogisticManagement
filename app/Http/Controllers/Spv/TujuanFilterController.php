@@ -87,6 +87,7 @@ class TujuanFilterController extends Controller
             'Monitoring'          => 'nullable|string|max:100',
             'biaya_kuli'          => 'nullable|numeric|min:0',
             'transport_lead_time' => 'nullable|integer|min:0',
+            'divisi'              => 'nullable|string|max:100',
         ];
     }
 
@@ -156,7 +157,8 @@ class TujuanFilterController extends Controller
                     ->orWhere('Planner', 'like', "%{$search}%")
                     ->orWhere('Monitoring', 'like', "%{$search}%")
                     ->orWhere('biaya_kuli', 'like', "%{$search}%")
-                    ->orWhere('transport_lead_time', 'like', "%{$search}%");
+                    ->orWhere('transport_lead_time', 'like', "%{$search}%")
+                      ->orWhere('divisi', 'like', "%{$search}%");
 
             });
         }
@@ -171,6 +173,7 @@ class TujuanFilterController extends Controller
             'Monitoring'          => 'Monitoring',
             'biaya_kuli'          => 'biaya_kuli',
             'transport_lead_time' => 'transport_lead_time',
+            'divisi'              => 'divisi',
         ];
 
         foreach ($likeFilters as $requestKey => $column) {
@@ -338,6 +341,7 @@ class TujuanFilterController extends Controller
             'Monitoring'          => 'nullable|string|max:100',
             'biaya_kuli'          => 'nullable|string|max:30',
             'transport_lead_time' => 'nullable|string|max:20',
+            'divisi'              => 'nullable|string|max:100',
         ]);
 
         $this->normalizeBiayaKuli($request);
@@ -345,7 +349,7 @@ class TujuanFilterController extends Controller
 
         $fields = [
             'Div', 'dist_channel', 'pulau', 'area',
-            'Planner', 'Monitoring', 'biaya_kuli', 'transport_lead_time',
+            'Planner', 'Monitoring', 'biaya_kuli', 'transport_lead_time', 'divisi',
         ];
 
         $updateData = [];
@@ -430,6 +434,7 @@ class TujuanFilterController extends Controller
         $idxMonitoring         = array_search('monitoring', $header);
         $idxBiayaKuli          = array_search('biaya_kuli', $header);
         $idxTransportLeadTime  = array_search('transport_lead_time', $header);
+        $idxDivisi             = array_search('divisi', $header);
 
         if ($idxTujuan === false) {
             fclose($handle);
@@ -489,6 +494,7 @@ class TujuanFilterController extends Controller
                     'Monitoring'          => $idxMonitoring !== false ? trim($row[$idxMonitoring]) : null,
                     'biaya_kuli'          => $biayaKuli,
                     'transport_lead_time' => $transportLeadTime,
+                    'divisi'              => $idxDivisi !== false ? trim($row[$idxDivisi]) : null,
                 ];
                 $inserted++;
 

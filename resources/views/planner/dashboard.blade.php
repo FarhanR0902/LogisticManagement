@@ -82,6 +82,10 @@
         .blue {
             background: #3b82f6;
         }
+        .teal {
+            background: #00f1e1;
+
+        }
 
         .green {
             background: #22c55e;
@@ -292,12 +296,21 @@ $belum_tiba_rate = $total_data > 0
 
        <div class="kpi-row">
 
+
     <a href="{{ url('/datalogistik') }}">
         <div class="kpi blue">
             <h4>Total Armada</h4>
             <h2>{{ $total_data }}</h2>
         </div>
     </a>
+    
+
+   <a href="{{ route('planner.intransit') }}">
+    <div class="kpi teal">
+        <h4>🚚 In Transit</h4>
+        <h2>{{ $total_in_transit ?? 0 }}</h2>
+    </div>
+</a>
 
         <a href="{{ route('planner.sla.ontime') }}">
         <div class="kpi orange">

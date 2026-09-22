@@ -128,6 +128,8 @@ table{
     border-collapse:collapse;
 }
 
+.bg-transit{background:#14b8a6;}
+
 th{
     background:#0f766e;
     color:white;
@@ -214,6 +216,10 @@ tr:hover{
             <p>Total Shipment</p>
             <h3>{{ $total_data }}</h3>
         </a>
+        <a href="{{ route('spvmonitoring.intransit') }}" class="small-box bg-transit">
+    <p>🚚 In Transit</p>
+    <h3>{{ $total_in_transit ?? 0 }}</h3>
+</a>
 
         <a href="/monitoring/sla-ontime" class="small-box bg-success">
             <p>On Time Tiba</p>
@@ -225,10 +231,7 @@ tr:hover{
             <h3>{{ $total_tiba_delay }}</h3>
         </a>
 
-        <a href="#" class="small-box bg-warning">
-            <p>Final Delay</p>
-            <h3>{{ $total_final_delay }}</h3>
-        </a>
+     
 
         <a href="/monitoring/bongkar/ontime" class="small-box bg-purple">
             <p>Bongkar On Time</p>

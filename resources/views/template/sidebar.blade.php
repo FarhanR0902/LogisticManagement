@@ -195,6 +195,11 @@ $currentRoute = request()->route()->getName() ?? '';
         <li><a href="{{ route('monitoring.datalogistik') }}">🚚 Data Monitoring</a></li>
         <li><a href="{{ route('monitoring.sla.ontime') }}">✅ Customer On Time</a></li>
         <li><a href="{{ route('monitoring.sla.delay') }}">❌ Customer Delay</a></li>
+        <li><a href="{{ route('monitoring.intransit') }}"
+   class="{{ request()->routeIs('monitoring.intransit') ? 'active' : '' }}">
+    <i class="fa-solid fa-truck-fast"></i>
+    <span>In Transit</span>
+</a></li>
         <li><a href="{{ route('monitoring.bongkar.ontime') }}">📦 Bongkar On Time</a></li>
         <li><a href="{{ route('monitoring.bongkar.delay') }}">📦 Bongkar Delay</a></li>
         <li><a href="{{ route('monitoring.summary.area') }}">🌍 Summary Area</a></li>
@@ -279,6 +284,7 @@ $currentRoute = request()->route()->getName() ?? '';
                 👤 Kelola User
             </a>
         </li>
+            
         @endif
 
         {{-- ================= MANAGER ================= --}}

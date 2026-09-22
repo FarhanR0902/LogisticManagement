@@ -143,7 +143,7 @@ td{
 tr:hover{
     background:#f1f5f9;
 }
-
+.bg-transit{background:#14b8a6;}
 .detail-btn{
     background:#0ea5e9;
     color:white;
@@ -200,6 +200,7 @@ tr:hover{
 
     @php
         $total_data = $total_data ?? 0;
+          $total_in_transit = $total_in_transit ?? 0;  
         $total_tiba_ontime = $total_tiba_ontime ?? 0;
         $total_tiba_delay = $total_tiba_delay ?? 0;
         $total_final_delay = $total_final_delay ?? 0;
@@ -214,6 +215,10 @@ tr:hover{
             <p>Total Shipment</p>
             <h3>{{ $total_data }}</h3>
         </a>
+        <a href="{{ route('monitoring.intransit') }}" class="small-box bg-transit">
+    <p>🚚 In Transit</p>
+    <h3>{{ $total_in_transit }}</h3>
+</a>
 
         <a href="/monitoring/sla-ontime" class="small-box bg-success">
             <p>On Time Tiba</p>
@@ -225,11 +230,7 @@ tr:hover{
             <h3>{{ $total_tiba_delay }}</h3>
         </a>
 
-        <a href="#" class="small-box bg-warning">
-            <p>Final Delay</p>
-            <h3>{{ $total_final_delay }}</h3>
-        </a>
-
+      
         <a href="/monitoring/bongkar/ontime" class="small-box bg-purple">
             <p>Bongkar On Time</p>
             <h3>{{ $total_bongkar_ontime }}</h3>

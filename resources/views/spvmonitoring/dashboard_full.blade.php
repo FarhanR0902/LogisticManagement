@@ -241,8 +241,8 @@
 
         .pulau-grid {
             display: grid;
-            grid-template-columns: repeat(8, minmax(0, 1fr));
-            gap: 10px;
+            grid-template-columns: repeat(9, minmax(0, 1fr));
+            gap: 14px;
         }
 
         @media(max-width:1400px) {
@@ -945,6 +945,11 @@
                 <h1>{{ $total_data }}</h1>
             </a>
 
+            <a href="{{ route('spvmonitoring.intransit', request()->query()) }}" class="card teal">
+    <h4>🚚 In Transit</h4>
+    <h1>{{ $total_in_transit ?? 0 }}</h1>
+</a>
+
             <a href="{{ route('manager.gudang.ontime', request()->query()) }}" class="card green">
                 <h4>Sudah Tiba Di Gudang</h4>
                 <h1>{{ $gudang_ontime }}</h1>
@@ -975,10 +980,7 @@
                 <h1>{{ $bongkar_delay }}</h1>
             </a>
 
-            <a href="{{ route('manager.summary.area', request()->query()) }}" class="card blue">
-                <h4>Summary Area</h4>
-                <h1>{{ count($summary_area) }}</h1>
-            </a>
+         
 
         </div>
 
@@ -1252,127 +1254,71 @@
             }
         });
 
-        new Chart(document.getElementById('chartBongkar'), {
-            type: 'doughnut',
-            data: {
-                labels: ['On Time', 'Delay'],
-                datasets: [{
-                    data: [{
-                        {
-                            $bongkar_ontime
-                        }
-                    }, {
-                        {
-                            $bongkar_delay
-                        }
-                    }],
-                    backgroundColor: ['#8b5cf6', '#e11d48'],
-                    borderWidth: 0
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                cutout: '65%',
-                plugins: {
-                    legend: {
-                        position: 'bottom'
-                    }
-                }
+       new Chart(document.getElementById('chartBongkar'), {
+    type: 'doughnut',
+    data: {
+        labels: ['On Time', 'Delay'],
+        datasets: [{
+            data: [@json($bongkar_ontime ?? 0), @json($bongkar_delay ?? 0)],
+            backgroundColor: ['#8b5cf6', '#e11d48'],
+            borderWidth: 0
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        cutout: '65%',
+        plugins: {
+            legend: {
+                position: 'bottom'
             }
-        });
+        }
+    }
+});
 
-        new Chart(document.getElementById('chartArea'), {
-            type: 'bar',
-            data: {
-                labels: [
-                    @foreach($summary_area - > take(5) as $a)
-                    '{{ $a->area }}',
-                    @endforeach
-                ],
-                datasets: [{
-                    data: [
-                        @foreach($summary_area - > take(5) as $a) {
-                            {
-                                $a - > total_shipment
-                            }
-                        },
-                        @endforeach
-                    ],
-                    backgroundColor: '#0d9488',
-                    borderRadius: 6,
-                    maxBarThickness: 36
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        display: false
-                    }
-                },
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        grid: {
-                            color: '#eef0f5'
-                        }
-                    },
-                    x: {
-                        grid: {
-                            display: false
-                        }
-                    }
-                }
-            }
-        });
+      new Chart(document.getElementById('chartArea'), {
+    type: 'bar',
+    data: {
+        labels: @json($summary_area->take(5)->pluck('area')->values()),
+        datasets: [{
+            data: @json($summary_area->take(5)->pluck('total_shipment')->values()),
+            backgroundColor: '#0d9488',
+            borderRadius: 6,
+            maxBarThickness: 36
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+            y: { beginAtZero: true, grid: { color: '#eef0f5' } },
+            x: { grid: { display: false } }
+        }
+    }
+});
 
-        new Chart(document.getElementById('chartTujuan'), {
-            type: 'bar',
-            data: {
-                labels: [
-                    @foreach($summary_tujuan - > take(5) as $t)
-                    '{{ $t->tujuan }}',
-                    @endforeach
-                ],
-                datasets: [{
-                    data: [
-                        @foreach($summary_tujuan - > take(5) as $t) {
-                            {
-                                $t - > total_shipment
-                            }
-                        },
-                        @endforeach
-                    ],
-                    backgroundColor: '#f59e0b',
-                    borderRadius: 6,
-                    maxBarThickness: 36
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        display: false
-                    }
-                },
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        grid: {
-                            color: '#eef0f5'
-                        }
-                    },
-                    x: {
-                        grid: {
-                            display: false
-                        }
-                    }
-                }
-            }
-        });
+    new Chart(document.getElementById('chartTujuan'), {
+    type: 'bar',
+    data: {
+        labels: @json($summary_tujuan->take(5)->pluck('tujuan')->values()),
+        datasets: [{
+            data: @json($summary_tujuan->take(5)->pluck('total_shipment')->values()),
+            backgroundColor: '#f59e0b',
+            borderRadius: 6,
+            maxBarThickness: 36
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+            y: { beginAtZero: true, grid: { color: '#eef0f5' } },
+            x: { grid: { display: false } }
+        }
+    }
+});
 
         // ================= PETA SEBARAN NILAI MUATAN PER AREA (PASURUAN) =================
         // Sumber data: $summary_area dari ManagerController@dashboardPasuruan()

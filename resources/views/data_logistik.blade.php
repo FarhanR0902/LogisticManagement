@@ -464,6 +464,7 @@
                          <th>Hasil Kubik</th>
                          <th>Hasil Tonase</th>
                          <th>Pengiriman Optimal</th>
+                         <th>Reason Optimal</th>
                         <th>Kategori Ekspedisi</th>
                         <th>Ekspedisi</th>
                         <th>Tanggal Dapat Unit</th>
@@ -599,6 +600,7 @@
                      { data: 'hasil_kubik_fmt', name: 'hasil_kubik', orderable: false, searchable: false },
                      { data: 'hasil_tonase_fmt', name: 'hasil_tonase', orderable: false, searchable: false },
                      { data: 'pengiriman_optimal_badge', name: 'pengiriman_optimal', orderable: false, searchable: false },
+                      { data: 'reason_optimal', name: 'reason_optimal', orderable: false, searchable: false },
                     { data: 'kategori_ekspedisi_badge', name: 'kategori_ekspedisi' },
                     { data: 'ekpedisi', name: 'ekpedisi' },
                     { data: 'tanggal_dpt_unit_fmt', name: 'tanggal_dpt_unit' },

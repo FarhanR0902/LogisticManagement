@@ -32,7 +32,7 @@ class MonitoringController extends Controller
         $total_delay_perjalanan = LogistikPengiriman::where('status_akhir', 'Delay Perjalanan')->count();
         $total_delay_pembongkaran = LogistikPengiriman::where('status_akhir', 'Delay Pembongkaran')->count();
         $total_delay_total = LogistikPengiriman::where('status_akhir', 'Delay Total')->count();
-
+        $total_in_transit = $this->inTransitQuery()->count();
         $delivered_ontime = LogistikPengiriman::where('monitoring_alert', 'Delivered On Time')->count();
         $delivered_delay = LogistikPengiriman::where('monitoring_alert', 'Delivered Delay')->count();
 
@@ -50,6 +50,7 @@ class MonitoringController extends Controller
             'total_data',
             'total_tiba_ontime',
             'total_tiba_delay',
+             'total_in_transit',
             'total_bongkar_ontime',
             'total_bongkar_delay',
             'total_ontime_total',
@@ -595,6 +596,154 @@ $blocked
         ]);
     }
 
+    // =====================================================
+// IN TRANSIT: sudah keluar gudang (max), belum ada tanggal_tiba
+// =====================================================
+private function inTransitQuery()
+{
+    $filled = fn($c) => "NULLIF(TRIM({$c}), '') IS NOT NULL";
+    $empty  = fn($c) => "NULLIF(TRIM({$c}), '') IS NULL";
+
+    $q = DB::table('logistik_pengiriman')
+        ->whereRaw($empty('tanggal_tiba'));
+
+    // minimal 1 gudang sudah keluar
+    $q->whereRaw('(' . implode(' OR ', [
+        $filled('tanggal_keluar_gudang'),
+        $filled('tanggal_keluar_gudang_2'),
+        $filled('tanggal_keluar_gudang_3'),
+    ]) . ')');
+
+    // tidak boleh ada siklus gudang yang masih menggantung (blocked)
+    $cycles = [
+        ['planning_loading',   'tanggal_tiba_gudang',   'tanggal_keluar_gudang'],
+        ['planning_loading_2', 'tanggal_tiba_gudang_2', 'tanggal_keluar_gudang_2'],
+        ['planning_loading_3', 'tanggal_tiba_gudang_3', 'tanggal_keluar_gudang_3'],
+    ];
+    foreach ($cycles as [$planning, $tiba, $keluar]) {
+        $q->whereRaw('NOT ((' . $filled($planning) . ' OR ' . $filled($tiba) . ') AND ' . $empty($keluar) . ')');
+    }
+
+    return $q;
+}
+
+// estimasi tiba: pakai yang tersimpan, kalau kosong hitung keluar terakhir + lead time
+private function inTransitEstimasiSql(): string
+{
+    return "COALESCE(estimasi_tiba, DATE_ADD(
+        GREATEST(
+            COALESCE(tanggal_keluar_gudang,'1900-01-01'),
+            COALESCE(tanggal_keluar_gudang_2,'1900-01-01'),
+            COALESCE(tanggal_keluar_gudang_3,'1900-01-01')
+        ),
+        INTERVAL CAST(COALESCE(NULLIF(TRIM(transport_lead_time),''),0) AS UNSIGNED) DAY
+    ))";
+}
+
+public function inTransit(Request $request)
+{
+    $today    = date('Y-m-d');
+    $todayTs  = strtotime($today);
+    $soon     = date('Y-m-d', strtotime('+3 days'));
+    $est      = $this->inTransitEstimasiSql();
+
+    $base = $this->inTransitQuery();
+
+    if ($request->filled('area')) {
+        $base->where('area', $request->input('area'));
+    }
+    if ($request->filled('pic_monitoring')) {
+        $base->where('pic_monitoring', $request->input('pic_monitoring'));
+    }
+    if ($request->filled('q')) {
+        $s = trim($request->input('q'));
+        $base->where(function ($q) use ($s) {
+            foreach (['no_shipment', 'tujuan', 'ekpedisi', 'nama_driver', 'no_pol', 'mobil'] as $col) {
+                $q->orWhere($col, 'like', "%{$s}%");
+            }
+        });
+    }
+
+    // ===== ringkasan (1 query) =====
+    $sum = (clone $base)->selectRaw("
+        COUNT(*) AS total,
+        SUM(CASE WHEN DATE({$est}) < ? THEN 1 ELSE 0 END) AS overdue,
+        SUM(CASE WHEN DATE({$est}) BETWEEN ? AND ? THEN 1 ELSE 0 END) AS soon,
+        SUM(CASE WHEN DATE({$est}) > ? THEN 1 ELSE 0 END) AS ontrack
+    ", [$today, $today, $soon, $soon])->first();
+
+    $summary = [
+        'total'   => (int) ($sum->total ?? 0),
+        'overdue' => (int) ($sum->overdue ?? 0),
+        'soon'    => (int) ($sum->soon ?? 0),
+        'ontrack' => (int) ($sum->ontrack ?? 0),
+    ];
+
+    // ===== data tabel =====
+    $list = (clone $base)
+        ->orderByRaw("DATE({$est}) ASC")
+        ->orderBy('no_shipment')
+        ->paginate(50)
+        ->withQueryString();
+
+    $list->getCollection()->transform(function ($r) use ($todayTs) {
+        // gudang terakhir yang dikeluarkan
+        $keluar = null;
+        $asal   = '-';
+        foreach ([
+            ['KACS',   $r->tanggal_keluar_gudang],
+            ['SENTUL', $r->tanggal_keluar_gudang_2],
+            ['CCIE',   $r->tanggal_keluar_gudang_3],
+        ] as [$nama, $tgl]) {
+            if (!empty($tgl)) {
+                $ts = strtotime($tgl);
+                if ($keluar === null || $ts >= $keluar) {
+                    $keluar = $ts;
+                    $asal   = $nama;
+                }
+            }
+        }
+
+        $lead     = (int) ($r->transport_lead_time ?? 0);
+        $keluarD  = $keluar ? strtotime(date('Y-m-d', $keluar)) : null;
+        $estimasi = !empty($r->estimasi_tiba)
+            ? strtotime($r->estimasi_tiba)
+            : ($keluarD ? strtotime("+{$lead} days", $keluarD) : null);
+
+        $alert = '-';
+        $cls   = 'gray';
+        if ($estimasi) {
+            $sisa = floor(($estimasi - $todayTs) / 86400);
+            if     ($sisa < 0)  { $alert = 'Pending Tiba H+' . abs($sisa); $cls = 'red'; }
+            elseif ($sisa <= 1) { $alert = 'H-' . $sisa;                    $cls = 'red'; }
+            elseif ($sisa <= 3) { $alert = 'H-' . $sisa;                    $cls = 'orange'; }
+            elseif ($sisa <= 7) { $alert = 'H-' . $sisa;                    $cls = 'blue'; }
+            else                { $alert = 'ON TRACK';                      $cls = 'green'; }
+        }
+
+        $r->gudang_asal     = $asal;
+        $r->keluar_label    = $keluar ? date('d-m-Y', $keluar) : '-';
+        $r->hari_transit    = $keluarD ? max(0, floor(($todayTs - $keluarD) / 86400)) : null;
+        $r->estimasi_label  = $estimasi ? date('d-m-Y', $estimasi) : '-';
+        $r->alert_label     = $alert;
+        $r->alert_class     = $cls;
+
+        return $r;
+    });
+
+    $areaList = Cache::remember('monitoring_area_list', 3600, function () {
+        return LogistikPengiriman::whereNotNull('area')
+            ->distinct()->orderBy('area')->pluck('area');
+    });
+
+    $picList = Cache::remember('monitoring_pic_list', 3600, function () {
+        return LogistikPengiriman::whereNotNull('pic_monitoring')
+            ->distinct()->orderBy('pic_monitoring')->pluck('pic_monitoring');
+    });
+
+    return view('monitoring.in_transit', compact('list', 'summary', 'areaList', 'picList'));
+}
+
     public function updateMonitoring(Request $request, $id)
     {
         $logistik = LogistikPengiriman::findOrFail($id);
@@ -851,62 +1000,59 @@ $blocked
         return view('monitoring.bongkar_ontime', compact('list'));
     }
 
-    public function slaOntime(Request $request)
-    {
-        $query = DB::table('logistik_pengiriman')
-            ->selectRaw("
-                logistik_pengiriman.*,
-                estimasi_tiba AS tanggal_estimasi,
-                CASE
-                    WHEN DATEDIFF(DATE(tanggal_tiba), DATE(estimasi_tiba)) <= 0
-                    THEN 'On Time' ELSE 'Delay'
-                END AS sla_tiba
-            ")
-            ->whereNotNull('tanggal_tiba')
-            ->whereNotNull('estimasi_tiba');
+   public function slaOntime(Request $request)
+{
+    $query = DB::table('logistik_pengiriman')
+        ->selectRaw("
+            logistik_pengiriman.*,
+            estimasi_tiba AS tanggal_estimasi,
+            CASE
+                WHEN DATEDIFF(DATE(tanggal_tiba), DATE(estimasi_tiba)) <= 0
+                THEN 'On Time' ELSE 'Delay'
+            END AS sla_tiba
+        ")
+        ->whereNotNull('tanggal_tiba')
+        ->whereNotNull('estimasi_tiba')
+        ->whereRaw("DATEDIFF(DATE(tanggal_tiba), DATE(estimasi_tiba)) <= 0");
 
-        $query->havingRaw("DATEDIFF(DATE(tanggal_tiba), DATE(estimasi_tiba)) <= 0");
-
-        if ($request->filled('bulan')) {
-            $query->whereMonth('tanggal_tiba', $request->bulan);
-        }
-        if ($request->filled('tahun')) {
-            $query->whereYear('tanggal_tiba', $request->tahun);
-        }
-
-        $logistik = $query->orderByDesc('tanggal_tiba')->paginate(50)->withQueryString();
-
-        return view('monitoring.sla_ontime', compact('logistik'));
+    if ($request->filled('bulan')) {
+        $query->whereMonth('tanggal_tiba', $request->bulan);
+    }
+    if ($request->filled('tahun')) {
+        $query->whereYear('tanggal_tiba', $request->tahun);
     }
 
-    public function slaDelay(Request $request)
-    {
-        $query = DB::table('logistik_pengiriman')
-            ->selectRaw("
-                logistik_pengiriman.*,
-                estimasi_tiba AS tanggal_estimasi,
-                CASE
-                    WHEN DATEDIFF(DATE(tanggal_tiba), DATE(estimasi_tiba)) > 0
-                    THEN 'Delay' ELSE 'On Time'
-                END AS sla_tiba
-            ")
-            ->whereNotNull('tanggal_tiba')
-            ->whereNotNull('estimasi_tiba');
+    $logistik = $query->orderByDesc('tanggal_tiba')->paginate(50)->withQueryString();
 
-        $query->havingRaw("DATEDIFF(DATE(tanggal_tiba), DATE(estimasi_tiba)) > 0");
+    return view('monitoring.sla_ontime', compact('logistik'));
+}
 
-        if ($request->filled('bulan')) {
-            $query->whereMonth('tanggal_tiba', $request->bulan);
-        }
-        if ($request->filled('tahun')) {
-            $query->whereYear('tanggal_tiba', $request->tahun);
-        }
+  public function slaDelay(Request $request)
+{
+    $query = DB::table('logistik_pengiriman')
+        ->selectRaw("
+            logistik_pengiriman.*,
+            estimasi_tiba AS tanggal_estimasi,
+            CASE
+                WHEN DATEDIFF(DATE(tanggal_tiba), DATE(estimasi_tiba)) > 0
+                THEN 'Delay' ELSE 'On Time'
+            END AS sla_tiba
+        ")
+        ->whereNotNull('tanggal_tiba')
+        ->whereNotNull('estimasi_tiba')
+        ->whereRaw("DATEDIFF(DATE(tanggal_tiba), DATE(estimasi_tiba)) > 0");
 
-        $logistik = $query->orderByDesc('tanggal_tiba')->paginate(50)->withQueryString();
-
-        return view('monitoring.sla_delay', compact('logistik'));
+    if ($request->filled('bulan')) {
+        $query->whereMonth('tanggal_tiba', $request->bulan);
+    }
+    if ($request->filled('tahun')) {
+        $query->whereYear('tanggal_tiba', $request->tahun);
     }
 
+    $logistik = $query->orderByDesc('tanggal_tiba')->paginate(50)->withQueryString();
+
+    return view('monitoring.sla_delay', compact('logistik'));
+}
     public function summaryArea()
     {
         $summary_area = DB::table('logistik_pengiriman')

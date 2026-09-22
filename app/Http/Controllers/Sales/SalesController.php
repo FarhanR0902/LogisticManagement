@@ -36,6 +36,7 @@ class SalesController extends Controller
     // ================= TOTAL =================
 
     $total_data = (clone $base)->count();
+   $total_in_transit = $this->applyFilter($this->inTransitQuery(), $request)->count();
 
     // ================= GUDANG (FIXED - samain sama Manager) =================
 
@@ -253,6 +254,7 @@ class SalesController extends Controller
         'gudang_delay',
         'customer_ontime',
         'customer_delay',
+        'total_in_transit',
         'bongkar_ontime',
         'bongkar_delay',
         'summary_area',
@@ -322,6 +324,274 @@ class SalesController extends Controller
         return $query;
     }
 
+
+    // =====================================================
+// IN TRANSIT: sudah keluar gudang (max), belum ada tanggal_tiba
+// =====================================================
+private function inTransitQuery()
+{
+    $filled = fn($c) => "NULLIF(TRIM({$c}), '') IS NOT NULL";
+    $empty  = fn($c) => "NULLIF(TRIM({$c}), '') IS NULL";
+
+    $q = DB::table('logistik_pengiriman')
+        ->whereRaw($empty('tanggal_tiba'));
+
+    // minimal 1 gudang sudah keluar
+    $q->whereRaw('(' . implode(' OR ', [
+        $filled('tanggal_keluar_gudang'),
+        $filled('tanggal_keluar_gudang_2'),
+        $filled('tanggal_keluar_gudang_3'),
+    ]) . ')');
+
+    // tidak boleh ada siklus gudang yang masih menggantung
+    $cycles = [
+        ['planning_loading',   'tanggal_tiba_gudang',   'tanggal_keluar_gudang'],
+        ['planning_loading_2', 'tanggal_tiba_gudang_2', 'tanggal_keluar_gudang_2'],
+        ['planning_loading_3', 'tanggal_tiba_gudang_3', 'tanggal_keluar_gudang_3'],
+    ];
+    foreach ($cycles as [$planning, $tiba, $keluar]) {
+        $q->whereRaw('NOT ((' . $filled($planning) . ' OR ' . $filled($tiba) . ') AND ' . $empty($keluar) . ')');
+    }
+
+    // WAJIB: batasi sesuai dist_channel session user Sales yang login
+    $this->filterByDistChannel($q);
+
+    return $q;
+}
+
+private function inTransitEstimasiSql(): string
+{
+    return "COALESCE(estimasi_tiba, DATE_ADD(
+        GREATEST(
+            COALESCE(tanggal_keluar_gudang,'1900-01-01'),
+            COALESCE(tanggal_keluar_gudang_2,'1900-01-01'),
+            COALESCE(tanggal_keluar_gudang_3,'1900-01-01')
+        ),
+        INTERVAL CAST(COALESCE(NULLIF(TRIM(transport_lead_time),''),0) AS UNSIGNED) DAY
+    ))";
+}
+
+public function inTransit(Request $request)
+{
+    $today   = date('Y-m-d');
+    $todayTs = strtotime($today);
+    $soon    = date('Y-m-d', strtotime('+3 days'));
+    $est     = $this->inTransitEstimasiSql();
+
+    $base = $this->inTransitQuery();
+
+    $this->applyFilter($base, $request);
+
+    if ($request->filled('q')) {
+        $s = trim($request->input('q'));
+        $base->where(function ($q) use ($s) {
+            foreach (['no_shipment', 'tujuan', 'ekpedisi', 'nama_driver', 'no_pol', 'mobil'] as $col) {
+                $q->orWhere($col, 'like', "%{$s}%");
+            }
+        });
+    }
+
+    // ===== ringkasan =====
+    $sum = (clone $base)->selectRaw("
+        COUNT(*) AS total,
+        SUM(CASE WHEN DATE({$est}) < ? THEN 1 ELSE 0 END) AS overdue,
+        SUM(CASE WHEN DATE({$est}) BETWEEN ? AND ? THEN 1 ELSE 0 END) AS soon,
+        SUM(CASE WHEN DATE({$est}) > ? THEN 1 ELSE 0 END) AS ontrack
+    ", [$today, $today, $soon, $soon])->first();
+
+    $summary = [
+        'total'   => (int) ($sum->total ?? 0),
+        'overdue' => (int) ($sum->overdue ?? 0),
+        'soon'    => (int) ($sum->soon ?? 0),
+        'ontrack' => (int) ($sum->ontrack ?? 0),
+    ];
+
+    // ===== data tabel =====
+    $list = (clone $base)
+        ->orderByRaw("DATE({$est}) ASC")
+        ->orderBy('no_shipment')
+        ->paginate(50)
+        ->withQueryString();
+
+    $list->getCollection()->transform(function ($r) use ($todayTs) {
+        $keluar = null;
+        $asal   = '-';
+        foreach ([
+            ['KACS',   $r->tanggal_keluar_gudang],
+            ['SENTUL', $r->tanggal_keluar_gudang_2],
+            ['CCIE',   $r->tanggal_keluar_gudang_3],
+        ] as [$nama, $tgl]) {
+            if (!empty($tgl)) {
+                $ts = strtotime($tgl);
+                if ($keluar === null || $ts >= $keluar) {
+                    $keluar = $ts;
+                    $asal   = $nama;
+                }
+            }
+        }
+
+        $lead     = (int) ($r->transport_lead_time ?? 0);
+        $keluarD  = $keluar ? strtotime(date('Y-m-d', $keluar)) : null;
+        $estimasi = !empty($r->estimasi_tiba)
+            ? strtotime($r->estimasi_tiba)
+            : ($keluarD ? strtotime("+{$lead} days", $keluarD) : null);
+
+        $alert = '-';
+        $cls   = 'gray';
+        if ($estimasi) {
+            $sisa = floor(($estimasi - $todayTs) / 86400);
+            if     ($sisa < 0)  { $alert = 'Pending Tiba H+' . abs($sisa); $cls = 'red'; }
+            elseif ($sisa <= 1) { $alert = 'H-' . $sisa;                    $cls = 'red'; }
+            elseif ($sisa <= 3) { $alert = 'H-' . $sisa;                    $cls = 'orange'; }
+            elseif ($sisa <= 7) { $alert = 'H-' . $sisa;                    $cls = 'blue'; }
+            else                { $alert = 'ON TRACK';                      $cls = 'green'; }
+        }
+
+        $r->gudang_asal    = $asal;
+        $r->keluar_label   = $keluar ? date('d-m-Y', $keluar) : '-';
+        $r->hari_transit   = $keluarD ? max(0, floor(($todayTs - $keluarD) / 86400)) : null;
+        $r->estimasi_label = $estimasi ? date('d-m-Y', $estimasi) : '-';
+        $r->alert_label    = $alert;
+        $r->alert_class    = $cls;
+
+        return $r;
+    });
+
+        $areaList = $this->getArea()->pluck('area');
+    $picList  = collect(); // Sales tidak pakai filter PIC, tapi view butuh variabel ini
+
+    $formRoute = route('sales.intransit');
+
+    return view('monitoring.in_transit', compact('list', 'summary', 'areaList', 'picList', 'formRoute'));
+}
+
+// =====================================================
+// IN TRANSIT (PASURUAN): sudah keluar gudang, belum ada tanggal_tiba
+// =====================================================
+private function inTransitQueryPasuruan()
+{
+    $filled = fn($c) => "NULLIF(TRIM({$c}), '') IS NOT NULL";
+    $empty  = fn($c) => "NULLIF(TRIM({$c}), '') IS NULL";
+
+    $q = DB::table('logistik_pengiriman_pasuruan')
+        ->whereRaw($empty('tanggal_tiba_pasuruan'))
+        ->whereRaw($filled('tanggal_keluar_gudang_pasuruan'));
+
+    // WAJIB: batasi sesuai dist_channel session user Sales yang login
+    $this->filterByDistChannelPasuruan($q);
+
+    return $q;
+}
+
+private function inTransitEstimasiSqlPasuruan(): string
+{
+    return "COALESCE(estimasi_tiba_pasuruan, DATE_ADD(
+        COALESCE(tanggal_keluar_gudang_pasuruan, '1900-01-01'),
+        INTERVAL CAST(COALESCE(NULLIF(TRIM(transport_lead_time_pasuruan),''),0) AS UNSIGNED) DAY
+    ))";
+}
+
+public function inTransitPasuruan(Request $request)
+{
+    $today   = date('Y-m-d');
+    $todayTs = strtotime($today);
+    $soon    = date('Y-m-d', strtotime('+3 days'));
+    $est     = $this->inTransitEstimasiSqlPasuruan();
+
+    $base = $this->inTransitQueryPasuruan();
+
+    $this->applyFilterPasuruan($base, $request);
+
+    if ($request->filled('q')) {
+        $s = trim($request->input('q'));
+        $base->where(function ($q) use ($s) {
+            foreach ([
+                'no_shipment_pasuruan', 'tujuan_pasuruan', 'ekspedisi_pasuruan',
+                'nama_driver_pasuruan', 'no_pol_pasuruan', 'mobil_pasuruan',
+            ] as $col) {
+                $q->orWhere($col, 'like', "%{$s}%");
+            }
+        });
+    }
+
+    // ===== ringkasan =====
+    $sum = (clone $base)->selectRaw("
+        COUNT(*) AS total,
+        SUM(CASE WHEN DATE({$est}) < ? THEN 1 ELSE 0 END) AS overdue,
+        SUM(CASE WHEN DATE({$est}) BETWEEN ? AND ? THEN 1 ELSE 0 END) AS soon,
+        SUM(CASE WHEN DATE({$est}) > ? THEN 1 ELSE 0 END) AS ontrack
+    ", [$today, $today, $soon, $soon])->first();
+
+    $summary = [
+        'total'   => (int) ($sum->total ?? 0),
+        'overdue' => (int) ($sum->overdue ?? 0),
+        'soon'    => (int) ($sum->soon ?? 0),
+        'ontrack' => (int) ($sum->ontrack ?? 0),
+    ];
+
+    // ===== data tabel =====
+    $list = (clone $base)
+        ->orderByRaw("DATE({$est}) ASC")
+        ->orderBy('no_shipment_pasuruan')
+        ->paginate(50)
+        ->withQueryString();
+
+    $list->getCollection()->transform(function ($r) use ($todayTs) {
+        $keluar = !empty($r->tanggal_keluar_gudang_pasuruan)
+            ? strtotime($r->tanggal_keluar_gudang_pasuruan)
+            : null;
+
+        $lead     = (int) ($r->transport_lead_time_pasuruan ?? 0);
+        $keluarD  = $keluar ? strtotime(date('Y-m-d', $keluar)) : null;
+        $estimasi = !empty($r->estimasi_tiba_pasuruan)
+            ? strtotime($r->estimasi_tiba_pasuruan)
+            : ($keluarD ? strtotime("+{$lead} days", $keluarD) : null);
+
+        $alert = '-';
+        $cls   = 'gray';
+        if ($estimasi) {
+            $sisa = floor(($estimasi - $todayTs) / 86400);
+            if     ($sisa < 0)  { $alert = 'Pending Tiba H+' . abs($sisa); $cls = 'red'; }
+            elseif ($sisa <= 1) { $alert = 'H-' . $sisa;                    $cls = 'red'; }
+            elseif ($sisa <= 3) { $alert = 'H-' . $sisa;                    $cls = 'orange'; }
+            elseif ($sisa <= 7) { $alert = 'H-' . $sisa;                    $cls = 'blue'; }
+            else                { $alert = 'ON TRACK';                      $cls = 'green'; }
+        }
+
+        return (object) [
+            'no_shipment'    => $r->no_shipment_pasuruan,
+            'tujuan'         => $r->tujuan_pasuruan,
+            'area'           => $r->area_pasuruan,
+            'dist_channel'   => $r->dist_channel_pasuruan,
+            'ekpedisi'       => $r->ekspedisi_pasuruan,
+            'mobil'          => $r->mobil_pasuruan,
+            'nama_driver'    => $r->nama_driver_pasuruan,
+            'no_pol'         => $r->no_pol_pasuruan,
+            'remarks'        => $r->remarks_pasuruan,
+            'gudang_asal'    => 'GUDANG',
+            'keluar_label'   => $keluar ? date('d-m-Y', $keluar) : '-',
+            'hari_transit'   => $keluarD ? max(0, floor(($todayTs - $keluarD) / 86400)) : null,
+            'estimasi_label' => $estimasi ? date('d-m-Y', $estimasi) : '-',
+            'alert_label'    => $alert,
+            'alert_class'    => $cls,
+        ];
+    });
+
+    $areaList = DB::table('logistik_pengiriman_pasuruan');
+    $this->filterByDistChannelPasuruan($areaList);
+    $areaList = $areaList
+        ->whereNotNull('area_pasuruan')
+        ->distinct()
+        ->orderBy('area_pasuruan')
+        ->pluck('area_pasuruan');
+
+    $picList = collect(); // Sales tidak pakai filter PIC, tapi view butuh variabel ini
+
+    $formRoute = route('sales.intransit.pasuruan');
+
+    return view('monitoring.in_transit', compact('list', 'summary', 'areaList', 'picList', 'formRoute'));
+}
+
     /*
     |--------------------------------------------------------------------------
     | DASHBOARD PASURUAN (SALES - filtered by dist_channel)
@@ -335,6 +605,8 @@ class SalesController extends Controller
         $this->applyFilterPasuruan($base, $request);
 
         $total_data = (clone $base)->count();
+
+        $total_in_transit = $this->applyFilterPasuruan($this->inTransitQueryPasuruan(), $request)->count();
 
         $gudang_ontime = (clone $base)
             ->whereNotNull('tanggal_tiba_gudang_pasuruan')
@@ -485,6 +757,7 @@ class SalesController extends Controller
             'planner_ontime', 'planner_delay',
             'planner_armada', 'planner_belum_armada',
             'ontime_rate', 'delay_rate',
+            'total_in_transit',
             'armada_rate', 'pending_rate',
             'summary_monitoring', 'list_dist_channel', 'list_area'
         ));

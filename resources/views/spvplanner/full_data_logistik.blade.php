@@ -426,7 +426,7 @@
     <input type="file" name="file" accept=".xlsx,.xls,.csv" class="form-control" style="max-width:300px;" required>
     <button type="submit" class="btn btn-primary d-flex align-items-center gap-2">
         <i class="fa-solid fa-file-import"></i>
-        Import Qty DO & PGI Date
+        Import Qty DO, PGI Date, TONASE,KUBIKASI.
     </button>
 </form>
         </div>
@@ -528,6 +528,7 @@
 <th>Hasil Kubik</th>
 <th>Hasil Tonase</th>
 <th>Pengiriman Optimal</th>
+<th>Reason Optimal</th>
                             <th>Kategori Ekspedisi</th>
                             <th>Ekspedisi</th>
                             <th>Tanggal Dapat Unit</th>
@@ -643,9 +644,10 @@
 
                 // Index kolom di sini HARUS sinkron urutannya dengan array
                 // yang dikembalikan renderFullDataRow() di SpvPlannerController.
-columns: (function() {
+columns: (function () {
     let cols = [];
-    for (let i = 0; i <= 80; i++) {
+    let total = $('#tableLogistik thead th').length;
+    for (let i = 0; i < total; i++) {
         cols.push({ data: i });
     }
     return cols;

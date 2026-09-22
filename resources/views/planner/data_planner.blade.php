@@ -639,6 +639,8 @@
 <th class="th-system">Hasil Kubik</th>
 <th class="th-system">Hasil Tonase</th>
 <th class="th-system">Pengiriman Optimal</th>
+<th class="th-edit">Reason Optimal</th>
+
 
                                     <th class="th-system">Status Mobil</th>
                                     <th class="th-system">Lama Waktu Pencarian</th>
@@ -1115,6 +1117,7 @@ function ambilAngkaMurni(teks) {
                     tujuan: row.find('[name="tujuan"]').val(),
                     route: row.find('[name="route"]').val(),
                     pulau: row.find('[name="pulau"]').val(),
+                    reason_optimal: row.find('[name="reason_optimal"]').val(),
                     area: row.find('[name="area"]').val(),
                     via_kirim: row.find('[name="via_kirim"]').val(),
 

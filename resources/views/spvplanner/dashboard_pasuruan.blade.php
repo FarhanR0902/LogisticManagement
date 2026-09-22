@@ -840,6 +840,10 @@ tbody tr:last-child td{ border-bottom:none; }
     <h4>Total Shipment</h4>
     <h1>{{ $total_data }}</h1>
 </a>
+<a href="{{ route('spvplanner.pasuruan.intransit', request()->query()) }}" class="card orange">
+    <h4>Dalam Perjalanan (In Transit)</h4>
+    <h1>{{ $total_in_transit ?? 0 }}</h1>
+</a>
 
 <a href="{{ route('manager.gudang.ontime', request()->query()) }}" class="card green">
     <h4>Sudah Tiba Di Gudang</h4>
@@ -871,10 +875,6 @@ tbody tr:last-child td{ border-bottom:none; }
     <h1>{{ $bongkar_delay }}</h1>
 </a>
 
-<a href="{{ route('manager.summary.area', request()->query()) }}" class="card blue">
-    <h4>Summary Area</h4>
-    <h1>{{ count($summary_area) }}</h1>
-</a>
 
 </div>
 

@@ -788,6 +788,12 @@ tbody tr:last-child td{ border-bottom:none; }
     <h4>Total Shipment</h4>
     <h1>{{ $total_data }}</h1>
 </a>
+
+<a href="{{ route('sales.intransit.pasuruan', request()->query()) }}" class="card blue">
+    <h4>Dalam Perjalanan (In Transit)</h4>
+    <h1>{{ $total_in_transit }}</h1>
+</a>
+
 <a href="{{ route('pasuruan.gudang.ontime') }}" class="card green">
     <h4>Sudah Tiba Di Gudang</h4>
     <h1>{{ $gudang_ontime }}</h1>
@@ -818,10 +824,10 @@ tbody tr:last-child td{ border-bottom:none; }
     <h1>{{ $bongkar_delay }}</h1>
 </a>
 
-<a href="{{ route('manager.summary.area') }}" class="card blue">
+<!-- <a href="{{ route('manager.summary.area') }}" class="card blue">
     <h4>Summary Area</h4>
     <h1>{{ count($summary_area) }}</h1>
-</a>
+</a> -->
 
 </div>
 <!-- HERO TOTALS -->

@@ -231,8 +231,8 @@ h1,h2,h3,h4{
 
 .pulau-grid{
     display:grid;
-    grid-template-columns:repeat(8, minmax(0,1fr));
-    gap:10px;
+    grid-template-columns:repeat(9, minmax(0,1fr));
+    gap:14px;
 }
 
 @media(max-width:1400px){
@@ -845,6 +845,11 @@ tbody tr:last-child td{ border-bottom:none; }
     <h1>{{ $total_data }}</h1>
 </a>
 
+<a href="{{ route('manager.intransit', request()->query()) }}" class="card teal">
+    <h4>🚚 In Transit</h4>
+    <h1>{{ $total_in_transit ?? 0 }}</h1>
+</a>
+
 <a href="{{ route('manager.gudang.ontime', request()->query()) }}" class="card green">
     <h4>Sudah Tiba Di Gudang</h4>
     <h1>{{ $gudang_ontime }}</h1>
@@ -875,10 +880,10 @@ tbody tr:last-child td{ border-bottom:none; }
     <h1>{{ $bongkar_delay }}</h1>
 </a>
 
-<a href="{{ route('manager.summary.area', request()->query()) }}" class="card blue">
+<!-- <a href="{{ route('manager.summary.area', request()->query()) }}" class="card blue">
     <h4>Summary Area</h4>
     <h1>{{ count($summary_area) }}</h1>
-</a>
+</a> -->
 
 </div>
 

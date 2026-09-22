@@ -717,6 +717,20 @@ tbody tr:last-child td{ border-bottom:none; }
 
 <!-- HEADER -->
 <div class="page-header">
+    @php
+    // Kumpulkan filter yang lagi aktif dari dashboard, buang yang kosong
+    $buildFilterQuery = function (array $extra = []) {
+        $base = [
+            'area'         => request('area'),
+            'dist_channel' => request('dist_channel'),
+            'pulau'        => request('pulau'),
+        ];
+        return array_filter(
+            array_merge($base, $extra),
+            fn ($v) => $v !== null && $v !== ''
+        );
+    };
+@endphp
     <div class="page-title">
         <div class="eyebrow">Logistik &middot; Pasuruan</div>
         <h1>Dashboard pengiriman Pasuruan</h1>
@@ -838,68 +852,72 @@ tbody tr:last-child td{ border-bottom:none; }
 <div class="section-label">Ringkasan status</div>
 
 <div class="kpi-row">
-
-<a href="{{ route('pasuruan.dataLogistik') }}" class="card blue">
+<a href="{{ route('pasuruan.dataLogistik', $buildFilterQuery([
+        'date'  => request('date'),
+        'month' => request('month'),
+        'year'  => request('year'),
+    ])) }}" class="card blue">
     <h4>Total Shipment</h4>
     <h1>{{ $total_data }}</h1>
 </a>
 
-<a href="{{ route('pasuruan.gudang.ontime', [
+<a href="{{ route('pasuruan.intransit', $buildFilterQuery([
+        'date'  => request('date'),
+        'month' => request('month'),
+        'year'  => request('year'),
+    ])) }}" class="card red">
+    <h4>🚚 In Transit</h4>
+    <h1>{{ $total_in_transit ?? 0 }}</h1>
+</a>
+
+<a href="{{ route('pasuruan.gudang.ontime', $buildFilterQuery([
         'bulan' => request('month') ? substr(request('month'), 5, 2) : null,
         'tahun' => request('year') ?: (request('month') ? substr(request('month'), 0, 4) : null),
-        'area'  => request('area'),
-    ]) }}" class="card green">
+    ])) }}" class="card green">
     <h4>Sudah Tiba Di Gudang</h4>
     <h1>{{ $gudang_ontime }}</h1>
 </a>
 
-<a href="{{ route('pasuruan.gudang.delay', [
+<a href="{{ route('pasuruan.gudang.delay', $buildFilterQuery([
         'bulan' => request('month') ? substr(request('month'), 5, 2) : null,
         'tahun' => request('year') ?: (request('month') ? substr(request('month'), 0, 4) : null),
-        'area'  => request('area'),
-    ]) }}" class="card red">
+    ])) }}" class="card red">
     <h4>Belum Tiba Di Gudang</h4>
     <h1>{{ $gudang_delay }}</h1>
 </a>
 
-<a href="{{ route('pasuruan.tujuan.ontime', [
+<a href="{{ route('pasuruan.tujuan.ontime', $buildFilterQuery([
         'bulan' => request('month') ? substr(request('month'), 5, 2) : null,
         'tahun' => request('year') ?: (request('month') ? substr(request('month'), 0, 4) : null),
-        'area'  => request('area'),
-    ]) }}" class="card teal">
+    ])) }}" class="card teal">
     <h4>Tiba Tujuan OnTime</h4>
     <h1>{{ $customer_ontime }}</h1>
 </a>
 
-<a href="{{ route('pasuruan.tujuan.delay', [
+<a href="{{ route('pasuruan.tujuan.delay', $buildFilterQuery([
         'bulan' => request('month') ? substr(request('month'), 5, 2) : null,
         'tahun' => request('year') ?: (request('month') ? substr(request('month'), 0, 4) : null),
-        'area'  => request('area'),
-    ]) }}" class="card orange">
+    ])) }}" class="card orange">
     <h4>Tiba Tujuan Delay</h4>
     <h1>{{ $customer_delay }}</h1>
 </a>
 
-<a href="{{ route('pasuruan.bongkar.ontime', [
+<a href="{{ route('pasuruan.bongkar.ontime', $buildFilterQuery([
         'tanggal_bongkar' => request('date'),
-        'area'            => request('area'),
-    ]) }}" class="card purple">
+    ])) }}" class="card purple">
     <h4>Bongkar OnTime</h4>
     <h1>{{ $bongkar_ontime }}</h1>
 </a>
 
-<a href="{{ route('pasuruan.bongkar.delay', [
+<a href="{{ route('pasuruan.bongkar.delay', $buildFilterQuery([
         'tanggal_bongkar' => request('date'),
-        'area'            => request('area'),
-    ]) }}" class="card dark">
+    ])) }}" class="card dark">
     <h4>Bongkar Delay</h4>
     <h1>{{ $bongkar_delay }}</h1>
-</a>
-
-<a href="#summary-area-table" class="card blue">
+</a><!-- <a href="#summary-area-table" class="card blue">
     <h4>Summary Area</h4>
     <h1>{{ count($summary_area) }}</h1>
-</a>
+</a> -->
 
 </div>
 

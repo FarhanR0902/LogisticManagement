@@ -94,6 +94,7 @@ class LogistikPengiriman extends Model
         'selisih_qty',
         'biaya_kuli',
         'total_biaya_kuli',
+        'reason_optimal',
         'create_tgl'
     ];
 

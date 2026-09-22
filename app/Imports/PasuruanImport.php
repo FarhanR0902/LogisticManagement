@@ -30,6 +30,10 @@ class PasuruanImport implements ToModel, WithHeadingRow, WithEvents
     // Nama tabel master tarif di database
     private const TARIF_TABLE = 'tarif_pengiriman';
 
+    private const ROUTE_ALIASES = [
+    'jabodetabek' => 'Sentul-Jabodetabek',
+];
+
     //   private $lastNoShipment = null;
     // private $lastRoute      = null;
     // private $lastMobil      = null;
@@ -176,7 +180,8 @@ public function getSkippedCount(): int { return $this->skipped; }
         $shippingPoint      = $this->cleanText($row['shipping_point_pasuruan'] ?? null);
         $ketersediaanUnit   = $this->cleanText($row['ketersediaan_unit_pasuruan'] ?? null);
         $perubahanMobil     = $this->cleanText($row['perubahan_mobil_pasuruan'] ?? null);
-        $kategoriEkspedisi  = $this->cleanText($row['kategori_ekspedisi_pasuruan'] ?? null);
+$kategoriEkspedisi  = $this->getKategoriEkspedisi($noShipmentCheck)
+                      ?? $this->cleanText($row['kategori_ekspedisi_pasuruan'] ?? null);
         $statusKendaraan    = $this->cleanText($row['status_kendaraan_pasuruan'] ?? null);
         $namaKapal          = $this->cleanText($row['nama_kapal_pasuruan'] ?? null);
         $transportLaut      = $this->cleanText($row['transport_laut_pasuruan'] ?? null);
@@ -287,7 +292,9 @@ if ($noShipment !== $this->lastNoShipment) {
     $this->lastTotalTonase = null;
 }
 
-$route     = $this->cleanText($row['route_pasuruan'] ?? null)     ?: $this->lastRoute;
+$route     = $this->applyRouteAlias(
+                $this->cleanText($row['route_pasuruan'] ?? null) ?: $this->lastRoute
+             );
 $mobil     = $this->cleanText($row['mobil_pasuruan'] ?? null)     ?: $this->lastMobil;
 $ekspedisi = $this->cleanText($row['ekspedisi_pasuruan'] ?? null) ?: $this->lastEkpedisi;
 
@@ -608,6 +615,24 @@ $tujuan = $this->cleanText($row['tujuan_pasuruan'] ?? null);
         ]);
     }
 
+    private function applyRouteAlias(?string $route): ?string
+{
+    if ($route === null || $route === '') return $route;
+
+    $key = $this->normalize($route);
+    return self::ROUTE_ALIASES[$key] ?? $route;
+}
+
+private function getKategoriEkspedisi(?string $noShipment): ?string
+{
+    $no = trim((string) $noShipment);
+
+    if (str_starts_with($no, '45')) return 'Kontrak';
+    if (str_starts_with($no, '42')) return 'Oncall';
+
+    return null;
+}
+
     public function updateQtyPgi(Request $request)
 {
     $request->validate([
@@ -757,6 +782,8 @@ private function cleanDecimal($value): ?float
         return strtolower($value);
     }
 
+    
+
     /**
      * Normalisasi khusus untuk Mobil: sama seperti normalize(), tapi
      * TANPA menyentuh tanda "-". Cukup rapikan spasi & lowercase.
@@ -821,7 +848,6 @@ private function cleanDecimal($value): ?float
             return str_starts_with($mobilMaster, $mobilExcel);
         });
     }
-
     /**
      * Kolom biaya_kirim di master_harga formatnya "8,500,000"
      * (koma = pemisah ribuan).
@@ -845,50 +871,142 @@ private function cleanDecimal($value): ?float
         return is_numeric($value) ? (float) $value : 0;
     }
 
+    // public function registerEvents(): array
+    // {
+    //     return [
+    //         AfterImport::class => function () {
+
+    //             // =====================================================
+    //             // SAFETY NET: kalau ternyata baris-baris dengan No
+    //             // Shipment yang sama TIDAK berurutan di file Excel
+    //             // (sehingga forward-fill saat model() tidak sempat
+    //             // menangkap semuanya), lakukan post-process di sini:
+    //             // isi Route / Mobil / Ekspedisi yang masih NULL/kosong
+    //             // dengan nilai non-kosong lain dari No Shipment yang
+    //             // sama (ambil salah satu yang ada). Sama persis seperti
+    //             // safety net di LogistikImport.
+    //             // =====================================================
+    //             foreach (['route_pasuruan', 'mobil_pasuruan', 'ekspedisi_pasuruan'] as $col) {
+    //                 DB::statement("
+    //                     UPDATE logistik_pengiriman_pasuruan lp
+    //                     JOIN (
+    //                         SELECT no_shipment_pasuruan, MIN($col) AS val
+    //                         FROM logistik_pengiriman_pasuruan
+    //                         WHERE $col IS NOT NULL AND $col != ''
+    //                         GROUP BY no_shipment_pasuruan
+    //                     ) x ON lp.no_shipment_pasuruan = x.no_shipment_pasuruan
+    //                     SET lp.$col = x.val
+    //                     WHERE (lp.$col IS NULL OR lp.$col = '')
+    //                       AND lp.no_shipment_pasuruan IS NOT NULL
+    //                       AND lp.no_shipment_pasuruan != ''
+    //                 ");
+    //             }
+
+    //             DB::statement("
+    //                 UPDATE logistik_pengiriman_pasuruan lp
+    //                 JOIN (
+    //                     SELECT
+    //                         no_shipment_pasuruan,
+    //                         MAX(biaya_kirim_pasuruan) AS biaya,
+    //                         SUM(nilai_muatan_pasuruan) AS muatan
+    //                     FROM logistik_pengiriman_pasuruan
+    //                     GROUP BY no_shipment_pasuruan
+    //                 ) x ON lp.no_shipment_pasuruan = x.no_shipment_pasuruan
+    //                 SET lp.cr_pasuruan = IF(x.muatan = 0, 0, ROUND((x.biaya / x.muatan) * 100, 4))
+    //             ");
+    //         },
+    //     ];
+    // }
+
     public function registerEvents(): array
-    {
-        return [
-            AfterImport::class => function () {
+{
+    return [
+        AfterImport::class => function () {
 
-                // =====================================================
-                // SAFETY NET: kalau ternyata baris-baris dengan No
-                // Shipment yang sama TIDAK berurutan di file Excel
-                // (sehingga forward-fill saat model() tidak sempat
-                // menangkap semuanya), lakukan post-process di sini:
-                // isi Route / Mobil / Ekspedisi yang masih NULL/kosong
-                // dengan nilai non-kosong lain dari No Shipment yang
-                // sama (ambil salah satu yang ada). Sama persis seperti
-                // safety net di LogistikImport.
-                // =====================================================
-                foreach (['route_pasuruan', 'mobil_pasuruan', 'ekspedisi_pasuruan'] as $col) {
-                    DB::statement("
-                        UPDATE logistik_pengiriman_pasuruan lp
-                        JOIN (
-                            SELECT no_shipment_pasuruan, MIN($col) AS val
-                            FROM logistik_pengiriman_pasuruan
-                            WHERE $col IS NOT NULL AND $col != ''
-                            GROUP BY no_shipment_pasuruan
-                        ) x ON lp.no_shipment_pasuruan = x.no_shipment_pasuruan
-                        SET lp.$col = x.val
-                        WHERE (lp.$col IS NULL OR lp.$col = '')
-                          AND lp.no_shipment_pasuruan IS NOT NULL
-                          AND lp.no_shipment_pasuruan != ''
-                    ");
-                }
-
+            // =====================================================
+            // SAFETY NET: kalau ternyata baris-baris dengan No
+            // Shipment yang sama TIDAK berurutan di file Excel
+            // ...
+            // =====================================================
+            foreach (['route_pasuruan', 'mobil_pasuruan', 'ekspedisi_pasuruan'] as $col) {
                 DB::statement("
                     UPDATE logistik_pengiriman_pasuruan lp
                     JOIN (
-                        SELECT
-                            no_shipment_pasuruan,
-                            MAX(biaya_kirim_pasuruan) AS biaya,
-                            SUM(nilai_muatan_pasuruan) AS muatan
+                        SELECT no_shipment_pasuruan, MIN($col) AS val
                         FROM logistik_pengiriman_pasuruan
+                        WHERE $col IS NOT NULL AND $col != ''
                         GROUP BY no_shipment_pasuruan
                     ) x ON lp.no_shipment_pasuruan = x.no_shipment_pasuruan
-                    SET lp.cr_pasuruan = IF(x.muatan = 0, 0, ROUND((x.biaya / x.muatan) * 100, 4))
+                    SET lp.$col = x.val
+                    WHERE (lp.$col IS NULL OR lp.$col = '')
+                      AND lp.no_shipment_pasuruan IS NOT NULL
+                      AND lp.no_shipment_pasuruan != ''
                 ");
-            },
-        ];
-    }
+            }
+
+            DB::statement("
+                UPDATE logistik_pengiriman_pasuruan lp
+                JOIN (
+                    SELECT
+                        no_shipment_pasuruan,
+                        MAX(biaya_kirim_pasuruan) AS biaya,
+                        SUM(nilai_muatan_pasuruan) AS muatan
+                    FROM logistik_pengiriman_pasuruan
+                    GROUP BY no_shipment_pasuruan
+                ) x ON lp.no_shipment_pasuruan = x.no_shipment_pasuruan
+                SET lp.cr_pasuruan = IF(x.muatan = 0, 0, ROUND((x.biaya / x.muatan) * 100, 4))
+            ");
+
+            // ================================================================
+            // HASIL KUBIK / HASIL TONASE / PENGIRIMAN OPTIMAL (PASURUAN)
+            // Dihitung dari PENJUMLAHAN total_kubik_pasuruan &
+            // total_tonase_pasuruan seluruh baris dalam satu
+            // no_shipment_pasuruan (kalau shipment punya banyak tujuan),
+            // dibagi kubikasi_pasuruan & tonase_pasuruan (kapasitas
+            // kendaraan, dari tarif). Dijalankan SETELAH semua baris
+            // diimport supaya shipment multi-baris dihitung sebagai satu
+            // kesatuan, bukan per baris.
+            // ================================================================
+            DB::statement("
+                UPDATE logistik_pengiriman_pasuruan lp
+                JOIN (
+                    SELECT
+                        no_shipment_pasuruan,
+                        SUM(COALESCE(total_kubik_pasuruan, 0))  AS sum_kubik,
+                        SUM(COALESCE(total_tonase_pasuruan, 0)) AS sum_tonase,
+                        MAX(kubikasi_pasuruan) AS kubikasi,
+                        MAX(tonase_pasuruan)   AS tonase
+                    FROM logistik_pengiriman_pasuruan
+                    WHERE no_shipment_pasuruan IS NOT NULL AND no_shipment_pasuruan != ''
+                    GROUP BY no_shipment_pasuruan
+                ) x ON lp.no_shipment_pasuruan = x.no_shipment_pasuruan
+                SET
+                    lp.hasil_kubik_pasuruan = CASE
+                        WHEN x.kubikasi IS NOT NULL AND x.kubikasi > 0
+                        THEN ROUND(x.sum_kubik / x.kubikasi * 100, 2)
+                        ELSE NULL
+                    END,
+                    lp.hasil_tonase_pasuruan = CASE
+                        WHEN x.tonase IS NOT NULL AND x.tonase > 0
+                        THEN ROUND(x.sum_tonase / x.tonase * 100, 2)
+                        ELSE NULL
+                    END,
+                    lp.pengiriman_optimal_pasuruan = CASE
+                        WHEN
+                            (x.kubikasi > 0 AND (x.sum_kubik / x.kubikasi * 100) >= 85)
+                            OR
+                            (x.tonase > 0 AND (x.sum_tonase / x.tonase * 100) >= 85)
+                        THEN 'OPTIMAL'
+                        WHEN
+                            (x.kubikasi > 0 AND x.kubikasi IS NOT NULL)
+                            OR
+                            (x.tonase > 0 AND x.tonase IS NOT NULL)
+                        THEN 'TIDAK OPTIMAL'
+                        ELSE NULL
+                    END
+                WHERE lp.no_shipment_pasuruan IS NOT NULL AND lp.no_shipment_pasuruan != ''
+            ");
+        },
+    ];
+}
 }

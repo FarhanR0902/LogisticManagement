@@ -473,6 +473,7 @@ class LogistikController extends Controller
                 'hasil_kubik_fmt'             => $this->formatHasilPersen($this->computeHasilKubik($r)),
                 'hasil_tonase_fmt'            => $this->formatHasilPersen($this->computeHasilTonase($r)),
                 'pengiriman_optimal_badge'    => $this->badgePengirimanOptimal($r),
+               'reason_optimal'               => $r->reason_optimal,
                 'kategori_ekspedisi_badge'    => $this->badgeKategoriEkspedisi($r->kategori_ekspedisi),
                 'ekpedisi'                    => $r->ekpedisi,
                 'tanggal_dpt_unit_fmt'        => $this->fmtDate($r->tanggal_dpt_unit),

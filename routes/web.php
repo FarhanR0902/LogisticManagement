@@ -113,6 +113,10 @@ Route::prefix('planner')->group(function () {
         ->name('planner.data.ajax');
     Route::get('/planner/alerts', [App\Http\Controllers\Planner\PlannerController::class, 'alerts'])
         ->name('planner.alerts');
+        
+
+    Route::get('/planner/in-transit', [PlannerController::class, 'inTransit'])
+    ->name('planner.intransit');
 
     Route::get('/dashboard', [PlannerController::class, 'dashboard'])
         ->name('planner.dashboard');
@@ -174,7 +178,8 @@ Route::get(
 Route::get('/monitoring/data-ajax', [MonitoringController::class, 'dataAjax'])->name('monitoring.datalogistik.ajax');
 Route::get('/monitoring/alerts', [MonitoringController::class, 'alerts'])->name('monitoring.alerts');
 Route::put('/monitoring/update/{id}', [MonitoringController::class, 'updateMonitoring'])->name('monitoring.update');
-
+Route::get('/monitoring/in-transit', [MonitoringController::class, 'inTransit'])
+    ->name('monitoring.intransit');
 Route::get(
     '/monitoring/export',
     [MonitoringController::class, 'export']
@@ -218,6 +223,9 @@ Route::prefix('manager')->group(function () {
     Route::get('/dashboard', [ManagerController::class, 'dashboard'])
         ->name('manager.dashboard');
 
+    Route::get('/manager/pasuruan/in-transit', [App\Http\Controllers\Manager\ManagerController::class, 'inTransitPasuruan'])
+    ->name('manager.pasuruan.intransit');
+
     Route::match(['get', 'post'], '/manager/data-pasuruan/ajax', [
         \App\Http\Controllers\Manager\ManagerController::class,
         'dataLogistikPasuruanAjax'
@@ -229,6 +237,8 @@ Route::prefix('manager')->group(function () {
 
     Route::get('/gudang/delay', [ManagerController::class, 'gudangDelay'])
         ->name('manager.gudang.delay');
+        Route::get('/manager/in-transit', [ManagerController::class, 'inTransit'])
+    ->name('manager.intransit');
 
     // ================= CUSTOMER (TUJUAN) =================
     Route::get('/customer/ontime', [ManagerController::class, 'tujuanOnTime'])
@@ -260,6 +270,9 @@ Route::prefix('manager')->group(function () {
 
 Route::get('/pasuruan/gudang/ontime', [PasuruanController::class, 'gudangOntimePasuruan'])
     ->name('pasuruan.gudang.ontime');
+
+    Route::get('/pasuruan/in-transit', [PasuruanController::class, 'inTransit'])
+    ->name('pasuruan.intransit');
 
 Route::post('/pasuruan/update-qty-pgi', [PasuruanController::class, 'updateQtyPgi'])
      ->name('pasuruan.updateQtyPgi');
@@ -369,6 +382,8 @@ Route::middleware(['auth'])->prefix('spvplanner')->group(function () {
 
     Route::post('/spvplanner/data-ajax', [App\Http\Controllers\Spv\SpvPlannerController::class, 'dataAjax'])
         ->name('spvplanner.data.ajax');
+        Route::get('/spvplanner/pasuruan/in-transit', [App\Http\Controllers\Spv\SpvPlannerController::class, 'inTransitPasuruan'])
+    ->name('spvplanner.pasuruan.intransit');
     Route::match(['get', 'post'], '/logistik/full-data/ajax', [SpvPlannerController::class, 'fullDataLogistikAjax'])
         ->name('full.data.logistik.ajax');
     Route::post('/logistik/import-qty-pgi', [SpvPlannerController::class, 'importQtyPgi'])
@@ -513,6 +528,8 @@ Route::middleware(['auth'])
         )->name('spvmonitoring.update');
         Route::get('/dashboard', [SpvMonitoringController::class, 'dashboard'])
             ->name('dashboard');
+            Route::get('in-transit-pasuruan', [SpvMonitoringController::class, 'inTransitPasuruan'])
+    ->name('intransit.pasuruan');
 
 
 
@@ -620,11 +637,17 @@ Route::get(
     [SpvPlannerController::class, 'fullDashboard']
 )->name('spvplanner.full.dashboard');
 
+Route::get('/spvplanner/in-transit', [SpvPlannerController::class, 'inTransit'])
+    ->name('spvplanner.intransit');
+
 
 Route::get(
     '/spvmonitoring/full-dashboard',
     [SpvMonitoringController::class, 'fullDashboard']
 )->name('spvmonitoring.full.dashboard');
+
+Route::get('/spvmonitoring/in-transit', [SpvMonitoringController::class, 'inTransit'])
+    ->name('spvmonitoring.intransit');
 
 Route::get(
     '/full-data-logistik',
@@ -700,6 +723,12 @@ Route::prefix('sales')
         // DASHBOARD
         Route::get('/dashboard', [SalesController::class, 'dashboard'])
             ->name('dashboard');
+
+         Route::get('in-transit', [SalesController::class, 'inTransit'])
+    ->name('intransit');
+
+Route::get('in-transit-pasuruan', [SalesController::class, 'inTransitPasuruan'])
+    ->name('intransit.pasuruan');
 
         // GUDANG
         Route::get('/gudang/ontime', [SalesController::class, 'gudangOntime'])

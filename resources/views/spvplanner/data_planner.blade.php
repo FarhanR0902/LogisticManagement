@@ -639,6 +639,7 @@
 <th class="th-system">Hasil Kubik</th>
 <th class="th-system">Hasil Tonase</th>
 <th class="th-system">Pengiriman Optimal</th>
+<th class="th-edit">Reason Optimal</th>
 
                                     <th class="th-system">Status Mobil</th>
                                     <th class="th-system">Lama Waktu Pencarian</th>
@@ -1116,6 +1117,7 @@ targets: [0, 1, 2, 27, 32, 34, 35, 38, 39, 40, 44]
                                 tujuan: row.find('[name="tujuan"]').val(),
                                 route: row.find('[name="route"]').val(),
                                 pulau: row.find('[name="pulau"]').val(),
+                                 reason_optimal: row.find('[name="reason_optimal"]').val(),
                                 area: row.find('[name="area"]').val(),
                                 via_kirim: row.find('[name="via_kirim"]').val(),
 

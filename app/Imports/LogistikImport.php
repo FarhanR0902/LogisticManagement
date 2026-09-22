@@ -17,6 +17,9 @@ class LogistikImport implements ToCollection, WithHeadingRow, WithEvents, WithCa
     private static $customerMap = null;
     private static $tarifByRoute = null;
     private const TARIF_TABLE = 'tarif_pengiriman';
+    private const ROUTE_ALIASES = [
+    'jabodetabek' => 'Sentul-Jabodetabek',
+    ];
 
     // forward-fill state (merged cell di Excel)
     private $lastNoShipment  = null;
@@ -199,7 +202,9 @@ class LogistikImport implements ToCollection, WithHeadingRow, WithEvents, WithCa
             $this->lastTotalTonase = null;
         }
 
-        $route    = $this->cleanText($row['route'] ?? null)    ?: $this->lastRoute;
+     $route    = $this->applyRouteAlias(
+                $this->cleanText($row['route'] ?? null) ?: $this->lastRoute
+            );
         $mobil    = $this->cleanText($row['mobil'] ?? null)    ?: $this->lastMobil;
         $ekpedisi = $this->cleanText($row['ekpedisi'] ?? null) ?: $this->lastEkpedisi;
 
@@ -316,7 +321,8 @@ class LogistikImport implements ToCollection, WithHeadingRow, WithEvents, WithCa
 
             'perubahan_mobil'    => $this->cleanText($row['perubahan_mobil'] ?? null),
             'cr'                 => $this->cleanText($row['cr'] ?? null),
-            'kategori_ekspedisi' => $this->cleanText($row['kategori_ekspedisi'] ?? null),
+          'kategori_ekspedisi' => $this->getKategoriEkspedisi($noShipmentCheck)
+                        ?? $this->cleanText($row['kategori_ekspedisi'] ?? null),
             'ekpedisi'           => $ekpedisi,
             'kubikasi'           => $kubikasi,
             'tonase'             => $tonase,
@@ -382,7 +388,13 @@ class LogistikImport implements ToCollection, WithHeadingRow, WithEvents, WithCa
             'updated_at' => now(),
         ];
     }
+private function applyRouteAlias(?string $route): ?string
+{
+    if ($route === null || $route === '') return $route;
 
+    $key = $this->normalize($route);
+    return self::ROUTE_ALIASES[$key] ?? $route;
+}
     private function generateStatusAlert($sla_tiba, $sla_bongkar)
     {
         $sla_tiba    = strtolower(trim($sla_tiba ?? '-'));
@@ -448,6 +460,16 @@ class LogistikImport implements ToCollection, WithHeadingRow, WithEvents, WithCa
         }
         return is_numeric($value) ? (float) $value : null;
     }
+
+    private function getKategoriEkspedisi(?string $noShipment): ?string
+{
+    $no = trim((string) $noShipment);
+
+    if (str_starts_with($no, '45')) return 'Kontrak';
+    if (str_starts_with($no, '42')) return 'Oncall';
+
+    return null;
+}
 
     private function convertDate($value)
     {
@@ -520,40 +542,126 @@ class LogistikImport implements ToCollection, WithHeadingRow, WithEvents, WithCa
         return (float) $value;
     }
 
-    public function registerEvents(): array
-    {
-        return [
-            AfterImport::class => function () {
-                foreach (['route', 'mobil', 'ekpedisi'] as $col) {
-                    DB::statement("
-                        UPDATE logistik_pengiriman lp
-                        JOIN (
-                            SELECT no_shipment, MIN($col) AS val
-                            FROM logistik_pengiriman
-                            WHERE $col IS NOT NULL AND $col != ''
-                            GROUP BY no_shipment
-                        ) x ON lp.no_shipment = x.no_shipment
-                        SET lp.$col = x.val
-                        WHERE (lp.$col IS NULL OR lp.$col = '')
-                          AND lp.no_shipment IS NOT NULL
-                          AND lp.no_shipment != ''
-                    ");
-                }
+    // public function registerEvents(): array
+    // {
+    //     return [
+    //         AfterImport::class => function () {
+    //             foreach (['route', 'mobil', 'ekpedisi'] as $col) {
+    //                 DB::statement("
+    //                     UPDATE logistik_pengiriman lp
+    //                     JOIN (
+    //                         SELECT no_shipment, MIN($col) AS val
+    //                         FROM logistik_pengiriman
+    //                         WHERE $col IS NOT NULL AND $col != ''
+    //                         GROUP BY no_shipment
+    //                     ) x ON lp.no_shipment = x.no_shipment
+    //                     SET lp.$col = x.val
+    //                     WHERE (lp.$col IS NULL OR lp.$col = '')
+    //                       AND lp.no_shipment IS NOT NULL
+    //                       AND lp.no_shipment != ''
+    //                 ");
+    //             }
 
+    //             DB::statement("
+    //                 UPDATE logistik_pengiriman lp
+    //                 JOIN (
+    //                     SELECT no_shipment, MAX(biaya_kirim) AS biaya, SUM(nilai_muatan) AS muatan
+    //                     FROM logistik_pengiriman
+    //                     GROUP BY no_shipment
+    //                 ) x ON lp.no_shipment = x.no_shipment
+    //                 SET lp.cr = IF(
+    //                     x.muatan = 0 OR lp.nilai_muatan <= 0,
+    //                     0,
+    //                     ROUND((lp.nilai_muatan * x.biaya) / (x.muatan * x.muatan) * 100, 4)
+    //                 )
+    //             ");
+    //         },
+    //     ];
+    // }
+
+    public function registerEvents(): array
+{
+    return [
+        AfterImport::class => function () {
+            foreach (['route', 'mobil', 'ekpedisi'] as $col) {
                 DB::statement("
                     UPDATE logistik_pengiriman lp
                     JOIN (
-                        SELECT no_shipment, MAX(biaya_kirim) AS biaya, SUM(nilai_muatan) AS muatan
+                        SELECT no_shipment, MIN($col) AS val
                         FROM logistik_pengiriman
+                        WHERE $col IS NOT NULL AND $col != ''
                         GROUP BY no_shipment
                     ) x ON lp.no_shipment = x.no_shipment
-                    SET lp.cr = IF(
-                        x.muatan = 0 OR lp.nilai_muatan <= 0,
-                        0,
-                        ROUND((lp.nilai_muatan * x.biaya) / (x.muatan * x.muatan) * 100, 4)
-                    )
+                    SET lp.$col = x.val
+                    WHERE (lp.$col IS NULL OR lp.$col = '')
+                      AND lp.no_shipment IS NOT NULL
+                      AND lp.no_shipment != ''
                 ");
-            },
-        ];
-    }
+            }
+
+            DB::statement("
+                UPDATE logistik_pengiriman lp
+                JOIN (
+                    SELECT no_shipment, MAX(biaya_kirim) AS biaya, SUM(nilai_muatan) AS muatan
+                    FROM logistik_pengiriman
+                    GROUP BY no_shipment
+                ) x ON lp.no_shipment = x.no_shipment
+                SET lp.cr = IF(
+                    x.muatan = 0 OR lp.nilai_muatan <= 0,
+                    0,
+                    ROUND((lp.nilai_muatan * x.biaya) / (x.muatan * x.muatan) * 100, 4)
+                )
+            ");
+
+            // ================================================================
+            // HASIL KUBIK / HASIL TONASE / PENGIRIMAN OPTIMAL
+            // Dihitung dari PENJUMLAHAN total_kubik & total_tonase seluruh
+            // baris dalam satu no_shipment (kalau shipment punya banyak
+            // tujuan/baris), dibagi kubikasi & tonase kendaraan (dari tarif).
+            // Ini sengaja dilakukan SETELAH semua baris diimport supaya
+            // shipment dengan banyak tujuan dihitung sebagai satu kesatuan,
+            // bukan per baris.
+            // ================================================================
+            DB::statement("
+                UPDATE logistik_pengiriman lp
+                JOIN (
+                    SELECT
+                        no_shipment,
+                        SUM(COALESCE(total_kubik, 0))  AS sum_kubik,
+                        SUM(COALESCE(total_tonase, 0)) AS sum_tonase,
+                        MAX(kubikasi) AS kubikasi,
+                        MAX(tonase)   AS tonase
+                    FROM logistik_pengiriman
+                    WHERE no_shipment IS NOT NULL AND no_shipment != ''
+                    GROUP BY no_shipment
+                ) x ON lp.no_shipment = x.no_shipment
+                SET
+                    lp.hasil_kubik = CASE
+                        WHEN x.kubikasi IS NOT NULL AND x.kubikasi > 0
+                        THEN ROUND(x.sum_kubik / x.kubikasi * 100, 2)
+                        ELSE NULL
+                    END,
+                    lp.hasil_tonase = CASE
+                        WHEN x.tonase IS NOT NULL AND x.tonase > 0
+                        THEN ROUND(x.sum_tonase / x.tonase * 100, 2)
+                        ELSE NULL
+                    END,
+                    lp.pengiriman_optimal = CASE
+                        WHEN
+                            (x.kubikasi > 0 AND (x.sum_kubik / x.kubikasi * 100) >= 85)
+                            OR
+                            (x.tonase > 0 AND (x.sum_tonase / x.tonase * 100) >= 85)
+                        THEN 'OPTIMAL'
+                        WHEN
+                            (x.kubikasi > 0 AND x.kubikasi IS NOT NULL)
+                            OR
+                            (x.tonase > 0 AND x.tonase IS NOT NULL)
+                        THEN 'TIDAK OPTIMAL'
+                        ELSE NULL
+                    END
+                WHERE lp.no_shipment IS NOT NULL AND lp.no_shipment != ''
+            ");
+        },
+    ];
+}
 }
