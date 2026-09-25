@@ -96,6 +96,19 @@ class MonitoringController extends Controller
             ->whereNotNull('tujuan')->where('tujuan', '!=', '')
             ->distinct()->orderBy('tujuan')->pluck('tujuan');
     });
+    $shipmentList = LogistikPengiriman::selectRaw('
+        no_shipment,
+        MAX(tujuan) as tujuan,
+        MAX(nama_kapal) as nama_kapal,
+        MAX(etd) as etd,
+        MAX(eta) as eta,
+        MAX(atd) as atd,
+        MAX(ata) as ata
+    ')
+    ->whereNotNull('no_shipment')
+    ->groupBy('no_shipment')
+    ->orderBy('no_shipment')
+    ->get();
 
         $akurasiTiba = Cache::remember('monitoring_akurasi_tiba', 3600, function () {
             return DB::table('akurasi3')->distinct()->pluck('akurasi_waktu_tiba');
@@ -111,11 +124,11 @@ class MonitoringController extends Controller
 
         // untuk dropdown "No Shipment" di modal shipment laut —
         // ambil list ringan (id + no_shipment + tujuan saja), bukan full row
-        $shipmentList = LogistikPengiriman::select('no_shipment', 'tujuan')
-            ->whereNotNull('no_shipment')
-            ->distinct()
-            ->orderBy('no_shipment')
-            ->get();
+        // $shipmentList = LogistikPengiriman::select('no_shipment', 'tujuan')
+        //     ->whereNotNull('no_shipment')
+        //     ->distinct()
+        //     ->orderBy('no_shipment')
+        //     ->get();
 
         return view('monitoring.data_monitoring', compact(
             'areaList',
@@ -127,6 +140,32 @@ class MonitoringController extends Controller
             'shipmentList'
         ));
     }
+        public function updateTransportLaut(Request $request)
+{
+    $request->validate(['no_shipment' => 'required']);
+
+    $data = array_filter([
+        'nama_kapal' => $request->nama_kapal,
+        'etd' => $request->etd,
+        'eta' => $request->eta,
+        'atd' => $request->atd,
+        'ata' => $request->ata,
+    ], fn($v) => $v !== null && $v !== '');
+
+    if (empty($data)) {
+        return response()->json([
+            'status' => 'error',
+            'message' => 'Tidak ada data yang diisi',
+        ], 422);
+    }
+
+    LogistikPengiriman::where('no_shipment', $request->no_shipment)->update($data);
+
+    return response()->json([
+        'status' => 'success',
+        'message' => 'Data transport laut berhasil diupdate'
+    ]);
+}
 
     // =====================================================
     // ENDPOINT SERVER-SIDE DATATABLES
@@ -499,20 +538,251 @@ $blocked
             $textInput('remarks', $r->remarks),
             // 28 Nama Kapal (editable)
             $textInput('nama_kapal', $r->nama_kapal),
-            // 29 ETD
-            '<input type="date" name="ETD" value="' . ($r->etd ? date('Y-m-d', strtotime($r->etd)) : '') . '">',
-            // 30 ETA
-            '<input type="date" name="ETA" value="' . ($r->eta ? date('Y-m-d', strtotime($r->eta)) : '') . '">',
-            // 31 ATD
-            '<input type="date" name="ATD" value="' . ($r->atd ? date('Y-m-d', strtotime($r->atd)) : '') . '">',
-            // 32 ATA
-            '<input type="date" name="ATA" value="' . ($r->ata ? date('Y-m-d', strtotime($r->ata)) : '') . '">',
+           // 29 ETD
+'<input type="date" name="etd" value="' . ($r->etd ? date('Y-m-d', strtotime($r->etd)) : '') . '">',
+// 30 ETA
+'<input type="date" name="eta" value="' . ($r->eta ? date('Y-m-d', strtotime($r->eta)) : '') . '">',
+// 31 ATD
+'<input type="date" name="atd" value="' . ($r->atd ? date('Y-m-d', strtotime($r->atd)) : '') . '">',
+// 32 ATA
+'<input type="date" name="ata" value="' . ($r->ata ? date('Y-m-d', strtotime($r->ata)) : '') . '">',
             // 33 Kelengkapan Data
             $kelengkapanHtml,
             // 34 Action
             '<span class="save-status"></span><button type="button" class="save-btn" data-id="' . $id . '" onclick="saveRow(this)">SAVE</button>',
         ];
     }
+
+    public function updateMonitoring(Request $request, $id)
+{
+    $logistik = LogistikPengiriman::findOrFail($id);
+ 
+    try {
+        $this->applyMonitoringUpdate($logistik, $request->all());
+    } catch (\Throwable $e) {
+        return response()->json([
+            'status'  => 'error',
+            'message' => $e->getMessage(),
+        ], 422);
+    }
+ 
+    return response()->json([
+        'status'  => 'success',
+        'message' => 'Data transport laut berhasil diupdate',
+    ]);
+}
+ 
+// ================================================================
+// BARU: batch update — terima array baris sekaligus, semua dalam
+// 1 DB transaction. Kalau ada 1 baris gagal, baris lain tetap lanjut
+// (supaya user tidak kehilangan semua progress gara-gara 1 error),
+// tapi hasilnya dilaporkan per baris supaya user tahu mana yang gagal.
+// ================================================================
+public function updateMonitoringBatch(Request $request)
+{
+    $rows = $request->input('rows', []);
+ 
+    if (!is_array($rows) || empty($rows)) {
+        return response()->json([
+            'status'  => 'error',
+            'message' => 'Tidak ada data yang dikirim untuk disimpan',
+        ], 422);
+    }
+ 
+    $results = [];
+    $failedCount = 0;
+    $successCount = 0;
+ 
+    foreach ($rows as $rowData) {
+        $id = $rowData['id'] ?? null;
+ 
+        if (empty($id)) {
+            $failedCount++;
+            $results[] = ['id' => null, 'status' => 'error', 'message' => 'ID baris kosong'];
+            continue;
+        }
+ 
+        try {
+            DB::transaction(function () use ($id, $rowData) {
+                $logistik = LogistikPengiriman::findOrFail($id);
+                $this->applyMonitoringUpdate($logistik, $rowData);
+            });
+ 
+            $successCount++;
+            $results[] = ['id' => $id, 'status' => 'success'];
+ 
+        } catch (\Throwable $e) {
+            $failedCount++;
+            $results[] = [
+                'id'      => $id,
+                'status'  => 'error',
+                'message' => $e->getMessage(),
+            ];
+ 
+            logger()->error('BATCH UPDATE MONITORING GAGAL', [
+                'id'    => $id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+ 
+    return response()->json([
+        'status'       => $failedCount === 0 ? 'success' : ($successCount === 0 ? 'error' : 'partial'),
+        'message'      => "{$successCount} baris tersimpan" . ($failedCount > 0 ? ", {$failedCount} gagal" : ''),
+        'success_count'=> $successCount,
+        'failed_count' => $failedCount,
+        'results'      => $results,
+    ]);
+}
+ 
+// ================================================================
+// Isi logic yang SAMA PERSIS seperti updateMonitoring() versi lama,
+// cuma sumber datanya sekarang array $data (bisa dari $request->all()
+// untuk single update, atau dari 1 elemen array 'rows' untuk batch),
+// bukan langsung objek Request.
+// ================================================================
+private function applyMonitoringUpdate(LogistikPengiriman $logistik, array $data): void
+{
+    $gudangInfo = $this->getKeluarGudangInfo($logistik);
+    $keluar  = $gudangInfo['keluar'];
+    $blocked = $gudangInfo['blocked'];
+ 
+    $tanggalTibaInput = $data['tanggal_tiba'] ?? null;
+    $tiba = $tanggalTibaInput
+        ? strtotime(date('Y-m-d', strtotime($tanggalTibaInput)))
+        : null;
+ 
+    $tanggalBongkarInput = $data['tanggal_bongkar'] ?? null;
+    $bongkar = $tanggalBongkarInput
+        ? strtotime(date('Y-m-d', strtotime($tanggalBongkarInput)))
+        : null;
+ 
+    $leadtime = (int) ($logistik->transport_lead_time ?? 0);
+ 
+    $estimasi = $logistik->estimasi_tiba
+        ? strtotime($logistik->estimasi_tiba)
+        : (
+            (!$blocked && $keluar)
+            ? strtotime("+{$leadtime} days", $keluar)
+            : null
+        );
+ 
+    $lama_perjalanan = ($keluar && $tiba)
+        ? max(0, floor(($tiba - $keluar) / 86400))
+        : null;
+ 
+    $sla_tiba = ($tiba && $estimasi)
+        ? (($tiba <= $estimasi) ? 'On Time' : 'Delay')
+        : '-';
+ 
+    $overstay = ($tiba && $bongkar)
+        ? max(0, floor(($bongkar - $tiba) / 86400))
+        : null;
+ 
+    $sla_bongkar = ($tiba && $bongkar)
+        ? (($overstay <= 0) ? 'On Time' : 'Delay')
+        : '-';
+ 
+    $logic = $this->generateStatusAlert($sla_tiba, $sla_bongkar);
+ 
+    $logistik->status_akhir = $logic['status_akhir'];
+    $logistik->monitoring_alert = $logic['alert'];
+ 
+    $logistik->sla_tiba = $sla_tiba;
+    $logistik->sla_bongkar = $sla_bongkar;
+ 
+    if (empty($logistik->estimasi_tiba)) {
+        if (!$logistik->tanggal_bongkar && empty($logistik->estimasi_tiba)) {
+            $logistik->estimasi_tiba = (!$blocked && $estimasi)
+                ? date('Y-m-d', $estimasi)
+                : null;
+        }
+    }
+ 
+    $logistik->reason_tiba    = $data['reason_tiba'] ?? null;
+    $logistik->tujuan         = $data['tujuan'] ?? $logistik->tujuan;
+    $logistik->reason_bongkar = $data['reason_bongkar'] ?? null;
+ 
+    $logistik->pic_monitoring   = $data['pic_monitoring'] ?? null;
+    $logistik->status_kendaraan = $data['status_kendaraan'] ?? null;
+    $logistik->remarks_qty      = $data['remarks_qty'] ?? null;
+    $logistik->action_required  = $data['action_required'] ?? null;
+ 
+    $logistik->act_urutan_bongkar = $data['act_urutan_bongkar'] ?? null;
+ 
+    $logistik->total_do_qty_car = $data['total_do_qty_car'] ?? $logistik->total_do_qty_car;
+    $logistik->selisih_qty      = $data['selisih_qty'] ?? null;
+    $logistik->biaya_kuli       = $data['biaya_kuli'] ?? null;
+ 
+    $logistik->qty_monitoring = ($logistik->total_do_qty_car ?? 0) - ($logistik->selisih_qty ?? 0);
+    $logistik->total_biaya_kuli = ($logistik->qty_monitoring ?? 0) * ($logistik->biaya_kuli ?? 0);
+ 
+    $logistik->tanggal_tiba    = $tanggalTibaInput;
+    $logistik->tanggal_bongkar = $tanggalBongkarInput;
+ 
+    $logistik->overstay_days   = $overstay;
+    $logistik->lama_perjalanan = $lama_perjalanan;
+ 
+    $logistik->remarks      = $data['remarks'] ?? null;
+    $logistik->act_pgi_date = $data['act_pgi_date'] ?? null;
+    $logistik->created_by   = $data['created_by'] ?? null;
+ 
+//   if (!empty($data['nama_kapal'])) {
+//     $logistik->nama_kapal = $data['nama_kapal'];
+//     $logistik->etd = $data['etd'] ?? null;
+//     $logistik->eta = $data['eta'] ?? null;
+//     $logistik->atd = $data['atd'] ?? null;
+//     $logistik->ata = $data['ata'] ?? null;
+// }
+if (!empty($data['nama_kapal'])) {
+    $logistik->nama_kapal = $data['nama_kapal'];
+}
+if (!empty($data['etd'])) {
+    $logistik->etd = $data['etd'];
+}
+if (!empty($data['eta'])) {
+    $logistik->eta = $data['eta'];
+}
+if (!empty($data['atd'])) {
+    $logistik->atd = $data['atd'];
+}
+if (!empty($data['ata'])) {
+    $logistik->ata = $data['ata'];
+}
+ 
+    $logistik->save();
+ 
+    // propagasi estimasi ke baris lain dalam shipment yang sama (belum tiba)
+    $shipment = LogistikPengiriman::where('no_shipment', $logistik->no_shipment)->get();
+ 
+    $baseEstimasi = (!$blocked && $keluar)
+        ? strtotime("+{$leadtime} days", $keluar)
+        : null;
+ 
+    $lastBongkar = $shipment->whereNotNull('tanggal_bongkar')->max('tanggal_bongkar');
+ 
+    $nextEstimasi = $lastBongkar
+        ? date('Y-m-d', strtotime($lastBongkar . ' +1 day'))
+        : ($baseEstimasi ? date('Y-m-d', $baseEstimasi) : null);
+ 
+    foreach ($shipment as $item) {
+        if (!empty($item->tanggal_tiba)) {
+            continue;
+        }
+        $item->estimasi_tiba = $nextEstimasi;
+        $item->save();
+    }
+}
+ 
+/**
+ * ===========================================================================
+ * TAMBAHKAN DI routes/web.php (dekat route monitoring.update yang lama):
+ *
+ * Route::post('/monitoring/update-batch', [MonitoringController::class, 'updateMonitoringBatch'])
+ *     ->name('monitoring.update.batch');
+ * ===========================================================================
+ */
+ 
 
     // =====================================================
     // ALERT CONTROL — query ringan, HANYA ambil shipment yang
@@ -744,152 +1014,152 @@ public function inTransit(Request $request)
     return view('monitoring.in_transit', compact('list', 'summary', 'areaList', 'picList'));
 }
 
-    public function updateMonitoring(Request $request, $id)
-    {
-        $logistik = LogistikPengiriman::findOrFail($id);
-        $oldTanggalTiba = $logistik->tanggal_tiba;
+    // public function updateMonitoring(Request $request, $id)
+    // {
+    //     $logistik = LogistikPengiriman::findOrFail($id);
+    //     $oldTanggalTiba = $logistik->tanggal_tiba;
 
-        $gudangInfo = $this->getKeluarGudangInfo($logistik);
-        $keluar  = $gudangInfo['keluar'];
-        $blocked = $gudangInfo['blocked'];
+    //     $gudangInfo = $this->getKeluarGudangInfo($logistik);
+    //     $keluar  = $gudangInfo['keluar'];
+    //     $blocked = $gudangInfo['blocked'];
 
-        $tiba = $request->tanggal_tiba
-            ? strtotime(date('Y-m-d', strtotime($request->tanggal_tiba)))
-            : null;
+    //     $tiba = $request->tanggal_tiba
+    //         ? strtotime(date('Y-m-d', strtotime($request->tanggal_tiba)))
+    //         : null;
 
-        $bongkar = $request->tanggal_bongkar
-            ? strtotime(date('Y-m-d', strtotime($request->tanggal_bongkar)))
-            : null;
+    //     $bongkar = $request->tanggal_bongkar
+    //         ? strtotime(date('Y-m-d', strtotime($request->tanggal_bongkar)))
+    //         : null;
 
-        $leadtime = (int)($logistik->transport_lead_time ?? 0);
+    //     $leadtime = (int)($logistik->transport_lead_time ?? 0);
 
-        $estimasi = $logistik->estimasi_tiba
-            ? strtotime($logistik->estimasi_tiba)
-            : (
-                (!$blocked && $keluar)
-                ? strtotime("+{$leadtime} days", $keluar)
-                : null
-            );
+    //     $estimasi = $logistik->estimasi_tiba
+    //         ? strtotime($logistik->estimasi_tiba)
+    //         : (
+    //             (!$blocked && $keluar)
+    //             ? strtotime("+{$leadtime} days", $keluar)
+    //             : null
+    //         );
 
-        $lama_perjalanan = ($keluar && $tiba)
-            ? max(0, floor(($tiba - $keluar) / 86400))
-            : null;
+    //     $lama_perjalanan = ($keluar && $tiba)
+    //         ? max(0, floor(($tiba - $keluar) / 86400))
+    //         : null;
 
-        $sla_tiba = ($tiba && $estimasi)
-            ? (($tiba <= $estimasi) ? 'On Time' : 'Delay')
-            : '-';
+    //     $sla_tiba = ($tiba && $estimasi)
+    //         ? (($tiba <= $estimasi) ? 'On Time' : 'Delay')
+    //         : '-';
 
-        $overstay = ($tiba && $bongkar)
-            ? max(0, floor(($bongkar - $tiba) / 86400))
-            : null;
+    //     $overstay = ($tiba && $bongkar)
+    //         ? max(0, floor(($bongkar - $tiba) / 86400))
+    //         : null;
 
-        $sla_bongkar = ($tiba && $bongkar)
-            ? (($overstay <= 0) ? 'On Time' : 'Delay')
-            : '-';
+    //     $sla_bongkar = ($tiba && $bongkar)
+    //         ? (($overstay <= 0) ? 'On Time' : 'Delay')
+    //         : '-';
 
-        $logic = $this->generateStatusAlert($sla_tiba, $sla_bongkar);
+    //     $logic = $this->generateStatusAlert($sla_tiba, $sla_bongkar);
 
-        $logistik->status_akhir = $logic['status_akhir'];
-        $logistik->monitoring_alert = $logic['alert'];
+    //     $logistik->status_akhir = $logic['status_akhir'];
+    //     $logistik->monitoring_alert = $logic['alert'];
 
-        $logistik->sla_tiba = $sla_tiba;
-        $logistik->sla_bongkar = $sla_bongkar;
+    //     $logistik->sla_tiba = $sla_tiba;
+    //     $logistik->sla_bongkar = $sla_bongkar;
 
-        if (empty($logistik->estimasi_tiba)) {
-            if (!$logistik->tanggal_bongkar && empty($logistik->estimasi_tiba)) {
-                $logistik->estimasi_tiba = (!$blocked && $estimasi)
-                    ? date('Y-m-d', $estimasi)
-                    : null;
-            }
-        }
+    //     if (empty($logistik->estimasi_tiba)) {
+    //         if (!$logistik->tanggal_bongkar && empty($logistik->estimasi_tiba)) {
+    //             $logistik->estimasi_tiba = (!$blocked && $estimasi)
+    //                 ? date('Y-m-d', $estimasi)
+    //                 : null;
+    //         }
+    //     }
 
-        $logistik->reason_tiba    = $request->reason_tiba;
-        $logistik->tujuan         = $request->input('tujuan', $logistik->tujuan);
-        $logistik->reason_bongkar = $request->reason_bongkar;
+    //     $logistik->reason_tiba    = $request->reason_tiba;
+    //     $logistik->tujuan         = $request->input('tujuan', $logistik->tujuan);
+    //     $logistik->reason_bongkar = $request->reason_bongkar;
 
-        $logistik->pic_monitoring   = $request->pic_monitoring;
-        $logistik->status_kendaraan = $request->status_kendaraan;
-        $logistik->remarks_qty     = $request->remarks_qty;
-        $logistik->action_required  = $request->action_required;
+    //     $logistik->pic_monitoring   = $request->pic_monitoring;
+    //     $logistik->status_kendaraan = $request->status_kendaraan;
+    //     $logistik->remarks_qty     = $request->remarks_qty;
+    //     $logistik->action_required  = $request->action_required;
 
-        $logistik->act_urutan_bongkar = $request->act_urutan_bongkar;
+    //     $logistik->act_urutan_bongkar = $request->act_urutan_bongkar;
 
-        $logistik->total_do_qty_car = $request->total_do_qty_car ?? $logistik->total_do_qty_car;
-        $logistik->selisih_qty      = $request->selisih_qty;
-        $logistik->biaya_kuli       = $request->biaya_kuli;
+    //     $logistik->total_do_qty_car = $request->total_do_qty_car ?? $logistik->total_do_qty_car;
+    //     $logistik->selisih_qty      = $request->selisih_qty;
+    //     $logistik->biaya_kuli       = $request->biaya_kuli;
 
-        $logistik->qty_monitoring = ($logistik->total_do_qty_car ?? 0) - ($logistik->selisih_qty ?? 0);
-        $logistik->total_biaya_kuli = ($logistik->qty_monitoring ?? 0) * ($logistik->biaya_kuli ?? 0);
+    //     $logistik->qty_monitoring = ($logistik->total_do_qty_car ?? 0) - ($logistik->selisih_qty ?? 0);
+    //     $logistik->total_biaya_kuli = ($logistik->qty_monitoring ?? 0) * ($logistik->biaya_kuli ?? 0);
 
-        $logistik->remarks_qty = $request->remarks_qty;
+    //     $logistik->remarks_qty = $request->remarks_qty;
 
-        $logistik->tanggal_tiba    = $request->tanggal_tiba;
-        $logistik->tanggal_bongkar = $request->tanggal_bongkar;
+    //     $logistik->tanggal_tiba    = $request->tanggal_tiba;
+    //     $logistik->tanggal_bongkar = $request->tanggal_bongkar;
 
-        $logistik->overstay_days   = $overstay;
-        $logistik->lama_perjalanan = $lama_perjalanan;
+    //     $logistik->overstay_days   = $overstay;
+    //     $logistik->lama_perjalanan = $lama_perjalanan;
 
-        $logistik->reason_tiba    = $request->reason_tiba;
-        $logistik->reason_bongkar = $request->reason_bongkar;
+    //     $logistik->reason_tiba    = $request->reason_tiba;
+    //     $logistik->reason_bongkar = $request->reason_bongkar;
 
-        $logistik->remarks        = $request->remarks;
-        $logistik->act_pgi_date      = $request->input('act_pgi_date');
-        $logistik->created_by        = $request->input('created_by');
+    //     $logistik->remarks        = $request->remarks;
+    //     $logistik->act_pgi_date      = $request->input('act_pgi_date');
+    //     $logistik->created_by        = $request->input('created_by');
 
-        if ($request->filled('nama_kapal')) {
-            $logistik->nama_kapal = $request->nama_kapal;
-            $logistik->etd = $request->etd;
-            $logistik->eta = $request->eta;
-            $logistik->atd = $request->atd;
-            $logistik->ata = $request->ata;
-        }
-        $logistik->save();
+    //     if ($request->filled('nama_kapal')) {
+    //         $logistik->nama_kapal = $request->nama_kapal;
+    //         $logistik->etd = $request->etd;
+    //         $logistik->eta = $request->eta;
+    //         $logistik->atd = $request->atd;
+    //         $logistik->ata = $request->ata;
+    //     }
+    //     $logistik->save();
 
-        $shipment = LogistikPengiriman::where('no_shipment', $logistik->no_shipment)->get();
+    //     $shipment = LogistikPengiriman::where('no_shipment', $logistik->no_shipment)->get();
 
-        $baseEstimasi = (!$blocked && $keluar)
-            ? strtotime("+{$leadtime} days", $keluar)
-            : null;
+    //     $baseEstimasi = (!$blocked && $keluar)
+    //         ? strtotime("+{$leadtime} days", $keluar)
+    //         : null;
 
-        $lastBongkar = $shipment->whereNotNull('tanggal_bongkar')->max('tanggal_bongkar');
+    //     $lastBongkar = $shipment->whereNotNull('tanggal_bongkar')->max('tanggal_bongkar');
 
-        $nextEstimasi = $lastBongkar
-            ? date('Y-m-d', strtotime($lastBongkar . ' +1 day'))
-            : ($baseEstimasi ? date('Y-m-d', $baseEstimasi) : null);
+    //     $nextEstimasi = $lastBongkar
+    //         ? date('Y-m-d', strtotime($lastBongkar . ' +1 day'))
+    //         : ($baseEstimasi ? date('Y-m-d', $baseEstimasi) : null);
 
-        foreach ($shipment as $item) {
-            if (!empty($item->tanggal_tiba)) {
-                continue;
-            }
-            $item->estimasi_tiba = $nextEstimasi;
-            $item->save();
-        }
+    //     foreach ($shipment as $item) {
+    //         if (!empty($item->tanggal_tiba)) {
+    //             continue;
+    //         }
+    //         $item->estimasi_tiba = $nextEstimasi;
+    //         $item->save();
+    //     }
 
-        return response()->json([
-            'status' => 'success',
-            'message' => 'Data transport laut berhasil diupdate'
-        ]);
-    }
+    //     return response()->json([
+    //         'status' => 'success',
+    //         'message' => 'Data transport laut berhasil diupdate'
+    //     ]);
+    // }
 
-    public function updateTransportLaut(Request $request)
-    {
-        $request->validate(['no_shipment' => 'required']);
+    // public function updateTransportLaut(Request $request)
+    // {
+    //     $request->validate(['no_shipment' => 'required']);
 
-        $data = [
-            'nama_kapal' => $request->nama_kapal,
-            'etd' => $request->etd,
-            'eta' => $request->eta,
-            'atd' => $request->atd,
-            'ata' => $request->ata,
-        ];
+    //     $data = [
+    //         'nama_kapal' => $request->nama_kapal,
+    //         'etd' => $request->etd,
+    //         'eta' => $request->eta,
+    //         'atd' => $request->atd,
+    //         'ata' => $request->ata,
+    //     ];
 
-        LogistikPengiriman::where('no_shipment', $request->no_shipment)->update($data);
+    //     LogistikPengiriman::where('no_shipment', $request->no_shipment)->update($data);
 
-        return response()->json([
-            'status' => 'success',
-            'message' => 'Data transport laut berhasil diupdate'
-        ]);
-    }
+    //     return response()->json([
+    //         'status' => 'success',
+    //         'message' => 'Data transport laut berhasil diupdate'
+    //     ]);
+    // }
 
  private function getKeluarGudangInfo($r)
 {

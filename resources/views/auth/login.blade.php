@@ -142,7 +142,7 @@ button:hover{
         <img src="https://yt3.ggpht.com/a/AATXAJzSu0_dWz3o0wVQBeVNEvS90WOnkRTh678MpQ=s900-c-k-c0xffffffff-no-rj-mo"
              alt="Logo">
 
-        <h3>LOGISTIK SYSTEM</h3>
+        <h3>LOGISTIK TRANSPORT SYSTEM</h3>
     </div>
 
     <h2>LOGIN</h2>

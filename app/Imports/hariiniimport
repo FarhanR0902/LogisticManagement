@@ -1,0 +1,280 @@
+<?php
+
+namespace App\Imports;
+
+use App\Models\LogistikPengiriman;
+use Maatwebsite\Excel\Concerns\ToCollection;
+use Maatwebsite\Excel\Concerns\WithHeadingRow;
+use PhpOffice\PhpSpreadsheet\Shared\Date;
+use Illuminate\Support\Collection;
+
+/**
+ * Import untuk UPDATE data yang sudah ada (atau INSERT kalau belum ada),
+ * berdasarkan kombinasi no_shipment + tujuan.
+ *
+ * Prinsip utama:
+ * - Kolom yang KOSONG di file Excel  -> TIDAK PERNAH disentuh (data lama aman).
+ * - Kolom yang ADA isinya di Excel, tapi NILAINYA SAMA dengan yang di DB
+ *   -> TIDAK di-update (dihitung sebagai "unchanged"), supaya query lebih hemat
+ *      dan laporan hasil import lebih jelas.
+ * - Kolom yang ADA isinya di Excel DAN BEDA dari DB -> di-update.
+ * - Kalau no_shipment + tujuan belum ada sama sekali di DB -> INSERT baris baru
+ *   dengan field-field yang tersedia di file ini (field lain akan null,
+ *   sesuai default kolom di database).
+ */
+class UpdateLogistikDataImport implements ToCollection, WithHeadingRow
+{
+    // ===== ringkasan hasil proses =====
+    private int $created = 0;
+    private int $updated = 0;   // baris yang minimal 1 kolomnya berubah
+    private int $unchanged = 0; // baris ditemukan tapi tidak ada perubahan sama sekali
+    private int $skipped = 0;   // no_shipment/tujuan kosong
+
+    private array $updatedDetail = [];   // list "no_shipment - tujuan (kolom: lama -> baru, ...)"
+    private array $createdDetail = [];   // list "no_shipment - tujuan"
+
+    // ================= GETTERS =================
+    public function getCreatedCount(): int { return $this->created; }
+    public function getUpdatedCount(): int { return $this->updated; }
+    public function getUnchangedCount(): int { return $this->unchanged; }
+    public function getSkippedCount(): int { return $this->skipped; }
+    public function getUpdatedDetail(): array { return $this->updatedDetail; }
+    public function getCreatedDetail(): array { return $this->createdDetail; }
+
+    public function collection(Collection $rows)
+    {
+        foreach ($rows as $row) {
+
+            $noShipment = $this->cleanText($row['no_shipment'] ?? null);
+            $tujuan     = $this->cleanText($row['tujuan'] ?? null);
+
+            if (empty($noShipment) || empty($tujuan)) {
+                $this->skipped++;
+                continue;
+            }
+
+            // ==========================================================
+            // Susun nilai baru dari file Excel (null kalau kosong/tidak ada)
+            // ==========================================================
+            $ekpedisiNew   = $this->cleanText($row['ekpedisi'] ?? null);
+            $routeNew      = $this->cleanText($row['route'] ?? null);
+            $mobilNew      = $this->cleanText($row['mobil'] ?? null);
+            $nilaiMuatanNew = $this->cleanNumber($row['nilai_muatan_rp'] ?? ($row['nilai_muatan'] ?? null));
+
+            $kategoriNew = $this->getKategoriEkspedisi($noShipment)
+                ?? $this->cleanText($row['kategori_ekspedisi'] ?? null);
+
+            $totalDoCarNew = $this->cleanNumber($row['total_do_qty_car'] ?? null);
+            $actPgiDateNew = $this->convertDate($row['act_pgi_date'] ?? null);
+
+            $kubikasiNew    = $this->cleanPersen($row['kubikasi'] ?? null);
+            $tonaseNew      = $this->cleanPersen($row['tonase'] ?? null);
+            $totalKubikNew  = $this->cleanDecimal($row['total_kubik'] ?? null);
+            $totalTonaseNew = $this->cleanDecimal($row['total_tonase'] ?? null);
+
+            // ==========================================================
+            // Cari baris existing berdasarkan no_shipment + tujuan
+            // ==========================================================
+            $existing = LogistikPengiriman::where('no_shipment', $noShipment)
+                ->where('tujuan', $tujuan)
+                ->first();
+
+            if (!$existing) {
+                // ---------------- INSERT BARU ----------------
+                $insertPayload = array_filter([
+                    'no_shipment'        => $noShipment,
+                    'tujuan'             => $tujuan,
+                    'ekpedisi'           => $ekpedisiNew,
+                    'route'              => $routeNew,
+                    'mobil'              => $mobilNew,
+                    'nilai_muatan'       => $nilaiMuatanNew,
+                    'kategori_ekspedisi' => $kategoriNew,
+                    'total_do_qty_car'   => $totalDoCarNew,
+                    'act_pgi_date'       => $actPgiDateNew,
+                    'kubikasi'           => $kubikasiNew,
+                    'tonase'             => $tonaseNew,
+                    'total_kubik'        => $totalKubikNew,
+                    'total_tonase'       => $totalTonaseNew,
+                ], fn($v) => $v !== null);
+
+                // hitung turunan kubik/tonase kalau datanya cukup
+                $hasil = $this->hitungHasil($kubikasiNew, $tonaseNew, $totalKubikNew, $totalTonaseNew);
+                $insertPayload = array_merge($insertPayload, array_filter($hasil, fn($v) => $v !== null));
+
+                $insertPayload['created_at'] = now();
+                $insertPayload['updated_at'] = now();
+
+                LogistikPengiriman::create($insertPayload);
+
+                $this->created++;
+                $this->createdDetail[] = "{$noShipment} - {$tujuan}";
+                continue;
+            }
+
+            // ---------------- UPDATE (DIFF-CHECK) ----------------
+            $payload = [];
+            $changes = [];
+
+            $this->diffAdd($payload, $changes, 'ekpedisi', $ekpedisiNew, $existing->ekpedisi);
+            $this->diffAdd($payload, $changes, 'route', $routeNew, $existing->route);
+            $this->diffAdd($payload, $changes, 'mobil', $mobilNew, $existing->mobil);
+            $this->diffAdd($payload, $changes, 'nilai_muatan', $nilaiMuatanNew, $existing->nilai_muatan, true);
+            $this->diffAdd($payload, $changes, 'kategori_ekspedisi', $kategoriNew, $existing->kategori_ekspedisi);
+            $this->diffAdd($payload, $changes, 'total_do_qty_car', $totalDoCarNew, $existing->total_do_qty_car, true);
+            $this->diffAdd($payload, $changes, 'act_pgi_date', $actPgiDateNew, $existing->act_pgi_date);
+            $this->diffAdd($payload, $changes, 'kubikasi', $kubikasiNew, $existing->kubikasi, true);
+            $this->diffAdd($payload, $changes, 'tonase', $tonaseNew, $existing->tonase, true);
+            $this->diffAdd($payload, $changes, 'total_kubik', $totalKubikNew, $existing->total_kubik, true);
+            $this->diffAdd($payload, $changes, 'total_tonase', $totalTonaseNew, $existing->total_tonase, true);
+
+            // kalau salah satu dari kubikasi/tonase/total_kubik/total_tonase berubah,
+            // hitung ulang hasil_kubik/hasil_tonase/pengiriman_optimal pakai nilai FINAL
+            // (baru kalau ada perubahan, kalau tidak pakai nilai existing)
+            $kubikTonaseBerubah = isset($payload['kubikasi']) || isset($payload['tonase'])
+                || isset($payload['total_kubik']) || isset($payload['total_tonase']);
+
+            if ($kubikTonaseBerubah) {
+                $kubikasiFinal    = $payload['kubikasi']     ?? $existing->kubikasi;
+                $tonaseFinal      = $payload['tonase']       ?? $existing->tonase;
+                $totalKubikFinal  = $payload['total_kubik']  ?? $existing->total_kubik;
+                $totalTonaseFinal = $payload['total_tonase'] ?? $existing->total_tonase;
+
+                $hasil = $this->hitungHasil($kubikasiFinal, $tonaseFinal, $totalKubikFinal, $totalTonaseFinal);
+
+                $this->diffAdd($payload, $changes, 'hasil_kubik', $hasil['hasil_kubik'], $existing->hasil_kubik, true);
+                $this->diffAdd($payload, $changes, 'hasil_tonase', $hasil['hasil_tonase'], $existing->hasil_tonase, true);
+                $this->diffAdd($payload, $changes, 'pengiriman_optimal', $hasil['pengiriman_optimal'], $existing->pengiriman_optimal);
+            }
+
+            if (empty($payload)) {
+                $this->unchanged++;
+                continue;
+            }
+
+            $payload['updated_at'] = now();
+            $existing->update($payload);
+
+            $this->updated++;
+            $this->updatedDetail[] = "{$noShipment} - {$tujuan} (" . implode(', ', $changes) . ')';
+        }
+    }
+
+    /**
+     * Tambahkan ke $payload HANYA kalau:
+     * - nilai baru tidak null, DAN
+     * - nilai baru berbeda dari nilai existing di DB
+     * $numeric = true untuk perbandingan numerik (hindari "17.20" != "17.2" dianggap beda)
+     */
+    private function diffAdd(array &$payload, array &$changes, string $field, $new, $old, bool $numeric = false): void
+    {
+        if ($new === null) return;
+
+        if ($numeric) {
+            $sama = (float) $new === (float) ($old ?? 0) && $old !== null;
+        } else {
+            $sama = (string) $new === (string) ($old ?? '');
+        }
+
+        // kalau field lama kosong (null) dan yang baru ada isinya, itu tetap dianggap beda -> update
+        if ($old === null) {
+            $sama = false;
+        }
+
+        if (!$sama) {
+            $payload[$field] = $new;
+            $changes[] = "{$field}: " . ($old ?? '-') . ' -> ' . $new;
+        }
+    }
+
+    private function hitungHasil($kubikasi, $tonase, $totalKubik, $totalTonase): array
+    {
+        $hasilKubik = ($kubikasi !== null && $kubikasi > 0 && $totalKubik !== null)
+            ? round(($totalKubik / $kubikasi) * 100, 2)
+            : null;
+
+        $hasilTonase = ($tonase !== null && $tonase > 0 && $totalTonase !== null)
+            ? round(($totalTonase / $tonase) * 100, 2)
+            : null;
+
+        $pengirimanOptimal = null;
+        if ($hasilKubik !== null || $hasilTonase !== null) {
+            $pengirimanOptimal = (($hasilKubik >= 85) || ($hasilTonase >= 85))
+                ? 'OPTIMAL'
+                : 'TIDAK OPTIMAL';
+        }
+
+        return [
+            'hasil_kubik'        => $hasilKubik,
+            'hasil_tonase'       => $hasilTonase,
+            'pengiriman_optimal' => $pengirimanOptimal,
+        ];
+    }
+
+    private function getKategoriEkspedisi(?string $noShipment): ?string
+    {
+        $no = trim((string) $noShipment);
+        if (str_starts_with($no, '45')) return 'Kontrak';
+        if (str_starts_with($no, '42')) return 'Oncall';
+        return null;
+    }
+
+    // ================= HELPERS (dipertahankan sama seperti versi sebelumnya) =================
+
+    private function cleanText($value)
+    {
+        if ($value === null || $value === '' || $value == '-') return null;
+        return trim((string) $value);
+    }
+
+    private function cleanNumber($value)
+    {
+        if ($value === null || $value === '' || $value == '-') return null;
+        $value = preg_replace('/[^0-9]/', '', (string) $value);
+        return $value === '' ? null : (int) $value;
+    }
+
+    private function cleanPersen($value)
+    {
+        if ($value === null || $value === '' || $value == '-') return null;
+
+        $value = str_replace('%', '', (string) $value);
+        $value = str_replace(',', '.', $value);
+        $value = preg_replace('/[^0-9.]/', '', $value);
+
+        if (!is_numeric($value)) return null;
+
+        $value = (float) $value;
+        if ($value < 0) $value = 0;
+        if ($value > 100) $value = 100;
+
+        return round($value, 2);
+    }
+
+    private function cleanDecimal($value): ?float
+    {
+        if ($value === null || $value === '' || $value === '-') return null;
+        if (is_numeric($value)) return (float) $value;
+
+        $value = trim((string) $value);
+
+        if (preg_match('/^\d+,\d+$/', $value)) {
+            $value = str_replace(',', '.', $value);
+        } else {
+            $value = str_replace(',', '', $value);
+        }
+
+        return is_numeric($value) ? (float) $value : null;
+    }
+
+    private function convertDate($value)
+    {
+        if (!$value || $value == '-') return null;
+
+        if (is_numeric($value)) {
+            return Date::excelToDateTimeObject($value)->format('Y-m-d');
+        }
+
+        $timestamp = strtotime(str_replace('/', '-', trim($value)));
+        return $timestamp ? date('Y-m-d', $timestamp) : null;
+    }
+}

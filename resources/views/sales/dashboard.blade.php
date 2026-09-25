@@ -725,6 +725,10 @@ tbody tr:last-child td{ border-bottom:none; }
     <h4>Total Shipment</h4>
     <h1>{{ $total_data }}</h1>
 </a>
+<a href="{{ route('sales.sla-delay', request()->query()) }}" class="card red">
+    <h4>SLA Delay</h4>
+    <h1>{{ $total_sla_delay }}</h1>
+</a>
 
 <a href="{{ route('sales.intransit', request()->query()) }}" class="card blue">
     <h4>In Transit</h4>
@@ -736,8 +740,8 @@ tbody tr:last-child td{ border-bottom:none; }
     <h1>{{ $gudang_ontime }}</h1>
 </a>
 
-<a href="{{ route('sales.gudang.delay', request()->query()) }}" class="card red">
-    <h4>Gudang MS Delay</h4>
+<a href="{{ route('sales.belum.armada', request()->query()) }}" class="card red">
+    <h4>Belum Dapat Armada</h4>
     <h1>{{ $gudang_delay }}</h1>
 </a>
 

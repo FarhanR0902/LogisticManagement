@@ -68,6 +68,7 @@ class ManagerController extends Controller
                   )");
             })
             ->count();
+            $total_sla_delay = $this->applyFilter($this->slaDelayQuery(), $request)->count();
 
 
         // ================= TUJUAN / CUSTOMER =================
@@ -315,6 +316,7 @@ $total_in_transit = $this->applyFilter($this->inTransitQuery(), $request)->count
 
             'planner_ontime',
             'planner_delay',
+            'total_sla_delay',
 
             'planner_armada',
             'planner_belum_armada',
@@ -336,6 +338,65 @@ $total_in_transit = $this->applyFilter($this->inTransitQuery(), $request)->count
 
         ));
     }
+
+   public function slaDelay(Request $request)
+    {
+        $query = $this->slaDelayQuery();
+
+        if ($request->filled('bulan')) {
+            $query->whereMonth('tanggal_naik_logistik', $request->bulan);
+        }
+
+        if ($request->filled('tahun')) {
+            $query->whereYear('tanggal_naik_logistik', $request->tahun);
+        }
+
+        if ($request->filled('area')) {
+            $query->where('area', $request->area);
+        }
+
+        if ($request->filled('dist_channel')) {
+            $query->where('dist_channel', $request->dist_channel);
+        }
+
+        $list = $query
+            ->orderBy('tanggal_naik_logistik', 'DESC')
+            ->paginate(10)
+            ->withQueryString();
+
+        $list_area = DB::table('logistik_pengiriman')
+            ->select('area')
+            ->whereNotNull('area')
+            ->groupBy('area')
+            ->orderBy('area')
+            ->get();
+
+        $list_dist_channel = DB::table('logistik_pengiriman')
+            ->select('dist_channel')
+            ->whereNotNull('dist_channel')
+            ->distinct()
+            ->orderBy('dist_channel')
+            ->get();
+
+        return view('manager.sla_delay', [
+            'title'             => 'SLA DELAY',
+            'list'              => $list,
+            'list_area'         => $list_area,
+            'list_dist_channel' => $list_dist_channel,
+        ]);
+    }
+
+private function slaDelayQuery()
+{
+    return DB::table('logistik_pengiriman')
+        ->whereNotNull('rencana_kirim')
+        ->whereRaw("TRIM(rencana_kirim) <> ''")
+        ->whereNotNull('tanggal_dpt_unit')
+        ->whereRaw("TRIM(tanggal_dpt_unit) <> ''")
+        ->where(fn ($q) => $q->whereNull('tanggal_tiba_gudang')->orWhere('tanggal_tiba_gudang', ''))
+        ->where(fn ($q) => $q->whereNull('tanggal_tiba_gudang_2')->orWhere('tanggal_tiba_gudang_2', ''))
+        ->where(fn ($q) => $q->whereNull('tanggal_tiba_gudang_3')->orWhere('tanggal_tiba_gudang_3', ''));
+}
 
     public function PasuruandataLogistik()
     {

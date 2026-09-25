@@ -113,6 +113,12 @@
 
         #tableMonitoring select.status-select { min-width: 160px !important; width: 160px !important; }
         #tableMonitoring td:has(select.status-select) { min-width: 160px; }
+
+        /* ===== BARU: indikator baris yang sudah diedit tapi belum disimpan ===== */
+        tr.row-dirty td { background: #fef9c3 !important; }
+        tr.row-dirty .save-btn { background: #f59e0b; }
+
+        #btnSaveAll .badge { color: #111827; }
     </style>
 
 </head>
@@ -133,34 +139,38 @@
                         <div class="row">
                             <div class="col-md-6 mb-2">
                                 <label>No Shipment</label>
-                                <select name="no_shipment" class="form-select searchable">
-                                    <option value="">Pilih Shipment</option>
-                                    @foreach($shipmentList as $s)
-                                    <option value="{{ $s->no_shipment }}">
-                                        {{ $s->no_shipment }} - {{ $s->tujuan }}
-                                    </option>
-                                    @endforeach
-                                </select>
-                            </div>
+                              <select name="no_shipment" id="shipNoShipment" class="form-select searchable">
+    <option value="">Pilih Shipment</option>
+    @foreach($shipmentList as $s)
+    <option value="{{ $s->no_shipment }}"
+        data-nama-kapal="{{ $s->nama_kapal }}"
+        data-etd="{{ $s->etd ? date('Y-m-d', strtotime($s->etd)) : '' }}"
+        data-eta="{{ $s->eta ? date('Y-m-d', strtotime($s->eta)) : '' }}"
+        data-atd="{{ $s->atd ? date('Y-m-d', strtotime($s->atd)) : '' }}"
+        data-ata="{{ $s->ata ? date('Y-m-d', strtotime($s->ata)) : '' }}">
+        {{ $s->no_shipment }} - {{ $s->tujuan }}
+    </option>
+    @endforeach
+</select>                            </div>
                             <div class="col-md-6 mb-2">
                                 <label>Nama Kapal</label>
-                                <input type="text" name="nama_kapal" class="form-control">
+                                <input type="text" name="nama_kapal" id="shipNamaKapal" class="form-control">
                             </div>
                             <div class="col-md-6 mb-2">
                                 <label>ETD</label>
-                                <input type="date" name="etd" class="form-control">
+                                <input type="date" name="etd" id="shipEtd" class="form-control">
                             </div>
                             <div class="col-md-6 mb-2">
                                 <label>ETA</label>
-                                <input type="date" name="eta" class="form-control">
+                                <input type="date" name="eta" id="shipEta" class="form-control">
                             </div>
                             <div class="col-md-6 mb-2">
                                 <label>ATD</label>
-                                <input type="date" name="atd" class="form-control">
+                                <input type="date" name="atd" id="shipAtd" class="form-control">
                             </div>
                             <div class="col-md-6 mb-2">
                                 <label>ATA</label>
-                                <input type="date" name="ata" class="form-control">
+                                <input type="date" name="ata" id="shipAta" class="form-control">
                             </div>
                         </div>
                     </div>
@@ -182,13 +192,24 @@
 
         <div class="title">🚚 DATA MONITORING</div>
 
-        <div class="mb-3">
+        <div class="mb-3 d-flex align-items-center gap-2">
             <a href="{{ route('monitoring.export', [
                 'pic_monitoring' => request('pic_monitoring'),
                 'area' => request('area')
             ]) }}" class="btn btn-success">
                 Export Excel
             </a>
+
+            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#shipModal">
+                + Shipment Laut
+            </button>
+
+            {{-- ===== BARU: tombol Simpan Semua ===== --}}
+          <button id="btnSaveAll" type="button" class="btn btn-primary">
+    <span id="btnSaveAllLabel">💾 Simpan Semua</span>
+    <span class="badge bg-light" id="dirtyCount">0</span>
+    <small class="ms-1">(<span id="editedCount">0</span> data diedit)</small>
+</button>
         </div>
 
         {{-- FILTER --}}
@@ -230,10 +251,6 @@
             <label class="form-label fw-bold">Filter Tanggal Keluar Gudang</label>
             <input type="date" id="filterKeluarGudangTgl" class="form-control">
         </div>
-
-        <button class="btn btn-primary mb-3" data-bs-toggle="modal" data-bs-target="#shipModal">
-            + Shipment Laut
-        </button>
 
         {{-- ===== SUMMARY: FIELD YANG PALING BANYAK KOSONG ===== --}}
         <div class="card mb-3">
@@ -300,279 +317,392 @@
                 <tbody></tbody>
             </table>
 
-            <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+          <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 
-            <script>
-                let table;
-                let saveTimer;
+<script>
+    let table;
+    let editedRowIds = new Set(); // simpan id baris yang PERNAH diedit selama sesi ini (tidak reset walau autosave sukses)
 
-                $(document).ready(function() {
+    $(document).ready(function() {
 
-                    // ================= DATATABLES SERVER-SIDE =================
-                    table = $('#tableMonitoring').DataTable({
-                        processing: true,
-                        serverSide: true,
-                         autoWidth: false,
-                        searchDelay: 600, // debounce, jangan tembak query tiap keystroke
-                        ajax: {
-                            url: "{{ route('monitoring.datalogistik.ajax') }}",
-                            data: function(d) {
-                                d.pic_monitoring = $('#filter_pic_monitoring').val();
-                                d.area = $('#filter_area').val();
-                                d.bulan = $('#filter_bulan').val();
-                                d.tahun = $('#filter_tahun').val();
-                                d.keluar_gudang_tgl = $('#filterKeluarGudangTgl').val();
-                            }
-                        },
-                        scrollX: true,
-                        scrollCollapse: true,
-                        autoWidth: false,
-                        pageLength: 10,
-                        lengthMenu: [10, 25, 50, 100],
-                        ordering: true, // sorting dikirim ke backend (dataAjax) via parameter order
-                        order: [[4, 'asc']], // default: No Shipment ascending
-                        deferRender: true,
-                        language: {
-                            search: "Cari:",
-                            lengthMenu: "Tampilkan _MENU_ data",
-                            info: "Menampilkan _START_ - _END_ dari _TOTAL_ data",
-                            processing: "Memuat data...",
-                            paginate: { previous: "«", next: "»" }
-                        },
-                        columnDefs: [
-                            { width: "120px", targets: [0, 1, 2, 6, 9] },
-                            { width: "160px", targets: [8] },
-                            { width: "140px", targets: [3] },
-                            { width: "350px", targets: 4 },
-                            { width: "150px", targets: [5] },
-                            { width: "180px", targets: [10, 13, 18, 21] },
-                            { width: "220px", targets: [33] },
-                            // kolom badge/HTML hasil kalkulasi -> tidak ada kolom DB
-                            // 1:1 buat di-sort, jadi matikan klik-sort di sini saja
-                            { orderable: false, targets: [9, 22, 33, 34] },
-                        ],
-                        createdRow: function(row, data, dataIndex) {
-                            // ambil id dari tombol SAVE (kolom terakhir) supaya row bisa dicari nanti
-                            let $btn = $(row).find('.save-btn');
-                            $(row).attr('data-id', $btn.data('id'));
-                        }
-                    });
+        // failsafe: paksa tombol Simpan Semua selalu bisa diklik,
+        // apa pun kondisi disabled/attribute bawaan di HTML
+        $('#btnSaveAll').prop('disabled', false);
 
-                    // filter berubah -> reload dari server (bukan hitung ulang di JS)
-                    $('#filter_pic_monitoring, #filter_area, #filter_bulan, #filter_tahun, #filterKeluarGudangTgl')
-                        .on('change', function() {
-                            table.draw();
-                            loadAlertControl(false);
-                        });
+        // ================= DATATABLES SERVER-SIDE =================
+        table = $('#tableMonitoring').DataTable({
+            processing: true,
+            serverSide: true,
+            autoWidth: false,
+            searchDelay: 600, // debounce, jangan tembak query tiap keystroke
+            ajax: {
+                url: "{{ route('monitoring.datalogistik.ajax') }}",
+                data: function(d) {
+                    d.pic_monitoring = $('#filter_pic_monitoring').val();
+                    d.area = $('#filter_area').val();
+                    d.bulan = $('#filter_bulan').val();
+                    d.tahun = $('#filter_tahun').val();
+                    d.keluar_gudang_tgl = $('#filterKeluarGudangTgl').val();
+                }
+            },
+            scrollX: true,
+            scrollCollapse: true,
+            pageLength: 1000,
+            lengthMenu: [1000, 2500, 5000, 10000],
+            ordering: true, // sorting dikirim ke backend (dataAjax) via parameter order
+            order: [[4, 'asc']], // default: No Shipment ascending
+            deferRender: true,
+            language: {
+                search: "Cari:",
+                lengthMenu: "Tampilkan _MENU_ data",
+                info: "Menampilkan _START_ - _END_ dari _TOTAL_ data",
+                processing: "Memuat data...",
+                paginate: { previous: "«", next: "»" }
+            },
+            columnDefs: [
+                { width: "120px", targets: [0, 1, 2, 6, 9] },
+                { width: "160px", targets: [8] },
+                { width: "140px", targets: [3] },
+                { width: "350px", targets: 4 },
+                { width: "150px", targets: [5] },
+                { width: "180px", targets: [10, 13, 18, 21] },
+                { width: "220px", targets: [33] },
+                // kolom badge/HTML hasil kalkulasi -> tidak ada kolom DB
+                // 1:1 buat di-sort, jadi matikan klik-sort di sini saja
+                { orderable: false, targets: [9, 22, 33, 34] },
+            ],
+            createdRow: function(row, data, dataIndex) {
+                // ambil id dari tombol SAVE (kolom terakhir) supaya row bisa dicari nanti
+                let $btn = $(row).find('.save-btn');
+                $(row).attr('data-id', $btn.data('id'));
+            }
+        });
+          $('#shipNoShipment').on('change', function() {
+        let opt = $(this).find('option:selected');
+        $('#shipNamaKapal').val(opt.data('nama-kapal') || '');
+        $('#shipEtd').val(opt.data('etd') || '');
+        $('#shipEta').val(opt.data('eta') || '');
+        $('#shipAtd').val(opt.data('atd') || '');
+        $('#shipAta').val(opt.data('ata') || '');
+    });
 
-                    $('#btnResetFilter').on('click', function() {
-                        $('#filter_pic_monitoring, #filter_area, #filter_bulan, #filter_tahun').val('').trigger('change.select2');
-                        $('#filterKeluarGudangTgl').val('');
-                        table.draw();
-                        loadAlertControl(false);
-                    });
+        // filter berubah -> reload dari server (bukan hitung ulang di JS)
+        $('#filter_pic_monitoring, #filter_area, #filter_bulan, #filter_tahun, #filterKeluarGudangTgl')
+            .on('change', function() {
+                table.draw();
+                loadAlertControl(false);
+            });
 
-                    $('.filter-box .searchable').select2({ width: '180px' });
-                    $('#shipModal .searchable').select2({ width: '100%', dropdownParent: $('#shipModal') });
+        $('#btnResetFilter').on('click', function() {
+            $('#filter_pic_monitoring, #filter_area, #filter_bulan, #filter_tahun').val('').trigger('change.select2');
+            $('#filterKeluarGudangTgl').val('');
+            table.draw();
+            loadAlertControl(false);
+        });
 
-                    $('#shipModal form').on('submit', function(e) {
-                        e.preventDefault();
-                        $.ajax({
-                            url: $(this).attr('action'),
-                            type: 'POST',
-                            data: $(this).serialize(),
-                            success: function(res) {
-                                $('#shipModal').modal('hide');
-                                $('#shipModal form')[0].reset();
-                                alert(res.message);
-                                table.draw();
-                            },
-                            error: function() { alert('Gagal update data'); }
-                        });
-                    });
+        $('.filter-box .searchable').select2({ width: '180px' });
+        $('#shipModal .searchable').select2({ width: '100%', dropdownParent: $('#shipModal') });
 
-                    // init select2 utk kolom reason & re-init tiap kali draw (hanya utk baris yg tampil, ringan)
-              table.on('draw.dt', function() {
-    initReasonSelect();
-    // recalculate lebar header vs body setelah select2/badge/input ke-render
-    setTimeout(function() {
-        table.columns.adjust();
-    }, 0);
-});
+        $('#shipModal form').on('submit', function(e) {
+            e.preventDefault();
+            $.ajax({
+                url: $(this).attr('action'),
+                type: 'POST',
+                data: $(this).serialize(),
+                success: function(res) {
+                    $('#shipModal').modal('hide');
+                    $('#shipModal form')[0].reset();
+                    alert(res.message);
+                    table.draw();
+                },
+                error: function() { alert('Gagal update data'); }
+            });
+        });
 
-$(window).on('resize', function() {
-    if (table) {
-        table.columns.adjust();
+        // init select2 utk kolom reason & re-init tiap kali draw (hanya utk baris yg tampil, ringan)
+        table.on('draw.dt', function() {
+            initReasonSelect();
+            // recalculate lebar header vs body setelah select2/badge/input ke-render
+            setTimeout(function() {
+                table.columns.adjust();
+            }, 0);
+            // reset counter dirty karena baris lama sudah tidak ada di DOM lagi
+            updateDirtyCount();
+        });
+
+        $(window).on('resize', function() {
+            if (table) {
+                table.columns.adjust();
+            }
+        });
+
+        // ================= ALERT CONTROL (dari endpoint ringan) =================
+        loadAlertControl(true);
+    });
+
+    function loadAlertControl(showToastIfAny) {
+        $.ajax({
+            url: "{{ route('monitoring.alerts') }}",
+            type: 'GET',
+            data: {
+                pic_monitoring: $('#filter_pic_monitoring').val(),
+                area: $('#filter_area').val(),
+                bulan: $('#filter_bulan').val(),
+                tahun: $('#filter_tahun').val(),
+                keluar_gudang_tgl: $('#filterKeluarGudangTgl').val(),
+            },
+            success: function(res) {
+                renderMissingFieldSummary(res.missingSummary);
+                renderAlertControl(res.alerts, res.totalAlert);
+
+                if (showToastIfAny && res.alerts.length > 0) {
+                    showToastMsg('⚠ ' + res.totalAlert + ' shipment sudah lewat estimasi tiba, tapi Tgl Tiba/Tgl Bongkar belum diisi');
+                }
+            }
+        });
     }
-});
 
-                    // ================= ALERT CONTROL (dari endpoint ringan) =================
-                    loadAlertControl(true);
-                });
+    function renderMissingFieldSummary(missingSummary) {
+        let entries = Object.entries(missingSummary || {}).sort((a, b) => b[1] - a[1]);
 
-                function loadAlertControl(showToastIfAny) {
-                    $.ajax({
-                        url: "{{ route('monitoring.alerts') }}",
-                        type: 'GET',
-                        data: {
-                            pic_monitoring: $('#filter_pic_monitoring').val(),
-                            area: $('#filter_area').val(),
-                            bulan: $('#filter_bulan').val(),
-                            tahun: $('#filter_tahun').val(),
-                            keluar_gudang_tgl: $('#filterKeluarGudangTgl').val(),
-                        },
-                        success: function(res) {
-                            renderMissingFieldSummary(res.missingSummary);
-                            renderAlertControl(res.alerts, res.totalAlert);
-
-                            if (showToastIfAny && res.alerts.length > 0) {
-                                showToastMsg('⚠ ' + res.totalAlert + ' shipment sudah lewat estimasi tiba, tapi Tgl Tiba/Tgl Bongkar belum diisi');
-                            }
-                        }
-                    });
-                }
-
-                function renderMissingFieldSummary(missingSummary) {
-                    let entries = Object.entries(missingSummary || {}).sort((a, b) => b[1] - a[1]);
-
-                    if (entries.length === 0) {
-                        $('#missingFieldSummary').html('<span class="badge green">✅ Semua data lengkap</span>');
-                        return;
-                    }
-
-                    let html = entries.map(function(e) {
-                        return '<span class="badge red">' + e[0] + ': ' + e[1] + '</span>';
-                    }).join(' ');
-
-                    $('#missingFieldSummary').html(html);
-                }
-
-                function renderAlertControl(alertList, totalAlert) {
-                    $('#alertControlCount').text((totalAlert ?? alertList.length) + ' Alert');
-
-                    if (!alertList || alertList.length === 0) {
-                        $('#alertControlList').html('<div class="p-2" style="color:#22c55e;">✅ Tidak ada shipment yang lewat estimasi tiba</div>');
-                        return;
-                    }
-
-                    let html = alertList.map(function(a) {
-                        let sev = a.emptyCount === 2 ? 'red' : 'orange';
-                        let estimasiInfo = a.estimasi ? (' • Estimasi ' + a.estimasi) : '';
-                        return '' +
-                            '<div class="alert-item" data-shipment="' + a.shipment + '">' +
-                                '<div class="alert-top">' +
-                                    '<b>🚚 ' + a.shipment + '</b>' +
-                                    '<span class="badge ' + sev + '">' + a.emptyCount + ' kosong</span>' +
-                                '</div>' +
-                                '<div class="alert-missing">Belum diisi: ' + a.missing.join(', ') + estimasiInfo + '</div>' +
-                            '</div>';
-                    }).join('');
-
-                    $('#alertControlList').html(html);
-                }
-
-                // Klik item alert -> filter tabel by no_shipment (server-side search),
-                // bukan scroll-highlight (karena datanya paginated, row belum tentu di halaman ini)
-                $(document).on('click', '.alert-item', function() {
-                    let shipment = $(this).data('shipment');
-                    table.search(shipment).draw();
-                    $('html, body').animate({ scrollTop: $('#tableMonitoring').offset().top - 80 }, 400);
-                });
-
-                function showToastMsg(msg) {
-                    let toast = $('<div class="toast"><strong>Perhatian</strong>' + msg + '</div>');
-                    $('#toastContainer').append(toast);
-                    setTimeout(function() {
-                        toast.fadeOut(400, function() { toast.remove(); });
-                    }, 6000);
-                }
-
-                function formatRupiah(angka) {
-                    return 'Rp ' + Number(angka).toLocaleString('id-ID');
-                }
-
-                $(document).on('input', 'input[name="qty_monitoring"], input[name="biaya_kuli"]', function() {
-                    let row = $(this).closest('tr');
-                    let qty = parseInt(row.find('input[name="qty_monitoring"]').val()) || 0;
-                    let biaya = parseInt(row.find('input[name="biaya_kuli"]').val()) || 0;
-                    row.find('input[name="total_biaya_kuli"]').val(formatRupiah(qty * biaya));
-                });
-
-                $(document).on('input', '[name="total_do_qty_car"], [name="selisih_qty"]', function() {
-                    let row = $(this).closest('tr');
-                    let total = parseFloat(row.find('[name="total_do_qty_car"]').val()) || 0;
-                    let selisih = parseFloat(row.find('[name="selisih_qty"]').val()) || 0;
-                    row.find('[name="qty_monitoring"]').val(total - selisih).trigger('input');
-                });
-
-                function saveRow(btnEl) {
-                    let row = $(btnEl).closest('tr');
-                    let id = $(btnEl).data('id');
-
-                    $.ajax({
-                        url: '/monitoring/update/' + id,
-                        type: 'POST',
-                        data: {
-                            _token: '{{ csrf_token() }}',
-                            _method: 'PUT',
-                            pic_monitoring: row.find('[name="pic_monitoring"]').val(),
-                            status_kendaraan: row.find('[name="status_kendaraan"]').val(),
-                            action_required: row.find('[name="action_required"]').val(),
-                            act_urutan_bongkar: row.find('[name="act_urutan_bongkar"]').val(),
-                            tanggal_tiba: row.find('[name="tanggal_tiba"]').val(),
-                             tujuan: row.find('[name="tujuan"]').val(),
-                            tanggal_bongkar: row.find('[name="tanggal_bongkar"]').val(),
-                            reason_tiba: row.find('[name="reason_tiba"]').val(),
-                            reason_bongkar: row.find('[name="reason_bongkar"]').val(),
-                            remarks_qty: row.find('[name="remarks_qty"]').val(),
-                            remarks: row.find('[name="remarks"]').val(),
-                            act_pgi_date: row.find('[name="act_pgi_date"]').val(),
-                            total_do_qty_car: row.find('[name="total_do_qty_car"]').val(),
-                            qty_monitoring: row.find('[name="qty_monitoring"]').val(),
-                            selisih_qty: row.find('[name="selisih_qty"]').val(),
-                            biaya_kuli: row.find('[name="biaya_kuli"]').val(),
-                        },
-                        beforeSend: function() {
-                            row.find('.save-btn').prop('disabled', true).text('Saving...');
-                            row.find('.save-status').html('⏳ Saving...');
-                        },
-                        success: function() {
-                            row.find('.save-btn').prop('disabled', false).text('SAVE');
-                            row.find('.save-status').html('✅ Saved');
-                            setTimeout(function() { row.find('.save-status').html(''); }, 2000);
-                            // refresh alert control ringan (bukan reload semua tabel)
-                            loadAlertControl(false);
-                        },
-                        error: function() {
-                            row.find('.save-btn').prop('disabled', false).text('SAVE');
-                            row.find('.save-status').html('❌ Error');
-                        }
-                    });
-                }
-
-                // Auto-save saat input berubah (hanya baris yang sedang tampil, jadi ringan)
-                $(document).on('change', '#tableMonitoring input, #tableMonitoring select', function() {
-                    let row = $(this).closest('tr');
-                    let btn = row.find('.save-btn')[0];
-                    clearTimeout(saveTimer);
-                    saveTimer = setTimeout(function() { saveRow(btn); }, 500);
-                });
-
-              function initReasonSelect() {
-    $('.searchable-select').each(function() {
-        if ($(this).hasClass('select2-hidden-accessible')) {
-            $(this).select2('destroy');
+        if (entries.length === 0) {
+            $('#missingFieldSummary').html('<span class="badge green">✅ Semua data lengkap</span>');
+            return;
         }
-        $(this).select2({
-            width: 'resolve',
-            placeholder: $(this).data('placeholder') || 'Pilih...',
-            allowClear: true,
-            dropdownParent: $('body')
+
+        let html = entries.map(function(e) {
+            return '<span class="badge red">' + e[0] + ': ' + e[1] + '</span>';
+        }).join(' ');
+
+        $('#missingFieldSummary').html(html);
+    }
+
+    function renderAlertControl(alertList, totalAlert) {
+        $('#alertControlCount').text((totalAlert ?? alertList.length) + ' Alert');
+
+        if (!alertList || alertList.length === 0) {
+            $('#alertControlList').html('<div class="p-2" style="color:#22c55e;">✅ Tidak ada shipment yang lewat estimasi tiba</div>');
+            return;
+        }
+
+        let html = alertList.map(function(a) {
+            let sev = a.emptyCount === 2 ? 'red' : 'orange';
+            let estimasiInfo = a.estimasi ? (' • Estimasi ' + a.estimasi) : '';
+            return '' +
+                '<div class="alert-item" data-shipment="' + a.shipment + '">' +
+                    '<div class="alert-top">' +
+                        '<b>🚚 ' + a.shipment + '</b>' +
+                        '<span class="badge ' + sev + '">' + a.emptyCount + ' kosong</span>' +
+                    '</div>' +
+                    '<div class="alert-missing">Belum diisi: ' + a.missing.join(', ') + estimasiInfo + '</div>' +
+                '</div>';
+        }).join('');
+
+        $('#alertControlList').html(html);
+    }
+
+    // Klik item alert -> filter tabel by no_shipment (server-side search),
+    // bukan scroll-highlight (karena datanya paginated, row belum tentu di halaman ini)
+    $(document).on('click', '.alert-item', function() {
+        let shipment = $(this).data('shipment');
+        table.search(shipment).draw();
+        $('html, body').animate({ scrollTop: $('#tableMonitoring').offset().top - 80 }, 400);
+    });
+
+    function showToastMsg(msg) {
+        let toast = $('<div class="toast"><strong>Perhatian</strong>' + msg + '</div>');
+        $('#toastContainer').append(toast);
+        setTimeout(function() {
+            toast.fadeOut(400, function() { toast.remove(); });
+        }, 6000);
+    }
+
+    function formatRupiah(angka) {
+        return 'Rp ' + Number(angka).toLocaleString('id-ID');
+    }
+
+    $(document).on('input', 'input[name="qty_monitoring"], input[name="biaya_kuli"]', function() {
+        let row = $(this).closest('tr');
+        let qty = parseInt(row.find('input[name="qty_monitoring"]').val()) || 0;
+        let biaya = parseInt(row.find('input[name="biaya_kuli"]').val()) || 0;
+        row.find('input[name="total_biaya_kuli"]').val(formatRupiah(qty * biaya));
+    });
+
+    $(document).on('input', '[name="total_do_qty_car"], [name="selisih_qty"]', function() {
+        let row = $(this).closest('tr');
+        let total = parseFloat(row.find('[name="total_do_qty_car"]').val()) || 0;
+        let selisih = parseFloat(row.find('[name="selisih_qty"]').val()) || 0;
+        row.find('[name="qty_monitoring"]').val(total - selisih).trigger('input');
+    });
+
+    // ================= kumpulkan data 1 baris jadi object =================
+    // dipakai baik oleh saveRow (single) maupun saveAll (batch)
+    function getRowData(row) {
+        return {
+            id: row.attr('data-id'),
+            pic_monitoring: row.find('[name="pic_monitoring"]').val(),
+            status_kendaraan: row.find('[name="status_kendaraan"]').val(),
+            action_required: row.find('[name="action_required"]').val(),
+            act_urutan_bongkar: row.find('[name="act_urutan_bongkar"]').val(),
+            tanggal_tiba: row.find('[name="tanggal_tiba"]').val(),
+            tujuan: row.find('[name="tujuan"]').val(),
+            tanggal_bongkar: row.find('[name="tanggal_bongkar"]').val(),
+            reason_tiba: row.find('[name="reason_tiba"]').val(),
+            reason_bongkar: row.find('[name="reason_bongkar"]').val(),
+            remarks_qty: row.find('[name="remarks_qty"]').val(),
+            remarks: row.find('[name="remarks"]').val(),
+            act_pgi_date: row.find('[name="act_pgi_date"]').val(),
+            total_do_qty_car: row.find('[name="total_do_qty_car"]').val(),
+            qty_monitoring: row.find('[name="qty_monitoring"]').val(),
+            selisih_qty: row.find('[name="selisih_qty"]').val(),
+            biaya_kuli: row.find('[name="biaya_kuli"]').val(),
+             nama_kapal: row.find('[name="nama_kapal"]').val(),  
+              etd: row.find('[name="etd"]').val(),                 // BARU
+        eta: row.find('[name="eta"]').val(),                 // BARU
+        atd: row.find('[name="atd"]').val(),                 // BARU
+        ata: row.find('[name="ata"]').val(),   
+        };
+    }
+
+    // ================= hitung & tampilkan jumlah baris dirty (belum tersimpan saat ini) =================
+    function updateDirtyCount() {
+        let n = $('#tableMonitoring tbody tr.row-dirty').length;
+        $('#dirtyCount').text(n);
+    }
+
+    // ================= hitung & tampilkan jumlah data yang PERNAH diedit di sesi ini =================
+    // beda dengan dirtyCount: angka ini TIDAK berkurang walau autosave sudah sukses
+    function updateEditedCount() {
+        $('#editedCount').text(editedRowIds.size);
+    }
+
+    function saveRow(btnEl) {
+        let row = $(btnEl).closest('tr');
+
+        $.ajax({
+            url: '/monitoring/update/' + row.attr('data-id'),
+            type: 'POST',
+            data: Object.assign(
+                { _token: '{{ csrf_token() }}', _method: 'PUT' },
+                getRowData(row)
+            ),
+            beforeSend: function() {
+                row.find('.save-btn').prop('disabled', true).text('Saving...');
+                row.find('.save-status').html('⏳ Saving...');
+            },
+            success: function() {
+                row.find('.save-btn').prop('disabled', false).text('SAVE');
+                row.find('.save-status').html('✅ Saved');
+                row.removeClass('row-dirty');
+                updateDirtyCount();
+                setTimeout(function() { row.find('.save-status').html(''); }, 2000);
+                // refresh alert control ringan (bukan reload semua tabel)
+                loadAlertControl(false);
+            },
+            error: function() {
+                row.find('.save-btn').prop('disabled', false).text('SAVE');
+                row.find('.save-status').html('❌ Error');
+            }
+        });
+    }
+
+    // ================= Simpan Semua (batch) =================
+    // Selalu bisa dipencet kapan saja, terlepas dari status autosave.
+    // Kalau ada baris dirty -> kirim baris itu saja.
+    // Kalau tidak ada baris dirty (semua sudah autosave) -> tetap bisa dipakai
+    // sebagai "save manual paksa" untuk semua baris yang sedang tampil.
+    $(document).on('click', '#btnSaveAll', function() {
+        let $btn = $(this);
+        let $dirtyRows = $('#tableMonitoring tbody tr.row-dirty');
+
+        if ($dirtyRows.length === 0) {
+            $dirtyRows = $('#tableMonitoring tbody tr');
+        }
+
+        if ($dirtyRows.length === 0) {
+            showToastMsg('Tidak ada data untuk disimpan.');
+            return;
+        }
+
+        let rows = [];
+        $dirtyRows.each(function() {
+            rows.push(getRowData($(this)));
+        });
+
+        $btn.prop('disabled', true);
+        $('#btnSaveAllLabel').text('Menyimpan...');
+        $dirtyRows.find('.save-status').html('⏳ Saving...');
+
+        $.ajax({
+            url: "{{ route('monitoring.update.batch') }}",
+            type: 'POST',
+            data: {
+                _token: '{{ csrf_token() }}',
+                rows: rows,
+            },
+            success: function(res) {
+                (res.results || []).forEach(function(r) {
+                    let row = $dirtyRows.filter('[data-id="' + r.id + '"]');
+                    if (r.status === 'success') {
+                        row.removeClass('row-dirty');
+                        row.find('.save-status').html('✅ Saved');
+                        setTimeout(function() { row.find('.save-status').html(''); }, 2000);
+                    } else {
+                        row.find('.save-status').html('❌ ' + (r.message || 'Error'));
+                    }
+                });
+
+                showToastMsg(res.message);
+                updateDirtyCount();
+                loadAlertControl(false);
+            },
+            error: function() {
+                showToastMsg('❌ Gagal menyimpan batch, coba lagi.');
+                $dirtyRows.find('.save-status').html('❌ Error');
+            },
+            complete: function() {
+                $btn.prop('disabled', false);
+                $('#btnSaveAllLabel').text('💾 Simpan Semua');
+                updateDirtyCount();
+            }
         });
     });
-}
-            </script>
 
+    // ================= input/select berubah -> LANGSUNG save, tanpa delay =================
+    // Baris ditandai dirty dulu (kuning) supaya kelihatan lagi diproses;
+    // begitu saveRow() sukses, tanda dirty-nya otomatis hilang.
+    // Kalau request gagal (network error dll), baris TETAP kuning ->
+    // bisa disimpan ulang manual lewat tombol "Simpan Semua".
+    // editedRowIds mencatat SEMUA baris yang pernah diedit di sesi ini
+    // (tidak berkurang walau baris itu sudah berhasil autosave).
+    $(document).on('change', '#tableMonitoring input, #tableMonitoring select', function() {
+        let row = $(this).closest('tr');
+        row.addClass('row-dirty');
+
+        let id = row.attr('data-id');
+        if (id) {
+            editedRowIds.add(id);
+        }
+        updateEditedCount();
+
+        updateDirtyCount();
+        saveRow(row.find('.save-btn')[0]);
+    });
+
+    function initReasonSelect() {
+        $('.searchable-select').each(function() {
+            if ($(this).hasClass('select2-hidden-accessible')) {
+                $(this).select2('destroy');
+            }
+            $(this).select2({
+                width: 'resolve',
+                placeholder: $(this).data('placeholder') || 'Pilih...',
+                allowClear: true,
+                dropdownParent: $('body')
+            });
+        });
+    }
+</script>
         </div>
     </div>
 

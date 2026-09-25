@@ -26,7 +26,7 @@ $dashboard_url = match($role) {
 'jess' => route('jess.dashboard'),
 'developer' => route('developer.dashboard'),
 'admin_pasuruan' => route('pasuruan.admin'),
-'kota' => route('kota.dashboard'),
+'kota_import' => route('kota.dashboard'), 
 default => url('/dashboard'),
 };
 
@@ -284,7 +284,7 @@ $currentRoute = request()->route()->getName() ?? '';
                 👤 Kelola User
             </a>
         </li>
-            
+
         @endif
 
         {{-- ================= MANAGER ================= --}}
@@ -606,24 +606,32 @@ $currentRoute = request()->route()->getName() ?? '';
         @endif
 
         {{-- ================= KOTA ================= --}}
-        @if($role === 'kota' || $role === 'developer')
 
-        <li>
-            <a href="{{ route('kota.dashboard') }}"
-                class="{{ request()->routeIs('kota.dashboard') ? 'active' : '' }}">
-                📊 Dashboard Kota
-            </a>
-        </li>
+{{-- ================= KOTA ================= --}}
+@if($role === 'kota_import' || $role === 'developer')
 
-        <li>
-            <a href="{{ route('kota.datalogistik') }}"
-                class="{{ request()->routeIs('kota.datalogistik') || request()->routeIs('kota.datalogistik.ajax') ? 'active' : '' }}">
-                🚚 Data Monitoring Kota
-            </a>
-        </li>
+    <li>
+        <a href="{{ route('kota.dashboard') }}"
+            class="{{ request()->routeIs('kota.dashboard') ? 'active' : '' }}">
+            📊 Dashboard Kota
+        </a>
+    </li>
 
-        @endif
+    <li>
+        <a href="{{ route('kota.kpi.index') }}"
+            class="{{ request()->routeIs('kota.kpi.*') ? 'active' : '' }}">
+            📈 KPI Analysis
+        </a>
+    </li>
 
+    <li>
+        <a href="{{ route('kota.import.index') }}"
+            class="{{ request()->routeIs('kota.import.*') ? 'active' : '' }}">
+            📥 Import Data Kota
+        </a>
+    </li>
+
+@endif
         {{-- ================= ACCOUNT ================= --}}
 
 

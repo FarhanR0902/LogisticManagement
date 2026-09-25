@@ -122,48 +122,25 @@ class LogistikImport implements ToCollection, WithHeadingRow, WithEvents, WithCa
      */
     private function buildAttributes(array $row, string $noShipmentCheck): array
     {
-        // ================= GUDANG 1 (KACS) =================
-        $planningLoading   = $this->convertDateTime($row['planning_loading'] ?? null);
-        $tanggalTibaGudang = $this->convertDateTime($row['tanggal_tiba_di_gudang'] ?? null);
-
-        $lamaDigudang = null;
-        $slaLoading   = null;
-
-        if ($tanggalTibaGudang && $tanggalKeluarGudangForSla = $this->convertDateTime($row['tanggal_keluar_gudang'] ?? null)) {
-            $selisihGudang = (int) date_diff(date_create($tanggalTibaGudang), date_create($tanggalKeluarGudangForSla))->format('%a');
-            $lamaDigudang = $selisihGudang . ' Hari';
-            $slaLoading = ($selisihGudang == 0) ? 'On Time' : 'Delay';
-        }
-
-        // ================= GUDANG 2 (SENTUL) =================
-        $planningLoading2     = $this->convertDateTime($row['planning_loading_2'] ?? null);
-        $tanggalTibaGudang2   = $this->convertDateTime($row['tanggal_tiba_gudang_2'] ?? null);
-        $tanggalKeluarGudang2 = $this->convertDateTime($row['tanggal_keluar_gudang_2'] ?? null);
-        $statusGudang2        = $this->cleanText($row['status_gudang_2'] ?? null);
-
+        // ================= SENTUL (GUDANG 2) =================
         $lama_digudang_2 = null;
-        $sla_loading_2   = null;
+        $sla_loading_2 = null;
 
-        if ($tanggalTibaGudang2 && $tanggalKeluarGudang2) {
-            $in2  = strtotime($tanggalTibaGudang2);
-            $out2 = strtotime($tanggalKeluarGudang2);
+        if (!empty($row['tanggal_tiba_gudang_2']) && !empty($row['tanggal_keluar_gudang_2'])) {
+            $in2  = strtotime($row['tanggal_tiba_gudang_2']);
+            $out2 = strtotime($row['tanggal_keluar_gudang_2']);
             $jam2 = ($out2 - $in2) / 3600;
             $lama_digudang_2 = round($jam2, 1) . ' Jam';
             $sla_loading_2 = $jam2 <= 24 ? 'H+0' : ($jam2 <= 48 ? 'H+1' : 'H>1');
         }
 
-        // ================= GUDANG 3 (CCIE) =================
-        $planningLoading3     = $this->convertDateTime($row['planning_loading_3'] ?? null);
-        $tanggalTibaGudang3   = $this->convertDateTime($row['tanggal_tiba_gudang_3'] ?? null);
-        $tanggalKeluarGudang3 = $this->convertDateTime($row['tanggal_keluar_gudang_3'] ?? null);
-        $statusGudang3        = $this->cleanText($row['status_gudang_3'] ?? null);
-
+        // ================= CCIE (GUDANG 3) =================
         $lama_digudang_3 = null;
-        $sla_loading_3   = null;
+        $sla_loading_3 = null;
 
-        if ($tanggalTibaGudang3 && $tanggalKeluarGudang3) {
-            $in3  = strtotime($tanggalTibaGudang3);
-            $out3 = strtotime($tanggalKeluarGudang3);
+        if (!empty($row['tanggal_tiba_gudang_3']) && !empty($row['tanggal_keluar_gudang_3'])) {
+            $in3  = strtotime($row['tanggal_tiba_gudang_3']);
+            $out3 = strtotime($row['tanggal_keluar_gudang_3']);
             $jam3 = ($out3 - $in3) / 3600;
             $lama_digudang_3 = round($jam3, 1) . ' Jam';
             $sla_loading_3 = $jam3 <= 24 ? 'H+0' : ($jam3 <= 48 ? 'H+1' : 'H>1');
@@ -176,11 +153,13 @@ class LogistikImport implements ToCollection, WithHeadingRow, WithEvents, WithCa
         $tonase   = $this->cleanPersen($this->pick($row, ['tonase', 'tonase_persen']));
 
         // ================= DATE =================
-        $rencanaKirim        = $this->convertDateTime($row['rencana_kirim'] ?? null);
-        $tanggalKeluarGudang = $this->convertDateTime($row['tanggal_keluar_gudang'] ?? null);
+        $rencanaKirim        = $this->convertDate($row['rencana_kirim'] ?? null);
+        $tanggalKeluarGudang = $this->convertDate($row['tanggal_keluar_gudang'] ?? null);
         $tanggalTibaAktual   = $this->convertDate($row['tanggal_tiba'] ?? null);
-        $tanggalNaikLogistik = $this->convertDateTime($row['tanggal_naik_logistik'] ?? null);
+        $tanggalNaikLogistik = $this->convertDate($row['tanggal_naik_logistik'] ?? null);
         $tanggalDptUnit      = $this->convertDate($row['tanggal_dpt_unit'] ?? null);
+        $planningLoading     = $this->convertDate($row['planning_loading'] ?? null);
+        $tanggalTibaGudang   = $this->convertDate($row['tanggal_tiba_di_gudang'] ?? null);
         $tanggalBongkar      = $this->convertDate($row['tanggal_bongkar'] ?? null);
 
         // ================= SLA DAPAT MOBIL =================
@@ -191,6 +170,16 @@ class LogistikImport implements ToCollection, WithHeadingRow, WithEvents, WithCa
             $selisihCariMobil = (int) date_diff(date_create($tanggalDptUnit), date_create($tanggalTibaGudang))->format('%a');
             $lamaWaktuPencarian = $selisihCariMobil . ' Hari';
             $slaDapatMobil = ($selisihCariMobil == 0) ? 'On Time' : 'Delay';
+        }
+
+        // ================= SLA LOADING =================
+        $lamaDigudang = null;
+        $slaLoading   = null;
+
+        if ($tanggalTibaGudang && $tanggalKeluarGudang) {
+            $selisihGudang = (int) date_diff(date_create($tanggalTibaGudang), date_create($tanggalKeluarGudang))->format('%a');
+            $lamaDigudang = $selisihGudang . ' Hari';
+            $slaLoading = ($selisihGudang == 0) ? 'On Time' : 'Delay';
         }
 
         $act_pgi_date = $this->convertDate($row['act_pgi_date'] ?? null);
@@ -280,8 +269,8 @@ class LogistikImport implements ToCollection, WithHeadingRow, WithEvents, WithCa
         // ================= MONITORING =================
         $keluar = collect([
             $tanggalKeluarGudang,
-            $tanggalKeluarGudang2,
-            $tanggalKeluarGudang3,
+            $this->convertDate($row['tanggal_keluar_gudang_2'] ?? null),
+            $this->convertDate($row['tanggal_keluar_gudang_3'] ?? null),
         ])->filter()->map(fn($d) => strtotime($d))->max();
 
         $tiba    = $tanggalTibaAktual ? strtotime($tanggalTibaAktual) : null;
@@ -359,22 +348,6 @@ class LogistikImport implements ToCollection, WithHeadingRow, WithEvents, WithCa
             'tanggal_keluar_gudang' => $tanggalKeluarGudang,
             'tanggal_tiba'          => $tanggalTibaAktual,
             'tanggal_bongkar'       => $tanggalBongkar,
-
-            // GUDANG 2 (SENTUL)
-            'planning_loading_2'      => $planningLoading2,
-            'tanggal_tiba_gudang_2'   => $tanggalTibaGudang2,
-            'tanggal_keluar_gudang_2' => $tanggalKeluarGudang2,
-            'lama_digudang_2'         => $lama_digudang_2,
-            'sla_loading_2'           => $sla_loading_2,
-            'status_gudang_2'         => $statusGudang2,
-
-            // GUDANG 3 (CCIE)
-            'planning_loading_3'      => $planningLoading3,
-            'tanggal_tiba_gudang_3'   => $tanggalTibaGudang3,
-            'tanggal_keluar_gudang_3' => $tanggalKeluarGudang3,
-            'lama_digudang_3'         => $lama_digudang_3,
-            'sla_loading_3'           => $sla_loading_3,
-            'status_gudang_3'         => $statusGudang3,
 
             'estimasi_tiba' => $estimasi ? date('Y-m-d', $estimasi) : null,
 
@@ -498,10 +471,6 @@ private function applyRouteAlias(?string $route): ?string
     return null;
 }
 
-    /**
-     * Convert nilai tanggal dari Excel/string ke format 'Y-m-d' saja (tanpa jam).
-     * Dipakai untuk kolom yang di DB masih bertipe date.
-     */
     private function convertDate($value)
     {
         if (!$value || $value == '-' || $value == '#VALUE!') return null;
@@ -510,26 +479,6 @@ private function applyRouteAlias(?string $route): ?string
         }
         $timestamp = strtotime(str_replace('/', '-', trim($value)));
         return $timestamp ? date('Y-m-d', $timestamp) : null;
-    }
-
-    /**
-     * Convert nilai tanggal dari Excel/string ke format 'Y-m-d H:i:s' (dengan jam).
-     * Serial number Excel sudah menyimpan jam sebagai pecahan desimal, jadi
-     * Date::excelToDateTimeObject() otomatis membawa jamnya - tinggal jangan
-     * dipotong dengan format('Y-m-d') seperti di convertDate().
-     * Dipakai untuk kolom yang di DB sudah bertipe datetime.
-     */
-    private function convertDateTime($value)
-    {
-        if (!$value || $value == '-' || $value == '#VALUE!') return null;
-
-        if (is_numeric($value)) {
-            return Date::excelToDateTimeObject($value)->format('Y-m-d H:i:s');
-        }
-
-        $value = str_replace('/', '-', trim((string) $value));
-        $timestamp = strtotime($value);
-        return $timestamp ? date('Y-m-d H:i:s', $timestamp) : null;
     }
 
     private function normalize(?string $value): string
@@ -592,6 +541,43 @@ private function applyRouteAlias(?string $route): ?string
         $value = str_replace(['Rp', 'rp', ' ', '.', ','], '', (string) $value);
         return (float) $value;
     }
+
+    // public function registerEvents(): array
+    // {
+    //     return [
+    //         AfterImport::class => function () {
+    //             foreach (['route', 'mobil', 'ekpedisi'] as $col) {
+    //                 DB::statement("
+    //                     UPDATE logistik_pengiriman lp
+    //                     JOIN (
+    //                         SELECT no_shipment, MIN($col) AS val
+    //                         FROM logistik_pengiriman
+    //                         WHERE $col IS NOT NULL AND $col != ''
+    //                         GROUP BY no_shipment
+    //                     ) x ON lp.no_shipment = x.no_shipment
+    //                     SET lp.$col = x.val
+    //                     WHERE (lp.$col IS NULL OR lp.$col = '')
+    //                       AND lp.no_shipment IS NOT NULL
+    //                       AND lp.no_shipment != ''
+    //                 ");
+    //             }
+
+    //             DB::statement("
+    //                 UPDATE logistik_pengiriman lp
+    //                 JOIN (
+    //                     SELECT no_shipment, MAX(biaya_kirim) AS biaya, SUM(nilai_muatan) AS muatan
+    //                     FROM logistik_pengiriman
+    //                     GROUP BY no_shipment
+    //                 ) x ON lp.no_shipment = x.no_shipment
+    //                 SET lp.cr = IF(
+    //                     x.muatan = 0 OR lp.nilai_muatan <= 0,
+    //                     0,
+    //                     ROUND((lp.nilai_muatan * x.biaya) / (x.muatan * x.muatan) * 100, 4)
+    //                 )
+    //             ");
+    //         },
+    //     ];
+    // }
 
     public function registerEvents(): array
 {

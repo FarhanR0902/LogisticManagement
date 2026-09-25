@@ -15,10 +15,12 @@ use App\Http\Controllers\Spv\TarifPengirimanController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\LogistikController;
 use App\Http\Controllers\Planner\PlannerController;
-use App\Http\Controllers\Kota\KotaController;
+// use App\Http\Controllers\Kota\KotaController;
 use App\Http\Controllers\Monitoring\MonitoringController;
 use App\Http\Controllers\Manager\ManagerController;
+use App\Http\Controllers\KotaController;
 use App\Http\Controllers\PasuruanController;
+use App\Http\Controllers\Kota\KotaImportController;
 use App\Http\Controllers\Spv\SpvPlannerController;
 use App\Http\Controllers\Spv\SpvMonitoringController;
 use App\Http\Controllers\Developer\DeveloperController;
@@ -165,6 +167,46 @@ Route::prefix('planner')->group(function () {
 
 
 
+// Route::get(
+//     '/planner/data-logistik',
+//     [PlannerController::class, 'dataLogistik']
+// )->name('planner.datalogistik');
+
+// Route::get(
+//     '/monitoring/data-logistik',
+//     [MonitoringController::class, 'dataLogistik']
+// )->name('monitoring.datalogistik');
+
+// // Route::middleware(['auth'])->group(function () {
+// //     Route::put('/monitoring/update/{id}', ...)->name('monitoring.update');
+// //     // tambahkan di sini juga
+// // });
+
+// Route::get('/monitoring/data-ajax', [MonitoringController::class, 'dataAjax'])->name('monitoring.datalogistik.ajax');
+// Route::get('/monitoring/alerts', [MonitoringController::class, 'alerts'])->name('monitoring.alerts');
+// Route::put('/monitoring/update/{id}', [MonitoringController::class, 'updateMonitoring'])->name('monitoring.update');
+// Route::get('/monitoring/in-transit', [MonitoringController::class, 'inTransit'])
+//     ->name('monitoring.intransit');
+// Route::get(
+//     '/monitoring/export',
+//     [MonitoringController::class, 'export']
+// )->name('monitoring.export');
+// Route::put('/monitoring/update/{id}', [MonitoringController::class, 'updateMonitoring']);
+// Route::put('/monitoring/update/{id}', [MonitoringController::class, 'updateMonitoring'])
+//     ->name('monitoring.update');
+// Route::prefix('monitoring')->group(function () {
+//     Route::post('/monitoring/update-transport-laut', [MonitoringController::class, 'updateTransportLaut']);
+//     Route::post(
+//         '/update-transport-laut',
+//         [MonitoringController::class, 'updateTransportLaut']
+//     )->name('monitoring.update-transport-laut');
+
+//     Route::get('/dashboard', [MonitoringController::class, 'dashboard'])
+//         ->name('monitoring.dashboard');
+
+
+//     // ================= SLA =================
+
 Route::get(
     '/planner/data-logistik',
     [PlannerController::class, 'dataLogistik']
@@ -177,28 +219,28 @@ Route::get(
 
 Route::get('/monitoring/data-ajax', [MonitoringController::class, 'dataAjax'])->name('monitoring.datalogistik.ajax');
 Route::get('/monitoring/alerts', [MonitoringController::class, 'alerts'])->name('monitoring.alerts');
+
 Route::put('/monitoring/update/{id}', [MonitoringController::class, 'updateMonitoring'])->name('monitoring.update');
+Route::post('/monitoring/update-batch', [MonitoringController::class, 'updateMonitoringBatch'])->name('monitoring.update.batch');
+
 Route::get('/monitoring/in-transit', [MonitoringController::class, 'inTransit'])
     ->name('monitoring.intransit');
+
 Route::get(
     '/monitoring/export',
     [MonitoringController::class, 'export']
 )->name('monitoring.export');
-Route::put('/monitoring/update/{id}', [MonitoringController::class, 'updateMonitoring']);
 
 Route::prefix('monitoring')->group(function () {
-    Route::post('/monitoring/update-transport-laut', [MonitoringController::class, 'updateTransportLaut']);
-    Route::post(
-        '/update-transport-laut',
-        [MonitoringController::class, 'updateTransportLaut']
-    )->name('monitoring.update-transport-laut');
+    Route::post('/update-transport-laut', [MonitoringController::class, 'updateTransportLaut'])
+        ->name('monitoring.update-transport-laut');
 
     Route::get('/dashboard', [MonitoringController::class, 'dashboard'])
         ->name('monitoring.dashboard');
 
-
-    // ================= SLA =================
-    Route::get('/sla-ontime', [MonitoringController::class, 'slaOntime'])
+    // ================= SLA ==========
+    // ... lanjutan route SLA kamu di bawah
+Route::get('/sla-ontime', [MonitoringController::class, 'slaOntime'])
         ->name('monitoring.sla.ontime');
 
     Route::get('/sla-delay', [MonitoringController::class, 'slaDelay'])
@@ -222,6 +264,8 @@ Route::prefix('monitoring')->group(function () {
 Route::prefix('manager')->group(function () {
     Route::get('/dashboard', [ManagerController::class, 'dashboard'])
         ->name('manager.dashboard');
+        Route::get('/sla-delay', [ManagerController::class, 'slaDelay'])
+    ->name('manager.sla-delay');
 
     Route::get('/manager/pasuruan/in-transit', [App\Http\Controllers\Manager\ManagerController::class, 'inTransitPasuruan'])
     ->name('manager.pasuruan.intransit');
@@ -321,6 +365,9 @@ Route::post(
 Route::prefix('sales')->name('sales.')->group(function () {
     Route::get('/summary-area', [SalesController::class, 'summaryArea'])
         ->name('sales.summary.area');
+       
+    Route::get('/sla-delay', [SalesController::class, 'slaDelay'])
+        ->name('sla-delay');   
     Route::get(
         '/summary-area/{area}',
         [SalesController::class, 'summaryAreaDetail']
@@ -382,6 +429,8 @@ Route::middleware(['auth'])->prefix('spvplanner')->group(function () {
 
     Route::post('/spvplanner/data-ajax', [App\Http\Controllers\Spv\SpvPlannerController::class, 'dataAjax'])
         ->name('spvplanner.data.ajax');
+        Route::get('/belum-tiba-gudang', [SpvPlannerController::class, 'belumTibaGudang'])
+    ->name('spvplanner.belum.tiba.gudang');
         Route::get('/spvplanner/pasuruan/in-transit', [App\Http\Controllers\Spv\SpvPlannerController::class, 'inTransitPasuruan'])
     ->name('spvplanner.pasuruan.intransit');
     Route::match(['get', 'post'], '/logistik/full-data/ajax', [SpvPlannerController::class, 'fullDataLogistikAjax'])
@@ -530,6 +579,10 @@ Route::middleware(['auth'])
             ->name('dashboard');
             Route::get('in-transit-pasuruan', [SpvMonitoringController::class, 'inTransitPasuruan'])
     ->name('intransit.pasuruan');
+    Route::get('/belum-tiba-gudang', [SpvMonitoringController::class, 'belumTibaGudang'])
+    ->name('belum.tiba.gudang');
+    Route::put('/monitoring/update/{id}', [SpvMonitoringController::class, 'updateMonitoring'])
+    ->name('monitoring.update');
 
 
 
@@ -727,6 +780,11 @@ Route::prefix('sales')
          Route::get('in-transit', [SalesController::class, 'inTransit'])
     ->name('intransit');
 
+    Route::get('/sla-delay', [SalesController::class, 'slaDelay'])
+        ->name('sla-delay');   
+        Route::get('/belum-armada', [SalesController::class, 'belumArmada'])
+    ->name('belum.armada');
+
 Route::get('in-transit-pasuruan', [SalesController::class, 'inTransitPasuruan'])
     ->name('intransit.pasuruan');
 
@@ -873,21 +931,21 @@ Route::prefix('pasuruan')->group(function () {
         ->name('pasuruan.updateTransportLaut');
 });
 
-Route::prefix('kota')->name('kota.')->group(function () {
+// Route::prefix('kota')->name('kota.')->group(function () {
 
-    Route::get('/dashboard', [KotaController::class, 'dashboard'])->name('dashboard');
+//     Route::get('/dashboard', [KotaController::class, 'dashboard'])->name('dashboard');
 
-    Route::get('/data-monitoring', [KotaController::class, 'dataLogistik'])->name('datalogistik');
-    Route::post('/data-monitoring/ajax', [KotaController::class, 'dataAjax'])->name('datalogistik.ajax');
+//     Route::get('/data-monitoring', [KotaController::class, 'dataLogistik'])->name('datalogistik');
+//     Route::post('/data-monitoring/ajax', [KotaController::class, 'dataAjax'])->name('datalogistik.ajax');
 
-    Route::get('/alerts', [KotaController::class, 'alerts'])->name('alerts');
+//     Route::get('/alerts', [KotaController::class, 'alerts'])->name('alerts');
 
-    Route::put('/update/{id}', [KotaController::class, 'updateMonitoring'])->name('update');
-    Route::post('/update-transport-laut', [KotaController::class, 'updateTransportLaut'])->name('update-transport-laut');
+//     Route::put('/update/{id}', [KotaController::class, 'updateMonitoring'])->name('update');
+//     Route::post('/update-transport-laut', [KotaController::class, 'updateTransportLaut'])->name('update-transport-laut');
 
-  Route::post('/import', [KotaController::class, 'import'])
-    ->name('import');
-});
+//   Route::post('/import', [KotaController::class, 'import'])
+//     ->name('import');
+// });
 
 
 Route::get('/debug-cek-shipment', function () {
@@ -920,6 +978,42 @@ Route::get('/debug-clear-cache', function () {
         'status' => 'cleared',
         'result' => $result,
     ]);
+});
+
+// Route::get('/kota/dashboard', [KotaImportController::class, 'dashboard'])->name('kota.dashboard');
+// Route::get('/kota/dashboard-data', [KotaImportController::class, 'dashboardData'])->name('kota.dashboard.data');
+
+// Route::prefix('kota-import')->name('kota.import.')->group(function () {
+//     Route::get('/', [KotaImportController::class, 'index'])->name('index');
+//     Route::post('/store', [KotaImportController::class, 'import'])->name('store');
+//     Route::get('/data-ajax', [KotaImportController::class, 'dataAjax'])->name('data.ajax');
+//        Route::post('/update-alasan-pending', [KotaImportController::class, 'importAlasanPending'])->name('update.alasan.pending'); 
+// Route::get('/kota/kpi-analysis', [KotaImportController::class, 'kpiAnalysis'])->name('kota.kpi.index');
+// Route::get('/kota/kpi-analysis-data', [KotaImportController::class, 'kpiAnalysisData'])->name('kota.kpi.data');
+// Route::get('/kota/dashboard', [KotaImportController::class, 'dashboard'])->name('kota.dashboard');
+// Route::get('/kota/dashboard-data', [KotaImportController::class, 'dashboardData'])->name('kota.dashboard.data');
+// Route::get('/kota/kpi-analysis', [KotaImportController::class, 'kpiAnalysis'])->name('kota.kpi.index');
+// Route::get('/kota/kpi-analysis-data', [KotaImportController::class, 'kpiAnalysisData'])->name('kota.kpi.data');
+
+// // Grup import, tanpa dashboard
+// Route::prefix('kota-import')->name('kota.import.')->group(function () {
+//     Route::get('/', [KotaImportController::class, 'index'])->name('index');
+//     Route::post('/store', [KotaImportController::class, 'import'])->name('store');
+//     Route::get('/data-ajax', [KotaImportController::class, 'dataAjax'])->name('data.ajax');
+//     Route::post('/update-alasan-pending', [KotaImportController::class, 'importAlasanPending'])->name('update.alasan.pending');
+// });
+// });
+
+Route::get('/kota/dashboard', [KotaImportController::class, 'dashboard'])->name('kota.dashboard');
+Route::get('/kota/dashboard-data', [KotaImportController::class, 'dashboardData'])->name('kota.dashboard.data');
+Route::get('/kota/kpi-analysis', [KotaImportController::class, 'kpiAnalysis'])->name('kota.kpi.index');
+Route::get('/kota/kpi-analysis-data', [KotaImportController::class, 'kpiAnalysisData'])->name('kota.kpi.data');
+
+Route::prefix('kota-import')->name('kota.import.')->group(function () {
+    Route::get('/', [KotaImportController::class, 'index'])->name('index');
+    Route::post('/store', [KotaImportController::class, 'import'])->name('store');
+    Route::get('/data-ajax', [KotaImportController::class, 'dataAjax'])->name('data.ajax');
+    Route::post('/update-alasan-pending', [KotaImportController::class, 'importAlasanPending'])->name('update.alasan.pending');
 });
 /*
 |--------------------------------------------------------------------------

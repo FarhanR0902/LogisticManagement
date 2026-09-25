@@ -20,6 +20,32 @@ class MonitoringExport implements FromCollection, WithHeadings
         $this->area          = $area;
     }
 
+    public function updateTransportLaut(Request $request)
+{
+    $request->validate(['no_shipment' => 'required']);
+
+    $data = array_filter([
+        'nama_kapal' => $request->nama_kapal,
+        'etd' => $request->etd,
+        'eta' => $request->eta,
+        'atd' => $request->atd,
+        'ata' => $request->ata,
+    ], fn($v) => $v !== null && $v !== '');
+
+    if (empty($data)) {
+        return response()->json([
+            'status' => 'error',
+            'message' => 'Tidak ada data yang diisi',
+        ], 422);
+    }
+
+    LogistikPengiriman::where('no_shipment', $request->no_shipment)->update($data);
+
+    return response()->json([
+        'status' => 'success',
+        'message' => 'Data transport laut berhasil diupdate'
+    ]);
+}
     public function collection()
     {
         $query = LogistikPengiriman::query();

@@ -170,7 +170,7 @@ button:hover{
 
     <div class="logo">
         <img src="https://yt3.ggpht.com/a/AATXAJzSu0_dWz3o0wVQBeVNEvS90WOnkRTh678MpQ=s900-c-k-c0xffffffff-no-rj-mo">
-        <h3>LOGISTIK SYSTEM</h3>
+        <h3>LOGISTIK TRANSPORT SYSTEM</h3>
     </div>
 
     <h2>Registrasi Akun</h2>
@@ -220,6 +220,7 @@ button:hover{
               
                 <option value="spvplanner">SPV Planner Jakarta</option>
                 <option value="spvmonitoring">SPV Monitoring Jakarta</option>
+                 <option value="kota_import">Kota - Import Data</option>  
                 <!-- <option value="sales">Sales</option> -->
             </select>
         </div>

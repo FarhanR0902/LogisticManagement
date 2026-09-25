@@ -118,6 +118,8 @@ class SalesController extends Controller
     $planner_belum_armada = (clone $base)
         ->where('ketersediaan_unit', 'Belum Dapat')
         ->count();
+        $total_in_transit = $this->applyFilter($this->inTransitQuery(), $request)->count();
+$total_sla_delay  = $this->applyFilter($this->slaDelayQuery(), $request)->count();
 
     $list_dist_channel = (clone $base)
         ->select('dist_channel')
@@ -270,6 +272,8 @@ class SalesController extends Controller
         'planner_belum_armada',
         'ontime_rate',
         'delay_rate',
+        'total_in_transit',
+'total_sla_delay',
         'armada_rate',
         'pending_rate',
         'summary_monitoring',
@@ -323,6 +327,36 @@ class SalesController extends Controller
 
         return $query;
     }
+
+    private function belumArmadaQuery()
+{
+    $q = DB::table('logistik_pengiriman')
+        ->where(function ($q) {
+            $q->whereNull('rencana_kirim')
+              ->orWhere('rencana_kirim', '')
+              ->orWhereNull('tanggal_dpt_unit')
+              ->orWhere('tanggal_dpt_unit', '');
+        });
+
+    $this->filterByDistChannel($q);
+
+    return $q;
+}
+
+public function belumArmada(Request $request)
+{
+    $query = $this->belumArmadaQuery();
+
+    $this->applyFilter($query, $request);
+
+    $logistik = $query
+        ->orderByDesc('create_tgl')
+        ->get();
+
+    $list_area = $this->getArea();
+
+    return view('sales.belum_armada', compact('logistik', 'list_area'));
+}
 
 
     // =====================================================
@@ -590,6 +624,37 @@ public function inTransitPasuruan(Request $request)
     $formRoute = route('sales.intransit.pasuruan');
 
     return view('monitoring.in_transit', compact('list', 'summary', 'areaList', 'picList', 'formRoute'));
+}
+
+private function slaDelayQuery()
+{
+    $q = DB::table('logistik_pengiriman')
+        ->whereNotNull('rencana_kirim')
+        ->whereRaw("TRIM(rencana_kirim) <> ''")
+        ->whereNotNull('tanggal_dpt_unit')
+        ->whereRaw("TRIM(tanggal_dpt_unit) <> ''")
+        ->where(fn ($q) => $q->whereNull('tanggal_tiba_gudang')->orWhereRaw("TRIM(tanggal_tiba_gudang) = ''"))
+        ->where(fn ($q) => $q->whereNull('tanggal_tiba_gudang_2')->orWhereRaw("TRIM(tanggal_tiba_gudang_2) = ''"))
+        ->where(fn ($q) => $q->whereNull('tanggal_tiba_gudang_3')->orWhereRaw("TRIM(tanggal_tiba_gudang_3) = ''"));
+
+    $this->filterByDistChannel($q);
+
+    return $q;
+}
+
+public function slaDelay(Request $request)
+{
+    $query = $this->slaDelayQuery();
+
+    $this->applyFilter($query, $request);
+
+    $list = $query
+        ->orderByDesc('tanggal_dpt_unit')
+        ->get();
+
+    $list_area = $this->getArea();
+
+    return view('sales.sla_delay', compact('list', 'list_area'));
 }
 
     /*

@@ -2,11 +2,15 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class Kota extends Model
 {
-    protected $table = 'kota';
+    use HasFactory;
+
+    // Paksa Eloquent menggunakan nama tabel 'kota'
+    protected $table = 'kota'; 
 
     protected $fillable = [
         'kode_gudang',
@@ -16,6 +20,11 @@ class Kota extends Model
         'tgl_do',
         'tanggal_kirim',
         'customer_id',
+        'alasan_pending',
+        'alamat_customer',
+        'area_kecil',
+        'area_besar',
+        'route',
         'tujuan',
         'kode_barang',
         'nama_barang',

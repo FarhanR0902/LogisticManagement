@@ -75,6 +75,7 @@ class SpvMonitoringController extends Controller
         $belum_bongkar = LogistikPengiriman::whereNotNull('tanggal_tiba')
             ->whereNull('tanggal_bongkar')
             ->count();
+            
 
         // =============================
         // SUMMARY AREA
@@ -235,12 +236,20 @@ class SpvMonitoringController extends Controller
             ->pluck('pic_monitoring');
 
         // ================= LIST SHIPMENT (dropdown "No Shipment") =================
-        $shipmentList = LogistikPengiriman::select('no_shipment', 'tujuan')
-            ->whereNotNull('no_shipment')
-            ->where('no_shipment', '!=', '')
-            ->groupBy('no_shipment', 'tujuan')
-            ->orderBy('no_shipment')
-            ->get();
+    $shipmentList = LogistikPengiriman::selectRaw('
+        no_shipment,
+        MAX(tujuan) as tujuan,
+        MAX(nama_kapal) as nama_kapal,
+        MAX(etd) as etd,
+        MAX(eta) as eta,
+        MAX(atd) as atd,
+        MAX(ata) as ata
+    ')
+    ->whereNotNull('no_shipment')
+    ->where('no_shipment', '!=', '')
+    ->groupBy('no_shipment')
+    ->orderBy('no_shipment')
+    ->get();
 
         // ================= AKURASI =================
       $akurasiTiba = DB::table('akurasi3')
@@ -486,7 +495,44 @@ return view('monitoring.data_monitoring', compact(
             'planners',
             'areas'
         ));
+
+
     }
+
+   private function belumTibaGudangQuery()
+{
+    return DB::table('logistik_pengiriman')
+        // sudah terinput
+        ->whereNotNull('tanggal_naik_logistik')
+        ->whereNotNull('rencana_kirim')
+        ->whereRaw("TRIM(rencana_kirim) <> ''")
+        ->whereNotNull('tanggal_dpt_unit')
+        ->whereRaw("TRIM(tanggal_dpt_unit) <> ''")
+        // ketiga tanggal tiba gudang harus kosong semua
+        ->where(fn ($q) => $q->whereNull('tanggal_tiba_gudang')->orWhereRaw("TRIM(tanggal_tiba_gudang) = ''"))
+        ->where(fn ($q) => $q->whereNull('tanggal_tiba_gudang_2')->orWhereRaw("TRIM(tanggal_tiba_gudang_2) = ''"))
+        ->where(fn ($q) => $q->whereNull('tanggal_tiba_gudang_3')->orWhereRaw("TRIM(tanggal_tiba_gudang_3) = ''"));
+}
+
+public function belumTibaGudang(Request $request)
+{
+    $query = $this->belumTibaGudangQuery();
+
+    $this->applyFilter($query, $request);
+
+    $list = $query
+        ->orderBy('tanggal_naik_logistik', 'DESC')
+        ->paginate(10)
+        ->withQueryString();
+
+    $list_area = $this->getArea();
+
+    return view('spvmonitoring.belum_tiba_gudang', [
+        'title'     => 'BELUM TIBA DI GUDANG',
+        'list'      => $list,
+        'list_area' => $list_area,
+    ]);
+}
 
     public function updateMonitoring(Request $request, $id)
     {
@@ -582,25 +628,43 @@ return view('monitoring.data_monitoring', compact(
         // =========================
         // TRANSPORT LAUT (NEW)
         // =========================
-        $logistik->nama_kapal = $request->nama_kapal ?? 0;
+        // $logistik->nama_kapal = $request->nama_kapal ?? 0;
 
-        if ($logistik->nama_kapal == 1) {
+        // if ($logistik->nama_kapal == 1) {
 
-            $logistik->nama_kapal = $request->nama_kapal;
+        //     $logistik->nama_kapal = $request->nama_kapal;
 
-            $logistik->etd = $request->etd;
-            $logistik->eta = $request->eta;
-            $logistik->atd = $request->atd;
-            $logistik->ata = $request->ata;
+        //     $logistik->etd = $request->etd;
+        //     $logistik->eta = $request->eta;
+        //     $logistik->atd = $request->atd;
+        //     $logistik->ata = $request->ata;
 
-        } else {
+        // } else {
 
-            $logistik->nama_kapal = null;
-            $logistik->etd = null;
-            $logistik->eta = null;
-            $logistik->atd = null;
-            $logistik->ata = null;
-        }
+        //     $logistik->nama_kapal = null;
+        //     $logistik->etd = null;
+        //     $logistik->eta = null;
+        //     $logistik->atd = null;
+        //     $logistik->ata = null;
+        // }
+        // =========================
+// TRANSPORT LAUT — field independen, tidak saling menghapus
+// =========================
+if ($request->filled('nama_kapal')) {
+    $logistik->nama_kapal = $request->nama_kapal;
+}
+if ($request->filled('etd')) {
+    $logistik->etd = $request->etd;
+}
+if ($request->filled('eta')) {
+    $logistik->eta = $request->eta;
+}
+if ($request->filled('atd')) {
+    $logistik->atd = $request->atd;
+}
+if ($request->filled('ata')) {
+    $logistik->ata = $request->ata;
+}
         $logistik->save();
 
         $shipment = LogistikPengiriman::where(
@@ -886,6 +950,8 @@ return view('monitoring.data_monitoring', compact(
         // ================= LIST AREA =================
 
         $list_area = $this->getArea();
+        $total_in_transit        = $this->applyFilter($this->inTransitQuery(), $request)->count();
+$total_belum_tiba_gudang = $this->applyFilter($this->belumTibaGudangQuery(), $request)->count();
 
         $total_in_transit = $this->applyFilter($this->inTransitQuery(), $request)->count();
 
@@ -920,7 +986,8 @@ return view('monitoring.data_monitoring', compact(
 
             'planner_armada',
             'planner_belum_armada',
-
+            'total_in_transit',
+'total_belum_tiba_gudang',
             'ontime_rate',
             'delay_rate',
 
@@ -999,28 +1066,59 @@ return view('monitoring.data_monitoring', compact(
             ->get();
     }
 
+    // public function updateTransportLaut(Request $request)
+    // {
+    //     $request->validate([
+    //         'no_shipment' => 'required'
+    //     ]);
+
+    //     $data = [
+    //         'nama_kapal' => $request->nama_kapal,
+    //         'etd' => $request->etd,
+    //         'eta' => $request->eta,
+    //         'atd' => $request->atd,
+    //         'ata' => $request->ata,
+    //     ];
+
+    //     \App\Models\LogistikPengiriman::where('no_shipment', $request->no_shipment)
+    //         ->update($data);
+
+    //     return response()->json([
+    //         'status' => 'success',
+    //         'message' => 'Data transport laut berhasil diupdate'
+    //     ]);
+    // }
+
     public function updateTransportLaut(Request $request)
-    {
-        $request->validate([
-            'no_shipment' => 'required'
-        ]);
+{
+    $request->validate([
+        'no_shipment' => 'required'
+    ]);
 
-        $data = [
-            'nama_kapal' => $request->nama_kapal,
-            'etd' => $request->etd,
-            'eta' => $request->eta,
-            'atd' => $request->atd,
-            'ata' => $request->ata,
-        ];
+    $data = array_filter([
+        'nama_kapal' => $request->nama_kapal,
+        'etd' => $request->etd,
+        'eta' => $request->eta,
+        'atd' => $request->atd,
+        'ata' => $request->ata,
+    ], fn($v) => $v !== null && $v !== '');
 
-        \App\Models\LogistikPengiriman::where('no_shipment', $request->no_shipment)
-            ->update($data);
-
+    if (empty($data)) {
         return response()->json([
-            'status' => 'success',
-            'message' => 'Data transport laut berhasil diupdate'
-        ]);
+            'status' => 'error',
+            'message' => 'Tidak ada data yang diisi',
+        ], 422);
     }
+
+    \App\Models\LogistikPengiriman::where('no_shipment', $request->no_shipment)
+        ->update($data);
+
+    return response()->json([
+        'status' => 'success',
+        'message' => 'Data transport laut berhasil diupdate'
+    ]);
+}
+
 
     private function generateStatusAlert($sla_tiba, $sla_bongkar)
     {

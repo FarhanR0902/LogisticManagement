@@ -231,7 +231,7 @@ h1,h2,h3,h4{
 
 .pulau-grid{
     display:grid;
-    grid-template-columns:repeat(8, minmax(0,1fr));
+    grid-template-columns:repeat(9, minmax(0,1fr));
     gap:10px;
 }
 
@@ -307,7 +307,7 @@ h1,h2,h3,h4{
 
 .kpi-row{
     display:grid;
-    grid-template-columns:repeat(8,minmax(0,1fr));
+    grid-template-columns:repeat(9,minmax(0,1fr));
     gap:14px;
 }
 
@@ -844,6 +844,10 @@ tbody tr:last-child td{ border-bottom:none; }
     <h4>Total Shipment</h4>
     <h1>{{ $total_data }}</h1>
 </a>
+<a href="{{ route('spvplanner.belum.tiba.gudang', request()->query()) }}" class="card orange">
+    <h4>Belum Tiba Di Gudang</h4>
+    <h1>{{ $total_belum_tiba_gudang }}</h1>
+</a>
 <a href="{{ route('spvplanner.intransit', request()->query()) }}" class="card teal">
     <h4>🚚 In Transit</h4>
     <h1>{{ $total_in_transit ?? 0 }}</h1>
@@ -855,7 +859,7 @@ tbody tr:last-child td{ border-bottom:none; }
 </a>
 
 <a href="{{ route('manager.gudang.delay', request()->query()) }}" class="card red">
-    <h4>Belum Tiba Di Gudang</h4>
+    <h4>Belum Dapat Armada</h4>
     <h1>{{ $gudang_delay }}</h1>
 </a>
 

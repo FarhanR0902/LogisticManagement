@@ -307,7 +307,7 @@ h1,h2,h3,h4{
 
 .kpi-row{
     display:grid;
-    grid-template-columns:repeat(8,minmax(0,1fr));
+    grid-template-columns:repeat(9,minmax(0,1fr));
     gap:14px;
 }
 
@@ -855,8 +855,12 @@ tbody tr:last-child td{ border-bottom:none; }
     <h1>{{ $gudang_ontime }}</h1>
 </a>
 
-<a href="{{ route('manager.gudang.delay', request()->query()) }}" class="card red">
+<a href="{{ route('manager.sla-delay', request()->query()) }}" class="card red">
     <h4>Belum Tiba Di Gudang</h4>
+    <h1>{{ $total_sla_delay }}</h1>
+</a>
+<a href="{{ route('manager.gudang.delay', request()->query()) }}" class="card red">
+    <h4>Belum Dapat Armada</h4>
     <h1>{{ $gudang_delay }}</h1>
 </a>
 

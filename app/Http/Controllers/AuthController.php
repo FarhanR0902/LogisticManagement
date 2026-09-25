@@ -69,6 +69,7 @@ class AuthController extends Controller
 
             'admin_pasuruan' => redirect()->route('pasuruan.dashboard'),
             'kota' => redirect()->route('kota.dashboard'),
+             'kota_import' => redirect()->route('kota.import.index'),
 
             'spv_pasuruan' => redirect()->route('spvpasuruan.admin'),
 

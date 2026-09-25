@@ -1371,6 +1371,7 @@ $total_in_transit = $this->inTransitQueryPasuruan()
                   )");
             })
             ->count();
+            $total_belum_tiba_gudang = $this->applyFilter($this->belumTibaGudangQuery(), $request)->count();
 
         $top_ekspedisi_pemakaian = (clone $base)
             ->select(
@@ -1709,6 +1710,7 @@ $total_in_transit = $this->inTransitQueryPasuruan()
             'totalBiayaKirim',
             'trend_pengiriman_bulanan',
             'ekspedisi',
+            'total_belum_tiba_gudang',
             'top_ekspedisi_pemakaian',
             'total_in_transit',
             'summary_area_ontime',
@@ -1749,6 +1751,7 @@ $total_in_transit = $this->inTransitQueryPasuruan()
             }
         });
     }
+    
 
    private function inTransitQuery()
 {
@@ -2230,6 +2233,41 @@ public function inTransit(Request $request)
 
         return round($value, 2);
     }
+
+   private function belumTibaGudangQuery()
+{
+    return DB::table('logistik_pengiriman')
+        // sudah terinput
+        ->whereNotNull('tanggal_naik_logistik')
+        ->whereNotNull('rencana_kirim')
+        ->whereRaw("TRIM(rencana_kirim) <> ''")
+        ->whereNotNull('tanggal_dpt_unit')
+        ->whereRaw("TRIM(tanggal_dpt_unit) <> ''")
+        // ketiga tanggal tiba gudang harus kosong semua
+        ->where(fn ($q) => $q->whereNull('tanggal_tiba_gudang')->orWhereRaw("TRIM(tanggal_tiba_gudang) = ''"))
+        ->where(fn ($q) => $q->whereNull('tanggal_tiba_gudang_2')->orWhereRaw("TRIM(tanggal_tiba_gudang_2) = ''"))
+        ->where(fn ($q) => $q->whereNull('tanggal_tiba_gudang_3')->orWhereRaw("TRIM(tanggal_tiba_gudang_3) = ''"));
+}
+
+public function belumTibaGudang(Request $request)
+{
+    $query = $this->belumTibaGudangQuery();
+
+    $this->applyFilter($query, $request);
+
+    $list = $query
+        ->orderBy('tanggal_naik_logistik', 'DESC')
+        ->paginate(10)
+        ->withQueryString();
+
+    $list_area = $this->getArea();
+
+    return view('spvplanner.sla_delay', [
+        'title'     => 'BELUM TIBA DI GUDANG',
+        'list'      => $list,
+        'list_area' => $list_area,
+    ]);
+}
 
 
     private function cleanCr($value)

@@ -190,6 +190,7 @@ class UserController extends Controller
             'monitoring' => redirect()->route('monitoring.dashboard'),
             'manager' => redirect()->route('manager.dashboard'),
             'sales' => redirect()->route('sales.dashboard'),
+             'kota_import' => redirect()->route('kota.import.index'), 
             'spvplanner' => redirect()->route('spvplanner.dashboard'),
             'spvmonitoring' => redirect()->route('spvmonitoring.dashboard'),
             'developer' => redirect()->route('developer.dashboard'),

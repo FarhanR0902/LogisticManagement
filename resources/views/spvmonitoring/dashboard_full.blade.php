@@ -944,6 +944,10 @@
                 <h4>Total Shipment</h4>
                 <h1>{{ $total_data }}</h1>
             </a>
+            <a href="{{ route('spvmonitoring.belum.tiba.gudang', request()->query()) }}" class="card orange">
+    <h4>Belum Tiba Di Gudang</h4>
+    <h1>{{ $total_belum_tiba_gudang }}</h1>
+</a>
 
             <a href="{{ route('spvmonitoring.intransit', request()->query()) }}" class="card teal">
     <h4>🚚 In Transit</h4>
