@@ -347,8 +347,8 @@
             },
             scrollX: true,
             scrollCollapse: true,
-            pageLength: 1000,
-            lengthMenu: [1000, 2500, 5000, 10000],
+            pageLength: 50,
+            lengthMenu: [200, 300, 400, 500],
             ordering: true, // sorting dikirim ke backend (dataAjax) via parameter order
             order: [[4, 'asc']], // default: No Shipment ascending
             deferRender: true,

@@ -18,20 +18,22 @@ class LogistikImport implements ToCollection, WithHeadingRow, WithEvents, WithCa
     private static $tarifByRoute = null;
     private const TARIF_TABLE = 'tarif_pengiriman';
     private const ROUTE_ALIASES = [
-        'jabodetabek' => 'Sentul-Jabodetabek',
+    'jabodetabek' => 'Sentul-Jabodetabek',
     ];
 
-    // forward-fill state (merged cell di Excel) - hanya route/mobil/ekpedisi
-    private $lastNoShipment = null;
-    private $lastRoute      = null;
-    private $lastMobil      = null;
-    private $lastEkpedisi   = null;
+    // forward-fill state (merged cell di Excel)
+    private $lastNoShipment  = null;
+    private $lastRoute       = null;
+    private $lastMobil       = null;
+    private $lastEkpedisi    = null;
+    private $lastTotalKubik  = null;
+    private $lastTotalTonase = null;
 
     // ===== hasil proses =====
-    private $inserted = 0;
-    private $updated  = 0;
-    private $skipped  = 0;
-    private $failed   = 0;
+    private $inserted = 0;   // baris baru
+    private $updated  = 0;   // baris lama, ditimpa data terbaru
+    private $skipped  = 0;   // no_shipment/tujuan kosong
+    private $failed   = 0;   // error/exception
     private array $failedList = [];
     private array $allNoShipmentInFile = [];
 
@@ -92,6 +94,7 @@ class LogistikImport implements ToCollection, WithHeadingRow, WithEvents, WithCa
                 } else {
                     $this->updated++;
                 }
+
             } catch (\Throwable $e) {
                 $this->failed++;
                 $this->failedList[] = [
@@ -112,18 +115,22 @@ class LogistikImport implements ToCollection, WithHeadingRow, WithEvents, WithCa
         }
     }
 
+    /**
+     * Bangun array atribut untuk 1 baris. Logic PERSIS SAMA seperti
+     * model() versi lama, cuma sekarang return array (untuk
+     * updateOrCreate), bukan objek Model baru.
+     */
     private function buildAttributes(array $row, string $noShipmentCheck): array
     {
         // ================= GUDANG 1 (KACS) =================
-        $planningLoading         = $this->convertDateTime($row['planning_loading'] ?? null);
-        $tanggalTibaGudang       = $this->convertDateTime($row['tanggal_tiba_di_gudang'] ?? null);
-        $tanggalKeluarGudang     = $this->convertDateTime($row['tanggal_keluar_gudang'] ?? null);
+        $planningLoading   = $this->convertDateTime($row['planning_loading'] ?? null);
+        $tanggalTibaGudang = $this->convertDateTime($row['tanggal_tiba_di_gudang'] ?? null);
 
         $lamaDigudang = null;
         $slaLoading   = null;
 
-        if ($tanggalTibaGudang && $tanggalKeluarGudang) {
-            $selisihGudang = (int) date_diff(date_create($tanggalTibaGudang), date_create($tanggalKeluarGudang))->format('%a');
+        if ($tanggalTibaGudang && $tanggalKeluarGudangForSla = $this->convertDateTime($row['tanggal_keluar_gudang'] ?? null)) {
+            $selisihGudang = (int) date_diff(date_create($tanggalTibaGudang), date_create($tanggalKeluarGudangForSla))->format('%a');
             $lamaDigudang = $selisihGudang . ' Hari';
             $slaLoading = ($selisihGudang == 0) ? 'On Time' : 'Delay';
         }
@@ -138,7 +145,9 @@ class LogistikImport implements ToCollection, WithHeadingRow, WithEvents, WithCa
         $sla_loading_2   = null;
 
         if ($tanggalTibaGudang2 && $tanggalKeluarGudang2) {
-            $jam2 = (strtotime($tanggalKeluarGudang2) - strtotime($tanggalTibaGudang2)) / 3600;
+            $in2  = strtotime($tanggalTibaGudang2);
+            $out2 = strtotime($tanggalKeluarGudang2);
+            $jam2 = ($out2 - $in2) / 3600;
             $lama_digudang_2 = round($jam2, 1) . ' Jam';
             $sla_loading_2 = $jam2 <= 24 ? 'H+0' : ($jam2 <= 48 ? 'H+1' : 'H>1');
         }
@@ -153,7 +162,9 @@ class LogistikImport implements ToCollection, WithHeadingRow, WithEvents, WithCa
         $sla_loading_3   = null;
 
         if ($tanggalTibaGudang3 && $tanggalKeluarGudang3) {
-            $jam3 = (strtotime($tanggalKeluarGudang3) - strtotime($tanggalTibaGudang3)) / 3600;
+            $in3  = strtotime($tanggalTibaGudang3);
+            $out3 = strtotime($tanggalKeluarGudang3);
+            $jam3 = ($out3 - $in3) / 3600;
             $lama_digudang_3 = round($jam3, 1) . ' Jam';
             $sla_loading_3 = $jam3 <= 24 ? 'H+0' : ($jam3 <= 48 ? 'H+1' : 'H>1');
         }
@@ -161,8 +172,12 @@ class LogistikImport implements ToCollection, WithHeadingRow, WithEvents, WithCa
         $totalDoCar = $this->cleanNumber($row['total_do_qty_car'] ?? null);
         $addtText4  = $this->cleanText($row['addt_text'] ?? null);
 
+        $kubikasi = $this->cleanPersen($this->pick($row, ['kubikasi', 'kubikasi_persen', 'kubikasi_1']));
+        $tonase   = $this->cleanPersen($this->pick($row, ['tonase', 'tonase_persen']));
+
         // ================= DATE =================
         $rencanaKirim        = $this->convertDateTime($row['rencana_kirim'] ?? null);
+        $tanggalKeluarGudang = $this->convertDateTime($row['tanggal_keluar_gudang'] ?? null);
         $tanggalTibaAktual   = $this->convertDate($row['tanggal_tiba'] ?? null);
         $tanggalNaikLogistik = $this->convertDateTime($row['tanggal_naik_logistik'] ?? null);
         $tanggalDptUnit      = $this->convertDate($row['tanggal_dpt_unit'] ?? null);
@@ -187,48 +202,59 @@ class LogistikImport implements ToCollection, WithHeadingRow, WithEvents, WithCa
         $custDesc     = $this->cleanText($row['cust_desc'] ?? null);
         $serviceAgent = $this->cleanText($row['service_agent'] ?? null);
 
-        // ================= FORWARD-FILL (route/mobil/ekpedisi saja) =================
+        // ================= FORWARD-FILL =================
         $noShipment = $noShipmentCheck;
 
-        if ($noShipment !== $this->lastNoShipment) {
-            $this->lastRoute    = null;
-            $this->lastMobil    = null;
-            $this->lastEkpedisi = null;
-        }
+       // nilai per tujuan, apa adanya dari Excel (tanpa forward-fill)
+$totalKubik = $this->cleanDecimal($this->pick($row, [
+    'total_kubik', 'total_kubik_m3', 'total_kubik_m_3', 'totalkubik'
+]));
 
-        $route    = $this->applyRouteAlias(
-                        $this->cleanText($row['route'] ?? null) ?: $this->lastRoute
-                    );
+$totalTonase = $this->cleanDecimal($this->pick($row, [
+    'total_tonase', 'total_tonase_ton', 'totaltonase'
+]));
+
+if ($route)    $this->lastRoute    = $route;
+if ($mobil)    $this->lastMobil    = $mobil;
+if ($ekpedisi) $this->lastEkpedisi = $ekpedisi;
+
+$this->lastNoShipment = $noShipment;
+
+     $route    = $this->applyRouteAlias(
+                $this->cleanText($row['route'] ?? null) ?: $this->lastRoute
+            );
         $mobil    = $this->cleanText($row['mobil'] ?? null)    ?: $this->lastMobil;
         $ekpedisi = $this->cleanText($row['ekpedisi'] ?? null) ?: $this->lastEkpedisi;
+
+        $totalKubik = $this->cleanDecimal($this->pick($row, [
+            'total_kubik', 'total_kubik_m3', 'total_kubik_m_3', 'totalkubik'
+        ])) ?? $this->lastTotalKubik;
+
+        $totalTonase = $this->cleanDecimal($this->pick($row, [
+            'total_tonase', 'total_tonase_ton', 'totaltonase'
+        ])) ?? $this->lastTotalTonase;
 
         if ($route)    $this->lastRoute    = $route;
         if ($mobil)    $this->lastMobil    = $mobil;
         if ($ekpedisi) $this->lastEkpedisi = $ekpedisi;
+        if ($totalKubik !== null)  $this->lastTotalKubik  = $totalKubik;
+        if ($totalTonase !== null) $this->lastTotalTonase = $totalTonase;
 
         $this->lastNoShipment = $noShipment;
 
-        // total kubik/tonase: nilai per tujuan apa adanya (TANPA forward-fill)
-        $totalKubik = $this->cleanDecimal($this->pick($row, [
-            'total_kubik', 'total_kubik_m3', 'total_kubik_m_3', 'totalkubik',
-        ]));
-
-        $totalTonase = $this->cleanDecimal($this->pick($row, [
-            'total_tonase', 'total_tonase_ton', 'totaltonase',
-        ]));
-
-        // ================= BIAYA KIRIM & KAPASITAS DARI TARIF =================
+        // ================= BIAYA KIRIM & TARIF =================
         $tarifRow   = $this->findTarif($route, $ekpedisi, $mobil);
         $biayaKirim = $tarifRow
             ? $this->cleanNumberTarif($tarifRow->biaya_kirim)
             : $this->cleanNumber($row['biaya_kirim_rp'] ?? null);
 
-        // kapasitas BUKAN persen -> cleanDecimal (cleanPersen memotong max 100)
-        $kubikasi = $tarifRow ? $this->cleanDecimal($tarifRow->kubikasi ?? null) : null;
-        $tonase   = $tarifRow ? $this->cleanDecimal($tarifRow->tonase ?? null)   : null;
+        $kubikasi = $tarifRow ? $this->cleanPersen($tarifRow->kubikasi ?? null) : null;
+        $tonase   = $tarifRow ? $this->cleanPersen($tarifRow->tonase ?? null)   : null;
+
+     
 
         $tujuan    = $this->cleanText($row['tujuan'] ?? null);
-        $tujuanKey = preg_replace('/\s+/', ' ', trim(strtolower((string) $tujuan)));
+        $tujuanKey = preg_replace('/\s+/', ' ', trim(strtolower($tujuan)));
 
         // ================= LOOKUP MASTER =================
         $customerData = self::$customerMap[$tujuanKey] ?? null;
@@ -286,8 +312,6 @@ class LogistikImport implements ToCollection, WithHeadingRow, WithEvents, WithCa
             $ketersediaanUnit = 'BELUM DAPAT';
         }
 
-        // hasil_kubik / hasil_tonase / pengiriman_optimal / cr
-        // TIDAK dihitung di sini, dihitung per shipment di recalcShipments()
         return [
             'no'                  => $this->cleanText($row['no'] ?? null),
             'create_tgl'          => date('Y-m-d H:i:s'),
@@ -304,22 +328,20 @@ class LogistikImport implements ToCollection, WithHeadingRow, WithEvents, WithCa
 
             'perubahan_mobil'    => $this->cleanText($row['perubahan_mobil'] ?? null),
             'cr'                 => $this->cleanText($row['cr'] ?? null),
-            'kategori_ekspedisi' => $this->getKategoriEkspedisi($noShipmentCheck)
-                                    ?? $this->cleanText($row['kategori_ekspedisi'] ?? null),
+          'kategori_ekspedisi' => $this->getKategoriEkspedisi($noShipmentCheck)
+                        ?? $this->cleanText($row['kategori_ekspedisi'] ?? null),
             'ekpedisi'           => $ekpedisi,
             'kubikasi'           => $kubikasi,
             'tonase'             => $tonase,
             'total_kubik'        => $totalKubik,
             'total_tonase'       => $totalTonase,
-
+          
             'nama_driver'        => $this->cleanText($row['nama_driver'] ?? null),
             'no_pol'             => $this->cleanText($row['no_pol'] ?? ($row['nopol'] ?? null)),
 
             'status_pengiriman' => $this->cleanText($row['status'] ?? null),
 
-'nilai_muatan' => $this->cleanNumber($this->pick($row, [
-    'nilai_muatan', 'nilai_muatan_rp', 'nilai_muatan_rp_', 'nilai_muatan_pasuruan',
-])),
+            'nilai_muatan' => $this->cleanNumber($row['nilai_muatan_rp'] ?? null),
             'biaya_kuli'   => $biayaKuli,
             'biaya_kirim'  => $biayaKirim,
 
@@ -387,15 +409,13 @@ class LogistikImport implements ToCollection, WithHeadingRow, WithEvents, WithCa
             'updated_at' => now(),
         ];
     }
+private function applyRouteAlias(?string $route): ?string
+{
+    if ($route === null || $route === '') return $route;
 
-    private function applyRouteAlias(?string $route): ?string
-    {
-        if ($route === null || $route === '') return $route;
-
-        $key = $this->normalize($route);
-        return self::ROUTE_ALIASES[$key] ?? $route;
-    }
-
+    $key = $this->normalize($route);
+    return self::ROUTE_ALIASES[$key] ?? $route;
+}
     private function generateStatusAlert($sla_tiba, $sla_bongkar)
     {
         $sla_tiba    = strtolower(trim($sla_tiba ?? '-'));
@@ -436,6 +456,19 @@ class LogistikImport implements ToCollection, WithHeadingRow, WithEvents, WithCa
         return (float) $value;
     }
 
+    private function cleanPersen($value)
+    {
+        if ($value === null || $value === '' || $value == '-') return null;
+        $value = str_replace('%', '', (string) $value);
+        $value = str_replace(',', '.', $value);
+        $value = preg_replace('/[^0-9.]/', '', $value);
+        if (!is_numeric($value)) return null;
+        $value = (float) $value;
+        if ($value < 0) $value = 0;
+        if ($value > 100) $value = 100;
+        return round($value, 2);
+    }
+
     private function cleanDecimal($value): ?float
     {
         if ($value === null || $value === '' || $value === '-') return null;
@@ -450,15 +483,19 @@ class LogistikImport implements ToCollection, WithHeadingRow, WithEvents, WithCa
     }
 
     private function getKategoriEkspedisi(?string $noShipment): ?string
-    {
-        $no = trim((string) $noShipment);
+{
+    $no = trim((string) $noShipment);
 
-        if (str_starts_with($no, '45')) return 'Kontrak';
-        if (str_starts_with($no, '42')) return 'Oncall';
+    if (str_starts_with($no, '45')) return 'Kontrak';
+    if (str_starts_with($no, '42')) return 'Oncall';
 
-        return null;
-    }
+    return null;
+}
 
+    /**
+     * Convert nilai tanggal dari Excel/string ke format 'Y-m-d' saja (tanpa jam).
+     * Dipakai untuk kolom yang di DB masih bertipe date.
+     */
     private function convertDate($value)
     {
         if (!$value || $value == '-' || $value == '#VALUE!') return null;
@@ -469,6 +506,13 @@ class LogistikImport implements ToCollection, WithHeadingRow, WithEvents, WithCa
         return $timestamp ? date('Y-m-d', $timestamp) : null;
     }
 
+    /**
+     * Convert nilai tanggal dari Excel/string ke format 'Y-m-d H:i:s' (dengan jam).
+     * Serial number Excel sudah menyimpan jam sebagai pecahan desimal, jadi
+     * Date::excelToDateTimeObject() otomatis membawa jamnya - tinggal jangan
+     * dipotong dengan format('Y-m-d') seperti di convertDate().
+     * Dipakai untuk kolom yang di DB sudah bertipe datetime.
+     */
     private function convertDateTime($value)
     {
         if (!$value || $value == '-' || $value == '#VALUE!') return null;
@@ -543,103 +587,97 @@ class LogistikImport implements ToCollection, WithHeadingRow, WithEvents, WithCa
         return (float) $value;
     }
 
-    // ================= AFTER IMPORT =================
+  public function registerEvents(): array
+{
+    return [
+        AfterImport::class => function () {
 
-    public function registerEvents(): array
-    {
-        return [
-            AfterImport::class => function () {
+            // safety net: isi route/mobil/ekpedisi yang kosong dari baris lain
+            // dalam shipment yang sama (khusus shipment di file ini)
+            $shipments = array_map('strval', array_values(array_unique($this->allNoShipmentInFile)));
 
-                $shipments = array_map('strval', array_values(array_unique($this->allNoShipmentInFile)));
+            foreach (array_chunk($shipments, 500) as $chunk) {
+                $in = implode(',', array_fill(0, count($chunk), '?'));
 
-                // safety net: isi route/mobil/ekpedisi yang kosong dari baris lain
-                // dalam shipment yang sama (khusus shipment di file ini)
-                foreach (array_chunk($shipments, 500) as $chunk) {
-                    $in = implode(',', array_fill(0, count($chunk), '?'));
-
-                    foreach (['route', 'mobil', 'ekpedisi'] as $col) {
-                        DB::update("
-                            UPDATE logistik_pengiriman lp
-                            JOIN (
-                                SELECT no_shipment, MIN($col) AS val
-                                FROM logistik_pengiriman
-                                WHERE $col IS NOT NULL AND $col != ''
-                                  AND no_shipment IN ($in)
-                                GROUP BY no_shipment
-                            ) x ON lp.no_shipment = x.no_shipment
-                            SET lp.$col = x.val
-                            WHERE (lp.$col IS NULL OR lp.$col = '')
-                              AND lp.no_shipment IN ($in)
-                        ", array_merge($chunk, $chunk));
-                    }
+                foreach (['route', 'mobil', 'ekpedisi'] as $col) {
+                    DB::update("
+                        UPDATE logistik_pengiriman lp
+                        JOIN (
+                            SELECT no_shipment, MIN($col) AS val
+                            FROM logistik_pengiriman
+                            WHERE $col IS NOT NULL AND $col != ''
+                              AND no_shipment IN ($in)
+                            GROUP BY no_shipment
+                        ) x ON lp.no_shipment = x.no_shipment
+                        SET lp.$col = x.val
+                        WHERE (lp.$col IS NULL OR lp.$col = '')
+                          AND lp.no_shipment IN ($in)
+                    ", array_merge($chunk, $chunk));
                 }
+            }
 
-                $this->recalcShipments($shipments);
-            },
-        ];
+            $this->recalcShipments($shipments);
+        },
+    ];
+}
+
+private function recalcShipments(array $shipments): void
+{
+    foreach (array_chunk($shipments, 500) as $chunk) {
+        $in = implode(',', array_fill(0, count($chunk), '?'));
+        $bindings = array_merge($chunk, $chunk);
+
+        // ---- CR: per baris, sesuai kontribusi muatan ----
+        DB::update("
+            UPDATE logistik_pengiriman lp
+            JOIN (
+                SELECT no_shipment,
+                       MAX(biaya_kirim) AS biaya,
+                       SUM(COALESCE(nilai_muatan, 0)) AS muatan
+                FROM logistik_pengiriman
+                WHERE no_shipment IN ($in)
+                GROUP BY no_shipment
+            ) x ON lp.no_shipment = x.no_shipment
+            SET lp.cr = IF(
+                x.muatan = 0 OR COALESCE(lp.nilai_muatan, 0) <= 0,
+                0,
+                ROUND((lp.nilai_muatan * COALESCE(x.biaya, 0)) / (x.muatan * x.muatan) * 100, 4)
+            )
+            WHERE lp.no_shipment IN ($in)
+        ", $bindings);
+
+        // ---- HASIL KUBIK / TONASE / OPTIMAL: SUM per shipment / kapasitas ----
+        DB::update("
+            UPDATE logistik_pengiriman lp
+            JOIN (
+                SELECT no_shipment,
+                       SUM(COALESCE(total_kubik, 0))  AS sum_kubik,
+                       SUM(COALESCE(total_tonase, 0)) AS sum_tonase,
+                       MAX(kubikasi) AS kubikasi,
+                       MAX(tonase)   AS tonase
+                FROM logistik_pengiriman
+                WHERE no_shipment IN ($in)
+                GROUP BY no_shipment
+            ) x ON lp.no_shipment = x.no_shipment
+            SET
+                lp.hasil_kubik = CASE
+                    WHEN x.kubikasi > 0 THEN ROUND(x.sum_kubik / x.kubikasi * 100, 2)
+                    ELSE NULL
+                END,
+                lp.hasil_tonase = CASE
+                    WHEN x.tonase > 0 THEN ROUND(x.sum_tonase / x.tonase * 100, 2)
+                    ELSE NULL
+                END,
+                lp.pengiriman_optimal = CASE
+                    WHEN (x.kubikasi > 0 AND (x.sum_kubik  / x.kubikasi * 100) >= 85)
+                      OR (x.tonase   > 0 AND (x.sum_tonase / x.tonase   * 100) >= 85)
+                        THEN 'OPTIMAL'
+                    WHEN x.kubikasi > 0 OR x.tonase > 0
+                        THEN 'TIDAK OPTIMAL'
+                    ELSE NULL
+                END
+            WHERE lp.no_shipment IN ($in)
+        ", $bindings);
     }
-
-    /**
-     * CR: per baris sesuai kontribusi muatan.
-     * Hasil kubik/tonase/optimal: SUM total per shipment / kapasitas.
-     */
-    private function recalcShipments(array $shipments): void
-    {
-        foreach (array_chunk($shipments, 500) as $chunk) {
-            $in = implode(',', array_fill(0, count($chunk), '?'));
-            $bindings = array_merge($chunk, $chunk);
-
-            // ---- CR ----
-            DB::update("
-                UPDATE logistik_pengiriman lp
-                JOIN (
-                    SELECT no_shipment,
-                           MAX(biaya_kirim) AS biaya,
-                           SUM(COALESCE(nilai_muatan, 0)) AS muatan
-                    FROM logistik_pengiriman
-                    WHERE no_shipment IN ($in)
-                    GROUP BY no_shipment
-                ) x ON lp.no_shipment = x.no_shipment
-                SET lp.cr = IF(
-                    x.muatan = 0 OR COALESCE(lp.nilai_muatan, 0) <= 0,
-                    0,
-                    ROUND((lp.nilai_muatan * COALESCE(x.biaya, 0)) / (x.muatan * x.muatan) * 100, 4)
-                )
-                WHERE lp.no_shipment IN ($in)
-            ", $bindings);
-
-            // ---- HASIL KUBIK / TONASE / OPTIMAL ----
-            DB::update("
-                UPDATE logistik_pengiriman lp
-                JOIN (
-                    SELECT no_shipment,
-                           SUM(COALESCE(total_kubik, 0))  AS sum_kubik,
-                           SUM(COALESCE(total_tonase, 0)) AS sum_tonase,
-                           MAX(kubikasi) AS kubikasi,
-                           MAX(tonase)   AS tonase
-                    FROM logistik_pengiriman
-                    WHERE no_shipment IN ($in)
-                    GROUP BY no_shipment
-                ) x ON lp.no_shipment = x.no_shipment
-                SET
-                    lp.hasil_kubik = CASE
-                        WHEN x.kubikasi > 0 THEN ROUND(x.sum_kubik / x.kubikasi * 100, 2)
-                        ELSE NULL
-                    END,
-                    lp.hasil_tonase = CASE
-                        WHEN x.tonase > 0 THEN ROUND(x.sum_tonase / x.tonase * 100, 2)
-                        ELSE NULL
-                    END,
-                    lp.pengiriman_optimal = CASE
-                        WHEN (x.kubikasi > 0 AND (x.sum_kubik  / x.kubikasi * 100) >= 85)
-                          OR (x.tonase   > 0 AND (x.sum_tonase / x.tonase   * 100) >= 85)
-                            THEN 'OPTIMAL'
-                        WHEN x.kubikasi > 0 OR x.tonase > 0
-                            THEN 'TIDAK OPTIMAL'
-                        ELSE NULL
-                    END
-                WHERE lp.no_shipment IN ($in)
-            ", $bindings);
-        }
-    }
+}
 }

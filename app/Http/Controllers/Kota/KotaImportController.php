@@ -8,6 +8,7 @@ use App\Imports\KotaAlasanPendingImport;
 use App\Models\Kota;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 use Maatwebsite\Excel\Facades\Excel;
 use Maatwebsite\Excel\Validators\ValidationException as ExcelValidationException;
@@ -15,6 +16,12 @@ use Throwable;
 
 class KotaImportController extends Controller
 {
+    /**
+     * Kolom yang jadi patokan "1 hitungan" di dashboard.
+     * Semua baris dengan no_so yang sama dianggap SATU hitungan.
+     */
+    private const GROUP_KEY = 'no_so';
+
     /**
      * Halaman form import
      */
@@ -83,6 +90,79 @@ class KotaImportController extends Controller
         return view('kota.dashboard');
     }
 
+    // ==================================================================
+    // HELPER: HITUNG PER NO_SO (BUKAN PER BARIS)
+    // ==================================================================
+
+    /**
+     * Kunci no_so untuk satu baris.
+     * Baris tanpa no_so dihitung sendiri-sendiri (tidak digabung
+     * dengan baris kosong lainnya, dan tidak dibuang).
+     */
+    private function groupKey($row): string
+    {
+        $value = trim((string) ($row->{self::GROUP_KEY} ?? ''));
+
+        return $value !== '' ? $value : '__row_' . spl_object_id($row);
+    }
+
+    /**
+     * Jumlah no_so unik dari sekumpulan baris.
+     */
+    private function countGroups(Collection $rows): int
+    {
+        return $rows->map(fn($r) => $this->groupKey($r))->unique()->count();
+    }
+
+    /**
+     * Gabungkan baris-baris dengan no_so yang sama menjadi SATU baris.
+     * Semua perhitungan dashboard (count, %, rata-rata, skor) lalu jalan di
+     * atas hasil gabungan ini, jadi 1 no_so = 1 hitungan.
+     *
+     * Aturan penggabungan (dalam satu no_so):
+     *  - waktu_pengiriman : PENDING kalau ada satu saja baris PENDING,
+     *                       selain itu TEPAT WAKTU kalau ada baris TEPAT WAKTU
+     *  - tgl_do           : tanggal paling awal dalam no_so
+     *  - Kubikasi/tonase/jumlah_toko : nilai terbesar dalam no_so
+     *  - kolom lain (pic, driver, area, tujuan, alasan_pending) : nilai pertama yang terisi
+     */
+    private function collapseByNoSo(Collection $rows): Collection
+    {
+        return $rows
+            ->groupBy(fn($r) => $this->groupKey($r))
+            ->map(function (Collection $g) {
+                $first = fn(string $col) => $g->pluck($col)->first(
+                    fn($v) => $v !== null && $v !== ''
+                );
+                $max = fn(string $col) => $g->pluck($col)
+                    ->filter(fn($v) => $v !== null && $v !== '')
+                    ->max();
+
+                if ($g->contains('waktu_pengiriman', 'PENDING')) {
+                    $waktu = 'PENDING';
+                } elseif ($g->contains('waktu_pengiriman', 'TEPAT WAKTU')) {
+                    $waktu = 'TEPAT WAKTU';
+                } else {
+                    $waktu = $first('waktu_pengiriman');
+                }
+
+                return (object) [
+                    'tgl_do'           => $g->pluck('tgl_do')->filter()->sort()->first(),
+                    'pic_driver'       => $first('pic_driver'),
+                    'pic_toko'         => $first('pic_toko'),
+                    'nama_driver'      => $first('nama_driver'),
+                    'tujuan'           => $first('tujuan'),
+                    'area_besar'       => $first('area_besar'),
+                    'alasan_pending'   => $first('alasan_pending'),
+                    'waktu_pengiriman' => $waktu,
+                    'jumlah_toko'      => $max('jumlah_toko'),
+                    'Kubikasi'         => $max('Kubikasi'),
+                    'tonase'           => $max('tonase'),
+                ];
+            })
+            ->values();
+    }
+
     /**
      * Data agregat untuk semua pivot dashboard (dipanggil via AJAX)
      */
@@ -103,11 +183,13 @@ class KotaImportController extends Controller
             $query->where('pic_driver', $request->pic);
         }
 
-        // ================= TABLE 1: Avg Kubikasi & Tonase per PIC/Driver =================
-        $rows = (clone $query)
-            ->select('pic_driver', 'nama_driver', 'Kubikasi', 'tonase')
-            ->whereNotNull('pic_driver')
-            ->get();
+        // ================= TABLE 1: Avg Kubikasi & Tonase per PIC/Driver (per no_so) =================
+        $rows = $this->collapseByNoSo(
+            (clone $query)
+                ->select(self::GROUP_KEY, 'tgl_do', 'pic_driver', 'nama_driver', 'Kubikasi', 'tonase')
+                ->whereNotNull('pic_driver')
+                ->get()
+        );
 
         $avgPicGrouped = $rows->groupBy('pic_driver')->map(function ($items, $pic) {
             $byDriver = $items->groupBy('nama_driver')->map(function ($driverItems, $driverName) {
@@ -132,9 +214,10 @@ class KotaImportController extends Controller
             'grand_avg_tonase'   => round($rows->avg('tonase'), 2),
         ];
 
-        // ================= TABLE 2: Count Toko/Tujuan per PIC =================
+        // ================= TABLE 2: Count Toko/Tujuan per PIC (no_so unik) =================
+        // no_so multi-tujuan dihitung 1x di tiap tujuannya, dan 1x di total PIC.
         $rowsToko = (clone $query)
-            ->select('pic_toko', 'tujuan')
+            ->select(self::GROUP_KEY, 'pic_toko', 'tujuan')
             ->whereNotNull('pic_toko')
             ->get();
 
@@ -142,13 +225,13 @@ class KotaImportController extends Controller
             $tujuans = $items->groupBy('tujuan')->map(function ($tujuanItems, $tujuanName) {
                 return [
                     'tujuan' => $tujuanName ?: '(Tanpa Tujuan)',
-                    'total'  => $tujuanItems->count(),
+                    'total'  => $this->countGroups($tujuanItems),
                 ];
             })->values();
 
             return [
                 'pic'       => $pic,
-                'total_pic' => $items->count(),
+                'total_pic' => $this->countGroups($items),
                 'tujuans'   => $tujuans,
             ];
         })->values();
@@ -184,14 +267,20 @@ class KotaImportController extends Controller
     /**
      * TABLE 3: Bulan -> PIC (pic_driver) -> Nama Driver
      * Menghitung count Tepat Waktu / Pending + persentase + penilaian (target tetap)
+     * Semua hitungan per no_so.
      */
     private function buildKpiPicDriver($query)
     {
-        $rows = $query
-            ->select('tgl_do', 'pic_driver', 'nama_driver', 'waktu_pengiriman', 'jumlah_toko', 'Kubikasi', 'tonase')
-            ->whereNotNull('pic_driver')
-            ->whereNotNull('tgl_do')
-            ->get();
+        $rows = $this->collapseByNoSo(
+            $query
+                ->select(
+                    self::GROUP_KEY, 'tgl_do', 'pic_driver', 'nama_driver',
+                    'waktu_pengiriman', 'jumlah_toko', 'Kubikasi', 'tonase'
+                )
+                ->whereNotNull('pic_driver')
+                ->whereNotNull('tgl_do')
+                ->get()
+        );
 
         $months = $rows->groupBy(function ($row) {
             return Carbon::parse($row->tgl_do)->format('m');
@@ -221,20 +310,13 @@ class KotaImportController extends Controller
                 $total   = $picRows->count();
 
                 // ================= SKOR JUMLAH TOKO =================
-                // PENTING: skor dihitung PER SHIPMENT (per baris), berdasarkan nilai
-                // jumlah_toko masing-masing baris terhadap rubrik scoreJumlahToko(),
-                // lalu di rata-rata untuk mendapat "Penilaian" per PIC.
-                //
-                // Ini BUKAN "rata-rata jumlah_toko lalu discore" — pendekatan itu
-                // menghasilkan angka yang berbeda dari pivot Excel sumbernya.
-                // Contoh (IRSAN): jumlah_toko 1..8 dengan count 34/45/84/85/78/52/19/126
-                // -> skor per baris 20/40/50/50/80/80/80/100
-                // -> rata-rata tertimbang = 67.78 ≈ 68 (sesuai pivot), BUKAN 50
-                //    (yang akan didapat kalau men-score rata-rata jumlah_toko ≈4.89).
+                // Skor dihitung PER NO_SO berdasarkan jumlah_toko-nya terhadap rubrik
+                // scoreJumlahToko(), lalu dirata-rata untuk mendapat "Penilaian" per PIC.
+                // BUKAN "rata-rata jumlah_toko lalu discore".
                 $avgJumlahToko = $picRows->avg('jumlah_toko');
                 $avgJumlahToko = $avgJumlahToko !== null ? round($avgJumlahToko, 2) : null;
 
-                $skorTokoPerBaris = $picRows
+                $skorTokoPerNoSo = $picRows
                     ->filter(function ($r) {
                         return $r->jumlah_toko !== null;
                     })
@@ -242,13 +324,12 @@ class KotaImportController extends Controller
                         return $this->scoreJumlahToko((float) $r->jumlah_toko);
                     });
 
-                $penilaianToko = $skorTokoPerBaris->count()
-                    ? (int) round($skorTokoPerBaris->avg())
+                $penilaianToko = $skorTokoPerNoSo->count()
+                    ? (int) round($skorTokoPerNoSo->avg())
                     : null;
 
                 // ================= SKOR KUBIKASI/TONASE =================
                 // Berdasarkan nilai TERTINGGI antara avg_kubikasi vs avg_tonase dalam bulan itu
-                // (pendekatan ini sudah sesuai dengan pivot sumber — tidak diubah)
                 $avgKubikasi = $picRows->avg('Kubikasi');
                 $avgTonase   = $picRows->avg('tonase');
                 $pctKubikasiTonase = ($avgKubikasi !== null || $avgTonase !== null)
@@ -302,7 +383,7 @@ class KotaImportController extends Controller
     }
 
     /**
-     * Skor "Jumlah Toko" untuk SATU baris/shipment (nilai jumlah_toko mentah, bukan rata-rata).
+     * Skor "Jumlah Toko" untuk SATU no_so (nilai jumlah_toko mentah, bukan rata-rata).
      * Rubrik:
      *   Excellent            : 8         -> 100
      *   Good                 : 5 - 7     -> 80
@@ -353,14 +434,16 @@ class KotaImportController extends Controller
 
     /**
      * TABLE 4: Bulan -> Alasan Pending (None kalau kosong) -> PIC
-     * (dipakai di dashboard lama, per-bulan % dihitung dari total bulan itu sendiri)
+     * (per-bulan % dihitung dari total bulan itu sendiri, per no_so)
      */
     private function buildKpiAlasanPending($query)
     {
-        $rows = $query
-            ->select('tgl_do', 'pic_driver', 'alasan_pending', 'waktu_pengiriman')
-            ->whereNotNull('tgl_do')
-            ->get();
+        $rows = $this->collapseByNoSo(
+            $query
+                ->select(self::GROUP_KEY, 'tgl_do', 'pic_driver', 'alasan_pending', 'waktu_pengiriman')
+                ->whereNotNull('tgl_do')
+                ->get()
+        );
 
         $months = $rows->groupBy(function ($row) {
             return Carbon::parse($row->tgl_do)->format('m');
@@ -419,15 +502,16 @@ class KotaImportController extends Controller
     }
 
     /**
-     * TABLE 5: Bulan -> Area (kolom 'tujuan') -> count & %
-     * (dipakai di dashboard lama)
+     * TABLE 5: Bulan -> Area (kolom 'area_besar') -> count & % (per no_so)
      */
     private function buildKpiArea($query)
     {
-        $rows = $query
-            ->select('tgl_do', 'area_besar')
-            ->whereNotNull('tgl_do')
-            ->get();
+        $rows = $this->collapseByNoSo(
+            $query
+                ->select(self::GROUP_KEY, 'tgl_do', 'area_besar')
+                ->whereNotNull('tgl_do')
+                ->get()
+        );
 
         $months = $rows->groupBy(function ($row) {
             return Carbon::parse($row->tgl_do)->format('m');
@@ -466,7 +550,7 @@ class KotaImportController extends Controller
 
     /**
      * Data untuk halaman KPI Analysis
-     * (% dihitung dari grand total keseluruhan data, sesuai pola pivot di gambar)
+     * (% dihitung dari grand total no_so keseluruhan data)
      */
     public function kpiAnalysisData(Request $request)
     {
@@ -479,9 +563,15 @@ class KotaImportController extends Controller
             $query->whereMonth('tgl_do', $request->month);
         }
 
-        $allRows = $query->select('tgl_do', 'pic_driver', 'area_besar', 'alasan_pending', 'waktu_pengiriman')
-            ->whereNotNull('tgl_do')
-            ->get();
+        $allRows = $this->collapseByNoSo(
+            $query
+                ->select(
+                    self::GROUP_KEY, 'tgl_do', 'pic_driver', 'area_besar',
+                    'alasan_pending', 'waktu_pengiriman'
+                )
+                ->whereNotNull('tgl_do')
+                ->get()
+        );
 
         $grandTotal = $allRows->count();
 
@@ -585,6 +675,7 @@ class KotaImportController extends Controller
 
     /**
      * Data untuk DataTables server-side (dipanggil via AJAX)
+     * TETAP per baris (ini daftar detail, bukan pivot dashboard).
      */
     public function dataAjax(Request $request)
     {

@@ -58,6 +58,7 @@ class LogistikPengirimanPasuruan extends Model
     'no',
 
     'tanggal_terima_po_pasuruan',
+    'reason_pengiriman_optimal_pasuruan',
     'rencana_kirim_pasuruan',
     'tonase_pasuruan',
     'total_kubik_pasuruan',

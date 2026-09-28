@@ -1056,33 +1056,39 @@ tbody tr:last-child td{ border-bottom:none; }
 
 <div class="two-col">
 
-    <div class="table-box">
-        <h3>👤 Summary Planner</h3>
-        <div class="table-scroll">
-        <table>
-            <thead>
-                <tr>
-                    <th>Planner</th>
-                    <th class="num">Jumlah</th>
-                    <th class="num">On Time</th>
-                    <th class="num">Delay</th>
-                </tr>
-            </thead>
-            <tbody>
-            @forelse($summary_planner as $p)
-                <tr>
-                    <td>{{ $p->planner }}</td>
-                    <td class="num">{{ number_format($p->total) }}</td>
-                    <td class="num"><span class="badge badge-green">{{ number_format($p->total_ontime) }}</span></td>
-                    <td class="num"><span class="badge badge-red">{{ number_format($p->total_delay) }}</span></td>
-                </tr>
-            @empty
-                <tr><td colspan="4" class="empty-row">Belum ada data planner</td></tr>
-            @endforelse
-            </tbody>
-        </table>
-        </div>
+   <div class="table-box">
+    <h3>👤 Summary Planner</h3>
+    <div class="table-scroll">
+    <table>
+        <thead>
+            <tr>
+                <th>Planner</th>
+                <th class="num">Jumlah</th>
+                <th class="num">Belum Isi No Shipment</th>
+                <th class="num">On Time</th>
+                <th class="num">Delay</th>
+            </tr>
+        </thead>
+        <tbody>
+        @forelse($summary_planner as $p)
+            <tr>
+                <td>{{ $p->planner }}</td>
+                <td class="num">{{ number_format($p->total) }}</td>
+                <td class="num">
+                    <span class="badge {{ $p->total_belum_shipment > 0 ? 'badge-red' : 'badge-green' }}">
+                        {{ number_format($p->total_belum_shipment) }}
+                    </span>
+                </td>
+                <td class="num"><span class="badge badge-green">{{ number_format($p->total_ontime) }}</span></td>
+                <td class="num"><span class="badge badge-red">{{ number_format($p->total_delay) }}</span></td>
+            </tr>
+        @empty
+            <tr><td colspan="5" class="empty-row">Belum ada data planner</td></tr>
+        @endforelse
+        </tbody>
+    </table>
     </div>
+</div>
 
     <div class="table-box">
         <h3>🕵️ Summary PIC Monitoring</h3>

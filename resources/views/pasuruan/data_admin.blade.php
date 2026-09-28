@@ -567,6 +567,7 @@ table.dataTable.dtfc-has-left th:nth-child(4).dtfc-fixed-left {
 <th class="th-system">Hasil Kubik (%)</th>
 <th class="th-system">Hasil Tonase (%)</th>
 <th class="th-system">Pengiriman Optimal</th>
+<th class="th-oren">Reason Pengiriman Optimal</th>
                                     <th class="th-system">Biaya Kirim</th>
                                     <th class="th-system">CR (%)</th>
                                     <th class="th-system">Status Mobil</th>
@@ -749,6 +750,10 @@ $('form').on('submit', function() {
                             theme: 'bootstrap-5', width: '100%', placeholder: 'Pilih Reason Tiba',
                             allowClear: true, dropdownAutoWidth: true, dropdownParent: $('body')
                         });
+                        $('.reason-optimal-select').select2({
+    theme: 'bootstrap-5', width: '100%', placeholder: 'Pilih Reason Optimal',
+    allowClear: true, dropdownAutoWidth: true, dropdownParent: $('body')
+});
                         $('.reason-bongkar-select').select2({
                             theme: 'bootstrap-5', width: '100%', placeholder: 'Pilih Reason Bongkar',
                             allowClear: true, dropdownAutoWidth: true, dropdownParent: $('body')
@@ -910,7 +915,7 @@ $('form').on('submit', function() {
     },
 columnDefs: [{
     className: "dt-center",
-    targets: [0, 24, 25, 26, 31, 32, 33, 34, 35, 36]
+    targets: [0, 24, 25, 26, 31, 32, 33, 34, 35, 36, 37]
 }],
 
                         // ====================================================
@@ -1032,6 +1037,7 @@ columnDefs: [{
                                 tanggal_terima_po_pasuruan: row.find('[name="tanggal_terima_po_pasuruan"]').val(),
                                 selisih_quantity_pasuruan: row.find('[name="selisih_quantity_pasuruan"]').val(),
                                 reason_selisih_quantity_pasuruan: row.find('[name="reason_selisih_quantity_pasuruan"]').val(),
+                                reason_pengiriman_optimal_pasuruan: row.find('[name="reason_pengiriman_optimal_pasuruan"]').val(),
                                 planner_pasuruan: row.find('[name="planner_pasuruan"]').val(),
                                 no_shipment_pasuruan: row.find('[name="no_shipment_pasuruan"]').val(),
                                 total_do_pasuruan: row.find('[name="total_do_pasuruan"]').val(),

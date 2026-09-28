@@ -111,6 +111,7 @@ public function importQtyPgi(Request $request)
 
     $import = new UpdateQtyPgiImport;
     Excel::import($import, $request->file('file'));
+    
 
     $message = "Qty DO: {$import->getQtyUpdated()} baris berhasil diupdate.";
 
@@ -1600,18 +1601,22 @@ $total_in_transit = $this->inTransitQueryPasuruan()
     END
 ";
 
-        $summary_planner = (clone $base)
-            ->select(
-                'planner',
-                DB::raw('COUNT(*) as total'),
-                DB::raw("SUM(CASE WHEN ({$lastPlanning}) IS NOT NULL AND ({$lastTiba}) IS NOT NULL AND DATE({$lastTiba}) <= DATE({$lastPlanning}) THEN 1 ELSE 0 END) as total_ontime"),
-                DB::raw("SUM(CASE WHEN ({$lastPlanning}) IS NOT NULL AND ({$lastTiba}) IS NOT NULL AND DATE({$lastTiba}) > DATE({$lastPlanning}) THEN 1 ELSE 0 END) as total_delay")
-            )
-            ->whereNotNull('planner')
-            ->where('planner', '!=', '')
-            ->groupBy('planner')
-            ->orderByDesc('total')
-            ->get();
+$belumIsi = "NULLIF(TRIM(tanggal_naik_logistik), '') IS NULL";
+$shipment = "NULLIF(TRIM(no_shipment), '')"; // no_shipment kosong tidak ikut dihitung
+
+$summary_planner = (clone $base)
+    ->select(
+        'planner',
+        DB::raw("COUNT(DISTINCT {$shipment}) as total"),
+        DB::raw("COUNT(DISTINCT CASE WHEN {$belumIsi} THEN {$shipment} END) as total_belum_shipment"),
+        DB::raw("COUNT(DISTINCT CASE WHEN ({$lastPlanning}) IS NOT NULL AND ({$lastTiba}) IS NOT NULL AND DATE({$lastTiba}) <= DATE({$lastPlanning}) THEN {$shipment} END) as total_ontime"),
+        DB::raw("COUNT(DISTINCT CASE WHEN ({$lastPlanning}) IS NOT NULL AND ({$lastTiba}) IS NOT NULL AND DATE({$lastTiba}) > DATE({$lastPlanning}) THEN {$shipment} END) as total_delay")
+    )
+    ->whereNotNull('planner')
+    ->where('planner', '!=', '')
+    ->groupBy('planner')
+    ->orderByDesc('total')
+    ->get();
         // ================= SUMMARY PIC MONITORING (jumlah shipment + ontime/delay kedatangan) =================
         // On time = tanggal_tiba <= estimasi_tiba (sama logic kayak $customer_ontime di atas)
         $summary_pic_monitoring = (clone $base)
