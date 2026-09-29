@@ -12,12 +12,6 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
 class LogistikExport implements FromCollection, WithHeadings, WithMapping, WithStyles, ShouldAutoSize
 {
-    /**
-     * Kalau class ini dibuat dengan parameter (misal dari SalesController
-     * yang sudah kirim collection hasil query ter-filter), pakai itu.
-     * Kalau dibuat tanpa parameter (misal dari LogistikController::export()),
-     * ambil sendiri dari model + filter session dist_channel.
-     */
     protected $rows;
 
     public function __construct($rows = null)
@@ -25,16 +19,6 @@ class LogistikExport implements FromCollection, WithHeadings, WithMapping, WithS
         $this->rows = $rows;
     }
 
-    
-
-    /**
-     * =========================================================
-     * DATA SOURCE
-     * =========================================================
-     * Export WAJIB ikut scope dist_channel yang lagi login,
-     * sama persis kayak filterByDistChannel() di controller.
-     * Jadi user role sales cuma bisa export data channel dia sendiri.
-     */
     public function collection()
     {
         if ($this->rows !== null) {
@@ -44,7 +28,6 @@ class LogistikExport implements FromCollection, WithHeadings, WithMapping, WithS
         $query = LogistikPengiriman::query();
 
         $channel = session('dist_channel');
-
         if ($channel) {
             $query->whereRaw('LOWER(TRIM(dist_channel)) = ?', [strtolower(trim($channel))]);
         }
@@ -52,17 +35,14 @@ class LogistikExport implements FromCollection, WithHeadings, WithMapping, WithS
         return $query->orderBy('id', 'DESC')->get();
     }
 
-    /**
-     * =========================================================
-     * HEADER KOLOM EXCEL
-     * =========================================================
-     */
     public function headings(): array
     {
         return [
             'Tanggal Naik Logistik',
             'Rencana Kirim',
             'Transport Lead Time',
+            'Nama Driver',
+            'No Pol',
             'Planner',
             'No Shipment',
             'Status Perjalanan',
@@ -71,9 +51,19 @@ class LogistikExport implements FromCollection, WithHeadings, WithMapping, WithS
             'Area',
             'Status Mobil',
             'Mobil',
+            'Perubahan Mobil',
+            'Total DO Qty Car',
             'Nilai Muatan',
             'Biaya Kirim',
             'CR (%)',
+            'Kubikasi (%)',
+            'Tonase (%)',
+            'Total Kubik',
+            'Total Tonase',
+            'Hasil Kubik (%)',
+            'Hasil Tonase (%)',
+            'Pengiriman Optimal',
+            'Reason Optimal',
             'Kategori Ekspedisi',
             'Ekspedisi',
             'Tanggal Dpt Unit',
@@ -105,28 +95,34 @@ class LogistikExport implements FromCollection, WithHeadings, WithMapping, WithS
             'Status Gudang 3',
 
             'PIC Monitoring',
+            'Status Kendaraan',
+            'Alert Estimasi Tiba',
+            'Action Required',
+
+            'Act Urutan Bongkar',
+            'Qty Monitoring',
+            'Selisih Qty',
+            'Biaya Kuli',
+            'Total Biaya Kuli',
+            'Remarks Qty',
+            'Act PGI Date',
+            'Created By',
+
+            // Transport laut
             'Nama Kapal',
             'ETD',
             'ETA',
-            'Status Kendaraan',
-            'Alert Estimasi Tiba',
-
-            'Act Urutan Bongkar',
-            'Total DO Qty Car',
-            'Qty Monitoring',
-            
-            'Selisih Qty',
-            'Biaya Kuli',
-            'Remarks Qty',
-            'Act PGI Date',
-
             'ATD',
             'ATA',
+            'Transport Laut',
+
             'Estimasi Tiba',
             'Tanggal Tiba',
+            'Waktu Tiba',
             'Lama Perjalanan (Hari)',
             'SLA Tiba',
             'Tanggal Bongkar',
+            'Waktu Bongkar',
             'Overstay Bongkar (Hari)',
             'SLA Bongkar',
             'Reason Tiba',
@@ -138,20 +134,16 @@ class LogistikExport implements FromCollection, WithHeadings, WithMapping, WithS
             'Remarks',
             'Route',
             'Asal (Route)',
+            'Shipping Point',
             'Pulau',
             'Via Kirim',
         ];
     }
 
-    /**
-     * =========================================================
-     * MAPPING TIAP BARIS
-     * =========================================================
-     */
     public function map($r): array
     {
         // ---------------------------------------------------
-        // STATUS PERJALANAN UTAMA (badge di kolom awal tabel)
+        // STATUS PERJALANAN UTAMA
         // ---------------------------------------------------
         $dpt = $r->tanggal_dpt_unit;
 
@@ -185,14 +177,14 @@ class LogistikExport implements FromCollection, WithHeadings, WithMapping, WithS
         }
 
         // ---------------------------------------------------
-        // STATUS MOBIL (SUDAH DAPAT / BELUM DAPAT)
+        // STATUS MOBIL
         // ---------------------------------------------------
         $statusMobil = (empty($r->rencana_kirim) || empty($r->tanggal_dpt_unit))
             ? 'BELUM DAPAT'
             : 'SUDAH DAPAT';
 
         // ---------------------------------------------------
-        // GUDANG 1: DURASI, STATUS ON TIME/DELAY, SLA LOADING
+        // GUDANG 1: DURASI, STATUS, SLA LOADING
         // ---------------------------------------------------
         $durasiText   = '-';
         $statusGudang = '-';
@@ -237,7 +229,7 @@ class LogistikExport implements FromCollection, WithHeadings, WithMapping, WithS
         }
 
         // ---------------------------------------------------
-        // ALERT ESTIMASI TIBA (H-x / OVERDUE / ON TRACK)
+        // ALERT ESTIMASI TIBA
         // ---------------------------------------------------
         $estimasi     = !empty($r->estimasi_tiba) ? strtotime($r->estimasi_tiba) : null;
         $estimasiShow = $estimasi ? date('d-m-Y', $estimasi) : '-';
@@ -285,22 +277,21 @@ class LogistikExport implements FromCollection, WithHeadings, WithMapping, WithS
             $lamaPerjalanan = floor(($tibaTs - $keluarTimestamp) / 86400);
         }
 
-  // ---------------------------------------------------
-// OVERSTAY BONGKAR
-// Ambil langsung dari database agar sama dengan tampilan aplikasi
-// ---------------------------------------------------
-if (!is_null($r->overstay_days)) {
-    $overBongkar = $r->overstay_days;
-} elseif (!empty($r->tanggal_tiba) && !empty($r->tanggal_bongkar)) {
-    $tibaC    = \Carbon\Carbon::parse($r->tanggal_tiba)->startOfDay();
-    $bongkarC = \Carbon\Carbon::parse($r->tanggal_bongkar)->startOfDay();
-
-    $overBongkar = $tibaC->diffInDays($bongkarC);
-} else {
-    $overBongkar = '-';
-}
         // ---------------------------------------------------
-        // STATUS PENGIRIMAN (Dalam Perjalanan / Unloading / Ontime / Delay)
+        // OVERSTAY BONGKAR
+        // ---------------------------------------------------
+        if (!is_null($r->overstay_days)) {
+            $overBongkar = $r->overstay_days;
+        } elseif (!empty($r->tanggal_tiba) && !empty($r->tanggal_bongkar)) {
+            $tibaC    = \Carbon\Carbon::parse($r->tanggal_tiba)->startOfDay();
+            $bongkarC = \Carbon\Carbon::parse($r->tanggal_bongkar)->startOfDay();
+            $overBongkar = $tibaC->diffInDays($bongkarC);
+        } else {
+            $overBongkar = '-';
+        }
+
+        // ---------------------------------------------------
+        // STATUS PENGIRIMAN / DELIVERED
         // ---------------------------------------------------
         $slaTiba    = strtoupper(trim($r->sla_tiba ?? ''));
         $slaBongkar = strtoupper(trim($r->sla_bongkar ?? ''));
@@ -315,9 +306,6 @@ if (!is_null($r->overstay_days)) {
             $statusPengiriman = 'Pengiriman Delay';
         }
 
-        // ---------------------------------------------------
-        // STATUS DELIVERED (kombinasi SLA tiba & bongkar)
-        // ---------------------------------------------------
         if ($slaTiba == 'ON TIME' && $slaBongkar == 'ON TIME') {
             $statusDelivered = 'Delivered Ontime';
         } elseif ($slaTiba == 'DELAY' && $slaBongkar == 'ON TIME') {
@@ -331,19 +319,44 @@ if (!is_null($r->overstay_days)) {
         }
 
         // ---------------------------------------------------
-        // ROUTE AWAL (bagian pertama sebelum tanda '-')
+        // HASIL KUBIK / TONASE / PENGIRIMAN OPTIMAL
+        // ---------------------------------------------------
+        $hasilKubik = null;
+        if (!empty($r->kubikasi) && (float) $r->kubikasi > 0) {
+            $hasilKubik = ((float) ($r->total_kubik ?? 0) / (float) $r->kubikasi) * 100;
+        }
+
+        $hasilTonase = null;
+        if (!empty($r->tonase) && (float) $r->tonase > 0) {
+            $hasilTonase = ((float) ($r->total_tonase ?? 0) / (float) $r->tonase) * 100;
+        }
+
+        $pengirimanOptimal = '-';
+        if ($hasilKubik !== null || $hasilTonase !== null) {
+            $isOptimal = ($hasilKubik !== null && $hasilKubik >= 85)
+                || ($hasilTonase !== null && $hasilTonase >= 85);
+            $pengirimanOptimal = $isOptimal ? 'Optimal' : 'Tidak Optimal';
+        }
+
+        // ---------------------------------------------------
+        // ROUTE AWAL
         // ---------------------------------------------------
         $routeAwal = $r->route ? explode('-', trim($r->route))[0] : '-';
 
         // ---------------------------------------------------
-        // HELPER FORMAT TANGGAL
+        // HELPER FORMAT
         // ---------------------------------------------------
         $fmt = fn($d) => $d ? date('d-m-Y', strtotime($d)) : '-';
+        $fmtWaktu = fn($t) => $t ? substr((string) $t, 0, 5) : '-';
+        $fmtPersen = fn($v) => ($v !== null && $v !== '') ? number_format((float) $v, 2, ',', '.') . '%' : '-';
+        $fmtDesimal = fn($v) => ($v !== null && $v !== '') ? number_format((float) $v, 2, ',', '.') : '-';
 
         return [
             $fmt($r->tanggal_naik_logistik),
             $fmt($r->rencana_kirim),
             $r->transport_lead_time,
+            $r->nama_driver,
+            $r->no_pol,
             $r->planner,
             $r->no_shipment,
             $statusPerjalanan,
@@ -352,10 +365,19 @@ if (!is_null($r->overstay_days)) {
             $r->area,
             $statusMobil,
             $r->mobil,
-           
+            $r->perubahan_mobil,
+            $r->total_do_qty_car,
             $r->nilai_muatan,
             $r->biaya_kirim,
             $r->cr,
+            $fmtPersen($r->kubikasi ?? null),
+            $fmtPersen($r->tonase ?? null),
+            $fmtDesimal($r->total_kubik ?? null),
+            $fmtDesimal($r->total_tonase ?? null),
+            $hasilKubik !== null ? number_format($hasilKubik, 2, ',', '.') . '%' : '-',
+            $hasilTonase !== null ? number_format($hasilTonase, 2, ',', '.') . '%' : '-',
+            $pengirimanOptimal,
+            $r->reason_optimal,
             $r->kategori_ekspedisi,
             $r->ekpedisi,
             $fmt($r->tanggal_dpt_unit),
@@ -387,28 +409,34 @@ if (!is_null($r->overstay_days)) {
             $r->status_gudang_3,
 
             $r->pic_monitoring,
+            $r->status_kendaraan,
+            $alert,
+            $r->action_required,
+
+            $r->act_urutan_bongkar,
+            $r->qty_monitoring,
+            $r->selisih_qty,
+            $r->biaya_kuli,
+            $r->total_biaya_kuli,
+            $r->remarks_qty,
+            $fmt($r->act_pgi_date),
+            $r->created_by,
+
+            // Transport laut
             $r->nama_kapal,
             $r->etd,
             $r->eta,
-            $r->status_kendaraan,
-            $alert,
-
-            $r->act_urutan_bongkar,
-            $r->total_do_qty_car,
-            $r->qty_monitoring,
-            
-            $r->selisih_qty,
-             $r->total_biaya_kuli,
-            $r->remarks_qty,
-            $fmt($r->act_pgi_date),
-
             $r->atd,
             $r->ata,
+            $r->transport_laut,
+
             $estimasiShow,
             $fmt($r->tanggal_tiba),
+            $fmtWaktu($r->waktu_tiba ?? null),
             $lamaPerjalanan,
             $r->sla_tiba,
             $fmt($r->tanggal_bongkar),
+            $fmtWaktu($r->waktu_bongkar ?? null),
             $overBongkar,
             $r->sla_bongkar,
             $r->reason_tiba,
@@ -420,16 +448,12 @@ if (!is_null($r->overstay_days)) {
             $r->remarks,
             $r->route,
             $routeAwal,
+            $r->shipping_point,
             $r->pulau,
             $r->via_kirim,
         ];
     }
 
-    /**
-     * =========================================================
-     * STYLE HEADER (bold)
-     * =========================================================
-     */
     public function styles(Worksheet $sheet)
     {
         return [

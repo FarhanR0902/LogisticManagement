@@ -610,9 +610,15 @@ public function belumTibaGudang(Request $request)
 
         $logistik->act_urutan_bongkar = $request->act_urutan_bongkar;
 
-        $logistik->tanggal_tiba    = $request->tanggal_tiba;
-        $logistik->tanggal_bongkar = $request->tanggal_bongkar;
+      $logistik->tanggal_tiba    = $request->tanggal_tiba;
+$logistik->waktu_tiba      = ($request->filled('tanggal_tiba') && $request->filled('waktu_tiba'))
+    ? $request->waktu_tiba
+    : null;
 
+$logistik->tanggal_bongkar = $request->tanggal_bongkar;
+$logistik->waktu_bongkar   = ($request->filled('tanggal_bongkar') && $request->filled('waktu_bongkar'))
+    ? $request->waktu_bongkar
+    : null;
         $logistik->overstay_days   = $overstay;
         $logistik->lama_perjalanan = $lama_perjalanan;
 

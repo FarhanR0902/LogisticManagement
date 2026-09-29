@@ -537,18 +537,21 @@
                             <th>Planning Loading KACS</th>
                             <th>Tanggal Tiba KACS</th>
                             <th>Tanggal Keluar KACS</th>
+                            <th>Reason KACS</th>    
                             <th>Lama Di KACS</th>
                             <th>Status KACS</th>
                             <th>SLA Loading</th>
                             <th>Planning Loading Sentul</th>
                             <th>Tanggal Tiba Sentul</th>
                             <th>Tanggal Keluar Sentul</th>
+                            <th>Reason Sentul</th>    
                             <th>Lama Di Sentul</th>
                             <th>SLA Loading Sentul</th>
                             <th>Status Sentul</th>
                             <th>Planning Loading CCIE</th>
                             <th>Tanggal Tiba CCIE</th>
                             <th>Tanggal Keluar CCIE</th>
+                            <th>Reason CCIE</th>    
                             <th>Lama Di CCIE</th>
                             <th>SLA Loading CCIE</th>
                             <th>Status CCIE</th>
@@ -569,9 +572,11 @@
                             <th>ATA</th>
                             <th>Tanggal Estimasi</th>
                             <th>Tanggal Tiba</th>
+                            <th>Waktu Tiba</th>     
                             <th>Lama Perjalanan</th>
                             <th>SLA Tiba</th>
                             <th>Tanggal Bongkar</th>
+                            <th>Waktu Bongkar</th>     
                             <th>Status Bongkar</th>
                             <th>Overstay</th>
                             <th>SLA Bongkar</th>

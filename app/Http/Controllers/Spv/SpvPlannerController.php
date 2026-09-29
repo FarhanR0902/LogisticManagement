@@ -1050,7 +1050,24 @@ $total_in_transit = $this->inTransitQueryPasuruan()
      */
     private function renderPasuruanRow($r, array $crMap)
     {
+
+   $fmtWaktu = function ($v) {
+    if (empty($v)) return '-';
+    try {
+        return \Carbon\Carbon::parse($v)->format('H:i');
+    } catch (\Exception $e) {
+        return substr((string) $v, 0, 5);
+    }
+};
         $fmtDate = fn($v, $fmt = 'd-m-Y') => $v ? date($fmt, strtotime($v)) : '-';
+        $fmtWaktu = function ($v) {
+    if (empty($v)) return '-';
+    try {
+        return \Carbon\Carbon::parse($v)->format('h:i A');
+    } catch (\Exception $e) {
+        return substr((string) $v, 0, 5);
+    }
+};
         $fmtRupiah = fn($v) => 'Rp ' . number_format((float) $v, 0, ',', '.');
 
         // ================= UPDATE POSISI MOBIL =================
@@ -1932,13 +1949,16 @@ public function inTransit(Request $request)
             'tanggal_dpt_unit',
             'planning_loading',
             'tanggal_tiba_gudang',
-            'tanggal_keluar_gudang',
-            'planning_loading_2',
-            'tanggal_tiba_gudang_2',
-            'tanggal_keluar_gudang_2',
-            'tanggal_tiba_gudang_3',
-            'planning_loading_3',
-            'tanggal_keluar_gudang_3',
+           'tanggal_keluar_gudang',
+'reason_gudang',
+'planning_loading_2',
+'tanggal_tiba_gudang_2',
+'tanggal_keluar_gudang_2',
+'reason_gudang_2',
+'tanggal_tiba_gudang_3',
+'planning_loading_3',
+'tanggal_keluar_gudang_3',
+'reason_gudang_3',
             'keterangan',
             'route',
             'pulau',
@@ -2114,6 +2134,9 @@ public function inTransit(Request $request)
             'planning_loading'      => $request->planning_loading,
             'tanggal_tiba_gudang'   => $request->tanggal_tiba_gudang,
             'tanggal_keluar_gudang' => $request->tanggal_keluar_gudang,
+            'reason_gudang'           => $request->reason_gudang ?: null,
+            'reason_gudang_2'           => $request->reason_gudang_2 ?: null,
+            'reason_gudang_3'           => $request->reason_gudang_3 ?: null,
             'area'                  => $request->area,
             'via_kirim'             => $request->via_kirim,
 
@@ -2337,6 +2360,8 @@ public function belumTibaGudang(Request $request)
             ->whereNotNull('route')
             ->whereNotNull('mobil')
             ->get();
+            $reasonOptimalList = $this->getReasonOptimalList();
+$reasonGudangList  = $this->getReasonGudangList();   // BARU
 
         return view(
             'spvplanner.data_planner',
@@ -2345,6 +2370,8 @@ public function belumTibaGudang(Request $request)
                 'tujuanList',
                 'mobilList',
                 'pulauList',
+                'reasonOptimalList',
+                'reasonGudangList',
                 'routeList',
                 'distChannelList',
                 'planners',
@@ -2400,9 +2427,11 @@ public function belumTibaGudang(Request $request)
         $mobilList = DB::table('tarif_pengiriman')->whereNotNull('mobil')->where('mobil', '!=', '')->distinct()->orderBy('mobil')->pluck('mobil');
         $routeList = DB::table('tarif_pengiriman')->whereNotNull('route')->where('route', '!=', '')->distinct()->orderBy('route')->pluck('route');
         $reasonOptimalList = $this->getReasonOptimalList();
-      $lists = compact(
+        $reasonGudangList  = $this->getReasonGudangList();
+     $lists = compact(
     'tujuanList', 'pulauList', 'areas', 'distChannelList',
-    'ekpedisiList', 'mobilList', 'routeList', 'reasonOptimalList'
+    'ekpedisiList', 'mobilList', 'routeList', 'reasonOptimalList',
+    'reasonGudangList'
 );
         $data = [];
         foreach ($rows as $r) {
@@ -2575,18 +2604,27 @@ public function belumTibaGudang(Request $request)
             // 2
             $textInput('no_shipment', $r->no_shipment, 'row-no-shipment'),
             // 3-14 tanggal
-            $dateInput('tanggal_naik_logistik', $r->tanggal_naik_logistik),
-            $dateInput('rencana_kirim', $r->rencana_kirim),
-            $dateInput('tanggal_dpt_unit', $r->tanggal_dpt_unit),
-            $dateInput('planning_loading', $r->planning_loading),
-            $dateInput('tanggal_tiba_gudang', $r->tanggal_tiba_gudang),
-            $dateInput('tanggal_keluar_gudang', $r->tanggal_keluar_gudang),
-            $dateInput('planning_loading_2', $r->planning_loading_2),
-            $dateInput('tanggal_tiba_gudang_2', $r->tanggal_tiba_gudang_2),
-            $dateInput('tanggal_keluar_gudang_2', $r->tanggal_keluar_gudang_2),
-            $dateInput('planning_loading_3', $r->planning_loading_3),
-            $dateInput('tanggal_tiba_gudang_3', $r->tanggal_tiba_gudang_3),
-            $dateInput('tanggal_keluar_gudang_3', $r->tanggal_keluar_gudang_3),
+           $dateInput('tanggal_naik_logistik', $r->tanggal_naik_logistik),
+$dateInput('rencana_kirim', $r->rencana_kirim),
+$dateInput('tanggal_dpt_unit', $r->tanggal_dpt_unit),
+
+// KACS
+$dateInput('planning_loading', $r->planning_loading),
+$dateInput('tanggal_tiba_gudang', $r->tanggal_tiba_gudang),
+$dateInput('tanggal_keluar_gudang', $r->tanggal_keluar_gudang),
+$buildSelect('reason_gudang', $r->reason_gudang, $lists['reasonGudangList'], 'row-reason-gudang'),
+
+// SENTUL
+$dateInput('planning_loading_2', $r->planning_loading_2),
+$dateInput('tanggal_tiba_gudang_2', $r->tanggal_tiba_gudang_2),
+$dateInput('tanggal_keluar_gudang_2', $r->tanggal_keluar_gudang_2),
+$buildSelect('reason_gudang_2', $r->reason_gudang_2, $lists['reasonGudangList'], 'row-reason-gudang'),
+
+// CCIE
+$dateInput('planning_loading_3', $r->planning_loading_3),
+$dateInput('tanggal_tiba_gudang_3', $r->tanggal_tiba_gudang_3),
+$dateInput('tanggal_keluar_gudang_3', $r->tanggal_keluar_gudang_3),
+$buildSelect('reason_gudang_3', $r->reason_gudang_3, $lists['reasonGudangList'], 'row-reason-gudang'),
             // 15 tujuan
             $buildSelect('tujuan', $r->tujuan, $lists['tujuanList'], 'row-tujuan'),
             // 16 route (required)
@@ -2933,6 +2971,14 @@ public function belumTibaGudang(Request $request)
         $fmtDate = fn($v, $fmt = 'd-m-Y') => $v ? date($fmt, strtotime($v)) : '-';
         $fmtRupiah = fn($v) => 'Rp ' . number_format((float) $v, 0, ',', '.');
         $fmtRupiahOrBlank = fn($v) => $v ? 'Rp ' . number_format($v, 0, ',', '.') : '';
+      $fmtWaktu = function ($v) {
+    if (empty($v)) return '-';
+    try {
+        return \Carbon\Carbon::parse($v)->format('H:i');
+    } catch (\Exception $e) {
+        return substr((string) $v, 0, 5);
+    }
+};
 
         // ================= KELUAR GUDANG TERAKHIR =================
         $keluar = collect([
@@ -3272,18 +3318,22 @@ public function belumTibaGudang(Request $request)
             $fmtDate($r->planning_loading),
             $fmtDate($r->tanggal_tiba_gudang),
             $fmtDate($r->tanggal_keluar_gudang),
+            e($r->reason_gudang ?: '-'),  
             $durasiGudang($r->planning_loading, $r->tanggal_tiba_gudang),
             $statusGudangBadge($r->planning_loading, $r->tanggal_tiba_gudang),
             $slaLoadingBadge($r->planning_loading, $r->tanggal_tiba_gudang),
             $fmtDate($r->planning_loading_2),
             $fmtDate($r->tanggal_tiba_gudang_2),
             $fmtDate($r->tanggal_keluar_gudang_2),
+            e($r->reason_gudang_2 ?: '-'),  
+            
             $r->lama_digudang_2 ?? '-',
             $badgeSla($r->sla_loading_2),
             $statusGudangBadgeGeneric($r->status_gudang_2),
             $fmtDate($r->planning_loading_3),
             $fmtDate($r->tanggal_tiba_gudang_3),
             $fmtDate($r->tanggal_keluar_gudang_3),
+             e($r->reason_gudang_3 ?: '-'), 
             $r->lama_digudang_3 ?? '-',
             $badgeSla($r->sla_loading_3),
             $statusGudangBadgeGeneric($r->status_gudang_3),
@@ -3303,11 +3353,13 @@ public function belumTibaGudang(Request $request)
             $r->atd,
             $r->ata,
             $statusGudang ? $statusGudang['status'] : $estimasiShow,
-            $r->tanggal_tiba ? date('d-m-Y h:i A', strtotime($r->tanggal_tiba)) : '-',
-            $lama_perjalanan !== null ? $lama_perjalanan . ' Hari' : '-',
-            $slaTibaHtml,
-            $r->tanggal_bongkar ? date('d-m-Y h:i A', strtotime($r->tanggal_bongkar)) : '-',
-            $statusBongkarHtml,
+          $fmtDate($r->tanggal_tiba),
+$fmtWaktu($r->waktu_tiba ?? null),
+$lama_perjalanan !== null ? $lama_perjalanan . ' Hari' : '-',
+$slaTibaHtml,
+$fmtDate($r->tanggal_bongkar),
+$fmtWaktu($r->waktu_bongkar ?? null),
+$statusBongkarHtml,
             $over_bongkar !== null ? $over_bongkar . ' Hari' : '-',
             $slaBongkarHtml,
             $r->reason_tiba,
@@ -3622,6 +3674,9 @@ public function belumTibaGudang(Request $request)
             'planning_loading'      => $request->planning_loading,
             'tanggal_tiba_gudang'   => $request->tanggal_tiba_gudang,
             'tanggal_keluar_gudang' => $request->tanggal_keluar_gudang,
+            'reason_gudang'           => $request->reason_gudang ?: null,
+            'reason_gudang_2'           => $request->reason_gudang_2 ?: null,
+            'reason_gudang_3'           => $request->reason_gudang_3 ?: null,
 
             'planning_loading_2'      => $request->planning_loading_2,
             'tanggal_tiba_gudang_2'   => $request->tanggal_tiba_gudang_2,
@@ -3745,6 +3800,16 @@ public function belumTibaGudang(Request $request)
             'sla'           => $rumus,
         ]);
     }
+
+    private function getReasonGudangList()
+{
+    return DB::table('akurasi3')
+        ->whereNotNull('reason_gudang')
+        ->where('reason_gudang', '!=', '')
+        ->distinct()
+        ->orderBy('reason_gudang')
+        ->pluck('reason_gudang');
+}
 
     private function cariBiayaKirimOtomatis($route, $mobil, $ekpedisi = null)
     {

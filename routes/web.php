@@ -11,6 +11,8 @@ use Illuminate\Http\Request;
 | CONTROLLER
 |--------------------------------------------------------------------------
 */
+
+use App\Http\Controllers\KpiController;
 use App\Http\Controllers\Spv\TarifPengirimanController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\LogistikController;
@@ -262,6 +264,8 @@ Route::get('/sla-ontime', [MonitoringController::class, 'slaOntime'])
 });
 
 Route::prefix('manager')->group(function () {
+         Route::get('/kpi/planner',    [KpiController::class, 'planner'])->name('manager.kpi.planner');
+    Route::get('/kpi/monitoring', [KpiController::class, 'monitoring'])->name('manager.kpi.monitoring');
     Route::get('/dashboard', [ManagerController::class, 'dashboard'])
         ->name('manager.dashboard');
         Route::get('/sla-delay', [ManagerController::class, 'slaDelay'])
@@ -427,6 +431,8 @@ Route::prefix('sales')->name('sales.')->group(function () {
 
 Route::middleware(['auth'])->prefix('spvplanner')->group(function () {
 
+     Route::get('/kpi/planner',    [KpiController::class, 'planner'])->name('spvplanner.kpi.planner');
+    Route::get('/kpi/monitoring', [KpiController::class, 'monitoring'])->name('spvplanner.kpi.monitoring');
     Route::post('/spvplanner/data-ajax', [App\Http\Controllers\Spv\SpvPlannerController::class, 'dataAjax'])
         ->name('spvplanner.data.ajax');
         Route::get('/belum-tiba-gudang', [SpvPlannerController::class, 'belumTibaGudang'])
@@ -571,6 +577,9 @@ Route::middleware(['auth'])
     ->prefix('spvmonitoring')
     ->name('spvmonitoring.')
     ->group(function () {
+
+       Route::get('/kpi/planner',    [KpiController::class, 'planner'])->name('kpi.planner');
+   Route::get('/kpi/monitoring', [KpiController::class, 'monitoring'])->name('kpi.monitoring');
         Route::put(
             '/spvmonitoring/update/{id}',
             [SpvMonitoringController::class, 'update']

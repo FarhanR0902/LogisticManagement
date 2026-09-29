@@ -608,13 +608,18 @@
                                     <th class="th-edit">Tanggal Dapat Unit</th>
                                     <th class="th-edit">Planning Loading <span style="color:#0047FF;font-weight:900;">KACS</span></th>
                                     <th class="th-edit">Tanggal Tiba <span style="color:#0047FF;font-weight:900;">KACS</span></th>
-                                    <th class="th-edit">Tanggal Keluar <span style="color:#0047FF;font-weight:900;">KACS</span></th>
-                                    <th class="th-edit">Planning Loading <span style="color:#FF6B00;font-weight:900;">Sentul</span></th>
-                                    <th class="th-edit">Tanggal Tiba <span style="color:#FF6B00;font-weight:900;">Sentul</span></th>
-                                    <th class="th-edit">Tanggal Keluar <span style="color:#FF6B00;font-weight:900;">Sentul</span></th>
-                                    <th class="th-edit">Planning Loading <span style="color:#FF0033;font-weight:900;">CCIE</span></th>
-                                    <th class="th-edit">Tanggal Tiba <span style="color:#FF0033;font-weight:900;">CCIE</span></th>
-                                    <th class="th-edit">Tanggal Keluar <span style="color:#FF0033;font-weight:900;">CCIE</span></th>
+                                   <th class="th-edit">Tanggal Keluar <span style="color:#0047FF;font-weight:900;">KACS</span></th>
+<th class="th-edit">Reason <span style="color:#0047FF;font-weight:900;">KACS</span></th>
+
+<th class="th-edit">Planning Loading <span style="color:#FF6B00;font-weight:900;">Sentul</span></th>
+<th class="th-edit">Tanggal Tiba <span style="color:#FF6B00;font-weight:900;">Sentul</span></th>
+<th class="th-edit">Tanggal Keluar <span style="color:#FF6B00;font-weight:900;">Sentul</span></th>
+<th class="th-edit">Reason <span style="color:#FF6B00;font-weight:900;">Sentul</span></th>
+
+<th class="th-edit">Planning Loading <span style="color:#FF0033;font-weight:900;">CCIE</span></th>
+<th class="th-edit">Tanggal Tiba <span style="color:#FF0033;font-weight:900;">CCIE</span></th>
+<th class="th-edit">Tanggal Keluar <span style="color:#FF0033;font-weight:900;">CCIE</span></th>
+<th class="th-edit">Reason <span style="color:#FF0033;font-weight:900;">CCIE</span></th>
 
                                     <th class="th-default">Tujuan</th>
                                     <th class="th-default">Route</th>
@@ -858,7 +863,7 @@ $(document).on('input', '.row-total-kubik, .row-total-tonase', function() {
                         },
                         columnDefs: [{
                             className: "dt-center",
-targets: [0, 1, 2, 27, 32, 34, 35, 38, 39, 40, 44]
+targets: [0, 1, 2, 30, 40, 42, 44, 46, 47, 49, 50, 52, 53, 55]
                         }],
                         rowCallback: function(row, data, index) {
                             // data terakhir array kolom biasa; kita simpan id lewat data attribute
@@ -1119,6 +1124,9 @@ targets: [0, 1, 2, 27, 32, 34, 35, 38, 39, 40, 44]
                                 pulau: row.find('[name="pulau"]').val(),
                                  reason_optimal: row.find('[name="reason_optimal"]').val(),
                                 area: row.find('[name="area"]').val(),
+                                reason_gudang: row.find('[name="reason_gudang"]').val(),
+                                reason_gudang_2: row.find('[name="reason_gudang_2"]').val(),
+                                reason_gudang_3: row.find('[name="reason_gudang_3"]').val(),
                                 via_kirim: row.find('[name="via_kirim"]').val(),
 
                                 dist_channel: row.find('[name="dist_channel"]').val(),

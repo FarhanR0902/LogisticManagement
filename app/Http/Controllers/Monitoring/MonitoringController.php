@@ -516,14 +516,20 @@ $blocked
             $numberInput('act_urutan_bongkar', $r->act_urutan_bongkar),
             // 17 Estimasi Tiba
             e($estimasi_show),
-            // 18 Tanggal Tiba (editable)
-            '<input type="datetime-local" name="tanggal_tiba" data-required="true" data-label="Tgl Tiba" value="' . ($r->tanggal_tiba ? date('Y-m-d\TH:i', strtotime($r->tanggal_tiba)) : '') . '">',
+         // 18 Tanggal Tiba (tanggal + jam terpisah)
+'<div class="dt-pair">'
+    . '<input type="text" class="flatpickr-date" name="tanggal_tiba" data-required="true" data-label="Tgl Tiba" value="' . ($r->tanggal_tiba ? date('Y-m-d', strtotime($r->tanggal_tiba)) : '') . '">'
+    . '<input type="text" class="flatpickr-time" name="waktu_tiba" value="' . ($r->waktu_tiba ? substr($r->waktu_tiba, 0, 5) : '') . '">'
+    . '</div>',
             // 19 Lama Perjalanan
             e($lama_perjalanan),
             // 20 SLA Tiba
             $sla_tiba_html,
-            // 21 Tanggal Bongkar (editable)
-            '<input type="datetime-local" name="tanggal_bongkar" data-required="true" data-label="Tgl Bongkar" value="' . ($r->tanggal_bongkar ? date('Y-m-d\TH:i', strtotime($r->tanggal_bongkar)) : '') . '">',
+           // 21 Tanggal Bongkar (tanggal + jam terpisah)
+'<div class="dt-pair">'
+    . '<input type="text" class="flatpickr-date" name="tanggal_bongkar" data-required="true" data-label="Tgl Bongkar" value="' . ($r->tanggal_bongkar ? date('Y-m-d', strtotime($r->tanggal_bongkar)) : '') . '">'
+    . '<input type="text" class="flatpickr-time" name="waktu_bongkar" value="' . ($r->waktu_bongkar ? substr($r->waktu_bongkar, 0, 5) : '') . '">'
+    . '</div>',
             // 22 Status Bongkar
             $statusBongkarHtml,
             // 23 Overstay
@@ -647,12 +653,12 @@ private function applyMonitoringUpdate(LogistikPengiriman $logistik, array $data
     $keluar  = $gudangInfo['keluar'];
     $blocked = $gudangInfo['blocked'];
  
-    $tanggalTibaInput = $data['tanggal_tiba'] ?? null;
+ $tanggalTibaInput = !empty($data['tanggal_tiba']) ? $data['tanggal_tiba'] : null;
     $tiba = $tanggalTibaInput
         ? strtotime(date('Y-m-d', strtotime($tanggalTibaInput)))
         : null;
- 
-    $tanggalBongkarInput = $data['tanggal_bongkar'] ?? null;
+
+    $tanggalBongkarInput = !empty($data['tanggal_bongkar']) ? $data['tanggal_bongkar'] : null;
     $bongkar = $tanggalBongkarInput
         ? strtotime(date('Y-m-d', strtotime($tanggalBongkarInput)))
         : null;
@@ -717,11 +723,11 @@ private function applyMonitoringUpdate(LogistikPengiriman $logistik, array $data
     $logistik->qty_monitoring = ($logistik->total_do_qty_car ?? 0) - ($logistik->selisih_qty ?? 0);
     $logistik->total_biaya_kuli = ($logistik->qty_monitoring ?? 0) * ($logistik->biaya_kuli ?? 0);
  
-    $logistik->tanggal_tiba    = $tanggalTibaInput;
-    $logistik->tanggal_bongkar = $tanggalBongkarInput;
- 
-    $logistik->overstay_days   = $overstay;
-    $logistik->lama_perjalanan = $lama_perjalanan;
+  $logistik->tanggal_tiba    = $tanggalTibaInput;
+$logistik->waktu_tiba      = ($tanggalTibaInput && !empty($data['waktu_tiba'])) ? $data['waktu_tiba'] : null;
+
+$logistik->tanggal_bongkar = $tanggalBongkarInput;
+$logistik->waktu_bongkar   = ($tanggalBongkarInput && !empty($data['waktu_bongkar'])) ? $data['waktu_bongkar'] : null;
  
     $logistik->remarks      = $data['remarks'] ?? null;
     $logistik->act_pgi_date = $data['act_pgi_date'] ?? null;

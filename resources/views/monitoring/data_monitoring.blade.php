@@ -17,6 +17,8 @@
 
     <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
     <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 
     <style>
         body { background: #f3f4f6; font-family: 'Segoe UI'; margin: 0; }
@@ -65,7 +67,9 @@
         #tableMonitoring td { vertical-align: middle; white-space: nowrap; }
         #tableMonitoring input[type=text] { min-width: 120px; }
         #tableMonitoring input[type=number] { width: 70px; }
-        #tableMonitoring input[type=datetime-local] { width: 170px; }
+      #tableMonitoring .dt-pair { display: flex; gap: 6px; }
+#tableMonitoring .dt-pair input[type=text].flatpickr-date { width: 100px; }
+#tableMonitoring .dt-pair input[type=text].flatpickr-time { width: 75px; }
         #tableMonitoring .save-btn { width: 70px; }
         #tableMonitoring .badge { display: inline-block; min-width: 70px; text-align: center; }
 
@@ -365,7 +369,8 @@
                 { width: "140px", targets: [3] },
                 { width: "350px", targets: 4 },
                 { width: "150px", targets: [5] },
-                { width: "180px", targets: [10, 13, 18, 21] },
+          { width: "180px", targets: [10, 13] },
+{ width: "185px", targets: [18, 21] },
                 { width: "220px", targets: [33] },
                 // kolom badge/HTML hasil kalkulasi -> tidak ada kolom DB
                 // 1:1 buat di-sort, jadi matikan klik-sort di sini saja
@@ -420,16 +425,14 @@
         });
 
         // init select2 utk kolom reason & re-init tiap kali draw (hanya utk baris yg tampil, ringan)
-        table.on('draw.dt', function() {
-            initReasonSelect();
-            // recalculate lebar header vs body setelah select2/badge/input ke-render
-            setTimeout(function() {
-                table.columns.adjust();
-            }, 0);
-            // reset counter dirty karena baris lama sudah tidak ada di DOM lagi
-            updateDirtyCount();
-        });
-
+      table.on('draw.dt', function() {
+    initReasonSelect();
+    initDateTimePickers();
+    setTimeout(function() {
+        table.columns.adjust();
+    }, 0);
+    updateDirtyCount();
+});
         $(window).on('resize', function() {
             if (table) {
                 table.columns.adjust();
@@ -542,6 +545,8 @@
             id: row.attr('data-id'),
             pic_monitoring: row.find('[name="pic_monitoring"]').val(),
             status_kendaraan: row.find('[name="status_kendaraan"]').val(),
+              waktu_tiba: row.find('[name="waktu_tiba"]').val(),
+                waktu_bongkar: row.find('[name="waktu_bongkar"]').val(),
             action_required: row.find('[name="action_required"]').val(),
             act_urutan_bongkar: row.find('[name="act_urutan_bongkar"]').val(),
             tanggal_tiba: row.find('[name="tanggal_tiba"]').val(),
@@ -702,6 +707,31 @@
             });
         });
     }
+
+    function initDateTimePickers() {
+    $('.flatpickr-date').each(function() {
+        if (!this._flatpickr) {
+            flatpickr(this, {
+                dateFormat: 'Y-m-d',
+                altInput: true,
+                altFormat: 'd-m-Y',
+                allowInput: true
+            });
+        }
+    });
+
+    $('.flatpickr-time').each(function() {
+        if (!this._flatpickr) {
+            flatpickr(this, {
+                enableTime: true,
+                noCalendar: true,
+                dateFormat: 'H:i',
+                time_24hr: true,
+                allowInput: true
+            });
+        }
+    });
+}
 </script>
         </div>
     </div>

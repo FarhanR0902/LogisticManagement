@@ -52,6 +52,9 @@ $data['total_tonase'] = $this->cleanDecimalPlanner($request->total_tonase);
             'planning_loading',
             'tanggal_tiba_gudang',
             'tanggal_keluar_gudang',
+            'reason_gudang',
+            'reason_gudang_2',
+            'reason_gudang_3',
             'planning_loading_2',
             'tanggal_tiba_gudang_2',
             'tanggal_keluar_gudang_2',
@@ -397,6 +400,9 @@ public function inTransit(Request $request)
             'planning_loading'      => $request->planning_loading,
             'tanggal_tiba_gudang'   => $request->tanggal_tiba_gudang,
             'tanggal_keluar_gudang' => $request->tanggal_keluar_gudang,
+            'reason_gudang'         => $request->reason_gudang ?: null,
+            'reason_gudang_2'         => $request->reason_gudang_2 ?: null,
+            'reason_gudang_3'         => $request->reason_gudang_3 ?: null,
             'area'                  => $request->area,
             'via_kirim'             => $request->via_kirim,
 
@@ -596,18 +602,20 @@ $updateRow = [
             'rencana_kirim'         => $request->rencana_kirim,
             'tanggal_dpt_unit'      => $request->tanggal_dpt_unit,
 
-            'planning_loading'      => $request->planning_loading,
-            'tanggal_tiba_gudang'   => $request->tanggal_tiba_gudang,
-            'tanggal_keluar_gudang' => $request->tanggal_keluar_gudang,
+           'planning_loading'      => $request->planning_loading,
+'tanggal_tiba_gudang'   => $request->tanggal_tiba_gudang,
+'tanggal_keluar_gudang' => $request->tanggal_keluar_gudang,
+'reason_gudang'         => $request->reason_gudang ?: null,
 
-            'planning_loading_2'      => $request->planning_loading_2,
-            'tanggal_tiba_gudang_2'   => $request->tanggal_tiba_gudang_2,
-            'tanggal_keluar_gudang_2' => $request->tanggal_keluar_gudang_2,
+'planning_loading_2'      => $request->planning_loading_2,
+'tanggal_tiba_gudang_2'   => $request->tanggal_tiba_gudang_2,
+'tanggal_keluar_gudang_2' => $request->tanggal_keluar_gudang_2,
+'reason_gudang_2'         => $request->reason_gudang_2 ?: null,
 
-            'planning_loading_3'      => $request->planning_loading_3,
-            'tanggal_tiba_gudang_3'   => $request->tanggal_tiba_gudang_3,
-            'tanggal_keluar_gudang_3' => $request->tanggal_keluar_gudang_3,
-
+'planning_loading_3'      => $request->planning_loading_3,
+'tanggal_tiba_gudang_3'   => $request->tanggal_tiba_gudang_3,
+'tanggal_keluar_gudang_3' => $request->tanggal_keluar_gudang_3,
+'reason_gudang_3'         => $request->reason_gudang_3 ?: null,
           
             'route'     => $request->route,
             'pulau'     => $request->pulau,
@@ -806,6 +814,11 @@ DB::table('logistik_pengiriman')
      */
     public function dataLogistik()
     {
+
+    $reasonGudangList = DB::table('akurasi3')
+    ->whereNotNull('reason_gudang')->where('reason_gudang', '!=', '')
+    ->distinct()->orderBy('reason_gudang')->pluck('reason_gudang');
+
         $planners = LogistikPengiriman::whereNotNull('planner')
             ->where('planner', '!=', '')
             ->distinct()
@@ -854,6 +867,7 @@ DB::table('logistik_pengiriman')
             compact(
                 'ekpedisiList',
                 'tujuanList',
+                'reasonGudangList',
                 'mobilList',
                 'pulauList',
                 'routeList',
@@ -928,10 +942,14 @@ DB::table('logistik_pengiriman')
         $reasonOptimalList = DB::table('akurasi3')
     ->whereNotNull('reason_optimal')->where('reason_optimal', '!=', '')
     ->distinct()->orderBy('reason_optimal')->pluck('reason_optimal');
+    $reasonGudangList = DB::table('akurasi3')
+    ->whereNotNull('reason_gudang')->where('reason_gudang', '!=', '')
+    ->distinct()->orderBy('reason_gudang')->pluck('reason_gudang');
 
 $lists = compact(
     'tujuanList', 'pulauList', 'areas', 'distChannelList',
-    'ekpedisiList', 'mobilList', 'routeList', 'reasonOptimalList'
+    'ekpedisiList', 'mobilList', 'routeList', 'reasonOptimalList',
+    'reasonGudangList'
 );
 
         $data = [];
@@ -1102,18 +1120,28 @@ $lists = compact(
 '<span class="fw-medium">' . e($r->no_shipment) . '</span>'
 . '<input type="hidden" ' . $formAttr . ' name="no_shipment" value="' . e($r->no_shipment) . '">',
             // 3-14 tanggal
-            $dateInput('tanggal_naik_logistik', $r->tanggal_naik_logistik),
-            $dateInput('rencana_kirim', $r->rencana_kirim),
-            $dateInput('tanggal_dpt_unit', $r->tanggal_dpt_unit),
-            $dateInput('planning_loading', $r->planning_loading),
-            $dateInput('tanggal_tiba_gudang', $r->tanggal_tiba_gudang),
-            $dateInput('tanggal_keluar_gudang', $r->tanggal_keluar_gudang),
-            $dateInput('planning_loading_2', $r->planning_loading_2),
-            $dateInput('tanggal_tiba_gudang_2', $r->tanggal_tiba_gudang_2),
-            $dateInput('tanggal_keluar_gudang_2', $r->tanggal_keluar_gudang_2),
-            $dateInput('planning_loading_3', $r->planning_loading_3),
-            $dateInput('tanggal_tiba_gudang_3', $r->tanggal_tiba_gudang_3),
-            $dateInput('tanggal_keluar_gudang_3', $r->tanggal_keluar_gudang_3),
+           // tanggal umum
+$dateInput('tanggal_naik_logistik', $r->tanggal_naik_logistik),
+$dateInput('rencana_kirim', $r->rencana_kirim),
+$dateInput('tanggal_dpt_unit', $r->tanggal_dpt_unit),
+
+// KACS
+$dateInput('planning_loading', $r->planning_loading),
+$dateInput('tanggal_tiba_gudang', $r->tanggal_tiba_gudang),
+$dateInput('tanggal_keluar_gudang', $r->tanggal_keluar_gudang),
+$buildSelect('reason_gudang', $r->reason_gudang, $lists['reasonGudangList'], 'row-reason-gudang'),
+
+// SENTUL
+$dateInput('planning_loading_2', $r->planning_loading_2),
+$dateInput('tanggal_tiba_gudang_2', $r->tanggal_tiba_gudang_2),
+$dateInput('tanggal_keluar_gudang_2', $r->tanggal_keluar_gudang_2),
+$buildSelect('reason_gudang_2', $r->reason_gudang_2, $lists['reasonGudangList'], 'row-reason-gudang'),
+
+// CCIE
+$dateInput('planning_loading_3', $r->planning_loading_3),
+$dateInput('tanggal_tiba_gudang_3', $r->tanggal_tiba_gudang_3),
+$dateInput('tanggal_keluar_gudang_3', $r->tanggal_keluar_gudang_3),
+$buildSelect('reason_gudang_3', $r->reason_gudang_3, $lists['reasonGudangList'], 'row-reason-gudang'),
             // 15 tujuan
            // 15 tujuan
 '<span class="fw-medium">' . e($r->tujuan) . '</span>'

@@ -473,18 +473,21 @@
                         <th>Planning Loading KACS</th>
                         <th>Tanggal Tiba KACS</th>
                         <th>Tanggal Keluar KACS</th>
+                        <th>Reason Gudang KACS</th>
                         <th>Lama Di KACS</th>
                         <th>Status KACS</th>
                         <th>SLA Loading KACS</th>
                         <th>Planning Loading Sentul</th>
                         <th>Tanggal Tiba Sentul</th>
                         <th>Tanggal Keluar Sentul</th>
+                        <th>Reason Gudang Sentul</th>
                         <th>Lama Di Sentul</th>
                         <th>SLA Loading Sentul</th>
                         <th>Status Sentul</th>
                         <th>Planning Loading CCIE</th>
                         <th>Tanggal Tiba CCIE</th>
                         <th>Tanggal Keluar CCIE</th>
+                        <th>Reason Gudang CCIE</th>
                         <th>Lama Di CCIE</th>
                         <th>SLA Loading CCIE</th>
                         <th>Status CCIE</th>
@@ -504,11 +507,14 @@
                         <th>ATD</th>
                         <th>ATA</th>
                         <th>Tanggal Estimasi</th>
-                        <th>Tanggal Tiba</th>
-                        <th>Lama Perjalanan</th>
-                        <th>SLA Tiba</th>
-                        <th>Tanggal Bongkar</th>
-                        <th>Status Bongkar</th>
+                       <th>Tanggal Tiba</th>
+<th>Waktu Tiba</th>
+<th>Lama Perjalanan</th>
+<th>SLA Tiba</th>
+<th>Tanggal Bongkar</th>
+<th>Waktu Bongkar</th>
+<th>Status Bongkar</th>
+                  
                         <th>Overstay</th>
                         <th>SLA Bongkar</th>
                         <th>Reason Tiba</th>
@@ -611,6 +617,7 @@
                     { data: 'planning_loading_fmt', name: 'planning_loading' },
                     { data: 'tanggal_tiba_gudang_fmt', name: 'tanggal_tiba_gudang' },
                     { data: 'tanggal_keluar_gudang_fmt', name: 'tanggal_keluar_gudang' },
+                    { data: 'reason_gudang', name: 'reason_gudang', defaultContent: '-' }, 
                     { data: 'durasi_gudang1_fmt', name: 'durasi_gudang1', orderable: false, searchable: false },
                     { data: 'status_gudang1_badge', name: 'status_gudang1', orderable: false, searchable: false },
                     { data: 'sla_loading1_badge', name: 'sla_loading1', orderable: false, searchable: false },
@@ -619,6 +626,7 @@
                     { data: 'planning_loading_2', name: 'planning_loading_2' },
                     { data: 'tanggal_tiba_gudang_2', name: 'tanggal_tiba_gudang_2' },
                     { data: 'tanggal_keluar_gudang_2', name: 'tanggal_keluar_gudang_2' },
+                    { data: 'reason_gudang_2', name: 'reason_gudang_2', defaultContent: '-' }, 
                     { data: 'lama_digudang_2', name: 'lama_digudang_2', defaultContent: '-' },
                     { data: 'sla_loading2_badge', name: 'sla_loading_2', orderable: false, searchable: false },
                     { data: 'status_gudang2_badge', name: 'status_gudang_2', orderable: false, searchable: false },
@@ -627,6 +635,7 @@
                     { data: 'planning_loading_3', name: 'planning_loading_3' },
                     { data: 'tanggal_tiba_gudang_3', name: 'tanggal_tiba_gudang_3' },
                     { data: 'tanggal_keluar_gudang_3', name: 'tanggal_keluar_gudang_3' },
+                    { data: 'reason_gudang_3', name: 'reason_gudang_3', defaultContent: '-' }, 
                     { data: 'lama_digudang_3', name: 'lama_digudang_3', defaultContent: '-' },
                     { data: 'sla_loading3_badge', name: 'sla_loading_3', orderable: false, searchable: false },
                     { data: 'status_gudang3_badge', name: 'status_gudang_3', orderable: false, searchable: false },
@@ -649,12 +658,14 @@
                     { data: 'atd', name: 'atd' },
                     { data: 'ata', name: 'ata' },
                     { data: 'estimasi_tiba_fmt', name: 'estimasi_tiba', orderable: false },
-                    { data: 'tanggal_tiba_fmt', name: 'tanggal_tiba' },
-                    { data: 'lama_perjalanan', name: 'lama_perjalanan', defaultContent: '-' },
+                  { data: 'tanggal_tiba_fmt', name: 'tanggal_tiba' },
+{ data: 'waktu_tiba_fmt', name: 'waktu_tiba', orderable: false, searchable: false },
+{ data: 'lama_perjalanan', name: 'lama_perjalanan', defaultContent: '-' },
 
-                    { data: 'sla_tiba_badge', name: 'sla_tiba' },
-                    { data: 'tanggal_bongkar_fmt', name: 'tanggal_bongkar' },
-                    { data: 'status_bongkar_badge', name: 'status_bongkar', orderable: false, searchable: false },
+{ data: 'sla_tiba_badge', name: 'sla_tiba' },
+{ data: 'tanggal_bongkar_fmt', name: 'tanggal_bongkar' },
+{ data: 'waktu_bongkar_fmt', name: 'waktu_bongkar', orderable: false, searchable: false },
+{ data: 'status_bongkar_badge', name: 'status_bongkar', orderable: false, searchable: false },
                     { data: 'overstay_days', name: 'overstay_days' },
                     { data: 'sla_bongkar_badge', name: 'sla_bongkar' },
                     { data: 'reason_tiba', name: 'reason_tiba' },

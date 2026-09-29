@@ -172,6 +172,18 @@ $currentRoute = request()->route()->getName() ?? '';
                 ⏳ Belum Dapat Armada
             </a>
         </li>
+        <li>
+    <a href="{{ route('spvplanner.kpi.planner') }}"
+        class="{{ request()->routeIs('spvplanner.kpi.planner') ? 'active' : '' }}">
+        🎯 KPI Planner
+    </a>
+</li>
+<li>
+    <a href="{{ route('spvplanner.kpi.monitoring') }}"
+        class="{{ request()->routeIs('spvplanner.kpi.monitoring') ? 'active' : '' }}">
+        🎯 KPI Monitoring
+    </a>
+</li>
 
 
         <li>
@@ -279,6 +291,18 @@ $currentRoute = request()->route()->getName() ?? '';
         <li> <a href="{{ route('spvmonitoring.bongkar.ontime', request()->query()) }}"> 📥 Bongkar Ontime </a> </li>
         <li> <a href="{{ route('spvmonitoring.bongkar.delay', request()->query()) }}"> 🚨 Bongkar Delay </a> </li>
         <li> <a href="{{ route('spvmonitoring.summary.area', request()->query()) }}"> 🌍 Summary Area </a> </li>
+        <li>
+    <a href="{{ route('spvmonitoring.kpi.planner') }}"
+        class="{{ request()->routeIs('spvmonitoring.kpi.planner') ? 'active' : '' }}">
+        🎯 KPI Planner
+    </a>
+</li>
+<li>
+    <a href="{{ route('spvmonitoring.kpi.monitoring') }}"
+        class="{{ request()->routeIs('spvmonitoring.kpi.monitoring') ? 'active' : '' }}">
+        🎯 KPI Monitoring
+    </a>
+</li>
         <li>
             <a href="{{ route('users.index') }}" class="{{ request()->routeIs('users.*') ? 'active' : '' }}">
                 👤 Kelola User

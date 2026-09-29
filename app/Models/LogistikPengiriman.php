@@ -90,10 +90,15 @@ class LogistikPengiriman extends Model
     'shipping_point',
         'created_by',
         'qty_monitoring',
+        'reason_gudang',
+        'reason_gudang_2',
+        'reason_gudang_3',
         'remarks_qty',
         'selisih_qty',
         'biaya_kuli',
         'total_biaya_kuli',
+        'waktu_tiba',
+        'waktu_bongkar',
         'reason_optimal',
         'create_tgl'
     ];

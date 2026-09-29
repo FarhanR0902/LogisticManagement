@@ -402,25 +402,75 @@ class LogistikController extends Controller
         // ---------- SORTING ----------
         // Peta index kolom (urutan HARUS sama persis dengan array `columns` di blade JS).
         // null = kolom hasil kalkulasi/badge, tidak bisa di-ORDER BY langsung -> di-skip.
-        $orderableColumns = [
-            0  => 'tanggal_naik_logistik',
-            1  => 'rencana_kirim',
-            2  => 'transport_lead_time',
-            3  => 'nama_driver',
-            4  => 'no_pol',
-            5  => 'planner',
-            6  => 'no_shipment',
-            9  => 'tujuan',
-            10 => 'area',
-            12 => 'mobil',
-            13 => 'total_do_qty_car',
-            14 => 'nilai_muatan',
-            15 => 'biaya_kirim',
-            18 => 'ekpedisi',
-            19 => 'tanggal_dpt_unit',
-            39 => 'pic_monitoring',
-            40 => 'nama_kapal',
-        ];
+  $orderableColumns = [
+    0  => 'tanggal_naik_logistik',
+    1  => 'rencana_kirim',
+    2  => 'transport_lead_time',
+    3  => 'nama_driver',
+    4  => 'no_pol',
+    5  => 'planner',
+    6  => 'no_shipment',
+    8  => 'dist_channel',
+    9  => 'tujuan',
+    10 => 'area',
+    12 => 'mobil',
+    13 => 'total_do_qty_car',
+    14 => 'nilai_muatan',
+    15 => 'biaya_kirim',
+    17 => 'kubikasi',
+    18 => 'tonase',
+    19 => 'total_kubik',
+    20 => 'total_tonase',
+    24 => 'reason_optimal',
+    25 => 'kategori_ekspedisi',
+    26 => 'ekpedisi',
+    27 => 'tanggal_dpt_unit',
+
+    // KACS
+    30 => 'planning_loading',
+    31 => 'tanggal_tiba_gudang',
+    32 => 'tanggal_keluar_gudang',
+    33 => 'reason_gudang',
+
+    // SENTUL
+    37 => 'planning_loading_2',
+    38 => 'tanggal_tiba_gudang_2',
+    39 => 'tanggal_keluar_gudang_2',
+    40 => 'reason_gudang_2',
+    41 => 'lama_digudang_2',
+
+    // CCIE
+    44 => 'planning_loading_3',
+    45 => 'tanggal_tiba_gudang_3',
+    46 => 'tanggal_keluar_gudang_3',
+    47 => 'reason_gudang_3',
+    48 => 'lama_digudang_3',
+
+    51 => 'pic_monitoring',
+    52 => 'nama_kapal',
+    53 => 'etd',
+    54 => 'eta',
+    57 => 'act_urutan_bongkar',
+    58 => 'qty_monitoring',
+    59 => 'biaya_kuli',
+    60 => 'total_biaya_kuli',
+    61 => 'selisih_qty',
+    62 => 'remarks_qty',
+    63 => 'act_pgi_date',
+    64 => 'atd',
+    65 => 'ata',
+    67 => 'tanggal_tiba',
+    70 => 'sla_tiba',
+    71 => 'tanggal_bongkar',
+    74 => 'overstay_days',
+    75 => 'sla_bongkar',
+    76 => 'reason_tiba',
+    77 => 'reason_bongkar',
+    80 => 'remarks',
+    81 => 'route',
+    83 => 'pulau',
+    84 => 'via_kirim',
+];
 
         $orderColIndex = (int) $request->input('order.0.column', 0);
         $orderDir = strtolower($request->input('order.0.dir', 'desc')) === 'asc' ? 'asc' : 'desc';
@@ -484,6 +534,8 @@ class LogistikController extends Controller
                 'planning_loading_fmt'        => $this->fmtDate($r->planning_loading),
                 'tanggal_tiba_gudang_fmt'     => $this->fmtDate($r->tanggal_tiba_gudang),
                 'tanggal_keluar_gudang_fmt'   => $this->fmtDate($r->tanggal_keluar_gudang),
+                'reason_gudang'               => $r->reason_gudang ?: '-', 
+                //  'tanggal_keluar_gudang_fmt'   => $this->fmtDate($r->tanggal_keluar_gudang),
                 'durasi_gudang1_fmt'          => $this->computeDurasiGudang($r->planning_loading, $r->tanggal_tiba_gudang),
                 'status_gudang1_badge'        => $this->badgeStatusOnTimeDelayByDate($r->planning_loading, $r->tanggal_tiba_gudang),
                 'sla_loading1_badge'          => $this->badgeSlaLoadingClean($r->planning_loading, $r->tanggal_tiba_gudang),
@@ -492,6 +544,7 @@ class LogistikController extends Controller
                 'planning_loading_2'          => $this->fmtDate($r->planning_loading_2 ?? null),
                 'tanggal_tiba_gudang_2'       => $this->fmtDate($r->tanggal_tiba_gudang_2 ?? null),
                 'tanggal_keluar_gudang_2'     => $this->fmtDate($r->tanggal_keluar_gudang_2 ?? null),
+                'reason_gudang_2'               => $r->reason_gudang_2 ?: '-', 
                 'lama_digudang_2'             => $r->lama_digudang_2 ?? '-',
                 'sla_loading2_badge'          => $this->badgeSLA($r->sla_loading_2 ?? null),
                 'status_gudang2_badge'        => $this->badgeStatusGudangRaw($r->status_gudang_2 ?? null),
@@ -500,6 +553,7 @@ class LogistikController extends Controller
                 'planning_loading_3'          => $this->fmtDate($r->planning_loading_3 ?? null),
                 'tanggal_tiba_gudang_3'       => $this->fmtDate($r->tanggal_tiba_gudang_3 ?? null),
                 'tanggal_keluar_gudang_3'     => $this->fmtDate($r->tanggal_keluar_gudang_3 ?? null),
+                'reason_gudang_3'               => $r->reason_gudang_3 ?: '-', 
                 'lama_digudang_3'             => $r->lama_digudang_3 ?? '-',
                 'sla_loading3_badge'          => $this->badgeSLA($r->sla_loading_3 ?? null),
                 'status_gudang3_badge'        => $this->badgeStatusGudangRaw($r->status_gudang_3 ?? null),
@@ -522,11 +576,13 @@ class LogistikController extends Controller
                 'atd'                         => $r->atd,
                 'ata'                         => $r->ata,
                 'estimasi_tiba_fmt'           => $estimasi['estimasi_show'],
-                'tanggal_tiba_fmt'            => $r->tanggal_tiba ? date('d-m-Y h:i A', strtotime($r->tanggal_tiba)) : '-',
+'tanggal_tiba_fmt'            => $this->fmtDate($r->tanggal_tiba),
+'waktu_tiba_fmt'              => $this->fmtWaktu($r->waktu_tiba ?? null),
 'lama_perjalanan' => $this->computeLamaPerjalananSimple($r),// ✅ pakai method yang sudah ada
 
                 'sla_tiba_badge'              => $this->badgeOnTimeDelay($r->sla_tiba),
-                'tanggal_bongkar_fmt'         => $r->tanggal_bongkar ? date('d-m-Y h:i A', strtotime($r->tanggal_bongkar)) : '-',
+              'tanggal_bongkar_fmt'         => $this->fmtDate($r->tanggal_bongkar),
+'waktu_bongkar_fmt'           => $this->fmtWaktu($r->waktu_bongkar ?? null),
                 'status_bongkar_badge'        => $this->badgeStatusBongkar($r),
               'overstay_days'               => $this->formatHari($r->overstay_days),
                 'sla_bongkar_badge'           => $this->badgeOnTimeDelay($r->sla_bongkar),
@@ -554,6 +610,13 @@ class LogistikController extends Controller
         ]);
     }
 
+    private function fmtWaktu($value): string
+{
+    if (empty($value)) {
+        return '-';
+    }
+    return substr((string) $value, 0, 5);
+}
     private function formatHari($value): string
 {
     if ($value === null || $value === '') {
