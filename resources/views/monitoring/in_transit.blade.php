@@ -43,7 +43,18 @@
 
         .empty { text-align: center; padding: 40px; color: #64748b; font-size: 16px; }
         .pagination-wrap { margin-top: 16px; }
-
+.pagination { display: flex; flex-wrap: wrap; gap: 6px; list-style: none; padding: 0; margin: 0; justify-content: flex-end; }
+.pagination li { display: inline-block; }
+.pagination li a,
+.pagination li span {
+    display: block; padding: 8px 14px; border: 1px solid #cbd5e1; border-radius: 8px;
+    background: #fff; color: #2563eb; text-decoration: none; font-size: 14px; font-weight: 600;
+}
+.pagination li a:hover { background: #dbeafe; }
+.pagination li.active span,
+.pagination li.active a { background: #2563eb; border-color: #2563eb; color: #fff; }
+.pagination li.disabled span,
+.pagination li.disabled a { color: #94a3b8; background: #f1f5f9; cursor: not-allowed; }
         @media (max-width: 768px) {
             .container { margin-left: 0; padding: 15px; }
             .filter-box input, .filter-box select, .btn { width: 100%; }
@@ -75,10 +86,26 @@
                     @foreach($picList as $p)
                         <option value="{{ $p }}" {{ request('pic_monitoring') == $p ? 'selected' : '' }}>{{ $p }}</option>
                     @endforeach
-                </select>
+                 </select>
+
+               @php $gudangAsalList = $gudangAsalList ?? ['KACS', 'SENTUL', 'CCIE']; @endphp
+                @if(count($gudangAsalList))
+                    <select name="gudang_asal">
+                        <option value="">Semua Gudang Asal</option>
+                        @foreach($gudangAsalList as $g)
+                            <option value="{{ $g }}" {{ request('gudang_asal') == $g ? 'selected' : '' }}>{{ $g }}</option>
+                        @endforeach
+                    </select>
+                @endif
+
 
                 <button type="submit" class="btn btn-primary"><i class="fa-solid fa-magnifying-glass"></i> Filter</button>
              <a href="{{ $formRoute ?? route('monitoring.intransit') }}" class="btn btn-reset">Reset</a>
+             <a href="{{ ($exportRoute ?? route('monitoring.intransit.export')) . '?' . http_build_query(request()->except('page')) }}"
+   class="btn btn-success" style="background:#16a34a;">
+    <i class="fa-solid fa-file-excel"></i> Export Excel
+</a>
+</form>
         </div>
 
         <div class="card">
@@ -135,7 +162,7 @@
             </table>
 
             <div class="pagination-wrap">
-                {{ $list->links() }}
+{{ $list->links('pagination::bootstrap-4') }}
             </div>
         </div>
 

@@ -357,7 +357,7 @@ class LogistikController extends Controller
 
         // ---------- FILTER DARI DROPDOWN CUSTOM ----------
         if ($request->filled('date')) {
-            $query->whereDate('tanggal_naik_logistik', $request->date);
+            $query->whereDate('rencana_kirim', $request->date);
         }
 
         if ($request->filled('month')) {
@@ -536,27 +536,26 @@ class LogistikController extends Controller
                 'tanggal_keluar_gudang_fmt'   => $this->fmtDate($r->tanggal_keluar_gudang),
                 'reason_gudang'               => $r->reason_gudang ?: '-', 
                 //  'tanggal_keluar_gudang_fmt'   => $this->fmtDate($r->tanggal_keluar_gudang),
-                'durasi_gudang1_fmt'          => $this->computeDurasiGudang($r->planning_loading, $r->tanggal_tiba_gudang),
-                'status_gudang1_badge'        => $this->badgeStatusOnTimeDelayByDate($r->planning_loading, $r->tanggal_tiba_gudang),
-                'sla_loading1_badge'          => $this->badgeSlaLoadingClean($r->planning_loading, $r->tanggal_tiba_gudang),
+              'durasi_gudang1_fmt'          => $this->computeDurasiGudang($r->tanggal_tiba_gudang, $r->tanggal_keluar_gudang),
+'status_gudang1_badge'        => $this->badgeStatusOnTimeDelayByDate($r->tanggal_tiba_gudang, $r->tanggal_keluar_gudang),
+'sla_loading1_badge'          => $this->badgeSlaLoadingClean($r->tanggal_tiba_gudang, $r->tanggal_keluar_gudang),
 
                 // GUDANG 2 (SENTUL)
                 'planning_loading_2'          => $this->fmtDate($r->planning_loading_2 ?? null),
                 'tanggal_tiba_gudang_2'       => $this->fmtDate($r->tanggal_tiba_gudang_2 ?? null),
                 'tanggal_keluar_gudang_2'     => $this->fmtDate($r->tanggal_keluar_gudang_2 ?? null),
                 'reason_gudang_2'               => $r->reason_gudang_2 ?: '-', 
-                'lama_digudang_2'             => $r->lama_digudang_2 ?? '-',
-                'sla_loading2_badge'          => $this->badgeSLA($r->sla_loading_2 ?? null),
-                'status_gudang2_badge'        => $this->badgeStatusGudangRaw($r->status_gudang_2 ?? null),
-
+'lama_digudang_2'             => $this->computeDurasiGudang($r->tanggal_tiba_gudang_2, $r->tanggal_keluar_gudang_2),
+'status_gudang2_badge'        => $this->badgeStatusOnTimeDelayByDate($r->tanggal_tiba_gudang_2, $r->tanggal_keluar_gudang_2),
+'sla_loading2_badge'          => $this->badgeSlaLoadingClean($r->tanggal_tiba_gudang_2, $r->tanggal_keluar_gudang_2),
                 // GUDANG 3 (CCIE)
                 'planning_loading_3'          => $this->fmtDate($r->planning_loading_3 ?? null),
                 'tanggal_tiba_gudang_3'       => $this->fmtDate($r->tanggal_tiba_gudang_3 ?? null),
                 'tanggal_keluar_gudang_3'     => $this->fmtDate($r->tanggal_keluar_gudang_3 ?? null),
                 'reason_gudang_3'               => $r->reason_gudang_3 ?: '-', 
-                'lama_digudang_3'             => $r->lama_digudang_3 ?? '-',
-                'sla_loading3_badge'          => $this->badgeSLA($r->sla_loading_3 ?? null),
-                'status_gudang3_badge'        => $this->badgeStatusGudangRaw($r->status_gudang_3 ?? null),
+'lama_digudang_3'             => $this->computeDurasiGudang($r->tanggal_tiba_gudang_3, $r->tanggal_keluar_gudang_3),
+'status_gudang3_badge'        => $this->badgeStatusOnTimeDelayByDate($r->tanggal_tiba_gudang_3, $r->tanggal_keluar_gudang_3),
+'sla_loading3_badge'          => $this->badgeSlaLoadingClean($r->tanggal_tiba_gudang_3, $r->tanggal_keluar_gudang_3),
 
                 'pic_monitoring'              => $r->pic_monitoring,
                 'nama_kapal'                  => $r->nama_kapal,

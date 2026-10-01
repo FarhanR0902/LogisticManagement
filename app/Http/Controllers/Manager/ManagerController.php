@@ -506,11 +506,12 @@ public function inTransit(Request $request)
     ];
 
     // ===== data tabel =====
-    $list = (clone $base)
-        ->orderByRaw("DATE({$est}) ASC")
-        ->orderBy('no_shipment')
-        ->paginate(50)
-        ->withQueryString();
+ // SESUDAH
+$list = (clone $base)
+    ->orderBy('no_shipment', 'ASC')
+    ->orderBy('act_urutan_bongkar', 'ASC')   // tie-breaker: baris dalam 1 shipment urut sesuai urutan bongkar
+    ->paginate(50)
+    ->withQueryString();
 
     $list->getCollection()->transform(function ($r) use ($todayTs) {
         $keluar = null;

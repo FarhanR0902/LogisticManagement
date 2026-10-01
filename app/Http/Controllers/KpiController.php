@@ -8,10 +8,21 @@ use Illuminate\Support\Facades\DB;
 /**
  * KPI Planner (per planner) & KPI Monitoring (per PIC monitoring).
  *
- * - Semua hitungan per SHIPMENT (COUNT DISTINCT no_shipment), kecuali yang
- *   memang per baris (kelengkapan data, reason, kepatuhan update).
- * - Periode Planner   : tanggal_naik_logistik
- * - Periode Monitoring: COALESCE(tanggal_tiba, estimasi_tiba)
+ * PRINSIP: SEMUA data ikut dihitung, tidak ada baris yang tertinggal.
+ *
+ * - Planner   : per SHIPMENT (no_shipment duplikat dihitung 1). Baris yang no_shipment-nya
+ *               kosong tetap dihitung, masing-masing sebagai 1 shipment sendiri.
+ *               Kelengkapan Data per baris.
+ * - Monitoring: per BARIS DATA / TUJUAN (COUNT(*)), no_shipment duplikat tidak digabung.
+ * - Baris yang planner / PIC-nya kosong ikut TOTAL TIM, tapi tidak dijadikan "karyawan";
+ *   jumlahnya ditulis di catatan halaman. Angka per karyawan murni milik karyawan itu.
+ * - "Belum Kelar" dihitung per planner / per PIC:
+ *     Planner    : tanggal wajib kosong, ATAU ada gudang yang sudah dimulai tapi belum keluar
+ *                  (mis. pakai 2 gudang, 1 sudah keluar 1 belum), ATAU belum ada keluar gudang sama sekali.
+ *     Monitoring : tanggal_tiba ATAU tanggal_bongkar kosong.
+ * - Periode (dipakai hanya kalau filter tahun/bulan dipilih; default = SEMUA data):
+ *     Planner    : tanggal_naik_logistik -> rencana_kirim -> create_tgl
+ *     Monitoring : tanggal_tiba -> estimasi_tiba -> tanggal_naik_logistik -> rencana_kirim -> create_tgl
  * - Target diatur di konstanta PLANNER_COLUMNS / MONITORING_COLUMNS di bawah.
  *   better = 'high' (makin tinggi makin bagus) | 'low' (makin rendah makin bagus)
  *   target = null -> tidak diberi warna.
@@ -19,6 +30,22 @@ use Illuminate\Support\Facades\DB;
 class KpiController extends Controller
 {
     private const T = 'logistik_pengiriman';
+
+    /** label untuk baris yang planner / PIC-nya belum diisi */
+    private const KOSONG = '(Belum Diisi)';
+
+    /** kunci 1 shipment: no_shipment, atau kalau kosong pakai id baris (dihitung sendiri) */
+    private const SHIP_KEY = "COALESCE(NULLIF(TRIM(no_shipment), ''), CONCAT('#', id))";
+
+    /** field non-tanggal yang wajib diisi planner */
+    private const PLANNER_WAJIB = [
+        'no_shipment', 'mobil', 'ekpedisi', 'route', 'nama_driver', 'no_pol',
+    ];
+
+    /** tanggal yang wajib diisi planner (selain siklus gudang) */
+    private const PLANNER_TANGGAL = [
+        'tanggal_naik_logistik', 'rencana_kirim', 'tanggal_dpt_unit',
+    ];
 
     private const PLANNER_COLUMNS = [
         ['key' => 'armada',  'label' => 'Armada On Time',        'unit' => '%',    'target' => 90,   'better' => 'high'],
@@ -30,6 +57,8 @@ class KpiController extends Controller
         ['key' => 'optimal', 'label' => 'Pengiriman Optimal',    'unit' => '%',    'target' => 80,   'better' => 'high'],
         ['key' => 'cr',      'label' => 'Cost Ratio',            'unit' => '%',    'target' => null, 'better' => 'low'],
         ['key' => 'kel',     'label' => 'Kelengkapan Data',      'unit' => '%',    'target' => 95,   'better' => 'high'],
+     
+        ['key' => 'belum_gudang', 'label' => 'Belum Sampai Keluar Gudang',  'unit' => '', 'target' => 0, 'better' => 'low'],
     ];
 
     private const MONITORING_COLUMNS = [
@@ -43,6 +72,8 @@ class KpiController extends Controller
         ['key' => 'update',   'label' => 'Kepatuhan Update',       'unit' => '%',    'target' => 95,   'better' => 'high'],
         ['key' => 'gap',      'label' => 'Lama Jalan vs Lead Time', 'unit' => ' hari', 'target' => 0, 'better' => 'low'],
         ['key' => 'warning',  'label' => 'Akurasi Early Warning',  'unit' => '%',    'target' => null, 'better' => 'high'],
+        ['key' => 'belum_update', 'label' => 'Belum Kelar (Tiba/Bongkar Kosong)', 'unit' => '', 'target' => 0, 'better' => 'low'],
+        ['key' => 'belum_reason', 'label' => 'Reason Delay Kosong',       'unit' => '', 'target' => 0, 'better' => 'low'],
     ];
 
     /* ================= HELPER SQL ================= */
@@ -57,13 +88,76 @@ class KpiController extends Controller
         return "NULLIF(TRIM({$c}), '') IS NULL";
     }
 
-    /** hitung shipment unik yang memenuhi kondisi */
-    private function ship(string $cond): string
+    /** tanggal dianggap KOSONG: NULL, '', mm/dd/yyyy, 0000-00-00 atau placeholder 1899-12-31 */
+    private function dateBlank(string $c): string
     {
-        return "COUNT(DISTINCT CASE WHEN {$cond} THEN NULLIF(TRIM(no_shipment), '') END)";
+        return "(NULLIF(TRIM({$c}), '') IS NULL OR TRIM({$c}) = 'mm/dd/yyyy' OR TRIM({$c}) LIKE '0000-00-00%' OR TRIM({$c}) LIKE '1899-12-31%')";
     }
 
-    /** hitung baris yang memenuhi kondisi */
+    private function dateFilled(string $c): string
+    {
+        return 'NOT ' . $this->dateBlank($c);
+    }
+
+    /**
+     * Siklus gudang BELUM KELAR (per baris/shipment):
+     * - ada gudang yang sudah dimulai (planning loading / tiba gudang terisi) tapi tanggal keluarnya kosong
+     *   (contoh: pakai 2 gudang, gudang 1 sudah keluar tapi gudang 2 belum -> belum kelar), ATAU
+     * - belum ada satu pun tanggal keluar gudang.
+     */
+    private function gudangBelumSql(): string
+    {
+        $cycles = [
+            ['planning_loading',   'tanggal_tiba_gudang',   'tanggal_keluar_gudang'],
+            ['planning_loading_2', 'tanggal_tiba_gudang_2', 'tanggal_keluar_gudang_2'],
+            ['planning_loading_3', 'tanggal_tiba_gudang_3', 'tanggal_keluar_gudang_3'],
+        ];
+
+        $parts = [];
+        foreach ($cycles as [$plan, $tiba, $keluar]) {
+            $parts[] = '((' . $this->dateFilled($plan) . ' OR ' . $this->dateFilled($tiba) . ') AND ' . $this->dateBlank($keluar) . ')';
+        }
+        $parts[] = '(' . implode(' AND ', array_map(
+            fn($c) => $this->dateBlank($c),
+            ['tanggal_keluar_gudang', 'tanggal_keluar_gudang_2', 'tanggal_keluar_gudang_3']
+        )) . ')';
+
+        return '(' . implode(' OR ', $parts) . ')';
+    }
+
+    /** pisahkan baris "(Belum Diisi)" (tanpa nama) dari daftar karyawan; return [$named, $jumlahTanpaNama] */
+    private function splitKosong($people): array
+    {
+        $kosong = $people->first(fn($p) => $p->person === self::KOSONG);
+
+        return [
+            $people->reject(fn($p) => $p->person === self::KOSONG)->values(),
+            $kosong ? (int) $kosong->total : 0,
+        ];
+    }
+
+    /** COALESCE beberapa kolom tanggal, kolom kosong ('') dianggap NULL */
+    private function coalesceDate(array $cols): string
+    {
+        return 'COALESCE(' . implode(', ', array_map(
+            fn($c) => "NULLIF(TRIM({$c}), '')",
+            $cols
+        )) . ')';
+    }
+
+    /** nama orang; kalau kosong jadi "(Belum Diisi)" */
+    private function personExpr(string $col): string
+    {
+        return "COALESCE(NULLIF(TRIM({$col}), ''), '" . self::KOSONG . "')";
+    }
+
+    /** hitung shipment unik yang memenuhi kondisi (dipakai Planner) */
+    private function ship(string $cond): string
+    {
+        return "COUNT(DISTINCT CASE WHEN {$cond} THEN " . self::SHIP_KEY . " END)";
+    }
+
+    /** hitung baris yang memenuhi kondisi (dipakai Monitoring; 1 baris = 1 tujuan) */
     private function rows(string $cond): string
     {
         return "SUM(CASE WHEN {$cond} THEN 1 ELSE 0 END)";
@@ -79,9 +173,10 @@ class KpiController extends Controller
         return $v === null ? null : round((float) $v, $d);
     }
 
+    /** default = SEMUA data. Filter tahun/bulan hanya aktif kalau dipilih. */
     private function scope($q, Request $r, string $period)
     {
-        $year = $r->filled('year') ? $r->input('year') : date('Y');
+        $year = $r->filled('year') ? $r->input('year') : 'all';
 
         if ($year !== 'all') {
             $q->whereRaw("YEAR({$period}) = ?", [(int) $year]);
@@ -96,19 +191,19 @@ class KpiController extends Controller
         return $q;
     }
 
-    /** return [$teamRow, $personRows] */
+    /** return [$teamRow, $personRows]  (baris tanpa nama ikut TOTAL TIM; dipisah dari daftar karyawan lewat splitKosong) */
     private function aggregate(Request $r, string $period, string $groupCol, string $selects): array
     {
         $team = $this->scope(DB::table(self::T), $r, $period)
             ->selectRaw($selects)
             ->first();
 
+        $person = $this->personExpr($groupCol);
+
         $people = $this->scope(DB::table(self::T), $r, $period)
-            ->whereNotNull($groupCol)
-            ->whereRaw("TRIM({$groupCol}) <> ''")
-            ->selectRaw("{$groupCol} AS person, {$selects}")
-            ->groupBy($groupCol)
-            ->orderBy($groupCol)
+            ->selectRaw("{$person} AS person, {$selects}")
+            ->groupByRaw($person)
+            ->orderByRaw($person)
             ->get();
 
         return [$team, $people];
@@ -120,11 +215,18 @@ class KpiController extends Controller
     }
 
     /* =====================================================
-     * KPI PLANNER
+     * KPI PLANNER (per no_shipment, duplikat dihitung 1)
      * ===================================================== */
     public function planner(Request $r)
     {
-        $period = 'tanggal_naik_logistik';
+        $period = $this->coalesceDate(['tanggal_naik_logistik', 'rencana_kirim', 'create_tgl']);
+
+        $gudangBelum = $this->gudangBelumSql();
+        $belumSemua  = '(' . implode(' OR ', array_merge(
+            array_map(fn($c) => $this->blankSql($c), self::PLANNER_WAJIB),
+            array_map(fn($c) => $this->dateBlank($c), self::PLANNER_TANGGAL),
+            [$gudangBelum]
+        )) . ')';
 
         $sel = implode(",\n", [
             $this->ship('1=1') . ' AS total',
@@ -158,24 +260,30 @@ class KpiController extends Controller
                 fn($c) => $this->filledSql($c),
                 ['mobil', 'ekpedisi', 'route', 'nama_driver', 'no_pol']
             ))) . ' AS kel_num',
+
+            // belum kelar (per shipment): field/tanggal wajib kosong, ATAU siklus gudang belum sampai keluar gudang terakhir
+            $this->ship($belumSemua) . ' AS belum',
+            $this->ship($gudangBelum) . ' AS belum_gudang',
         ]);
 
         [$team, $people] = $this->aggregate($r, $period, 'planner', $sel);
+        [$people, $tanpaPlanner] = $this->splitKosong($people);
 
         // Cost ratio = total biaya (1x per shipment) / total nilai muatan
+        // semua baris ikut (no_shipment kosong dianggap 1 shipment sendiri)
+        $pk = $this->personExpr('planner');
         $crSub = fn() => $this->scope(DB::table(self::T), $r, $period)
-            ->whereNotNull('no_shipment')
-            ->selectRaw("planner, no_shipment,
+            ->selectRaw("{$pk} AS planner_key, " . self::SHIP_KEY . " AS sk,
                 MAX(CAST(biaya_kirim AS DECIMAL(20,2))) AS b,
                 SUM(CAST(nilai_muatan AS DECIMAL(20,2))) AS m")
-            ->groupBy('planner', 'no_shipment');
+            ->groupByRaw("{$pk}, " . self::SHIP_KEY);
 
         $crTeam = DB::query()->fromSub($crSub(), 's')
             ->selectRaw('SUM(b) / NULLIF(SUM(m),0) * 100 AS cr')->value('cr');
 
         $crPeople = DB::query()->fromSub($crSub(), 's')
-            ->selectRaw('planner, SUM(b) / NULLIF(SUM(m),0) * 100 AS cr')
-            ->groupBy('planner')->pluck('cr', 'planner');
+            ->selectRaw('planner_key, SUM(b) / NULLIF(SUM(m),0) * 100 AS cr')
+            ->groupBy('planner_key')->pluck('cr', 'planner_key');
 
         $build = fn($x, $cr) => [
             'total'   => (int) ($x->total ?? 0),
@@ -188,6 +296,8 @@ class KpiController extends Controller
             'optimal' => $this->pct($x->opt_num, $x->opt_den),
             'cr'      => $this->dec($cr, 2),
             'kel'     => $this->pct($x->kel_num, $x->kel_den),
+            'belum'   => (int) $x->belum,
+            'belum_gudang' => (int) $x->belum_gudang,
         ];
 
         $teamRow   = $build($team, $crTeam);
@@ -200,45 +310,51 @@ class KpiController extends Controller
             'team'     => $teamRow,
             'people'   => $peopleRow,
             'areaList' => $this->areaList(),
-            'notes'    => 'Periode: Tanggal Naik Logistik. Dihitung per No Shipment (kecuali Kelengkapan Data yang per baris).',
+            'notes'    => 'Semua data ikut dihitung (default: semua periode). Per No Shipment, duplikat dihitung 1; baris tanpa No Shipment dihitung sendiri-sendiri. Kelengkapan Data per baris. Belum Kelar = tanggal wajib belum lengkap, atau ada gudang (KACS/Sentul/CCIE) yang sudah dimulai tapi belum keluar, atau belum ada tanggal keluar gudang sama sekali. Filter tahun/bulan memakai Tanggal Naik Logistik (kalau kosong: Rencana Kirim, lalu tanggal import).'
+                . ($tanpaPlanner > 0 ? " Ada {$tanpaPlanner} shipment tanpa nama planner: ikut TOTAL TIM, tidak dimasukkan ke daftar planner." : ''),
         ]);
     }
 
     /* =====================================================
-     * KPI MONITORING
+     * KPI MONITORING (per baris data / tujuan)
      * ===================================================== */
     public function monitoring(Request $r)
     {
-        $period = "COALESCE(NULLIF(TRIM(tanggal_tiba),''), estimasi_tiba)";
+        $period = $this->coalesceDate([
+            'tanggal_tiba', 'estimasi_tiba', 'tanggal_naik_logistik', 'rencana_kirim', 'create_tgl',
+        ]);
 
         $akhirValid = "status_akhir IN ('On Time Total','Delay Perjalanan','Delay Pembongkaran','Delay Total')";
         $overdueRow = "NULLIF(TRIM(estimasi_tiba),'') IS NOT NULL AND DATE(estimasi_tiba) < CURDATE()";
 
         $sel = implode(",\n", [
-            $this->ship('1=1') . ' AS total',
+            'COUNT(*) AS total',
 
-            $this->ship("sla_tiba IN ('On Time','Delay')") . ' AS tiba_den',
-            $this->ship("sla_tiba = 'On Time'") . ' AS tiba_num',
+            $this->rows("sla_tiba IN ('On Time','Delay')") . ' AS tiba_den',
+            $this->rows("sla_tiba = 'On Time'") . ' AS tiba_num',
 
-            $this->ship("sla_bongkar IN ('On Time','Delay')") . ' AS bkr_den',
-            $this->ship("sla_bongkar = 'On Time'") . ' AS bkr_num',
+            $this->rows("sla_bongkar IN ('On Time','Delay')") . ' AS bkr_den',
+            $this->rows("sla_bongkar = 'On Time'") . ' AS bkr_num',
 
-            $this->ship($akhirValid) . ' AS fin_den',
-            $this->ship("status_akhir = 'On Time Total'") . ' AS fin_num',
+            $this->rows($akhirValid) . ' AS fin_den',
+            $this->rows("status_akhir = 'On Time Total'") . ' AS fin_num',
 
             'AVG(overstay_days) AS overstay',
 
-            $this->ship($this->blankSql('tanggal_tiba') . " AND {$overdueRow}") . ' AS overdue',
+            $this->rows($this->blankSql('tanggal_tiba') . " AND {$overdueRow}") . ' AS overdue',
 
             // akurasi qty
-            $this->ship($this->filledSql('selisih_qty')) . ' AS qty_den',
-            $this->ship($this->filledSql('selisih_qty') . ' AND CAST(selisih_qty AS DECIMAL(20,2)) = 0') . ' AS qty_num',
+            $this->rows($this->filledSql('selisih_qty')) . ' AS qty_den',
+            $this->rows($this->filledSql('selisih_qty') . ' AND CAST(selisih_qty AS DECIMAL(20,2)) = 0') . ' AS qty_num',
 
-            // reason coverage (per baris: tiba delay + bongkar delay)
+            // reason coverage (tiba delay + bongkar delay)
             $this->rows("sla_tiba = 'Delay'") . ' AS rt_den',
             $this->rows("sla_tiba = 'Delay' AND " . $this->filledSql('reason_tiba')) . ' AS rt_num',
             $this->rows("sla_bongkar = 'Delay'") . ' AS rb_den',
             $this->rows("sla_bongkar = 'Delay' AND " . $this->filledSql('reason_bongkar')) . ' AS rb_num',
+
+            // belum kelar: tanggal_tiba ATAU tanggal_bongkar masih kosong
+            $this->rows($this->dateBlank('tanggal_tiba') . ' OR ' . $this->dateBlank('tanggal_bongkar')) . ' AS belum_upd',
 
             // kepatuhan update: sudah lewat estimasi -> tiba & bongkar harus terisi
             $this->rows($overdueRow) . ' AS upd_den',
@@ -254,6 +370,7 @@ class KpiController extends Controller
         ]);
 
         [$team, $people] = $this->aggregate($r, $period, 'pic_monitoring', $sel);
+        [$people, $tanpaPic] = $this->splitKosong($people);
 
         $build = fn($x) => [
             'total'    => (int) ($x->total ?? 0),
@@ -267,6 +384,9 @@ class KpiController extends Controller
             'update'   => $this->pct($x->upd_num, $x->upd_den),
             'gap'      => $this->dec($x->gap),
             'warning'  => $this->pct($x->ew_num, $x->ew_den),
+            // belum diisi monitoring
+            'belum_update' => (int) $x->belum_upd,
+            'belum_reason' => (int) (($x->rt_den - $x->rt_num) + ($x->rb_den - $x->rb_num)),
         ];
 
         return view('kpi.index', [
@@ -276,7 +396,8 @@ class KpiController extends Controller
             'team'     => $build($team),
             'people'   => $people->map(fn($p) => ['name' => $p->person] + $build($p)),
             'areaList' => $this->areaList(),
-            'notes'    => 'Periode: Tanggal Tiba (kalau belum tiba pakai Estimasi Tiba). Dihitung per No Shipment (Reason Coverage, Kepatuhan Update, Early Warning per baris).',
+            'notes'    => 'Semua data ikut dihitung (default: semua periode). Per baris data / tujuan, No Shipment duplikat tidak digabung. Belum Kelar = Tanggal Tiba atau Tanggal Bongkar masih kosong. Filter tahun/bulan memakai Tanggal Tiba (kalau belum tiba: Estimasi Tiba, lalu Tanggal Naik Logistik).'
+                . ($tanpaPic > 0 ? " Ada {$tanpaPic} baris tanpa PIC monitoring: ikut TOTAL TIM, tidak dimasukkan ke daftar PIC." : ''),
         ]);
     }
 }

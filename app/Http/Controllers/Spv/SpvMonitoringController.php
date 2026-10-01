@@ -1200,7 +1200,97 @@ private function inTransitQuery()
 
     return $q;
 }
+private function inTransitAsalSql(): string
+{
+    $k1 = "COALESCE(NULLIF(TRIM(tanggal_keluar_gudang),''),'1900-01-01')";
+    $k2 = "COALESCE(NULLIF(TRIM(tanggal_keluar_gudang_2),''),'1900-01-01')";
+    $k3 = "COALESCE(NULLIF(TRIM(tanggal_keluar_gudang_3),''),'1900-01-01')";
 
+    return "CASE
+        WHEN {$k3} > '1900-01-01' AND {$k3} >= {$k1} AND {$k3} >= {$k2} THEN 'CCIE'
+        WHEN {$k2} > '1900-01-01' AND {$k2} >= {$k1} AND {$k2} >= {$k3} THEN 'SENTUL'
+        ELSE 'KACS' END";
+}
+
+private function applyInTransitSearch($base, string $s)
+{
+    $s = trim($s);
+    if ($s === '') {
+        return $base;
+    }
+    $like = "%{$s}%";
+
+    $est = $this->inTransitEstimasiSql();
+    $k1  = "COALESCE(NULLIF(TRIM(tanggal_keluar_gudang),''),'1900-01-01')";
+    $k2  = "COALESCE(NULLIF(TRIM(tanggal_keluar_gudang_2),''),'1900-01-01')";
+    $k3  = "COALESCE(NULLIF(TRIM(tanggal_keluar_gudang_3),''),'1900-01-01')";
+    $keluar = "GREATEST({$k1},{$k2},{$k3})";
+    $sisa   = "DATEDIFF(DATE({$est}), CURDATE())";
+
+    $exprs = [
+        $this->inTransitAsalSql(),
+        "DATE_FORMAT({$keluar}, '%d-%m-%Y')",
+        "CONCAT(DATEDIFF(CURDATE(), DATE({$keluar})), ' Hari')",
+        "DATE_FORMAT({$est}, '%d-%m-%Y')",
+        "CASE
+            WHEN {$sisa} < 0 THEN CONCAT('Pending Tiba H+', ABS({$sisa}))
+            WHEN {$sisa} <= 7 THEN CONCAT('H-', {$sisa})
+            ELSE 'ON TRACK' END",
+    ];
+
+    $cols = [
+        'no_shipment', 'tujuan', 'area', 'dist_channel', 'ekpedisi',
+        'mobil', 'nama_driver', 'no_pol', 'pic_monitoring', 'remarks',
+    ];
+
+    return $base->where(function ($q) use ($cols, $exprs, $like) {
+        foreach ($cols as $col) {
+            $q->orWhere($col, 'like', $like);
+        }
+        foreach ($exprs as $expr) {
+            $q->orWhereRaw("({$expr}) LIKE ?", [$like]);
+        }
+    });
+}
+
+private function applyInTransitSearchPasuruan($base, string $s)
+{
+    $s = trim($s);
+    if ($s === '') {
+        return $base;
+    }
+    $like = "%{$s}%";
+
+    $est    = $this->inTransitEstimasiSqlPasuruan();
+    $keluar = 'tanggal_keluar_gudang_pasuruan';
+    $sisa   = "DATEDIFF(DATE({$est}), CURDATE())";
+
+    $exprs = [
+        "'GUDANG'",
+        "DATE_FORMAT({$keluar}, '%d-%m-%Y')",
+        "CONCAT(DATEDIFF(CURDATE(), DATE({$keluar})), ' Hari')",
+        "DATE_FORMAT({$est}, '%d-%m-%Y')",
+        "CASE
+            WHEN {$sisa} < 0 THEN CONCAT('Pending Tiba H+', ABS({$sisa}))
+            WHEN {$sisa} <= 7 THEN CONCAT('H-', {$sisa})
+            ELSE 'ON TRACK' END",
+    ];
+
+    $cols = [
+        'no_shipment_pasuruan', 'tujuan_pasuruan', 'area_pasuruan', 'dist_channel_pasuruan',
+        'ekspedisi_pasuruan', 'mobil_pasuruan', 'nama_driver_pasuruan', 'no_pol_pasuruan',
+        'pic_monitoring_pasuruan', 'remarks_pasuruan',
+    ];
+
+    return $base->where(function ($q) use ($cols, $exprs, $like) {
+        foreach ($cols as $col) {
+            $q->orWhere($col, 'like', $like);
+        }
+        foreach ($exprs as $expr) {
+            $q->orWhereRaw("({$expr}) LIKE ?", [$like]);
+        }
+    });
+}
 private function inTransitEstimasiSql(): string
 {
     return "COALESCE(estimasi_tiba, DATE_ADD(
@@ -1225,18 +1315,15 @@ public function inTransit(Request $request)
     if ($request->filled('area')) {
         $base->where('area', $request->input('area'));
     }
-    if ($request->filled('pic_monitoring')) {
+       if ($request->filled('pic_monitoring')) {
         $base->where('pic_monitoring', $request->input('pic_monitoring'));
     }
-    if ($request->filled('q')) {
-        $s = trim($request->input('q'));
-        $base->where(function ($q) use ($s) {
-            foreach (['no_shipment', 'tujuan', 'ekpedisi', 'nama_driver', 'no_pol', 'mobil'] as $col) {
-                $q->orWhere($col, 'like', "%{$s}%");
-            }
-        });
+    if ($request->filled('gudang_asal')) {
+        $base->whereRaw('(' . $this->inTransitAsalSql() . ') = ?', [$request->input('gudang_asal')]);
     }
-
+    if ($request->filled('q')) {
+        $this->applyInTransitSearch($base, $request->input('q'));
+    }
     // ===== ringkasan =====
     $sum = (clone $base)->selectRaw("
         COUNT(*) AS total,
@@ -1253,11 +1340,12 @@ public function inTransit(Request $request)
     ];
 
     // ===== data tabel =====
-    $list = (clone $base)
-        ->orderByRaw("DATE({$est}) ASC")
-        ->orderBy('no_shipment')
-        ->paginate(50)
-        ->withQueryString();
+  // SESUDAH
+$list = (clone $base)
+    ->orderBy('no_shipment', 'ASC')
+    ->orderBy('act_urutan_bongkar', 'ASC')   // tie-breaker: baris dalam 1 shipment urut sesuai urutan bongkar
+    ->paginate(50)
+    ->withQueryString();
 
     $list->getCollection()->transform(function ($r) use ($todayTs) {
         $keluar = null;

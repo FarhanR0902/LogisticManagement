@@ -1154,34 +1154,72 @@ total_tonase: row.find('[name="total_tonase"]').val(),
             });
         }
 
-        $('#btnSaveAll').on('click', function() {
-            if (dirtyRows.size === 0) {
-                alert('Belum ada perubahan untuk disimpan.');
-                return;
-            }
+      $('#btnSaveAll').on('click', function() {
+    if (dirtyRows.size === 0) {
+        alert('Belum ada perubahan untuk disimpan.');
+        return;
+    }
 
-            let btn = $(this);
-            btn.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin"></i> Menyimpan...');
+    let ids = Array.from(dirtyRows);
 
-            let ids = Array.from(dirtyRows);
-            let requests = ids.map(id => saveRow(id));
+    // pisahkan: baris valid vs baris delay yang reason-nya kosong
+    let bermasalah = [];
+    let idsValid = [];
 
-            $.when.apply($, requests)
-                .done(function() {
-                    dirtyRows.clear();
-                    updateUnsavedBadge();
-                    alert('Semua perubahan (' + ids.length + ' baris) berhasil disimpan!');
-                    loadAlertControl();
-                    table.ajax.reload(null, false);
-                })
-                .fail(function() {
-                    alert('Sebagian data gagal disimpan, cek console.');
-                })
-                .always(function() {
-                    btn.prop('disabled', false)
-                       .html('<i class="fa-solid fa-floppy-disk"></i> Save <span id="unsavedCount" class="badge bg-danger rounded-pill" style="display:none;">0</span>');
-                });
+    ids.forEach(function(id) {
+        const masalah = cekReasonRow(id);
+        if (masalah) bermasalah.push(masalah);
+        else idsValid.push(id);
+    });
+
+    // beri tahu baris yang ditahan
+    if (bermasalah.length > 0) {
+        let pesan = 'Reason gudang WAJIB diisi karena status Delay:\n\n';
+        bermasalah.forEach(function(m) {
+            pesan += '- ' + m.no_shipment + ' | ' + m.tujuan + ' (' + m.gudang.join(', ') + ')\n';
         });
+        if (idsValid.length > 0) {
+            pesan += '\n' + idsValid.length + ' baris lain yang tidak bermasalah tetap disimpan.';
+        } else {
+            pesan += '\nTidak ada yang disimpan.';
+        }
+        alert(pesan);
+
+        // sorot baris yang bermasalah
+        bermasalah.forEach(function(m) {
+            $('tr[data-id="' + m.id + '"]').addClass('highlight-row');
+        });
+        setTimeout(function() { $('.highlight-row').removeClass('highlight-row'); }, 3000);
+    }
+
+    if (idsValid.length === 0) return;
+
+    let btn = $(this);
+    btn.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin"></i> Menyimpan...');
+
+    let requests = idsValid.map(id => saveRow(id));
+
+    $.when.apply($, requests)
+        .done(function() {
+            idsValid.forEach(id => dirtyRows.delete(id));   // yang ditahan tetap "belum disimpan"
+            updateUnsavedBadge();
+            if (bermasalah.length === 0) {
+                alert('Semua perubahan (' + idsValid.length + ' baris) berhasil disimpan!');
+            }
+            loadAlertControl();
+            table.ajax.reload(null, false);
+        })
+        .fail(function() {
+            alert('Sebagian data gagal disimpan, cek console.');
+        })
+        .always(function() {
+            btn.prop('disabled', false)
+               .html('<i class="fa-solid fa-floppy-disk"></i> Save <span id="unsavedCount" class="badge bg-danger rounded-pill" style="display:none;">0</span>');
+            updateUnsavedBadge();
+        });
+});
+
+          
 
         // ==========================================================
         // ALERT CONTROL
@@ -1313,12 +1351,97 @@ total_tonase: row.find('[name="total_tonase"]').val(),
             }
         });
 
+   // ==========================================================
+// LIVE: Lama / Status / SLA di gudang (tiba -> keluar)
+// Berbasis nomor kolom, jadi tidak perlu ubah controller
+// ==========================================================
+function dayNum(s) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s || '');
+    return m ? Date.UTC(+m[1], +m[2] - 1, +m[3]) / 86400000 : null;
+}
+
+// nomor kolom (mulai dari 0) di tabel: Lama, Status, SLA per gudang
+const GUDANG_COLS = [
+    { suffix: '',   cols: [45, 46, 47] },   // KACS
+    { suffix: '_2', cols: [48, 49, 50] },   // Sentul
+    { suffix: '_3', cols: [51, 52, 53] }    // CCIE
+];
+
+function recalcGudang($tr) {
+    const v = n => $tr.find('[name="' + n + '"]').val();
+    const $td = $tr.children('td');
+
+    GUDANG_COLS.forEach(function(g) {
+        const s = dayNum(v('tanggal_tiba_gudang' + g.suffix));
+        const e = dayNum(v('tanggal_keluar_gudang' + g.suffix));
+        let dur, st, sla;
+
+        if (s === null || e === null) {
+            dur = '-';
+            st  = '<span class="badge gray">-</span>';
+            sla = '<span class="badge bg-secondary">-</span>';
+        } else if (e - s > 0) {
+            dur = (e - s) + ' Hari';
+            st  = '<span class="badge red">Delay</span>';
+            sla = '<span class="badge red">H+' + (e - s) + '</span>';
+        } else {
+            dur = '0 Jam';
+            st  = '<span class="badge green">On Time</span>';
+            sla = '<span class="badge bg-success">Sesuai SLA</span>';
+        }
+
+        $td.eq(g.cols[0]).text(dur);
+        $td.eq(g.cols[1]).html(st);
+        $td.eq(g.cols[2]).html(sla);
+    });
+}
+
+$(document).on('input change',
+    '#tablePlanner input[name^="tanggal_tiba_gudang"], #tablePlanner input[name^="tanggal_keluar_gudang"]',
+    function() {
+        recalcGudang($(this).closest('tr'));
+    });
+
+    // ==========================================================
+// VALIDASI: gudang Delay wajib isi reason
+// ==========================================================
+const GUDANG_CEK = [
+    { label: 'KACS',   suffix: '',   reason: 'reason_gudang'   },
+    { label: 'Sentul', suffix: '_2', reason: 'reason_gudang_2' },
+    { label: 'CCIE',   suffix: '_3', reason: 'reason_gudang_3' }
+];
+
+function cekReasonRow(id) {
+    const $tr = $('tr[data-id="' + id + '"]');
+    const v = n => $tr.find('[name="' + n + '"]').val();
+    const kurang = [];
+
+    GUDANG_CEK.forEach(function(g) {
+        const s = dayNum(v('tanggal_tiba_gudang' + g.suffix));
+        const e = dayNum(v('tanggal_keluar_gudang' + g.suffix));
+        const delay = (s !== null && e !== null && (e - s) > 0);
+
+        if (delay && !String(v(g.reason) || '').trim()) {
+            kurang.push(g.label);
+        }
+    });
+
+    if (kurang.length === 0) return null;
+
+    return {
+        id: id,
+        no_shipment: String(v('no_shipment') || '').trim() || '(tanpa no shipment)',
+        tujuan: String(v('tujuan') || '').trim() || '-',
+        gudang: kurang
+    };
+}
         $('.select2-modal').select2({
             theme: 'bootstrap-5',
             dropdownParent: $('#addModal'),
             width: '100%'
         });
     });
+   
 
     $('#formGudang23').on('submit', function(e) {
         e.preventDefault();

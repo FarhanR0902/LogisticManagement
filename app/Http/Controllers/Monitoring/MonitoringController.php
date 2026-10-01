@@ -1,7 +1,7 @@
 <?php
 
 namespace App\Http\Controllers\Monitoring;
-
+use App\Exports\InTransitExport;
 use App\Http\Controllers\Controller;
 use App\Models\LogistikPengiriman;
 use Illuminate\Http\Request;
@@ -902,6 +902,143 @@ private function inTransitQuery()
 
     return $q;
 }
+private function inTransitFiltered(Request $request)
+{
+    $base = $this->inTransitQuery();
+
+    if ($request->filled('area')) {
+        $base->where('area', $request->input('area'));
+    }
+    if ($request->filled('pic_monitoring')) {
+        $base->where('pic_monitoring', $request->input('pic_monitoring'));
+    }
+    if ($request->filled('gudang_asal')) {
+        $base->whereRaw('(' . $this->inTransitAsalSql() . ') = ?', [$request->input('gudang_asal')]);
+    }
+    if ($request->filled('q')) {
+        $this->applyInTransitSearch($base, $request->input('q'));
+    }
+
+    return $base;
+}
+private function inTransitAsalSql(): string
+{
+    $k1 = "COALESCE(NULLIF(TRIM(tanggal_keluar_gudang),''),'1900-01-01')";
+    $k2 = "COALESCE(NULLIF(TRIM(tanggal_keluar_gudang_2),''),'1900-01-01')";
+    $k3 = "COALESCE(NULLIF(TRIM(tanggal_keluar_gudang_3),''),'1900-01-01')";
+
+    return "CASE
+        WHEN {$k3} > '1900-01-01' AND {$k3} >= {$k1} AND {$k3} >= {$k2} THEN 'CCIE'
+        WHEN {$k2} > '1900-01-01' AND {$k2} >= {$k1} AND {$k2} >= {$k3} THEN 'SENTUL'
+        ELSE 'KACS' END";
+}
+
+private function applyInTransitSearch($base, string $s)
+{
+    $s = trim($s);
+    if ($s === '') {
+        return $base;
+    }
+    $like = "%{$s}%";
+
+    $est = $this->inTransitEstimasiSql();
+    $k1  = "COALESCE(tanggal_keluar_gudang,'1900-01-01')";
+    $k2  = "COALESCE(tanggal_keluar_gudang_2,'1900-01-01')";
+    $k3  = "COALESCE(tanggal_keluar_gudang_3,'1900-01-01')";
+    $keluar = "GREATEST({$k1},{$k2},{$k3})";
+
+    // Keluar Dari (sama logikanya dgn PHP: tanggal terbaru, kalau sama menang yg belakang)
+    $asal = "CASE
+        WHEN {$k3} > '1900-01-01' AND {$k3} >= {$k1} AND {$k3} >= {$k2} THEN 'CCIE'
+        WHEN {$k2} > '1900-01-01' AND {$k2} >= {$k1} AND {$k2} >= {$k3} THEN 'SENTUL'
+        ELSE 'KACS' END";
+
+    $sisa = "DATEDIFF(DATE({$est}), CURDATE())";
+
+    $alert = "CASE
+        WHEN {$sisa} < 0 THEN CONCAT('Pending Tiba H+', ABS({$sisa}))
+        WHEN {$sisa} <= 7 THEN CONCAT('H-', {$sisa})
+        ELSE 'ON TRACK' END";
+
+    $exprs = [
+        $asal,                                            // Keluar Dari
+        "DATE_FORMAT({$keluar}, '%d-%m-%Y')",             // Tanggal Keluar
+        "CONCAT(DATEDIFF(CURDATE(), DATE({$keluar})), ' Hari')", // Lama Di Jalan
+        "DATE_FORMAT({$est}, '%d-%m-%Y')",                // Estimasi Tiba
+        $alert,                                           // Alert
+    ];
+
+    $cols = [
+        'no_shipment', 'tujuan', 'area', 'dist_channel', 'ekpedisi',
+        'mobil', 'nama_driver', 'no_pol', 'pic_monitoring', 'remarks',
+    ];
+
+    return $base->where(function ($q) use ($cols, $exprs, $like) {
+        foreach ($cols as $col) {
+            $q->orWhere($col, 'like', $like);
+        }
+        foreach ($exprs as $expr) {
+            $q->orWhereRaw("({$expr}) LIKE ?", [$like]);
+        }
+    });
+}
+private function decorateInTransitRow($r, $todayTs)
+{
+    $keluar = null;
+    $asal   = '-';
+    foreach ([
+        ['KACS',   $r->tanggal_keluar_gudang],
+        ['SENTUL', $r->tanggal_keluar_gudang_2],
+        ['CCIE',   $r->tanggal_keluar_gudang_3],
+    ] as [$nama, $tgl]) {
+        if (!empty($tgl)) {
+            $ts = strtotime($tgl);
+            if ($keluar === null || $ts >= $keluar) {
+                $keluar = $ts;
+                $asal   = $nama;
+            }
+        }
+    }
+
+    $lead     = (int) ($r->transport_lead_time ?? 0);
+    $keluarD  = $keluar ? strtotime(date('Y-m-d', $keluar)) : null;
+    $estimasi = !empty($r->estimasi_tiba)
+        ? strtotime($r->estimasi_tiba)
+        : ($keluarD ? strtotime("+{$lead} days", $keluarD) : null);
+
+    $alert = '-';
+    $cls   = 'gray';
+    if ($estimasi) {
+        $sisa = floor(($estimasi - $todayTs) / 86400);
+        if     ($sisa < 0)  { $alert = 'Pending Tiba H+' . abs($sisa); $cls = 'red'; }
+        elseif ($sisa <= 1) { $alert = 'H-' . $sisa;                    $cls = 'red'; }
+        elseif ($sisa <= 3) { $alert = 'H-' . $sisa;                    $cls = 'orange'; }
+        elseif ($sisa <= 7) { $alert = 'H-' . $sisa;                    $cls = 'blue'; }
+        else                { $alert = 'ON TRACK';                      $cls = 'green'; }
+    }
+
+    $r->gudang_asal     = $asal;
+    $r->keluar_label    = $keluar ? date('d-m-Y', $keluar) : '-';
+    $r->hari_transit    = $keluarD ? max(0, floor(($todayTs - $keluarD) / 86400)) : null;
+    $r->estimasi_label  = $estimasi ? date('d-m-Y', $estimasi) : '-';
+    $r->alert_label     = $alert;
+    $r->alert_class     = $cls;
+
+    return $r;
+}
+
+public function exportInTransit(Request $request)
+{
+    $todayTs = strtotime(date('Y-m-d'));
+
+    $rows = $this->inTransitFiltered($request)
+        ->orderBy('no_shipment', 'ASC')
+        ->orderBy('act_urutan_bongkar', 'ASC')
+        ->get()
+        ->map(fn($r) => $this->decorateInTransitRow($r, $todayTs));
+
+    return Excel::download(new InTransitExport($rows), 'In_Transit_' . date('Ymd_His') . '.xlsx');
+}
 
 // estimasi tiba: pakai yang tersimpan, kalau kosong hitung keluar terakhir + lead time
 private function inTransitEstimasiSql(): string
@@ -916,6 +1053,111 @@ private function inTransitEstimasiSql(): string
     ))";
 }
 
+// public function inTransit(Request $request)
+// {
+//     $today    = date('Y-m-d');
+//     $todayTs  = strtotime($today);
+//     $soon     = date('Y-m-d', strtotime('+3 days'));
+//     $est      = $this->inTransitEstimasiSql();
+
+//     $base = $this->inTransitQuery();
+
+//     if ($request->filled('area')) {
+//         $base->where('area', $request->input('area'));
+//     }
+//     if ($request->filled('pic_monitoring')) {
+//         $base->where('pic_monitoring', $request->input('pic_monitoring'));
+//     }
+//     if ($request->filled('q')) {
+//         $s = trim($request->input('q'));
+//         $base->where(function ($q) use ($s) {
+//             foreach (['no_shipment', 'tujuan', 'ekpedisi', 'nama_driver', 'no_pol', 'mobil'] as $col) {
+//                 $q->orWhere($col, 'like', "%{$s}%");
+//             }
+//         });
+//     }
+
+//     // ===== ringkasan (1 query) =====
+//     $sum = (clone $base)->selectRaw("
+//         COUNT(*) AS total,
+//         SUM(CASE WHEN DATE({$est}) < ? THEN 1 ELSE 0 END) AS overdue,
+//         SUM(CASE WHEN DATE({$est}) BETWEEN ? AND ? THEN 1 ELSE 0 END) AS soon,
+//         SUM(CASE WHEN DATE({$est}) > ? THEN 1 ELSE 0 END) AS ontrack
+//     ", [$today, $today, $soon, $soon])->first();
+
+//     $summary = [
+//         'total'   => (int) ($sum->total ?? 0),
+//         'overdue' => (int) ($sum->overdue ?? 0),
+//         'soon'    => (int) ($sum->soon ?? 0),
+//         'ontrack' => (int) ($sum->ontrack ?? 0),
+//     ];
+
+//     // ===== data tabel =====
+//    // SESUDAH
+// $list = (clone $base)
+//     ->orderBy('no_shipment', 'ASC')
+//     ->orderBy('act_urutan_bongkar', 'ASC')   // tie-breaker: baris dalam 1 shipment urut sesuai urutan bongkar
+//     ->paginate(50)
+//     ->withQueryString();
+
+//     $list->getCollection()->transform(function ($r) use ($todayTs) {
+//         // gudang terakhir yang dikeluarkan
+//         $keluar = null;
+//         $asal   = '-';
+//         foreach ([
+//             ['KACS',   $r->tanggal_keluar_gudang],
+//             ['SENTUL', $r->tanggal_keluar_gudang_2],
+//             ['CCIE',   $r->tanggal_keluar_gudang_3],
+//         ] as [$nama, $tgl]) {
+//             if (!empty($tgl)) {
+//                 $ts = strtotime($tgl);
+//                 if ($keluar === null || $ts >= $keluar) {
+//                     $keluar = $ts;
+//                     $asal   = $nama;
+//                 }
+//             }
+//         }
+
+//         $lead     = (int) ($r->transport_lead_time ?? 0);
+//         $keluarD  = $keluar ? strtotime(date('Y-m-d', $keluar)) : null;
+//         $estimasi = !empty($r->estimasi_tiba)
+//             ? strtotime($r->estimasi_tiba)
+//             : ($keluarD ? strtotime("+{$lead} days", $keluarD) : null);
+
+//         $alert = '-';
+//         $cls   = 'gray';
+//         if ($estimasi) {
+//             $sisa = floor(($estimasi - $todayTs) / 86400);
+//             if     ($sisa < 0)  { $alert = 'Pending Tiba H+' . abs($sisa); $cls = 'red'; }
+//             elseif ($sisa <= 1) { $alert = 'H-' . $sisa;                    $cls = 'red'; }
+//             elseif ($sisa <= 3) { $alert = 'H-' . $sisa;                    $cls = 'orange'; }
+//             elseif ($sisa <= 7) { $alert = 'H-' . $sisa;                    $cls = 'blue'; }
+//             else                { $alert = 'ON TRACK';                      $cls = 'green'; }
+//         }
+
+//         $r->gudang_asal     = $asal;
+//         $r->keluar_label    = $keluar ? date('d-m-Y', $keluar) : '-';
+//         $r->hari_transit    = $keluarD ? max(0, floor(($todayTs - $keluarD) / 86400)) : null;
+//         $r->estimasi_label  = $estimasi ? date('d-m-Y', $estimasi) : '-';
+//         $r->alert_label     = $alert;
+//         $r->alert_class     = $cls;
+
+//         return $r;
+//     });
+
+//     $areaList = Cache::remember('monitoring_area_list', 3600, function () {
+//         return LogistikPengiriman::whereNotNull('area')
+//             ->distinct()->orderBy('area')->pluck('area');
+//     });
+
+//     $picList = Cache::remember('monitoring_pic_list', 3600, function () {
+//         return LogistikPengiriman::whereNotNull('pic_monitoring')
+//             ->distinct()->orderBy('pic_monitoring')->pluck('pic_monitoring');
+//     });
+
+//     return view('monitoring.in_transit', compact('list', 'summary', 'areaList', 'picList'));
+// }
+
 public function inTransit(Request $request)
 {
     $today    = date('Y-m-d');
@@ -923,22 +1165,7 @@ public function inTransit(Request $request)
     $soon     = date('Y-m-d', strtotime('+3 days'));
     $est      = $this->inTransitEstimasiSql();
 
-    $base = $this->inTransitQuery();
-
-    if ($request->filled('area')) {
-        $base->where('area', $request->input('area'));
-    }
-    if ($request->filled('pic_monitoring')) {
-        $base->where('pic_monitoring', $request->input('pic_monitoring'));
-    }
-    if ($request->filled('q')) {
-        $s = trim($request->input('q'));
-        $base->where(function ($q) use ($s) {
-            foreach (['no_shipment', 'tujuan', 'ekpedisi', 'nama_driver', 'no_pol', 'mobil'] as $col) {
-                $q->orWhere($col, 'like', "%{$s}%");
-            }
-        });
-    }
+    $base = $this->inTransitFiltered($request);
 
     // ===== ringkasan (1 query) =====
     $sum = (clone $base)->selectRaw("
@@ -957,54 +1184,13 @@ public function inTransit(Request $request)
 
     // ===== data tabel =====
     $list = (clone $base)
-        ->orderByRaw("DATE({$est}) ASC")
-        ->orderBy('no_shipment')
+        ->orderBy('no_shipment', 'ASC')
+        ->orderBy('act_urutan_bongkar', 'ASC')
         ->paginate(50)
         ->withQueryString();
 
     $list->getCollection()->transform(function ($r) use ($todayTs) {
-        // gudang terakhir yang dikeluarkan
-        $keluar = null;
-        $asal   = '-';
-        foreach ([
-            ['KACS',   $r->tanggal_keluar_gudang],
-            ['SENTUL', $r->tanggal_keluar_gudang_2],
-            ['CCIE',   $r->tanggal_keluar_gudang_3],
-        ] as [$nama, $tgl]) {
-            if (!empty($tgl)) {
-                $ts = strtotime($tgl);
-                if ($keluar === null || $ts >= $keluar) {
-                    $keluar = $ts;
-                    $asal   = $nama;
-                }
-            }
-        }
-
-        $lead     = (int) ($r->transport_lead_time ?? 0);
-        $keluarD  = $keluar ? strtotime(date('Y-m-d', $keluar)) : null;
-        $estimasi = !empty($r->estimasi_tiba)
-            ? strtotime($r->estimasi_tiba)
-            : ($keluarD ? strtotime("+{$lead} days", $keluarD) : null);
-
-        $alert = '-';
-        $cls   = 'gray';
-        if ($estimasi) {
-            $sisa = floor(($estimasi - $todayTs) / 86400);
-            if     ($sisa < 0)  { $alert = 'Pending Tiba H+' . abs($sisa); $cls = 'red'; }
-            elseif ($sisa <= 1) { $alert = 'H-' . $sisa;                    $cls = 'red'; }
-            elseif ($sisa <= 3) { $alert = 'H-' . $sisa;                    $cls = 'orange'; }
-            elseif ($sisa <= 7) { $alert = 'H-' . $sisa;                    $cls = 'blue'; }
-            else                { $alert = 'ON TRACK';                      $cls = 'green'; }
-        }
-
-        $r->gudang_asal     = $asal;
-        $r->keluar_label    = $keluar ? date('d-m-Y', $keluar) : '-';
-        $r->hari_transit    = $keluarD ? max(0, floor(($todayTs - $keluarD) / 86400)) : null;
-        $r->estimasi_label  = $estimasi ? date('d-m-Y', $estimasi) : '-';
-        $r->alert_label     = $alert;
-        $r->alert_class     = $cls;
-
-        return $r;
+        return $this->decorateInTransitRow($r, $todayTs);
     });
 
     $areaList = Cache::remember('monitoring_area_list', 3600, function () {

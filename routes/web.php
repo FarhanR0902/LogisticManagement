@@ -218,6 +218,8 @@ Route::get(
     '/monitoring/data-logistik',
     [MonitoringController::class, 'dataLogistik']
 )->name('monitoring.datalogistik');
+Route::get('/monitoring/intransit/export', [MonitoringController::class, 'exportInTransit'])
+    ->name('monitoring.intransit.export');
 
 Route::get('/monitoring/data-ajax', [MonitoringController::class, 'dataAjax'])->name('monitoring.datalogistik.ajax');
 Route::get('/monitoring/alerts', [MonitoringController::class, 'alerts'])->name('monitoring.alerts');

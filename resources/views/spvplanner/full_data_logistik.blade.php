@@ -481,7 +481,7 @@
                     @endfor
                 </select>
 
-                <select id="filterPic" name="pic_monitoring">
+                <select id="filterPic" name="planner">
                     <option value="">Semua PIC</option>
                     @foreach($picList as $p)
                         <option value="{{ $p }}">{{ $p }}</option>
@@ -504,7 +504,7 @@
                 <table id="tableLogistik" class="display nowrap" style="width:100%">
                     <thead>
                         <tr>
-                            <th>Tanggal Naik Logistik</th>
+                            <th>Tanggal Naik PO</th>
                             <th>Rencana Kirim</th>
                             <th class="col-small">Lead Time</th>
                             <th>Nama Driver</th>
@@ -636,7 +636,7 @@
                         d.date           = $('#filterDate').val();
                         d.month          = $('#filterMonth').val();
                         d.year           = $('#filterYear').val();
-                        d.pic_monitoring = $('#filterPic').val();
+                        d.planner = $('#filterPic').val();
                     },
                     beforeSend: function () { $overlay.css('display', 'flex'); },
                     complete:  function () { $overlay.hide(); },
@@ -705,7 +705,7 @@ columns: (function () {
             date:           $('#filterDate').val(),
             month:          $('#filterMonth').val(),
             year:           $('#filterYear').val(),
-            pic_monitoring: $('#filterPic').val(),
+            planner: $('#filterPic').val(),
             search_value:   table.search() // ambil dari kotak search DataTables
         },
         success: function (res) {

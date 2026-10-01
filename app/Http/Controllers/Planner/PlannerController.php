@@ -350,23 +350,17 @@ public function inTransit(Request $request)
         $keluar  = $gudangInfo['keluar'];
         $blocked = $gudangInfo['blocked'];
 
-        if (!$blocked && $keluar && $request->transport_lead_time) {
+        $leadTime = $request->transport_lead_time;
 
+        if (!$blocked && $keluar && $leadTime !== null && $leadTime !== '') {
             $request->merge([
-                'estimasi_tiba' => date(
-                    'Y-m-d',
-                    strtotime(
-                        '+' . (int) $request->transport_lead_time . ' days',
-                        $keluar
-                    )
-                )
+                'estimasi_tiba' => date('Y-m-d', strtotime('+' . (int) $leadTime . ' days', $keluar)),
             ]);
-        } else {
-            // masih ada siklus gudang yang "ngegantung" (belum keluar)
-            // -> jangan hitung estimasi dulu
+        } elseif ($blocked) {
             $request->merge(['estimasi_tiba' => null]);
+        } else {
+            $request->merge(['estimasi_tiba' => $old->estimasi_tiba]);
         }
-
         // ==========================
         // Hitung SLA
         // ==========================
@@ -564,15 +558,16 @@ $updateRow = [
         $keluar  = $gudangInfo['keluar'];
         $blocked = $gudangInfo['blocked'];
 
-        if (!$blocked && $keluar && $request->transport_lead_time) {
+            $leadTime = $request->transport_lead_time;
+
+        if (!$blocked && $keluar && $leadTime !== null && $leadTime !== '') {
             $request->merge([
-                'estimasi_tiba' => date(
-                    'Y-m-d',
-                    strtotime('+' . (int) $request->transport_lead_time . ' days', $keluar)
-                )
+                'estimasi_tiba' => date('Y-m-d', strtotime('+' . (int) $leadTime . ' days', $keluar)),
             ]);
-        } else {
+        } elseif ($blocked) {
             $request->merge(['estimasi_tiba' => null]);
+        } else {
+            $request->merge(['estimasi_tiba' => $old->estimasi_tiba]);
         }
 
         // ==========================
@@ -925,11 +920,13 @@ DB::table('logistik_pengiriman')
 
         $recordsFiltered = (clone $baseQuery)->count();
 
-        $rows = $baseQuery
-            ->orderByRaw('CAST(no_shipment AS UNSIGNED) ASC')
-            ->skip($start)
-            ->take($length)
-            ->get();
+  $rows = $baseQuery
+    ->orderByRaw($this->selesaiGudangSql() . ' ASC')   // belum selesai di depan, selesai di belakang
+    ->orderByRaw('CAST(no_shipment AS UNSIGNED) ASC')
+    ->orderBy('id', 'ASC')                             // supaya urutan antar halaman stabil
+    ->skip($start)
+    ->take($length)
+    ->get();
 
         // list dropdown untuk render select di tiap baris
         $tujuanList = DB::table('tujuanfillterr')->whereNotNull('tujuan')->where('tujuan', '!=', '')->distinct()->orderBy('tujuan')->pluck('tujuan');
@@ -964,6 +961,31 @@ $lists = compact(
             'data'            => $data,
         ]);
     }
+
+    private function selesaiGudangSql(): string
+{
+    $f = fn($c) => "NULLIF(TRIM({$c}), '') IS NOT NULL";
+    $e = fn($c) => "NULLIF(TRIM({$c}), '') IS NULL";
+
+    $cycles = [
+        ['planning_loading',   'tanggal_tiba_gudang',   'tanggal_keluar_gudang'],
+        ['planning_loading_2', 'tanggal_tiba_gudang_2', 'tanggal_keluar_gudang_2'],
+        ['planning_loading_3', 'tanggal_tiba_gudang_3', 'tanggal_keluar_gudang_3'],
+    ];
+
+    $menggantung = [];
+    foreach ($cycles as [$p, $t, $k]) {
+        $menggantung[] = '((' . $f($p) . ' OR ' . $f($t) . ') AND ' . $e($k) . ')';
+    }
+
+    $adaKeluar = '(' . implode(' OR ', [
+        $f('tanggal_keluar_gudang'),
+        $f('tanggal_keluar_gudang_2'),
+        $f('tanggal_keluar_gudang_3'),
+    ]) . ')';
+
+    return "CASE WHEN {$adaKeluar} AND NOT (" . implode(' OR ', $menggantung) . ") THEN 1 ELSE 0 END";
+}
 
     /**
      * Bangun 1 baris (array kolom, index harus sinkron dengan
@@ -1205,17 +1227,18 @@ $r->pengiriman_optimal === 'OPTIMAL'
             // 33 sla dapat mobil
             $slaMobilHtml,
             // 34-36 KACS
-            $durasiStatus($r->planning_loading, $r->tanggal_tiba_gudang),
-            $statusBadge($r->planning_loading, $r->tanggal_tiba_gudang),
-            $slaBadge($r->planning_loading, $r->tanggal_tiba_gudang),
-            // 37-39 Sentul
-            $durasiStatus($r->planning_loading_2, $r->tanggal_tiba_gudang_2),
-            $statusBadge($r->planning_loading_2, $r->tanggal_tiba_gudang_2),
-            $slaBadge($r->planning_loading_2, $r->tanggal_tiba_gudang_2),
-            // 40-42 CCIE
-            $durasiStatus($r->planning_loading_3, $r->tanggal_tiba_gudang_3),
-            $statusBadge($r->planning_loading_3, $r->tanggal_tiba_gudang_3),
-            $slaBadge($r->planning_loading_3, $r->tanggal_tiba_gudang_3),
+        // KACS (tiba gudang -> keluar gudang)
+'<span class="g1-durasi">' . e($durasiStatus($r->tanggal_tiba_gudang, $r->tanggal_keluar_gudang)) . '</span>',
+'<span class="g1-status">' . $statusBadge($r->tanggal_tiba_gudang, $r->tanggal_keluar_gudang) . '</span>',
+'<span class="g1-sla">'    . $slaBadge($r->tanggal_tiba_gudang, $r->tanggal_keluar_gudang) . '</span>',
+// Sentul
+'<span class="g2-durasi">' . e($durasiStatus($r->tanggal_tiba_gudang_2, $r->tanggal_keluar_gudang_2)) . '</span>',
+'<span class="g2-status">' . $statusBadge($r->tanggal_tiba_gudang_2, $r->tanggal_keluar_gudang_2) . '</span>',
+'<span class="g2-sla">'    . $slaBadge($r->tanggal_tiba_gudang_2, $r->tanggal_keluar_gudang_2) . '</span>',
+// CCIE
+'<span class="g3-durasi">' . e($durasiStatus($r->tanggal_tiba_gudang_3, $r->tanggal_keluar_gudang_3)) . '</span>',
+'<span class="g3-status">' . $statusBadge($r->tanggal_tiba_gudang_3, $r->tanggal_keluar_gudang_3) . '</span>',
+'<span class="g3-sla">'    . $slaBadge($r->tanggal_tiba_gudang_3, $r->tanggal_keluar_gudang_3) . '</span>',
             // 43 shipping point
             $r->route ? explode('-', trim($r->route))[0] : '-',
             // 44 kelengkapan data

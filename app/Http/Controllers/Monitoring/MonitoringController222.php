@@ -20,23 +20,17 @@ class MonitoringController extends Controller
     {
         $total_data = LogistikPengiriman::count();
 
-        // =============================
-        // SLA TIBA
-        // =============================
+
         $total_tiba_ontime = LogistikPengiriman::where('sla_tiba', 'On Time')->count();
 
         $total_tiba_delay = LogistikPengiriman::where('sla_tiba', 'Delay')->count();
 
-        // =============================
-        // SLA BONGKAR
-        // =============================
+
         $total_bongkar_ontime = LogistikPengiriman::where('sla_bongkar', 'On Time')->count();
 
         $total_bongkar_delay = LogistikPengiriman::where('sla_bongkar', 'Delay')->count();
 
-        // =============================
-        // STATUS AKHIR
-        // =============================
+   
         $total_ontime_total = LogistikPengiriman::where('status_akhir', 'On Time Total')->count();
 
         $total_delay_perjalanan = LogistikPengiriman::where('status_akhir', 'Delay Perjalanan')->count();
@@ -45,25 +39,19 @@ class MonitoringController extends Controller
 
         $total_delay_total = LogistikPengiriman::where('status_akhir', 'Delay Total')->count();
 
-        // =============================
-        // ALERT
-        // =============================
+    
         $delivered_ontime = LogistikPengiriman::where('monitoring_alert', 'Delivered On Time')->count();
 
         $delivered_delay = LogistikPengiriman::where('monitoring_alert', 'Delivered Delay')->count();
 
-        // =============================
-        // MASIH BELUM SELESAI
-        // =============================
+      
         $belum_tiba = LogistikPengiriman::whereNull('tanggal_tiba')->count();
 
         $belum_bongkar = LogistikPengiriman::whereNotNull('tanggal_tiba')
             ->whereNull('tanggal_bongkar')
             ->count();
 
-        // =============================
-        // SUMMARY AREA
-        // =============================
+     
         $summary_area = LogistikPengiriman::select(
             'area',
             DB::raw('COUNT(*) as total')
