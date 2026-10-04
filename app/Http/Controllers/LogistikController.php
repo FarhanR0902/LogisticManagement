@@ -256,27 +256,33 @@ class LogistikController extends Controller
     /* =========================================================
      * IMPORT EXCEL
      * ========================================================= */
-  public function import(Request $request)
+ public function import(Request $request)
 {
     $request->validate([
         'file' => 'required|mimes:xlsx,xls,csv',
     ]);
- 
+
     $import = new LogistikImport();
-    Excel::import($import, $request->file('file'));
- 
-    $message = "Import selesai: {$import->getInsertedCount()} baris baru, {$import->getUpdatedCount()} baris ditimpa (update).";
- 
-    if ($import->getSkippedCount() > 0) {
-        $message .= " {$import->getSkippedCount()} baris dilewati (No Shipment/Tujuan kosong).";
+
+    try {
+        Excel::import($import, $request->file('file'));
+    } catch (\Throwable $e) {
+        logger()->error('LOGISTIK IMPORT GAGAL TOTAL', ['error' => $e->getMessage()]);
+        return back()->with('import_error', 'Import gagal total: ' . mb_substr($e->getMessage(), 0, 200));
     }
-    if ($import->getFailedCount() > 0) {
-        $message .= " {$import->getFailedCount()} baris GAGAL karena error.";
-    }
- 
-    return redirect()->back()
-        ->with('success', $message)
-        ->with('failed_list', $import->getFailedList());
+
+    return back()->with('import_result', [
+        'inserted'        => $import->getInsertedCount(),
+        'updated'         => $import->getUpdatedCount(),
+        'success'         => $import->getImportedCount(),
+        'skipped'         => $import->getSkippedCount(),
+        'failed'          => $import->getFailedCount(),
+        'failed_list'     => array_slice($import->getFailedList(), 0, 100),
+        'shipments'       => count(array_unique($import->getAllNoShipmentInFile())),
+        'ignored_headers' => $import->getIgnoredHeaders(),
+        'missing_columns' => $import->getMissingColumns(),
+        'unknown_planner' => $import->getUnknownPlannerCodes(),
+    ]);
 }
  
 
@@ -402,7 +408,7 @@ class LogistikController extends Controller
         // ---------- SORTING ----------
         // Peta index kolom (urutan HARUS sama persis dengan array `columns` di blade JS).
         // null = kolom hasil kalkulasi/badge, tidak bisa di-ORDER BY langsung -> di-skip.
-  $orderableColumns = [
+ $orderableColumns = [
     0  => 'tanggal_naik_logistik',
     1  => 'rencana_kirim',
     2  => 'transport_lead_time',
@@ -429,47 +435,57 @@ class LogistikController extends Controller
     // KACS
     30 => 'planning_loading',
     31 => 'tanggal_tiba_gudang',
-    32 => 'tanggal_keluar_gudang',
-    33 => 'reason_gudang',
+    32 => 'waktu_tiba_gudang',
+    33 => 'tanggal_keluar_gudang',
+    34 => 'waktu_keluar_gudang',
+    35 => 'reason_gudang',
 
     // SENTUL
-    37 => 'planning_loading_2',
-    38 => 'tanggal_tiba_gudang_2',
-    39 => 'tanggal_keluar_gudang_2',
-    40 => 'reason_gudang_2',
-    41 => 'lama_digudang_2',
+    39 => 'planning_loading_2',
+    40 => 'tanggal_tiba_gudang_2',
+    41 => 'waktu_tiba_gudang_2',
+    42 => 'tanggal_keluar_gudang_2',
+    43 => 'waktu_keluar_gudang_2',
+    44 => 'reason_gudang_2',
+    45 => 'lama_digudang_2',
 
     // CCIE
-    44 => 'planning_loading_3',
-    45 => 'tanggal_tiba_gudang_3',
-    46 => 'tanggal_keluar_gudang_3',
-    47 => 'reason_gudang_3',
-    48 => 'lama_digudang_3',
+    48 => 'planning_loading_3',
+    49 => 'tanggal_tiba_gudang_3',
+    50 => 'waktu_tiba_gudang_3',
+    51 => 'tanggal_keluar_gudang_3',
+    52 => 'waktu_keluar_gudang_3',
+    53 => 'reason_gudang_3',
+    54 => 'lama_digudang_3',
 
-    51 => 'pic_monitoring',
-    52 => 'nama_kapal',
-    53 => 'etd',
-    54 => 'eta',
-    57 => 'act_urutan_bongkar',
-    58 => 'qty_monitoring',
-    59 => 'biaya_kuli',
-    60 => 'total_biaya_kuli',
-    61 => 'selisih_qty',
-    62 => 'remarks_qty',
-    63 => 'act_pgi_date',
-    64 => 'atd',
-    65 => 'ata',
-    67 => 'tanggal_tiba',
-    70 => 'sla_tiba',
-    71 => 'tanggal_bongkar',
-    74 => 'overstay_days',
-    75 => 'sla_bongkar',
-    76 => 'reason_tiba',
-    77 => 'reason_bongkar',
-    80 => 'remarks',
-    81 => 'route',
-    83 => 'pulau',
-    84 => 'via_kirim',
+    57 => 'pic_monitoring',
+    58 => 'nama_kapal',
+    59 => 'etd',
+    60 => 'eta',
+    63 => 'act_urutan_bongkar',
+    64 => 'qty_monitoring',
+    65 => 'biaya_kuli',
+    66 => 'total_biaya_kuli',
+    67 => 'selisih_qty',
+    68 => 'remarks_qty',
+    69 => 'act_pgi_date',
+    70 => 'atd',
+    71 => 'ata',
+    73 => 'tanggal_tiba',
+    76 => 'sla_tiba',
+    77 => 'tanggal_bongkar',
+    80 => 'overstay_days',
+    81 => 'sla_bongkar',
+    82 => 'reason_tiba',
+    83 => 'reason_bongkar',
+    86 => 'remarks',
+    87 => 'route',
+    89 => 'pulau',
+    90 => 'via_kirim',
+
+    // kolom baru di akhir
+    93 => 'create_on',
+
 ];
 
         $orderColIndex = (int) $request->input('order.0.column', 0);
@@ -532,8 +548,14 @@ class LogistikController extends Controller
 
                 // GUDANG 1 (KACS)
                 'planning_loading_fmt'        => $this->fmtDate($r->planning_loading),
-                'tanggal_tiba_gudang_fmt'     => $this->fmtDate($r->tanggal_tiba_gudang),
-                'tanggal_keluar_gudang_fmt'   => $this->fmtDate($r->tanggal_keluar_gudang),
+            'tanggal_tiba_gudang_fmt'     => $this->fmtDate($r->tanggal_tiba_gudang),
+'waktu_tiba_gudang_fmt'       => $this->fmtWaktu($r->waktu_tiba_gudang),
+'tanggal_keluar_gudang_fmt'   => $this->fmtDate($r->tanggal_keluar_gudang),
+'waktu_keluar_gudang_fmt'     => $this->fmtWaktu($r->waktu_keluar_gudang),
+
+
+// GUDANG 3 (CCIE)
+
                 'reason_gudang'               => $r->reason_gudang ?: '-', 
                 //  'tanggal_keluar_gudang_fmt'   => $this->fmtDate($r->tanggal_keluar_gudang),
               'durasi_gudang1_fmt'          => $this->computeDurasiGudang($r->tanggal_tiba_gudang, $r->tanggal_keluar_gudang),
@@ -542,16 +564,20 @@ class LogistikController extends Controller
 
                 // GUDANG 2 (SENTUL)
                 'planning_loading_2'          => $this->fmtDate($r->planning_loading_2 ?? null),
-                'tanggal_tiba_gudang_2'       => $this->fmtDate($r->tanggal_tiba_gudang_2 ?? null),
-                'tanggal_keluar_gudang_2'     => $this->fmtDate($r->tanggal_keluar_gudang_2 ?? null),
+              'tanggal_tiba_gudang_2'       => $this->fmtDate($r->tanggal_tiba_gudang_2 ?? null),
+'waktu_tiba_gudang_2_fmt'     => $this->fmtWaktu($r->waktu_tiba_gudang_2),
+'tanggal_keluar_gudang_2'     => $this->fmtDate($r->tanggal_keluar_gudang_2 ?? null),
+'waktu_keluar_gudang_2_fmt'   => $this->fmtWaktu($r->waktu_keluar_gudang_2),
                 'reason_gudang_2'               => $r->reason_gudang_2 ?: '-', 
 'lama_digudang_2'             => $this->computeDurasiGudang($r->tanggal_tiba_gudang_2, $r->tanggal_keluar_gudang_2),
 'status_gudang2_badge'        => $this->badgeStatusOnTimeDelayByDate($r->tanggal_tiba_gudang_2, $r->tanggal_keluar_gudang_2),
 'sla_loading2_badge'          => $this->badgeSlaLoadingClean($r->tanggal_tiba_gudang_2, $r->tanggal_keluar_gudang_2),
                 // GUDANG 3 (CCIE)
                 'planning_loading_3'          => $this->fmtDate($r->planning_loading_3 ?? null),
-                'tanggal_tiba_gudang_3'       => $this->fmtDate($r->tanggal_tiba_gudang_3 ?? null),
-                'tanggal_keluar_gudang_3'     => $this->fmtDate($r->tanggal_keluar_gudang_3 ?? null),
+             'tanggal_tiba_gudang_3'       => $this->fmtDate($r->tanggal_tiba_gudang_3 ?? null),
+'waktu_tiba_gudang_3_fmt'     => $this->fmtWaktu($r->waktu_tiba_gudang_3),
+'tanggal_keluar_gudang_3'     => $this->fmtDate($r->tanggal_keluar_gudang_3 ?? null),
+'waktu_keluar_gudang_3_fmt'   => $this->fmtWaktu($r->waktu_keluar_gudang_3),
                 'reason_gudang_3'               => $r->reason_gudang_3 ?: '-', 
 'lama_digudang_3'             => $this->computeDurasiGudang($r->tanggal_tiba_gudang_3, $r->tanggal_keluar_gudang_3),
 'status_gudang3_badge'        => $this->badgeStatusOnTimeDelayByDate($r->tanggal_tiba_gudang_3, $r->tanggal_keluar_gudang_3),
@@ -597,6 +623,7 @@ class LogistikController extends Controller
                 'via_kirim'                   => $r->via_kirim,
                 'estimasi_admin_fmt'          => $estimasiAdmin ? $estimasiAdmin->format('d-m-Y') : '-',
                 'estimasi_admin_status_badge' => $this->badgeEstimasiAdmin($r),
+                'create_on_fmt' => $this->fmtDate($r->create_on),
             ];
         });
         

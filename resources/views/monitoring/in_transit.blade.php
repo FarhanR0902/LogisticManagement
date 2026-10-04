@@ -37,24 +37,31 @@
         tbody tr:hover { background: #dbeafe; }
         td.center { text-align: center; }
 
+        /* ===== sortable header ===== */
+        th a.sort-link { color: #fff; text-decoration: none; display: block; }
+        th a.sort-link i { margin-left: 6px; font-size: 12px; opacity: .6; }
+        th a.sort-link.active i { opacity: 1; }
+        th a.sort-link:hover { text-decoration: underline; }
+
         .badge { display: inline-block; padding: 6px 12px; border-radius: 999px; font-size: 13px; font-weight: 700; color: #fff; }
         .green { background: #22c55e; } .red { background: #ef4444; } .orange { background: #f97316; }
         .blue { background: #3b82f6; } .gray { background: #94a3b8; }
 
         .empty { text-align: center; padding: 40px; color: #64748b; font-size: 16px; }
         .pagination-wrap { margin-top: 16px; }
-.pagination { display: flex; flex-wrap: wrap; gap: 6px; list-style: none; padding: 0; margin: 0; justify-content: flex-end; }
-.pagination li { display: inline-block; }
-.pagination li a,
-.pagination li span {
-    display: block; padding: 8px 14px; border: 1px solid #cbd5e1; border-radius: 8px;
-    background: #fff; color: #2563eb; text-decoration: none; font-size: 14px; font-weight: 600;
-}
-.pagination li a:hover { background: #dbeafe; }
-.pagination li.active span,
-.pagination li.active a { background: #2563eb; border-color: #2563eb; color: #fff; }
-.pagination li.disabled span,
-.pagination li.disabled a { color: #94a3b8; background: #f1f5f9; cursor: not-allowed; }
+        .pagination { display: flex; flex-wrap: wrap; gap: 6px; list-style: none; padding: 0; margin: 0; justify-content: flex-end; }
+        .pagination li { display: inline-block; }
+        .pagination li a,
+        .pagination li span {
+            display: block; padding: 8px 14px; border: 1px solid #cbd5e1; border-radius: 8px;
+            background: #fff; color: #2563eb; text-decoration: none; font-size: 14px; font-weight: 600;
+        }
+        .pagination li a:hover { background: #dbeafe; }
+        .pagination li.active span,
+        .pagination li.active a { background: #2563eb; border-color: #2563eb; color: #fff; }
+        .pagination li.disabled span,
+        .pagination li.disabled a { color: #94a3b8; background: #f1f5f9; cursor: not-allowed; }
+
         @media (max-width: 768px) {
             .container { margin-left: 0; padding: 15px; }
             .filter-box input, .filter-box select, .btn { width: 100%; }
@@ -69,9 +76,14 @@
     <div class="container">
 
         <h2>🚚 In Transit</h2>
-      
+
         <div class="filter-box">
-<form method="GET" action="{{ $formRoute ?? route('monitoring.intransit') }}">
+            <form method="GET" action="{{ $formRoute ?? route('monitoring.intransit') }}">
+
+                {{-- supaya sort tidak hilang saat tombol Filter ditekan --}}
+                <input type="hidden" name="sort" value="{{ request('sort') }}">
+                <input type="hidden" name="dir"  value="{{ request('dir') }}">
+
                 <input type="text" name="q" value="{{ request('q') }}" placeholder="Cari shipment / tujuan / ekspedisi / driver / no pol...">
 
                 <select name="area">
@@ -86,9 +98,9 @@
                     @foreach($picList as $p)
                         <option value="{{ $p }}" {{ request('pic_monitoring') == $p ? 'selected' : '' }}>{{ $p }}</option>
                     @endforeach
-                 </select>
+                </select>
 
-               @php $gudangAsalList = $gudangAsalList ?? ['KACS', 'SENTUL', 'CCIE']; @endphp
+                @php $gudangAsalList = $gudangAsalList ?? ['KACS', 'SENTUL', 'CCIE']; @endphp
                 @if(count($gudangAsalList))
                     <select name="gudang_asal">
                         <option value="">Semua Gudang Asal</option>
@@ -98,38 +110,56 @@
                     </select>
                 @endif
 
-
                 <button type="submit" class="btn btn-primary"><i class="fa-solid fa-magnifying-glass"></i> Filter</button>
-             <a href="{{ $formRoute ?? route('monitoring.intransit') }}" class="btn btn-reset">Reset</a>
-             <a href="{{ ($exportRoute ?? route('monitoring.intransit.export')) . '?' . http_build_query(request()->except('page')) }}"
-   class="btn btn-success" style="background:#16a34a;">
-    <i class="fa-solid fa-file-excel"></i> Export Excel
-</a>
-</form>
+                <a href="{{ $formRoute ?? route('monitoring.intransit') }}" class="btn btn-reset">Reset</a>
+                <a href="{{ ($exportRoute ?? route('monitoring.intransit.export')) . '?' . http_build_query(request()->except('page')) }}"
+                   class="btn btn-success" style="background:#16a34a;">
+                    <i class="fa-solid fa-file-excel"></i> Export Excel
+                </a>
+            </form>
         </div>
 
         <div class="card">
+
+            @php
+                $sortCols = [
+                    'no_shipment'    => 'No Shipment',
+                    'tujuan'         => 'Tujuan',
+                    'area'           => 'Area',
+                    'dist_channel'   => 'Dist Channel',
+                    'ekpedisi'       => 'Ekspedisi',
+                    'mobil'          => 'Mobil',
+                    'nama_driver'    => 'Nama Driver',
+                    'no_pol'         => 'No Pol',
+                    'pic_monitoring' => 'PIC Monitoring',
+                    'gudang_asal'    => 'Keluar Dari',
+                    'tanggal_keluar' => 'Tanggal Keluar',
+                    'lama_jalan'     => 'Lama Di Jalan',
+                    'estimasi'       => 'Estimasi Tiba',
+                    'alert'          => 'Alert',
+                    'remarks'        => 'Remarks',
+                ];
+                $curSort = request('sort');
+                $curDir  = request('dir') === 'desc' ? 'desc' : 'asc';
+            @endphp
+
             <table>
                 <thead>
                     <tr>
                         <th>No</th>
-                        <th>No Shipment</th>
-                        <th>Tujuan</th>
-                        <th>Area</th>
-                        <th>Dist Channel</th>
-                        <th>Ekspedisi</th>
-                        <th>Mobil</th>
-                        <th>Nama Driver</th>
-                        <th>No Pol</th>
-                        <th>PIC Monitoring</th>
-                        <th>Keluar Dari</th>
-                        <th>Tanggal Keluar</th>
-                        <th>Lama Di Jalan</th>
-                        <th>Estimasi Tiba</th>
-                        <th>Alert</th>
-                        <th>Remarks</th>
-                   
-                        
+                        @foreach($sortCols as $key => $label)
+                            @php
+                                $active  = $curSort === $key;
+                                $nextDir = ($active && $curDir === 'asc') ? 'desc' : 'asc';
+                                $url     = request()->fullUrlWithQuery(['sort' => $key, 'dir' => $nextDir, 'page' => null]);
+                                $icon    = $active ? ($curDir === 'asc' ? 'fa-sort-up' : 'fa-sort-down') : 'fa-sort';
+                            @endphp
+                            <th>
+                                <a href="{{ $url }}" class="sort-link {{ $active ? 'active' : '' }}">
+                                    {{ $label }} <i class="fa-solid {{ $icon }}"></i>
+                                </a>
+                            </th>
+                        @endforeach
                     </tr>
                 </thead>
                 <tbody>
@@ -151,18 +181,17 @@
                             <td class="center">{{ $r->estimasi_label }}</td>
                             <td class="center"><span class="badge {{ $r->alert_class }}">{{ $r->alert_label }}</span></td>
                             <td>{{ $r->remarks }}</td>
-                     
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="17" class="empty">✅ Tidak ada shipment yang sedang in transit.</td>
+                            <td colspan="16" class="empty">✅ Tidak ada shipment yang sedang in transit.</td>
                         </tr>
                     @endforelse
                 </tbody>
             </table>
 
             <div class="pagination-wrap">
-{{ $list->links('pagination::bootstrap-4') }}
+                {{ $list->links('pagination::bootstrap-4') }}
             </div>
         </div>
 

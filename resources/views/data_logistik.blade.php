@@ -471,22 +471,28 @@
                         <th>Lama Waktu Pencarian</th>
                         <th>SLA Dapat Mobil</th>
                         <th>Planning Loading KACS</th>
-                        <th>Tanggal Tiba KACS</th>
-                        <th>Tanggal Keluar KACS</th>
+                      <th>Tanggal Tiba KACS</th>
+<th>Waktu Tiba KACS</th>
+<th>Tanggal Keluar KACS</th>
+<th>Waktu Keluar KACS</th>
                         <th>Reason Gudang KACS</th>
                         <th>Lama Di KACS</th>
                         <th>Status KACS</th>
                         <th>SLA Loading KACS</th>
                         <th>Planning Loading Sentul</th>
-                        <th>Tanggal Tiba Sentul</th>
-                        <th>Tanggal Keluar Sentul</th>
+                       <th>Tanggal Tiba Sentul</th>
+<th>Waktu Tiba Sentul</th>
+<th>Tanggal Keluar Sentul</th>
+<th>Waktu Keluar Sentul</th>
                         <th>Reason Gudang Sentul</th>
                         <th>Lama Di Sentul</th>
                         <th>SLA Loading Sentul</th>
                         <th>Status Sentul</th>
                         <th>Planning Loading CCIE</th>
-                        <th>Tanggal Tiba CCIE</th>
-                        <th>Tanggal Keluar CCIE</th>
+                     <th>Tanggal Tiba CCIE</th>
+<th>Waktu Tiba CCIE</th>
+<th>Tanggal Keluar CCIE</th>
+<th>Waktu Keluar CCIE</th>
                         <th>Reason Gudang CCIE</th>
                         <th>Lama Di CCIE</th>
                         <th>SLA Loading CCIE</th>
@@ -528,6 +534,7 @@
                         <th>Via Kirim</th>
                         <th>Estimasi Tiba Di Customer</th>
                         <th>Ontime/Delay Admin</th>
+                        <th>Create On</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -581,106 +588,112 @@
                     }
                 },
 
-                columns: [
-                    { data: 'tanggal_naik_logistik_fmt', name: 'tanggal_naik_logistik' },
-                    { data: 'rencana_kirim_fmt', name: 'rencana_kirim' },
-                    { data: 'transport_lead_time', name: 'transport_lead_time', className: 'col-small' },
-                    { data: 'nama_driver', name: 'nama_driver' },
-                    { data: 'no_pol', name: 'no_pol' },
-                    { data: 'planner', name: 'planner' },
-                    { data: 'no_shipment', name: 'no_shipment' },
-                    { data: 'status_pengiriman_badge', name: 'status_pengiriman', orderable: false, searchable: false },
-                    { data: 'dist_channel_badge', name: 'dist_channel' },
-                    { data: 'tujuan', name: 'tujuan' },
-                    { data: 'area', name: 'area' },
-                    { data: 'ketersediaan_unit_badge', name: 'ketersediaan_unit', orderable: false, searchable: false },
-                    { data: 'mobil', name: 'mobil' },
-                    { data: 'total_do_qty_car', name: 'total_do_qty_car' },
-                    { data: 'nilai_muatan_fmt', name: 'nilai_muatan' },
-                    { data: 'biaya_kirim_fmt', name: 'biaya_kirim' },
-                    { data: 'cr_fmt', name: 'cr', orderable: false, searchable: false },
-                    { data: 'kubikasi_fmt', name: 'kubikasi', orderable: false, searchable: false },
-                     { data: 'tonase_fmt', name: 'tonase', orderable: false, searchable: false },
-                     { data: 'total_kubik_fmt', name: 'total_kubik', orderable: false, searchable: false },
-                     { data: 'total_tonase_fmt', name: 'total_tonase', orderable: false, searchable: false },
-                     { data: 'hasil_kubik_fmt', name: 'hasil_kubik', orderable: false, searchable: false },
-                     { data: 'hasil_tonase_fmt', name: 'hasil_tonase', orderable: false, searchable: false },
-                     { data: 'pengiriman_optimal_badge', name: 'pengiriman_optimal', orderable: false, searchable: false },
-                      { data: 'reason_optimal', name: 'reason_optimal', orderable: false, searchable: false },
-                    { data: 'kategori_ekspedisi_badge', name: 'kategori_ekspedisi' },
-                    { data: 'ekpedisi', name: 'ekpedisi' },
-                    { data: 'tanggal_dpt_unit_fmt', name: 'tanggal_dpt_unit' },
-                    { data: 'lama_waktu_pencarian', name: 'lama_waktu_pencarian', orderable: false, defaultContent: '-' },
-                    { data: 'sla_dapat_mobil_badge', name: 'sla_dapat_mobil' },
+               columns: [
+    { data: 'tanggal_naik_logistik_fmt', name: 'tanggal_naik_logistik' },
+    { data: 'rencana_kirim_fmt', name: 'rencana_kirim' },
+    { data: 'transport_lead_time', name: 'transport_lead_time', className: 'col-small' },
+    { data: 'nama_driver', name: 'nama_driver' },
+    { data: 'no_pol', name: 'no_pol' },
+    { data: 'planner', name: 'planner' },
+    { data: 'no_shipment', name: 'no_shipment' },
+    { data: 'status_pengiriman_badge', name: 'status_pengiriman', orderable: false, searchable: false },
+    { data: 'dist_channel_badge', name: 'dist_channel' },
+    { data: 'tujuan', name: 'tujuan' },
+    { data: 'area', name: 'area' },
+    { data: 'ketersediaan_unit_badge', name: 'ketersediaan_unit', orderable: false, searchable: false },
+    { data: 'mobil', name: 'mobil' },
+    { data: 'total_do_qty_car', name: 'total_do_qty_car' },
+    { data: 'nilai_muatan_fmt', name: 'nilai_muatan' },
+    { data: 'biaya_kirim_fmt', name: 'biaya_kirim' },
+    { data: 'cr_fmt', name: 'cr', orderable: false, searchable: false },
+    { data: 'kubikasi_fmt', name: 'kubikasi', orderable: false, searchable: false },
+    { data: 'tonase_fmt', name: 'tonase', orderable: false, searchable: false },
+    { data: 'total_kubik_fmt', name: 'total_kubik', orderable: false, searchable: false },
+    { data: 'total_tonase_fmt', name: 'total_tonase', orderable: false, searchable: false },
+    { data: 'hasil_kubik_fmt', name: 'hasil_kubik', orderable: false, searchable: false },
+    { data: 'hasil_tonase_fmt', name: 'hasil_tonase', orderable: false, searchable: false },
+    { data: 'pengiriman_optimal_badge', name: 'pengiriman_optimal', orderable: false, searchable: false },
+    { data: 'reason_optimal', name: 'reason_optimal', orderable: false, searchable: false },
+    { data: 'kategori_ekspedisi_badge', name: 'kategori_ekspedisi' },
+    { data: 'ekpedisi', name: 'ekpedisi' },
+    { data: 'tanggal_dpt_unit_fmt', name: 'tanggal_dpt_unit' },
+    { data: 'lama_waktu_pencarian', name: 'lama_waktu_pencarian', orderable: false, defaultContent: '-' },
+    { data: 'sla_dapat_mobil_badge', name: 'sla_dapat_mobil' },
 
-                    // GUDANG 1 - KACS
-                    { data: 'planning_loading_fmt', name: 'planning_loading' },
-                    { data: 'tanggal_tiba_gudang_fmt', name: 'tanggal_tiba_gudang' },
-                    { data: 'tanggal_keluar_gudang_fmt', name: 'tanggal_keluar_gudang' },
-                    { data: 'reason_gudang', name: 'reason_gudang', defaultContent: '-' }, 
-                    { data: 'durasi_gudang1_fmt', name: 'durasi_gudang1', orderable: false, searchable: false },
-                    { data: 'status_gudang1_badge', name: 'status_gudang1', orderable: false, searchable: false },
-                    { data: 'sla_loading1_badge', name: 'sla_loading1', orderable: false, searchable: false },
+    // GUDANG 1 - KACS (9 kolom)
+    { data: 'planning_loading_fmt', name: 'planning_loading' },
+    { data: 'tanggal_tiba_gudang_fmt', name: 'tanggal_tiba_gudang' },
+    { data: 'waktu_tiba_gudang_fmt', name: 'waktu_tiba_gudang' },
+    { data: 'tanggal_keluar_gudang_fmt', name: 'tanggal_keluar_gudang' },
+    { data: 'waktu_keluar_gudang_fmt', name: 'waktu_keluar_gudang' },
+    { data: 'reason_gudang', name: 'reason_gudang', defaultContent: '-' },
+    { data: 'durasi_gudang1_fmt', name: 'durasi_gudang1', orderable: false, searchable: false },
+    { data: 'status_gudang1_badge', name: 'status_gudang1', orderable: false, searchable: false },
+    { data: 'sla_loading1_badge', name: 'sla_loading1', orderable: false, searchable: false },
 
-                    // GUDANG 2 - SENTUL
-                    { data: 'planning_loading_2', name: 'planning_loading_2' },
-                    { data: 'tanggal_tiba_gudang_2', name: 'tanggal_tiba_gudang_2' },
-                    { data: 'tanggal_keluar_gudang_2', name: 'tanggal_keluar_gudang_2' },
-                    { data: 'reason_gudang_2', name: 'reason_gudang_2', defaultContent: '-' }, 
-                    { data: 'lama_digudang_2', name: 'lama_digudang_2', defaultContent: '-' },
-                    { data: 'sla_loading2_badge', name: 'sla_loading_2', orderable: false, searchable: false },
-                    { data: 'status_gudang2_badge', name: 'status_gudang_2', orderable: false, searchable: false },
+    // GUDANG 2 - SENTUL (9 kolom)
+    { data: 'planning_loading_2', name: 'planning_loading_2' },
+    { data: 'tanggal_tiba_gudang_2', name: 'tanggal_tiba_gudang_2' },
+    { data: 'waktu_tiba_gudang_2_fmt', name: 'waktu_tiba_gudang_2' },
+    { data: 'tanggal_keluar_gudang_2', name: 'tanggal_keluar_gudang_2' },
+    { data: 'waktu_keluar_gudang_2_fmt', name: 'waktu_keluar_gudang_2' },
+    { data: 'reason_gudang_2', name: 'reason_gudang_2', defaultContent: '-' },
+    { data: 'lama_digudang_2', name: 'lama_digudang_2', defaultContent: '-' },
+    { data: 'sla_loading2_badge', name: 'sla_loading_2', orderable: false, searchable: false },
+    { data: 'status_gudang2_badge', name: 'status_gudang_2', orderable: false, searchable: false },
 
-                    // GUDANG 3 - CCIE
-                    { data: 'planning_loading_3', name: 'planning_loading_3' },
-                    { data: 'tanggal_tiba_gudang_3', name: 'tanggal_tiba_gudang_3' },
-                    { data: 'tanggal_keluar_gudang_3', name: 'tanggal_keluar_gudang_3' },
-                    { data: 'reason_gudang_3', name: 'reason_gudang_3', defaultContent: '-' }, 
-                    { data: 'lama_digudang_3', name: 'lama_digudang_3', defaultContent: '-' },
-                    { data: 'sla_loading3_badge', name: 'sla_loading_3', orderable: false, searchable: false },
-                    { data: 'status_gudang3_badge', name: 'status_gudang_3', orderable: false, searchable: false },
+    // GUDANG 3 - CCIE (9 kolom)
+    { data: 'planning_loading_3', name: 'planning_loading_3' },
+    { data: 'tanggal_tiba_gudang_3', name: 'tanggal_tiba_gudang_3' },
+    { data: 'waktu_tiba_gudang_3_fmt', name: 'waktu_tiba_gudang_3' },
+    { data: 'tanggal_keluar_gudang_3', name: 'tanggal_keluar_gudang_3' },
+    { data: 'waktu_keluar_gudang_3_fmt', name: 'waktu_keluar_gudang_3' },
+    { data: 'reason_gudang_3', name: 'reason_gudang_3', defaultContent: '-' },
+    { data: 'lama_digudang_3', name: 'lama_digudang_3', defaultContent: '-' },
+    { data: 'sla_loading3_badge', name: 'sla_loading_3', orderable: false, searchable: false },
+    { data: 'status_gudang3_badge', name: 'status_gudang_3', orderable: false, searchable: false },
 
-                    { data: 'pic_monitoring', name: 'pic_monitoring' },
-                    { data: 'nama_kapal', name: 'nama_kapal' },
-                    { data: 'etd', name: 'etd' },
-                    { data: 'eta', name: 'eta' },
-                    { data: 'status_kendaraan_badge', name: 'status_kendaraan', orderable: false, searchable: false },
-                    { data: 'alert_badge', name: 'alert', orderable: false, searchable: false },
+    { data: 'pic_monitoring', name: 'pic_monitoring' },
+    { data: 'nama_kapal', name: 'nama_kapal' },
+    { data: 'etd', name: 'etd' },
+    { data: 'eta', name: 'eta' },
+    { data: 'status_kendaraan_badge', name: 'status_kendaraan', orderable: false, searchable: false },
+    { data: 'alert_badge', name: 'alert', orderable: false, searchable: false },
 
-                    { data: 'act_urutan_bongkar', name: 'act_urutan_bongkar', className: 'col-small' },
-                    { data: 'qty_monitoring', name: 'qty_monitoring' },
-                    { data: 'biaya_kuli', name: 'biaya_kuli' },
-                    { data: 'total_biaya_kuli', name: 'total_biaya_kuli' },
-                    { data: 'selisih_qty', name: 'selisih_qty' },
-                    { data: 'remarks_qty', name: 'remarks_qty' },
-                    { data: 'act_pgi_date', name: 'act_pgi_date' },
+    { data: 'act_urutan_bongkar', name: 'act_urutan_bongkar', className: 'col-small' },
+    { data: 'qty_monitoring', name: 'qty_monitoring' },
+    { data: 'biaya_kuli', name: 'biaya_kuli' },
+    { data: 'total_biaya_kuli', name: 'total_biaya_kuli' },
+    { data: 'selisih_qty', name: 'selisih_qty' },
+    { data: 'remarks_qty', name: 'remarks_qty' },
+    { data: 'act_pgi_date', name: 'act_pgi_date' },
 
-                    { data: 'atd', name: 'atd' },
-                    { data: 'ata', name: 'ata' },
-                    { data: 'estimasi_tiba_fmt', name: 'estimasi_tiba', orderable: false },
-                  { data: 'tanggal_tiba_fmt', name: 'tanggal_tiba' },
-{ data: 'waktu_tiba_fmt', name: 'waktu_tiba', orderable: false, searchable: false },
-{ data: 'lama_perjalanan', name: 'lama_perjalanan', defaultContent: '-' },
+    { data: 'atd', name: 'atd' },
+    { data: 'ata', name: 'ata' },
+    { data: 'estimasi_tiba_fmt', name: 'estimasi_tiba', orderable: false },
+    { data: 'tanggal_tiba_fmt', name: 'tanggal_tiba' },
+    { data: 'waktu_tiba_fmt', name: 'waktu_tiba', orderable: false, searchable: false },
+    { data: 'lama_perjalanan', name: 'lama_perjalanan', defaultContent: '-' },
+    { data: 'sla_tiba_badge', name: 'sla_tiba' },
+    { data: 'tanggal_bongkar_fmt', name: 'tanggal_bongkar' },
+    { data: 'waktu_bongkar_fmt', name: 'waktu_bongkar', orderable: false, searchable: false },
+    { data: 'status_bongkar_badge', name: 'status_bongkar', orderable: false, searchable: false },
+    { data: 'overstay_days', name: 'overstay_days' },
+    { data: 'sla_bongkar_badge', name: 'sla_bongkar' },
+    { data: 'reason_tiba', name: 'reason_tiba' },
+    { data: 'reason_bongkar', name: 'reason_bongkar' },
+    { data: 'status_akhir_badge', name: 'status_akhir', orderable: false, searchable: false },
+    { data: 'status_alert_badge', name: 'status_alert', orderable: false, searchable: false },
 
-{ data: 'sla_tiba_badge', name: 'sla_tiba' },
-{ data: 'tanggal_bongkar_fmt', name: 'tanggal_bongkar' },
-{ data: 'waktu_bongkar_fmt', name: 'waktu_bongkar', orderable: false, searchable: false },
-{ data: 'status_bongkar_badge', name: 'status_bongkar', orderable: false, searchable: false },
-                    { data: 'overstay_days', name: 'overstay_days' },
-                    { data: 'sla_bongkar_badge', name: 'sla_bongkar' },
-                    { data: 'reason_tiba', name: 'reason_tiba' },
-                    { data: 'reason_bongkar', name: 'reason_bongkar' },
-                    { data: 'status_akhir_badge', name: 'status_akhir', orderable: false, searchable: false },
-                    { data: 'status_alert_badge', name: 'status_alert', orderable: false, searchable: false },
-
-                    { data: 'remarks', name: 'remarks' },
-                    { data: 'route', name: 'route' },
-                    { data: 'route_awal', name: 'route_awal', orderable: false, searchable: false },
-                    { data: 'pulau', name: 'pulau' },
-                    { data: 'via_kirim', name: 'via_kirim' },
-                    { data: 'estimasi_admin_fmt', name: 'estimasi_admin', orderable: false },
-                    { data: 'estimasi_admin_status_badge', name: 'estimasi_admin_status', orderable: false, searchable: false },
-                ]
+    { data: 'remarks', name: 'remarks' },
+    { data: 'route', name: 'route' },
+    { data: 'route_awal', name: 'route_awal', orderable: false, searchable: false },
+    { data: 'pulau', name: 'pulau' },
+    { data: 'via_kirim', name: 'via_kirim' },
+    { data: 'estimasi_admin_fmt', name: 'estimasi_admin', orderable: false },
+    { data: 'estimasi_admin_status_badge', name: 'estimasi_admin_status', orderable: false, searchable: false },
+    { data: 'create_on_fmt', name: 'create_on' }
+]
             });
 
             // Reload table setiap filter berubah (server-side, jadi ringan)

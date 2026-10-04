@@ -100,6 +100,14 @@ class LogistikPengiriman extends Model
         'waktu_tiba',
         'waktu_bongkar',
         'reason_optimal',
+          'waktu_tiba_gudang',
+    'waktu_keluar_gudang',
+    'waktu_tiba_gudang_2',
+    'waktu_keluar_gudang_2',
+    'waktu_tiba_gudang_3',
+    'waktu_keluar_gudang_3',
+    'create_on',
+    'code_planner',
         'create_tgl'
     ];
 

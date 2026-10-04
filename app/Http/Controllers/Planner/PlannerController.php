@@ -32,6 +32,9 @@ $data['total_tonase'] = $this->cleanDecimalPlanner($request->total_tonase);
             'no_shipment',
             'kubikasi',
             'planner',
+            'waktu_tiba_gudang', 'waktu_keluar_gudang',
+'waktu_tiba_gudang_2', 'waktu_keluar_gudang_2',
+'waktu_tiba_gudang_3', 'waktu_keluar_gudang_3',
             'dist_channel',
             'transport_lead_time',
             'tujuan',
@@ -74,7 +77,9 @@ $data['tonase']   = $kapasitas['tonase'];
 
 $data['total_kubik']  = $this->cleanDecimalPlanner($request->total_kubik);
 $data['total_tonase'] = $this->cleanDecimalPlanner($request->total_tonase);
-
+foreach (['waktu_tiba_gudang','waktu_keluar_gudang','waktu_tiba_gudang_2','waktu_keluar_gudang_2','waktu_tiba_gudang_3','waktu_keluar_gudang_3'] as $f) {
+    $data[$f] = $this->cleanTime($request->$f);
+}
 $hasil = $this->hitungHasilOptimal(
     $data['total_kubik'],
     $data['kubikasi'],
@@ -388,6 +393,12 @@ public function inTransit(Request $request)
             'ekpedisi'              => $request->ekpedisi,
             'mobil'                 => $request->mobil,
             'route'                 => $request->route,
+            'waktu_tiba_gudang'     => $this->cleanTime($request->waktu_tiba_gudang),
+'waktu_keluar_gudang'   => $this->cleanTime($request->waktu_keluar_gudang),
+'waktu_tiba_gudang_2'   => $this->cleanTime($request->waktu_tiba_gudang_2),
+'waktu_keluar_gudang_2' => $this->cleanTime($request->waktu_keluar_gudang_2),
+'waktu_tiba_gudang_3'   => $this->cleanTime($request->waktu_tiba_gudang_3),
+'waktu_keluar_gudang_3' => $this->cleanTime($request->waktu_keluar_gudang_3),
 
             'tanggal_dpt_unit'      => $request->tanggal_dpt_unit,
 
@@ -601,6 +612,12 @@ $updateRow = [
 'tanggal_tiba_gudang'   => $request->tanggal_tiba_gudang,
 'tanggal_keluar_gudang' => $request->tanggal_keluar_gudang,
 'reason_gudang'         => $request->reason_gudang ?: null,
+'waktu_tiba_gudang'     => $this->cleanTime($request->waktu_tiba_gudang),
+'waktu_keluar_gudang'   => $this->cleanTime($request->waktu_keluar_gudang),
+'waktu_tiba_gudang_2'   => $this->cleanTime($request->waktu_tiba_gudang_2),
+'waktu_keluar_gudang_2' => $this->cleanTime($request->waktu_keluar_gudang_2),
+'waktu_tiba_gudang_3'   => $this->cleanTime($request->waktu_tiba_gudang_3),
+'waktu_keluar_gudang_3' => $this->cleanTime($request->waktu_keluar_gudang_3),
 
 'planning_loading_2'      => $request->planning_loading_2,
 'tanggal_tiba_gudang_2'   => $request->tanggal_tiba_gudang_2,
@@ -875,6 +892,12 @@ DB::table('logistik_pengiriman')
         );
     }
 
+   private function cleanTime($value): ?string
+{
+    $value = trim((string) $value);
+    return preg_match('/^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/', $value) ? $value : null;
+}
+
     /**
      * =====================================================
      * ENDPOINT SERVER-SIDE UNTUK DATATABLES
@@ -1001,6 +1024,15 @@ $lists = compact(
             $val = $value ? date('Y-m-d', strtotime($value)) : '';
             return '<input type="date" ' . $formAttr . ' name="' . $name . '" value="' . e($val) . '">';
         };
+      $timeInput = function ($name, $value) use ($formAttr) {
+    $val = $value ? substr($value, 0, 5) : '';   // 08:30:00 -> 08:30
+    return '<input type="text" ' . $formAttr . ' name="' . $name . '" class="input-jam" '
+         . 'placeholder="HH:MM" maxlength="5" inputmode="numeric" autocomplete="off" value="' . e($val) . '">';
+};
+
+$dateTimeInput = function ($dateName, $dateVal, $timeName, $timeVal) use ($dateInput, $timeInput) {
+    return $dateInput($dateName, $dateVal) . '<br>' . $timeInput($timeName, $timeVal);
+};
         $formattedPersen = function ($angka) {
     if ($angka === null || $angka === '') return '';
     return number_format((float) $angka, 2, ',', '.') . '%';
@@ -1149,20 +1181,21 @@ $dateInput('tanggal_dpt_unit', $r->tanggal_dpt_unit),
 
 // KACS
 $dateInput('planning_loading', $r->planning_loading),
-$dateInput('tanggal_tiba_gudang', $r->tanggal_tiba_gudang),
-$dateInput('tanggal_keluar_gudang', $r->tanggal_keluar_gudang),
+$dateTimeInput('tanggal_tiba_gudang',   $r->tanggal_tiba_gudang,   'waktu_tiba_gudang',   $r->waktu_tiba_gudang),
+$dateTimeInput('tanggal_keluar_gudang', $r->tanggal_keluar_gudang, 'waktu_keluar_gudang', $r->waktu_keluar_gudang),
 $buildSelect('reason_gudang', $r->reason_gudang, $lists['reasonGudangList'], 'row-reason-gudang'),
 
 // SENTUL
 $dateInput('planning_loading_2', $r->planning_loading_2),
-$dateInput('tanggal_tiba_gudang_2', $r->tanggal_tiba_gudang_2),
-$dateInput('tanggal_keluar_gudang_2', $r->tanggal_keluar_gudang_2),
+$dateTimeInput('tanggal_tiba_gudang_2',   $r->tanggal_tiba_gudang_2,   'waktu_tiba_gudang_2',   $r->waktu_tiba_gudang_2),
+$dateTimeInput('tanggal_keluar_gudang_2', $r->tanggal_keluar_gudang_2, 'waktu_keluar_gudang_2', $r->waktu_keluar_gudang_2),
+
 $buildSelect('reason_gudang_2', $r->reason_gudang_2, $lists['reasonGudangList'], 'row-reason-gudang'),
 
 // CCIE
 $dateInput('planning_loading_3', $r->planning_loading_3),
-$dateInput('tanggal_tiba_gudang_3', $r->tanggal_tiba_gudang_3),
-$dateInput('tanggal_keluar_gudang_3', $r->tanggal_keluar_gudang_3),
+$dateTimeInput('tanggal_tiba_gudang_3',   $r->tanggal_tiba_gudang_3,   'waktu_tiba_gudang_3',   $r->waktu_tiba_gudang_3),
+$dateTimeInput('tanggal_keluar_gudang_3', $r->tanggal_keluar_gudang_3, 'waktu_keluar_gudang_3', $r->waktu_keluar_gudang_3),
 $buildSelect('reason_gudang_3', $r->reason_gudang_3, $lists['reasonGudangList'], 'row-reason-gudang'),
             // 15 tujuan
            // 15 tujuan

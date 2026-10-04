@@ -861,8 +861,9 @@ font-size: 16px;
                         <th>Total Tonase</th>
                         <th>Hasil Kubik</th>
                         <th>Hasil Tonase</th>
-                        <th>Pengiriman Optimal</th>
-                        <th>Kategori Ekspedisi</th>
+                    <th>Pengiriman Optimal</th>
+<th>Reason Pengiriman Optimal</th>   <!-- BARU -->
+<th>Kategori Ekspedisi</th>
                         <th>Ekspedisi</th>
                         <th>Tanggal Dapat Unit</th>
                         <th>Lama Waktu Pencarian</th>
@@ -965,6 +966,7 @@ $.ajaxSetup({
                 { data: 'hasil_kubik_fmt' },
                 { data: 'hasil_tonase_fmt' },
                 { data: 'pengiriman_optimal_badge' },
+                { data: 'reason_optimal' },
                 { data: 'kategori_ekspedisi_badge' },
                 { data: 'ekspedisi' },
                 { data: 'tanggal_dpt_fmt' },

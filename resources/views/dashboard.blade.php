@@ -1034,7 +1034,84 @@ tbody tr:last-child td{ border-bottom:none; }
     </table>
     </div>
 </div>
+<!-- SUMMARY PLANNER + PIC MONITORING -->
+<div class="two-col">
 
+    <div class="table-box">
+        <h3>👤 Summary Planner</h3>
+        <div class="table-scroll">
+        <table>
+            <thead>
+                <tr>
+                    <th>Planner</th>
+                    <th class="num">Jumlah</th>
+                    <th class="num">Belum Isi No Shipment</th>
+                    <th class="num">On Time</th>
+                    <th class="num">Delay</th>
+                </tr>
+            </thead>
+            <tbody>
+            @forelse($summary_planner as $p)
+                <tr>
+                    <td>{{ $p->planner }}</td>
+                    <td class="num">{{ number_format($p->total) }}</td>
+                  <td class="num">
+    <span class="badge {{ $p->total_belum_rencana > 0 ? 'badge-red' : 'badge-green' }}">
+        {{ number_format($p->total_belum_rencana) }}
+    </span>
+</td>
+                    <td class="num"><span class="badge badge-green">{{ number_format($p->total_ontime) }}</span></td>
+                    <td class="num"><span class="badge badge-red">{{ number_format($p->total_delay) }}</span></td>
+                </tr>
+            @empty
+                <tr><td colspan="5" class="empty-row">Belum ada data planner</td></tr>
+            @endforelse
+            </tbody>
+        </table>
+        </div>
+    </div>
+
+    <div class="table-box">
+        <h3>🕵️ Summary PIC Monitoring</h3>
+        <div class="table-scroll">
+        <table>
+            <thead>
+                <tr>
+                    <th>PIC Monitoring</th>
+                    <th class="num">Jumlah</th>
+                    <th class="num">On Time</th>
+                    <th class="num">Delay</th>
+                    <th class="num">Belum Input Tgl Tiba</th>
+                    <th class="num">Belum Tiba &amp; Lewat Estimasi</th>
+                </tr>
+            </thead>
+            <tbody>
+            @forelse($summary_pic_monitoring as $m)
+                <tr>
+                    <td>{{ $m->pic_monitoring }}</td>
+                    <td class="num">{{ number_format($m->total) }}</td>
+                    <td class="num"><span class="badge badge-green">{{ number_format($m->total_ontime) }}</span></td>
+                    <td class="num"><span class="badge badge-red">{{ number_format($m->total_delay) }}</span></td>
+                    <td class="num">
+                        <span class="badge {{ $m->total_belum_tiba > 0 ? 'badge-red' : 'badge-green' }}">
+                            {{ number_format($m->total_belum_tiba) }}
+                        </span>
+                    </td>
+                    <td class="num">
+                        <span class="badge {{ $m->total_lewat_estimasi > 0 ? 'badge-red' : 'badge-green' }}">
+                            {{ number_format($m->total_lewat_estimasi) }}
+                        </span>
+                    </td>
+                </tr>
+            @empty
+                <tr><td colspan="6" class="empty-row">Belum ada data PIC monitoring</td></tr>
+            @endforelse
+            </tbody>
+        </table>
+        </div>
+    </div>
+
+</div>
 <!-- TWO COL: MONITORING + PLANNER -->
 <div class="two-col">
 

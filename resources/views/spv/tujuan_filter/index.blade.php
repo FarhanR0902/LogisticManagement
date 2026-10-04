@@ -18,7 +18,9 @@
 .tf-page *::after {
     box-sizing: border-box;
 }
-
+.tf-col-code_planner {
+    min-width: 130px;
+}
 
 /* =========================================================
    HEADER
@@ -1308,6 +1310,11 @@
                     <input type="text" name="Planner" class="tf-select-input"
                            value="{{ request('Planner') }}" placeholder="Semua Planner">
                 </div>
+                <div class="tf-filter-item">
+    <label class="tf-filter-label">Code Planner</label>
+    <input type="text" name="code_planner" class="tf-select-input"
+           value="{{ request('code_planner') }}" placeholder="Semua Code Planner">
+</div>
 
                 <div class="tf-filter-item">
                     <label class="tf-filter-label">Monitoring</label>
@@ -1362,7 +1369,7 @@
               class="row g-2 align-items-end">
             @csrf
             <div class="col-md-7">
-                <label class="tf-filter-label">File CSV (kolom: tujuan,area)</label>
+<label class="tf-filter-label">File CSV (kolom: tujuan, area, planner, code_planner, ...)</label>
                 <input type="file" name="file" class="form-control tf-import-input" accept=".csv,.txt" required>
             </div>
             <div class="col-md-3">
@@ -1442,7 +1449,8 @@
                         <th class="tf-col-channel">Distribution Channel</th>
                         <th class="tf-col-area">Pulau</th>
                         <th class="tf-col-area">Area</th>
-                        <th class="tf-col-planner">Planner</th>
+                      <th class="tf-col-planner">Planner</th>
+<th class="tf-col-code_planner">Code Planner</th>
                         <th class="tf-col-monitoring">Monitoring</th>
                         <th class="tf-col-biaya_kuli">Biaya Kuli</th>
                         <th class="tf-col-transport_lead_time">Transport Lead Time</th>
@@ -1490,6 +1498,9 @@
                             <td class="tf-col-planner">
                                 <span class="tf-channel-text">{{ $row->Planner ?: '-' }}</span>
                             </td>
+                            <td class="tf-col-code_planner">
+    <span class="tf-channel-text">{{ $row->code_planner ?: '-' }}</span>
+</td>
 
                             <td class="tf-col-monitoring">
                                 <span class="tf-channel-text">{{ $row->Monitoring ?: '-' }}</span>
@@ -1529,7 +1540,7 @@
                         </tr>
                     @empty
                         <tr class="tf-empty-row">
-                            <td colspan="13">
+                            <td colspan="15">
                                 <div class="tf-empty-icon">
                                     <i class="fas fa-map-marker-alt"></i>
                                 </div>

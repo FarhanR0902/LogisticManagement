@@ -175,6 +175,11 @@
             background-color: #fff;
             transition: all 0.2s;
         }
+     table input.input-jam {
+    width: 165px;
+    margin-top: 4px;
+    text-align: center;
+}
 
         table input:focus {
             border-color: #38bdf8;
@@ -977,6 +982,24 @@ function ambilAngkaMurni(teks) {
             });
         });
 
+        // ===== INPUT JAM 24 JAM (HH:MM) =====
+$(document).on('input', '.input-jam', function () {
+    let v = this.value.replace(/\D/g, '').slice(0, 4);
+    if (v.length >= 3) v = v.slice(0, 2) + ':' + v.slice(2);
+    this.value = v;
+});
+
+$(document).on('blur', '.input-jam', function () {
+    let v = this.value;
+    if (v === '') return;
+    if (/^\d{1,2}$/.test(v)) this.value = v = v.padStart(2, '0') + ':00';
+    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(v)) {
+        this.value = '';
+        alert('Format jam harus 24 jam, contoh 08:30 atau 17:45');
+    }
+});
+
+        
         // =========================
         // SELECT2 (filter atas)
         // =========================
@@ -1090,10 +1113,14 @@ function ambilAngkaMurni(teks) {
             }
         );
 
-        function saveRow(id) {
-            let row = $('tr[data-id="' + id + '"]');
+    function saveRow(id) {
+    let row = $('tr[data-id="' + id + '"]');
 
-            return $.ajax({
+    console.log('SAVE', id, row.length,
+        row.find('[name="tanggal_tiba_gudang"]').val(),
+        row.find('[name="waktu_tiba_gudang"]').val());
+
+    return $.ajax({
                 url: '/planner/autosave-row/' + id,
                 type: 'POST',
                 data: {
@@ -1142,6 +1169,12 @@ total_tonase: row.find('[name="total_tonase"]').val(),
 
                     nilai_muatan: ambilAngkaMurni(row.find('[name="nilai_muatan"]').val()),
                     biaya_kirim: ambilAngkaMurni(row.find('[name="biaya_kirim"]').val()),
+                    waktu_tiba_gudang:     row.find('[name="waktu_tiba_gudang"]').val(),
+waktu_keluar_gudang:   row.find('[name="waktu_keluar_gudang"]').val(),
+waktu_tiba_gudang_2:   row.find('[name="waktu_tiba_gudang_2"]').val(),
+waktu_keluar_gudang_2: row.find('[name="waktu_keluar_gudang_2"]').val(),
+waktu_tiba_gudang_3:   row.find('[name="waktu_tiba_gudang_3"]').val(),
+waktu_keluar_gudang_3: row.find('[name="waktu_keluar_gudang_3"]').val(),
                     cr: row.find('[name="cr"]').val(),
                     kubikasi: ambilAngkaPersen(row.find('[name="kubikasi"]').val())
                 },
@@ -1159,6 +1192,7 @@ total_tonase: row.find('[name="total_tonase"]').val(),
         alert('Belum ada perubahan untuk disimpan.');
         return;
     }
+    
 
     let ids = Array.from(dirtyRows);
 

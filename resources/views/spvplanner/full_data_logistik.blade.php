@@ -412,7 +412,86 @@
     <div class="container">
 
         <h2>📦 DATA LOGISTIK</h2>
+@if(session('success'))
+    <div style="background:#f0fdf4;border:1px solid #bbf7d0;color:#166534;padding:16px 20px;border-radius:12px;margin-bottom:20px;">
+        ✅ {{ session('success') }}
+    </div>
+@endif
 
+@if(session('error') || session('import_error'))
+    <div style="background:#fef2f2;border:1px solid #fecaca;color:#991b1b;padding:16px 20px;border-radius:12px;margin-bottom:20px;">
+        ❌ {{ session('error') ?? session('import_error') }}
+    </div>
+@endif
+
+@if($r = session('import_result'))
+    <div style="background:#fff;border-radius:16px;padding:20px;margin-bottom:20px;box-shadow:0 4px 16px rgba(0,0,0,.08);
+                border-left:6px solid {{ $r['failed'] > 0 ? '#f59e0b' : '#16a34a' }};">
+
+        <div style="font-size:20px;font-weight:700;margin-bottom:12px;">
+            {{ $r['failed'] > 0 ? '⚠️ Import selesai, sebagian gagal' : '✅ Import berhasil' }}
+        </div>
+
+        <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px;">
+            <span class="badge green">✅ {{ number_format($r['success']) }} data berhasil</span>
+            <span class="badge blue">➕ {{ number_format($r['inserted']) }} baru</span>
+            <span class="badge orange">🔄 {{ number_format($r['updated']) }} diperbarui</span>
+            <span class="badge gray">⏭ {{ number_format($r['skipped']) }} dilewati</span>
+            @if($r['failed'] > 0)
+                <span class="badge red">❌ {{ number_format($r['failed']) }} gagal</span>
+            @endif
+            <span class="badge badge-default">📦 {{ number_format($r['shipments']) }} no shipment</span>
+        </div>
+
+        <div style="font-size:14px;color:#64748b;">
+            Dilewati = baris kosong, atau No Shipment / Tujuan-nya kosong.
+        </div>
+
+        @if($r['failed'] > 0)
+            <div style="margin-top:14px;font-weight:600;color:#dc2626;">Baris yang gagal:</div>
+            <div style="max-height:260px;overflow:auto;margin-top:6px;">
+                <table style="font-size:14px;">
+                    <thead>
+                        <tr><th>No Shipment</th><th>Tujuan</th><th>Alasan</th></tr>
+                    </thead>
+                    <tbody>
+                        @foreach($r['failed_list'] as $f)
+                            <tr>
+                                <td>{{ $f['no_shipment'] }}</td>
+                                <td>{{ $f['tujuan'] }}</td>
+                                <td style="white-space:normal;">{{ \Illuminate\Support\Str::limit($f['error'], 160) }}</td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+            @if($r['failed'] > count($r['failed_list']))
+                <div style="font-size:13px;color:#64748b;margin-top:6px;">
+                    Menampilkan {{ count($r['failed_list']) }} dari {{ $r['failed'] }} baris gagal. Selengkapnya ada di log.
+                </div>
+            @endif
+        @endif
+
+        @if(count($r['unknown_planner']))
+            <div style="margin-top:12px;color:#b45309;">
+                ⚠️ Kode planner tidak ada di master: <b>{{ implode(', ', $r['unknown_planner']) }}</b>
+            </div>
+        @endif
+
+        @if(count($r['missing_columns']))
+            <div style="margin-top:8px;color:#b45309;">
+                ⚠️ Kolom belum ada di tabel (tidak tersimpan): <b>{{ implode(', ', $r['missing_columns']) }}</b>
+            </div>
+        @endif
+
+        @if(count($r['ignored_headers']))
+            <details style="margin-top:8px;color:#64748b;">
+                <summary>Header Excel yang diabaikan ({{ count($r['ignored_headers']) }})</summary>
+                {{ implode(', ', $r['ignored_headers']) }}
+            </details>
+        @endif
+    </div>
+@endif
         <div class="import-box">
             <form action="{{ url('/logistik/import') }}" method="POST" enctype="multipart/form-data">
                 @csrf

@@ -83,7 +83,8 @@ class TujuanFilterController extends Controller
             'dist_channel'        => 'nullable|string|max:100',
             'pulau'               => 'nullable|string|max:100',
             'area'                => 'required|string|max:100',
-            'Planner'             => 'nullable|string|max:100',
+           'Planner'             => 'nullable|string|max:100',
+'code_planner'        => 'nullable|string|max:50',
             'Monitoring'          => 'nullable|string|max:100',
             'biaya_kuli'          => 'nullable|numeric|min:0',
             'transport_lead_time' => 'nullable|integer|min:0',
@@ -154,7 +155,8 @@ class TujuanFilterController extends Controller
                     ->orWhere('dist_channel', 'like', "%{$search}%")
                     ->orWhere('pulau', 'like', "%{$search}%")
                     ->orWhere('area', 'like', "%{$search}%")
-                    ->orWhere('Planner', 'like', "%{$search}%")
+                ->orWhere('Planner', 'like', "%{$search}%")
+->orWhere('code_planner', 'like', "%{$search}%")
                     ->orWhere('Monitoring', 'like', "%{$search}%")
                     ->orWhere('biaya_kuli', 'like', "%{$search}%")
                     ->orWhere('transport_lead_time', 'like', "%{$search}%")
@@ -169,7 +171,8 @@ class TujuanFilterController extends Controller
             'customer_id'         => 'customer_id',
             'tujuan'              => 'tujuan',
             'dist_channel'        => 'dist_channel',
-            'Planner'             => 'Planner',
+         'Planner'             => 'Planner',
+'code_planner'        => 'code_planner',
             'Monitoring'          => 'Monitoring',
             'biaya_kuli'          => 'biaya_kuli',
             'transport_lead_time' => 'transport_lead_time',
@@ -337,7 +340,8 @@ class TujuanFilterController extends Controller
             'dist_channel'        => 'nullable|string|max:100',
             'pulau'               => 'nullable|string|max:100',
             'area'                => 'nullable|string|max:100',
-            'Planner'             => 'nullable|string|max:100',
+          'Planner'             => 'nullable|string|max:100',
+'code_planner'        => 'nullable|string|max:50',
             'Monitoring'          => 'nullable|string|max:100',
             'biaya_kuli'          => 'nullable|string|max:30',
             'transport_lead_time' => 'nullable|string|max:20',
@@ -347,10 +351,10 @@ class TujuanFilterController extends Controller
         $this->normalizeBiayaKuli($request);
         $this->normalizeTransportLeadTime($request);
 
-        $fields = [
-            'Div', 'dist_channel', 'pulau', 'area',
-            'Planner', 'Monitoring', 'biaya_kuli', 'transport_lead_time', 'divisi',
-        ];
+    $fields = [
+    'Div', 'dist_channel', 'pulau', 'area',
+    'Planner', 'code_planner', 'Monitoring', 'biaya_kuli', 'transport_lead_time', 'divisi',
+];
 
         $updateData = [];
 
@@ -430,7 +434,8 @@ class TujuanFilterController extends Controller
         $idxDistChannel        = array_search('dist_channel', $header);
         $idxPulau              = array_search('pulau', $header);
         $idxArea               = array_search('area', $header);
-        $idxPlanner            = array_search('planner', $header);
+$idxPlanner            = array_search('planner', $header);
+$idxCodePlanner        = array_search('code_planner', $header);
         $idxMonitoring         = array_search('monitoring', $header);
         $idxBiayaKuli          = array_search('biaya_kuli', $header);
         $idxTransportLeadTime  = array_search('transport_lead_time', $header);
@@ -490,7 +495,8 @@ class TujuanFilterController extends Controller
                     'dist_channel'        => $idxDistChannel !== false ? trim($row[$idxDistChannel]) : null,
                     'pulau'               => $idxPulau !== false ? trim($row[$idxPulau]) : null,
                     'area'                => $idxArea !== false ? trim($row[$idxArea]) : null,
-                    'Planner'             => $idxPlanner !== false ? trim($row[$idxPlanner]) : null,
+'Planner'             => $idxPlanner !== false ? trim($row[$idxPlanner]) : null,
+'code_planner'        => $idxCodePlanner !== false ? trim($row[$idxCodePlanner]) : null,
                     'Monitoring'          => $idxMonitoring !== false ? trim($row[$idxMonitoring]) : null,
                     'biaya_kuli'          => $biayaKuli,
                     'transport_lead_time' => $transportLeadTime,

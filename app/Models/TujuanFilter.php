@@ -23,6 +23,7 @@ class TujuanFilter extends Model
         'tonase',
         'Planner',
         'Monitoring',
+        'code_planner',
         'biaya_kuli',
         'transport_lead_time',
         'divisi',

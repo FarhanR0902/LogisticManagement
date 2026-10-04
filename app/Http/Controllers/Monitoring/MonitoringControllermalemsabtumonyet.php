@@ -174,16 +174,16 @@ class MonitoringController extends Controller
     // Hanya ambil & hitung baris yang benar-benar tampil
     // (10-100 baris per request), bukan semua data sekaligus.
     // =====================================================
-   
-     public function dataAjax(Request $request)
+    public function dataAjax(Request $request)
     {
+        
         $draw   = (int) $request->input('draw', 1);
         $start  = (int) $request->input('start', 0);
         $length = (int) $request->input('length', 10);
         $searchValue = trim((string) $request->input('search.value', ''));
- 
+
         $baseQuery = LogistikPengiriman::query();
- 
+
         // ================= FILTER =================
         if ($request->filled('jenis')) {
             $baseQuery->where('transportasi', strtoupper($request->jenis));
@@ -215,9 +215,9 @@ class MonitoringController extends Controller
         if ($request->filled('keluar_gudang_tgl')) {
             $baseQuery->whereDate('tanggal_keluar_gudang', $request->input('keluar_gudang_tgl'));
         }
- 
+
         $totalRecords = (clone $baseQuery)->count();
- 
+
         // ================= GLOBAL SEARCH =================
         if ($searchValue !== '') {
             $baseQuery->where(function ($q) use ($searchValue) {
@@ -230,9 +230,9 @@ class MonitoringController extends Controller
                 }
             });
         }
- 
+
         $recordsFiltered = (clone $baseQuery)->count();
- 
+
         // ================= ORDERING (klik header) =================
         // Map index kolom di tabel (harus sinkron dgn <thead> di blade)
         // ke nama kolom asli di database. Kolom yg isinya badge/HTML
@@ -240,7 +240,7 @@ class MonitoringController extends Controller
         // sengaja tidak dimasukkan -> disable orderable di JS.
         $orderColumnMap = [
             0  => 'tanggal_keluar_gudang',
-            1  => 'act_pgi_date',
+           1  => 'act_pgi_date',
             2  => 'dist_channel',
             3  => 'area',
             4  => 'no_shipment',
@@ -271,13 +271,10 @@ class MonitoringController extends Controller
             31 => 'atd',
             32 => 'ata',
         ];
- 
+
         $orderCol = $request->input('order.0.column');
         $orderDir = strtolower($request->input('order.0.dir', 'asc')) === 'desc' ? 'DESC' : 'ASC';
- 
-        // Baris yang tanggal_bongkar-nya sudah diinput selalu di belakang
-        $baseQuery->orderByRaw("CASE WHEN NULLIF(TRIM(tanggal_bongkar), '') IS NOT NULL THEN 1 ELSE 0 END ASC");
- 
+
         if ($orderCol !== null && isset($orderColumnMap[$orderCol])) {
             $baseQuery->orderBy($orderColumnMap[$orderCol], $orderDir);
             // tie-breaker biar urutan stabil antar baris yg nilainya sama
@@ -285,39 +282,38 @@ class MonitoringController extends Controller
         } else {
             $baseQuery->orderBy('no_shipment', 'ASC')->orderBy('act_urutan_bongkar', 'ASC');
         }
- 
+
         $rows = $baseQuery
             ->skip($start)
             ->take($length)
             ->get();
- 
+
         // ============================================================
         // Hitung estimasi/blocked per grup no_shipment DALAM PAGE INI
         // saja (kalau baris belum punya estimasi_tiba tersimpan).
         // Ini jauh lebih ringan drpd hitung utk SEMUA data tiap request.
         // ============================================================
         $grouped = $rows->groupBy('no_shipment');
-        foreach ($grouped as $shipment => $items) {
-            $gudangInfo = $this->getKeluarGudangInfo($items->first());
-            $keluar        = $gudangInfo['keluar'];
-            $blocked       = $gudangInfo['blocked'];
-            $blockedStatus = $gudangInfo['blocked_status'];
-            $leadtime      = (int) ($items->first()->transport_lead_time ?? 0);
- 
-            $estimasi = (!$blocked && $keluar)
-                ? strtotime("+{$leadtime} days", $keluar)
-                : null;
- 
-            foreach ($items as $r) {
-                $r->_keluar           = $keluar;
-                $r->_blocked          = $blocked;
-                $r->_blocked_status   = $blockedStatus;
-                $r->_tanggal_estimasi = $r->estimasi_tiba
-                    ? strtotime($r->estimasi_tiba)
-                    : $estimasi;
-            }
-        }
- 
+    foreach ($grouped as $shipment => $items) {
+    $gudangInfo = $this->getKeluarGudangInfo($items->first()); // atau mergeGudangFields kalau udah diterapkan
+    $keluar  = $gudangInfo['keluar'];
+    $blocked = $gudangInfo['blocked'];
+    $blockedStatus = $gudangInfo['blocked_status'];
+    $leadtime = (int) ($items->first()->transport_lead_time ?? 0);
+
+    $estimasi = (!$blocked && $keluar)
+        ? strtotime("+{$leadtime} days", $keluar)
+        : null;
+
+    foreach ($items as $r) {
+        $r->_keluar = $keluar;
+        $r->_blocked = $blocked;
+        $r->_blocked_status = $blockedStatus;
+        $r->_tanggal_estimasi = $r->estimasi_tiba
+            ? strtotime($r->estimasi_tiba)
+            : $estimasi;
+    }
+}
         $akurasiTiba = Cache::remember('monitoring_akurasi_tiba', 3600, function () {
             return DB::table('akurasi3')->distinct()->pluck('akurasi_waktu_tiba');
         });
@@ -328,18 +324,18 @@ class MonitoringController extends Controller
             return DB::table('akurasi3')->distinct()->pluck('remarks_qty');
         });
         $tujuanList = Cache::remember('monitoring_tujuan_list', 3600, function () {
-            return DB::table('tujuanfillterr')
-                ->whereNotNull('tujuan')->where('tujuan', '!=', '')
-                ->distinct()->orderBy('tujuan')->pluck('tujuan');
-        });
- 
-        $lists = compact('akurasiTiba', 'akurasiBongkar', 'akurasiQty', 'tujuanList');
- 
+    return DB::table('tujuanfillterr')
+        ->whereNotNull('tujuan')->where('tujuan', '!=', '')
+        ->distinct()->orderBy('tujuan')->pluck('tujuan');
+});
+
+       $lists = compact('akurasiTiba', 'akurasiBongkar', 'akurasiQty', 'tujuanList');
+
         $data = [];
         foreach ($rows as $r) {
             $data[] = $this->renderRowColumns($r, $lists);
         }
- 
+
         return response()->json([
             'draw'            => $draw,
             'recordsTotal'    => $totalRecords,
@@ -567,12 +563,9 @@ $blocked
 public function updateMonitoring(Request $request, $id)
 {
     if (!LogistikPengiriman::whereKey($id)->exists()) {
-        return response()->json([
-            'status'  => 'error',
-            'message' => 'Data tidak ditemukan (mungkin sudah dihapus)',
-        ], 404);
+        return response()->json(['status' => 'error', 'message' => 'Data tidak ditemukan'], 404);
     }
- 
+
     try {
         $this->loggedSave('monitoring', 'single', $id, $request->all(), function () use ($id, $request) {
             DB::transaction(function () use ($id, $request) {
@@ -581,12 +574,9 @@ public function updateMonitoring(Request $request, $id)
             });
         });
     } catch (\Throwable $e) {
-        return response()->json([
-            'status'  => 'error',
-            'message' => $this->friendlyError($e),
-        ], 422);
+        return response()->json(['status' => 'error', 'message' => $e->getMessage()], 422);
     }
- 
+
     return response()->json([
         'status'  => 'success',
         'message' => 'Data transport laut berhasil diupdate',
@@ -664,23 +654,16 @@ public function updateMonitoringBatch(Request $request)
     //         ]);
     //     }
     // }
-foreach ($rows as $rowData) {
+    foreach ($rows as $rowData) {
     $id = $rowData['id'] ?? null;
- 
+
     if (empty($id)) {
         $failedCount++;
         $this->writeInputLog('monitoring', 'batch', null, null, 'failed', 'ID baris kosong', $rowData);
-        $results[] = [
-            'id'          => null,
-            'no_shipment' => null,
-            'status'      => 'error',
-            'message'     => 'ID baris kosong',
-        ];
+        $results[] = ['id' => null, 'status' => 'error', 'message' => 'ID baris kosong'];
         continue;
     }
- 
-    $noShipment = LogistikPengiriman::where('id', $id)->value('no_shipment');
- 
+
     try {
         $this->loggedSave('monitoring', 'batch', $id, $rowData, function () use ($id, $rowData) {
             DB::transaction(function () use ($id, $rowData) {
@@ -688,22 +671,13 @@ foreach ($rows as $rowData) {
                 $this->applyMonitoringUpdate($logistik, $rowData);
             });
         });
- 
+
         $successCount++;
-        $results[] = [
-            'id'          => $id,
-            'no_shipment' => $noShipment,
-            'status'      => 'success',
-        ];
- 
+        $results[] = ['id' => $id, 'status' => 'success'];
+
     } catch (\Throwable $e) {
         $failedCount++;
-        $results[] = [
-            'id'          => $id,
-            'no_shipment' => $noShipment,
-            'status'      => 'error',
-            'message'     => $this->friendlyError($e),
-        ];
+        $results[] = ['id' => $id, 'status' => 'error', 'message' => $e->getMessage()];
     }
 }
  
@@ -714,38 +688,6 @@ foreach ($rows as $rowData) {
         'failed_count' => $failedCount,
         'results'      => $results,
     ]);
-}
-
-private function friendlyError(\Throwable $e): string
-{
-    $msg = $e->getMessage();
- 
-    if ($e instanceof \Illuminate\Database\Eloquent\ModelNotFoundException) {
-        return 'Data tidak ditemukan (mungkin sudah dihapus)';
-    }
- 
-    if ($e instanceof \Illuminate\Database\QueryException) {
-        if (stripos($msg, 'Invalid datetime format') !== false
-            || stripos($msg, 'Incorrect date') !== false
-            || stripos($msg, 'Incorrect time') !== false) {
-            return 'Format tanggal/jam tidak valid';
-        }
-        if (stripos($msg, 'Data too long') !== false) {
-            return 'Isian terlalu panjang untuk kolomnya';
-        }
-        if (stripos($msg, 'Incorrect integer') !== false
-            || stripos($msg, 'Incorrect decimal') !== false
-            || stripos($msg, 'Out of range') !== false) {
-            return 'Angka tidak valid atau di luar batas';
-        }
-        if (stripos($msg, 'Deadlock') !== false
-            || stripos($msg, 'Lock wait timeout') !== false) {
-            return 'Database sedang sibuk, coba simpan lagi';
-        }
-        return 'Gagal menyimpan ke database';
-    }
- 
-    return 'Terjadi kesalahan: ' . mb_substr($msg, 0, 150);
 }
  
 // ================================================================
@@ -788,31 +730,13 @@ private function applyMonitoringUpdate(LogistikPengiriman $logistik, array $data
         ? (($tiba <= $estimasi) ? 'On Time' : 'Delay')
         : '-';
  
-   // ---- Overstay & SLA Bongkar berdasarkan tanggal + jam ----
-$tibaDT = ($tanggalTibaInput && !empty($data['waktu_tiba']))
-    ? strtotime(date('Y-m-d', strtotime($tanggalTibaInput)) . ' ' . $data['waktu_tiba'])
-    : null;
-
-$bongkarDT = ($tanggalBongkarInput && !empty($data['waktu_bongkar']))
-    ? strtotime(date('Y-m-d', strtotime($tanggalBongkarInput)) . ' ' . $data['waktu_bongkar'])
-    : null;
-
-$overstay = null;
-
-if ($tiba && $bongkar) {
-    if ($tibaDT && $bongkarDT) {
-        // jam lengkap: pakai selisih jam sebenarnya
-        $selisihJam = ($bongkarDT - $tibaDT) / 3600;
-        $overstay   = $selisihJam <= 24 ? 0 : (int) floor($selisihJam / 24);
-    } else {
-        // jam belum diisi: fallback ke aturan lama (per tanggal)
-        $overstay = max(0, floor(($bongkar - $tiba) / 86400));
-    }
-}
-
-$sla_bongkar = ($tiba && $bongkar)
-    ? (($overstay <= 0) ? 'On Time' : 'Delay')
-    : '-';
+    $overstay = ($tiba && $bongkar)
+        ? max(0, floor(($bongkar - $tiba) / 86400))
+        : null;
+ 
+    $sla_bongkar = ($tiba && $bongkar)
+        ? (($overstay <= 0) ? 'On Time' : 'Delay')
+        : '-';
  
     $logic = $this->generateStatusAlert($sla_tiba, $sla_bongkar);
  

@@ -282,6 +282,64 @@ class ManagerController extends Controller
                 : 0,
         ];
 
+        // ================= SUMMARY PLANNER =================
+$greatestTiba = "GREATEST(
+    COALESCE(tanggal_tiba_gudang, '1900-01-01'),
+    COALESCE(tanggal_tiba_gudang_2, '1900-01-01'),
+    COALESCE(tanggal_tiba_gudang_3, '1900-01-01')
+)";
+
+$lastTiba = "
+    CASE
+        WHEN tanggal_tiba_gudang_3 IS NOT NULL AND tanggal_tiba_gudang_3 = {$greatestTiba} THEN tanggal_tiba_gudang_3
+        WHEN tanggal_tiba_gudang_2 IS NOT NULL AND tanggal_tiba_gudang_2 = {$greatestTiba} THEN tanggal_tiba_gudang_2
+        WHEN tanggal_tiba_gudang IS NOT NULL THEN tanggal_tiba_gudang
+        ELSE NULL
+    END
+";
+
+$lastPlanning = "
+    CASE
+        WHEN tanggal_tiba_gudang_3 IS NOT NULL AND tanggal_tiba_gudang_3 = {$greatestTiba} THEN planning_loading_3
+        WHEN tanggal_tiba_gudang_2 IS NOT NULL AND tanggal_tiba_gudang_2 = {$greatestTiba} THEN planning_loading_2
+        WHEN tanggal_tiba_gudang IS NOT NULL THEN planning_loading
+        ELSE NULL
+    END
+";
+$belumIsi = "NULLIF(TRIM(rencana_kirim), '') IS NULL";
+$shipment = "NULLIF(TRIM(no_shipment), '')";
+
+$summary_planner = (clone $base)
+    ->select(
+        'planner',
+        DB::raw("COUNT(DISTINCT {$shipment}) as total"),
+        // baris yang rencana_kirim-nya belum diinput
+        DB::raw("SUM(CASE WHEN {$belumIsi} THEN 1 ELSE 0 END) as total_belum_rencana"),
+        DB::raw("COUNT(DISTINCT CASE WHEN ({$lastPlanning}) IS NOT NULL AND ({$lastTiba}) IS NOT NULL AND DATE({$lastTiba}) <= DATE({$lastPlanning}) THEN {$shipment} END) as total_ontime"),
+        DB::raw("COUNT(DISTINCT CASE WHEN ({$lastPlanning}) IS NOT NULL AND ({$lastTiba}) IS NOT NULL AND DATE({$lastTiba}) > DATE({$lastPlanning}) THEN {$shipment} END) as total_delay")
+    )
+    ->whereNotNull('planner')
+    ->where('planner', '!=', '')
+    ->groupBy('planner')
+    ->orderByDesc('total')
+    ->get();
+
+// ================= SUMMARY PIC MONITORING =================
+$summary_pic_monitoring = (clone $base)
+    ->select(
+        'pic_monitoring',
+        DB::raw('COUNT(*) as total'),
+        DB::raw("SUM(CASE WHEN tanggal_tiba IS NOT NULL AND estimasi_tiba IS NOT NULL AND DATEDIFF(DATE(tanggal_tiba), DATE(estimasi_tiba)) <= 0 THEN 1 ELSE 0 END) as total_ontime"),
+        DB::raw("SUM(CASE WHEN tanggal_tiba IS NOT NULL AND estimasi_tiba IS NOT NULL AND DATEDIFF(DATE(tanggal_tiba), DATE(estimasi_tiba)) > 0 THEN 1 ELSE 0 END) as total_delay"),
+        DB::raw("SUM(CASE WHEN NULLIF(TRIM(tanggal_tiba), '') IS NULL THEN 1 ELSE 0 END) as total_belum_tiba"),
+        DB::raw("SUM(CASE WHEN NULLIF(TRIM(tanggal_tiba), '') IS NULL AND estimasi_tiba IS NOT NULL AND DATE(estimasi_tiba) < CURDATE() THEN 1 ELSE 0 END) as total_lewat_estimasi")
+    )
+    ->whereNotNull('pic_monitoring')
+    ->where('pic_monitoring', '!=', '')
+    ->groupBy('pic_monitoring')
+    ->orderByDesc('total')
+    ->get();
+
 
         // ================= LIST AREA =================
 
@@ -292,7 +350,8 @@ $total_in_transit = $this->applyFilter($this->inTransitQuery(), $request)->count
 
         return view('dashboard', compact(
             'total_data',
-
+            'summary_planner',
+'summary_pic_monitoring',
             'gudang_ontime',
             'gudang_delay',
             'total_in_transit',
