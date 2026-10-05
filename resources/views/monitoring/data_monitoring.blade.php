@@ -93,7 +93,17 @@
             from { transform: translateX(120%); opacity: 0; }
             to { transform: translateX(0); opacity: 1; }
         }
-
+        #kelengkapanMenu {
+    position: fixed; z-index: 99998; width: 250px;
+    background: #fff; border: 1px solid #d1d5db; border-radius: 10px;
+    padding: 8px; box-shadow: 0 10px 25px rgba(0,0,0,.2);
+}
+.kel-btn {
+    display: block; width: 100%; text-align: left; margin-bottom: 4px;
+    background: #f3f4f6; border: 1px solid #e5e7eb; border-radius: 6px;
+    padding: 7px 10px; font-size: 13px; cursor: pointer;
+}
+.kel-btn:hover { background: #e5e7eb; }
         .summary-row { display: flex; gap: 15px; flex-wrap: wrap; margin-bottom: 15px; align-items: flex-start; }
         .missing-field-box { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 
@@ -107,6 +117,9 @@
             background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 10px;
             padding: 10px 12px; margin-bottom: 8px; cursor: pointer; transition: all .15s ease;
         }
+        .kel-check { display: flex; align-items: center; gap: 8px; font-size: 13px; padding: 4px 6px; cursor: pointer; margin: 0; }
+.kel-check:hover { background: #f3f4f6; border-radius: 6px; }
+.kel-check input[type=checkbox] { width: auto; padding: 0; margin: 0; }
         .alert-item:hover { background: #f3f4f6; transform: translateY(-1px); }
         .alert-item .alert-top { display: flex; justify-content: space-between; align-items: center; }
         .alert-item .alert-missing { font-size: 12px; color: #6b7280; margin-top: 4px; white-space: normal; }
@@ -188,6 +201,16 @@
     </div>
 
     <div class="toast-container" id="toastContainer"></div>
+    <div id="kelengkapanMenu" style="display:none;">
+    <button type="button" id="btnKelSort" class="kel-btn">↕ Sort</button>
+    <button type="button" id="btnKelFilter" class="kel-btn">🔍 Filter</button>
+<div id="kelFilterPanel" style="display:none; margin-top:6px;">
+    <label class="kel-check"><input type="checkbox" class="kel-chk" value="lengkap"> ✅ Lengkap</label>
+    <label class="kel-check"><input type="checkbox" class="kel-chk" value="belum_lengkap"> ❌ Belum lengkap (sudah lewat estimasi)</label>
+    <label class="kel-check"><input type="checkbox" class="kel-chk" value="belum_jatuh_tempo"> ➖ Belum jatuh tempo</label>
+    <label class="kel-check"><input type="checkbox" class="kel-chk" value="sampai_tujuan"> 🚚 Sampai Tujuan (belum bongkar)</label>
+</div>
+</div>
 
     <div class="container-fluid px-3">
         @if(session('success'))
@@ -314,7 +337,7 @@
                         <th>ETA</th>
                         <th>ATD</th>
                         <th>ATA</th>
-                        <th>Kelengkapan Data</th>
+<th class="th-kelengkapan" style="cursor:pointer;">Kelengkapan Data <span class="kel-ind"></span></th>
                         <th>Action</th>
                     </tr>
                 </thead>
@@ -325,6 +348,9 @@
 
 <script>
     let table;
+    let kelSort = '';        // '', 'desc', 'asc'
+let kelFilter = [];   // sebelumnya ''
+let lastOrderStr = null;
     let editedRowIds = new Set(); // simpan id baris yang PERNAH diedit selama sesi ini (tidak reset walau autosave sukses)
 
     $(document).ready(function() {
@@ -347,7 +373,18 @@
                     d.bulan = $('#filter_bulan').val();
                     d.tahun = $('#filter_tahun').val();
                     d.keluar_gudang_tgl = $('#filterKeluarGudangTgl').val();
+                    // kalau user klik sort kolom lain, sort kelengkapan otomatis dilepas
+let curOrder = JSON.stringify(d.order);
+if (lastOrderStr !== null && curOrder !== lastOrderStr && kelSort) {
+    kelSort = '';
+    updateKelIndicator();
+}
+lastOrderStr = curOrder;
+
+d.kelengkapan = kelFilter;
+d.kelengkapan_sort = kelSort;
                 }
+                
             },
             scrollX: true,
             scrollCollapse: true,
@@ -401,6 +438,9 @@
         $('#btnResetFilter').on('click', function() {
             $('#filter_pic_monitoring, #filter_area, #filter_bulan, #filter_tahun').val('').trigger('change.select2');
             $('#filterKeluarGudangTgl').val('');
+          kelSort = ''; kelFilter = [];
+$('.kel-chk').prop('checked', false);
+updateKelIndicator();
             table.draw();
             loadAlertControl(false);
         });
@@ -442,6 +482,14 @@
         // ================= ALERT CONTROL (dari endpoint ringan) =================
         loadAlertControl(true);
     });
+    function esc(s) {
+    return String(s ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
 
     function loadAlertControl(showToastIfAny) {
         $.ajax({
@@ -480,30 +528,34 @@
         $('#missingFieldSummary').html(html);
     }
 
-    function renderAlertControl(alertList, totalAlert) {
-        $('#alertControlCount').text((totalAlert ?? alertList.length) + ' Alert');
+function renderAlertControl(alertList, totalAlert) {
+    $('#alertControlCount').text((totalAlert ?? alertList.length) + ' Alert');
 
-        if (!alertList || alertList.length === 0) {
-            $('#alertControlList').html('<div class="p-2" style="color:#22c55e;">✅ Tidak ada shipment yang lewat estimasi tiba</div>');
-            return;
-        }
-
-        let html = alertList.map(function(a) {
-            let sev = a.emptyCount === 2 ? 'red' : 'orange';
-            let estimasiInfo = a.estimasi ? (' • Estimasi ' + a.estimasi) : '';
-            return '' +
-                '<div class="alert-item" data-shipment="' + a.shipment + '">' +
-                    '<div class="alert-top">' +
-                        '<b>🚚 ' + a.shipment + '</b>' +
-                        '<span class="badge ' + sev + '">' + a.emptyCount + ' kosong</span>' +
-                    '</div>' +
-                    '<div class="alert-missing">Belum diisi: ' + a.missing.join(', ') + estimasiInfo + '</div>' +
-                '</div>';
-        }).join('');
-
-        $('#alertControlList').html(html);
+    if (!alertList || alertList.length === 0) {
+        $('#alertControlList').html('<div class="p-2" style="color:#22c55e;">✅ Tidak ada shipment yang lewat estimasi tiba</div>');
+        return;
     }
 
+    let html = alertList.map(function(a) {
+        let sev = a.emptyCount === 2 ? 'red' : 'orange';
+        let estimasiInfo = a.estimasi ? (' • Estimasi ' + esc(a.estimasi)) : '';
+        return '' +
+            '<div class="alert-item" data-shipment="' + esc(a.shipment) + '">' +
+                '<div class="alert-top">' +
+                    '<b style="font-size:17px;">🚚 ' + esc(a.shipment) + '</b>' +
+                    '<span class="badge ' + sev + '">' + a.emptyCount + ' kosong</span>' +
+                '</div>' +
+                '<div style="font-size:16px;margin-top:2px;">' +
+                    '<b>' + esc(a.tujuan || '-') + '</b>' +
+                    '<b> • ' + esc(a.area || '-') + '</b>' +
+                    '<b> • ' + esc(a.pic_monitoring || '-') + '</b>' +
+                '</div>' +
+                '<div class="alert-missing">Belum diisi: ' + a.missing.join(', ') + estimasiInfo + '</div>' +
+            '</div>';
+    }).join('');
+
+    $('#alertControlList').html(html);
+}
     // Klik item alert -> filter tabel by no_shipment (server-side search),
     // bukan scroll-highlight (karena datanya paginated, row belum tentu di halaman ini)
     $(document).on('click', '.alert-item', function() {
@@ -519,6 +571,55 @@
             toast.fadeOut(400, function() { toast.remove(); });
         }, 6000);
     }
+
+    function updateKelIndicator() {
+    let t = '';
+    if (kelSort === 'desc') t += ' ⬇';
+    if (kelSort === 'asc')  t += ' ⬆';
+   if (kelFilter.length) t += ' 🔍' + kelFilter.length;
+    $('.kel-ind').text(t);
+
+    $('#btnKelSort').text(
+        kelSort === 'desc' ? '⬇ Sort: Paling banyak kosong dulu' :
+        kelSort === 'asc'  ? '⬆ Sort: Lengkap dulu' : '↕ Sort'
+    );
+}
+
+// klik header -> buka menu (2 tombol: Sort & Filter)
+$(document).on('click', 'th.th-kelengkapan', function(e) {
+    e.stopPropagation();
+    let $m = $('#kelengkapanMenu');
+    if ($m.is(':visible')) { $m.hide(); return; }
+    let r = this.getBoundingClientRect();
+    $('#kelFilterPanel').hide();
+    $m.css({ top: r.bottom + 4, left: Math.max(8, Math.min(r.left, window.innerWidth - 260)) }).show();
+});
+
+// klik di luar menu -> tutup
+$(document).on('click', function(e) {
+    if (!$(e.target).closest('#kelengkapanMenu').length) {
+        $('#kelengkapanMenu').hide();
+    }
+});
+
+// tombol Sort: off -> desc -> asc -> off
+$('#btnKelSort').on('click', function() {
+    kelSort = kelSort === '' ? 'desc' : (kelSort === 'desc' ? 'asc' : '');
+    updateKelIndicator();
+    $('#kelengkapanMenu').hide();
+    table.draw();
+});
+
+// tombol Filter: tampilkan pilihan
+$('#btnKelFilter').on('click', function() {
+    $('#kelFilterPanel').toggle();
+});
+
+$(document).on('change', '.kel-chk', function() {
+    kelFilter = $('.kel-chk:checked').map(function() { return this.value; }).get();
+    updateKelIndicator();
+    table.draw();
+});
 
     function formatRupiah(angka) {
         return 'Rp ' + Number(angka).toLocaleString('id-ID');

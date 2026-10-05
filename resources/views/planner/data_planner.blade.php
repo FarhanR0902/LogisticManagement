@@ -685,7 +685,7 @@
                 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
             </div>
 
-          <script>
+        <script>
     // ==========================================================
     // MASTER TARIF (preload sekali saat halaman dibuka)
     // ==========================================================
@@ -765,67 +765,62 @@
             return n;
         }
 
-       // ===== KUBIKASI (ROW) =====
-// Saat fokus: lepas format % biar gampang diedit angka mentahnya
-$(document).on('focus', '.row-kubikasi', function() {
-    let raw = ambilAngkaPersen($(this).val());
-    $(this).val(raw === 0 ? '' : String(raw).replace('.', ','));
-});
+        // ===== KUBIKASI (ROW) =====
+        $(document).on('focus', '.row-kubikasi', function() {
+            let raw = ambilAngkaPersen($(this).val());
+            $(this).val(raw === 0 ? '' : String(raw).replace('.', ','));
+        });
 
-// Saat ngetik: cuma bolehin angka & 1 koma, TANPA format % dulu
-$(document).on('input', '.row-kubikasi', function() {
-    let val = $(this).val().replace(/[^0-9,]/g, '');
-    let parts = val.split(',');
-    if (parts.length > 2) {
-        val = parts[0] + ',' + parts.slice(1).join('');
-    }
-    $(this).val(val);
-    markRowDirty($(this));
-});
+        $(document).on('input', '.row-kubikasi', function() {
+            let val = $(this).val().replace(/[^0-9,]/g, '');
+            let parts = val.split(',');
+            if (parts.length > 2) {
+                val = parts[0] + ',' + parts.slice(1).join('');
+            }
+            $(this).val(val);
+            markRowDirty($(this));
+        });
 
-// Saat selesai (blur): baru diformat jadi xx,xx%
-$(document).on('blur', '.row-kubikasi', function() {
-    $(this).val(formatKePersen(ambilAngkaPersen($(this).val())));
-});
+        $(document).on('blur', '.row-kubikasi', function() {
+            $(this).val(formatKePersen(ambilAngkaPersen($(this).val())));
+        });
 
-// ===== KUBIKASI (MODAL) =====
-$(document).on('focus', '.modal-kubikasi', function() {
-    let raw = ambilAngkaPersen($(this).val());
-    $(this).val(raw === 0 ? '' : String(raw).replace('.', ','));
-});
+        // ===== KUBIKASI (MODAL) =====
+        $(document).on('focus', '.modal-kubikasi', function() {
+            let raw = ambilAngkaPersen($(this).val());
+            $(this).val(raw === 0 ? '' : String(raw).replace('.', ','));
+        });
 
-$(document).on('input', '.modal-kubikasi', function() {
-    let val = $(this).val().replace(/[^0-9,]/g, '');
-    let parts = val.split(',');
-    if (parts.length > 2) {
-        val = parts[0] + ',' + parts.slice(1).join('');
-    }
-    $(this).val(val);
-});
+        $(document).on('input', '.modal-kubikasi', function() {
+            let val = $(this).val().replace(/[^0-9,]/g, '');
+            let parts = val.split(',');
+            if (parts.length > 2) {
+                val = parts[0] + ',' + parts.slice(1).join('');
+            }
+            $(this).val(val);
+        });
 
-$(document).on('blur', '.modal-kubikasi', function() {
-    $(this).val(formatKePersen(ambilAngkaPersen($(this).val())));
-});
+        $(document).on('blur', '.modal-kubikasi', function() {
+            $(this).val(formatKePersen(ambilAngkaPersen($(this).val())));
+        });
 
-// ===== TOTAL KUBIKASI & TOTAL TONASE (ROW) — larang titik, cuma boleh koma =====
-$(document).on('input', '.row-total-kubikasi, .row-total-tonase', function() {
-    let val = $(this).val().replace(/[^0-9,]/g, '');
-    let parts = val.split(',');
-    if (parts.length > 2) {
-        val = parts[0] + ',' + parts.slice(1).join('');
-    }
-    $(this).val(val);
-    markRowDirty($(this));
-});
+        // ===== TOTAL KUBIKASI & TOTAL TONASE (ROW) — larang titik, cuma boleh koma =====
+        $(document).on('input', '.row-total-kubikasi, .row-total-tonase', function() {
+            let val = $(this).val().replace(/[^0-9,]/g, '');
+            let parts = val.split(',');
+            if (parts.length > 2) {
+                val = parts[0] + ',' + parts.slice(1).join('');
+            }
+            $(this).val(val);
+            markRowDirty($(this));
+        });
 
-function ambilAngkaMurni(teks) {
+        function ambilAngkaMurni(teks) {
             if (!teks) return 0;
             let bersih = String(teks).replace(/[^0-9]/g, '');
             return parseFloat(bersih) || 0;
         }
 
-        // Row sudah datang dari server dalam format Rupiah/format akhir,
-        // fungsi ini hanya jaga-jaga untuk input baru di modal.
         function jalankanMaskingRupiahModal() {
             $('.modal-nilai-muatan, .modal-biaya-kirim').each(function() {
                 let v = $(this).val();
@@ -868,10 +863,10 @@ function ambilAngkaMurni(teks) {
                     $('#dtLoadingOverlay').hide();
                 }
             },
-      columnDefs: [{
-    className: "dt-center",
-    targets: [0, 1, 2, 30, 40, 42, 44, 46, 47, 49, 50, 52, 53, 55]
-}],
+            columnDefs: [{
+                className: "dt-center",
+                targets: [0, 1, 2, 30, 40, 42, 44, 46, 47, 49, 50, 52, 53, 55]
+            }],
             rowCallback: function(row, data, index) {
                 let $row = $(row);
                 let deleteLink = $row.find('a[href*="/planner/delete/"]').attr('href');
@@ -983,23 +978,22 @@ function ambilAngkaMurni(teks) {
         });
 
         // ===== INPUT JAM 24 JAM (HH:MM) =====
-$(document).on('input', '.input-jam', function () {
-    let v = this.value.replace(/\D/g, '').slice(0, 4);
-    if (v.length >= 3) v = v.slice(0, 2) + ':' + v.slice(2);
-    this.value = v;
-});
+        $(document).on('input', '.input-jam', function () {
+            let v = this.value.replace(/\D/g, '').slice(0, 4);
+            if (v.length >= 3) v = v.slice(0, 2) + ':' + v.slice(2);
+            this.value = v;
+        });
 
-$(document).on('blur', '.input-jam', function () {
-    let v = this.value;
-    if (v === '') return;
-    if (/^\d{1,2}$/.test(v)) this.value = v = v.padStart(2, '0') + ':00';
-    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(v)) {
-        this.value = '';
-        alert('Format jam harus 24 jam, contoh 08:30 atau 17:45');
-    }
-});
+        $(document).on('blur', '.input-jam', function () {
+            let v = this.value;
+            if (v === '') return;
+            if (/^\d{1,2}$/.test(v)) this.value = v = v.padStart(2, '0') + ':00';
+            if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(v)) {
+                this.value = '';
+                alert('Format jam harus 24 jam, contoh 08:30 atau 17:45');
+            }
+        });
 
-        
         // =========================
         // SELECT2 (filter atas)
         // =========================
@@ -1113,14 +1107,10 @@ $(document).on('blur', '.input-jam', function () {
             }
         );
 
-    function saveRow(id) {
-    let row = $('tr[data-id="' + id + '"]');
+        function saveRow(id) {
+            let row = $('tr[data-id="' + id + '"]');
 
-    console.log('SAVE', id, row.length,
-        row.find('[name="tanggal_tiba_gudang"]').val(),
-        row.find('[name="waktu_tiba_gudang"]').val());
-
-    return $.ajax({
+            return $.ajax({
                 url: '/planner/autosave-row/' + id,
                 type: 'POST',
                 data: {
@@ -1136,9 +1126,9 @@ $(document).on('blur', '.input-jam', function () {
                     planning_loading: row.find('[name="planning_loading"]').val(),
                     tanggal_tiba_gudang: row.find('[name="tanggal_tiba_gudang"]').val(),
                     tanggal_keluar_gudang: row.find('[name="tanggal_keluar_gudang"]').val(),
-                   reason_gudang:   row.find('[name="reason_gudang"]').val(),
-reason_gudang_2: row.find('[name="reason_gudang_2"]').val(),
-reason_gudang_3: row.find('[name="reason_gudang_3"]').val(),
+                    reason_gudang:   row.find('[name="reason_gudang"]').val(),
+                    reason_gudang_2: row.find('[name="reason_gudang_2"]').val(),
+                    reason_gudang_3: row.find('[name="reason_gudang_3"]').val(),
 
                     planning_loading_2: row.find('[name="planning_loading_2"]').val(),
                     tanggal_tiba_gudang_2: row.find('[name="tanggal_tiba_gudang_2"]').val(),
@@ -1159,8 +1149,8 @@ reason_gudang_3: row.find('[name="reason_gudang_3"]').val(),
                     kategori_ekspedisi: row.find('[name="kategori_ekspedisi"]').val(),
                     ekpedisi: row.find('[name="ekpedisi"]').val(),
                     transport_lead_time: row.find('[name="transport_lead_time"]').val(),
-total_kubik: row.find('[name="total_kubik"]').val(),   // cari elemen by name="total_kubikasi", tapi key ke server tetap "total_kubik"
-total_tonase: row.find('[name="total_tonase"]').val(),
+                    total_kubik: row.find('[name="total_kubik"]').val(),
+                    total_tonase: row.find('[name="total_tonase"]').val(),
 
                     nama_driver: row.find('[name="nama_driver"]').val(),
                     no_pol: row.find('[name="no_pol"]').val(),
@@ -1169,12 +1159,14 @@ total_tonase: row.find('[name="total_tonase"]').val(),
 
                     nilai_muatan: ambilAngkaMurni(row.find('[name="nilai_muatan"]').val()),
                     biaya_kirim: ambilAngkaMurni(row.find('[name="biaya_kirim"]').val()),
+
                     waktu_tiba_gudang:     row.find('[name="waktu_tiba_gudang"]').val(),
-waktu_keluar_gudang:   row.find('[name="waktu_keluar_gudang"]').val(),
-waktu_tiba_gudang_2:   row.find('[name="waktu_tiba_gudang_2"]').val(),
-waktu_keluar_gudang_2: row.find('[name="waktu_keluar_gudang_2"]').val(),
-waktu_tiba_gudang_3:   row.find('[name="waktu_tiba_gudang_3"]').val(),
-waktu_keluar_gudang_3: row.find('[name="waktu_keluar_gudang_3"]').val(),
+                    waktu_keluar_gudang:   row.find('[name="waktu_keluar_gudang"]').val(),
+                    waktu_tiba_gudang_2:   row.find('[name="waktu_tiba_gudang_2"]').val(),
+                    waktu_keluar_gudang_2: row.find('[name="waktu_keluar_gudang_2"]').val(),
+                    waktu_tiba_gudang_3:   row.find('[name="waktu_tiba_gudang_3"]').val(),
+                    waktu_keluar_gudang_3: row.find('[name="waktu_keluar_gudang_3"]').val(),
+
                     cr: row.find('[name="cr"]').val(),
                     kubikasi: ambilAngkaPersen(row.find('[name="kubikasi"]').val())
                 },
@@ -1187,73 +1179,68 @@ waktu_keluar_gudang_3: row.find('[name="waktu_keluar_gudang_3"]').val(),
             });
         }
 
-      $('#btnSaveAll').on('click', function() {
-    if (dirtyRows.size === 0) {
-        alert('Belum ada perubahan untuk disimpan.');
-        return;
-    }
-    
-
-    let ids = Array.from(dirtyRows);
-
-    // pisahkan: baris valid vs baris delay yang reason-nya kosong
-    let bermasalah = [];
-    let idsValid = [];
-
-    ids.forEach(function(id) {
-        const masalah = cekReasonRow(id);
-        if (masalah) bermasalah.push(masalah);
-        else idsValid.push(id);
-    });
-
-    // beri tahu baris yang ditahan
-    if (bermasalah.length > 0) {
-        let pesan = 'Reason gudang WAJIB diisi karena status Delay:\n\n';
-        bermasalah.forEach(function(m) {
-            pesan += '- ' + m.no_shipment + ' | ' + m.tujuan + ' (' + m.gudang.join(', ') + ')\n';
-        });
-        if (idsValid.length > 0) {
-            pesan += '\n' + idsValid.length + ' baris lain yang tidak bermasalah tetap disimpan.';
-        } else {
-            pesan += '\nTidak ada yang disimpan.';
-        }
-        alert(pesan);
-
-        // sorot baris yang bermasalah
-        bermasalah.forEach(function(m) {
-            $('tr[data-id="' + m.id + '"]').addClass('highlight-row');
-        });
-        setTimeout(function() { $('.highlight-row').removeClass('highlight-row'); }, 3000);
-    }
-
-    if (idsValid.length === 0) return;
-
-    let btn = $(this);
-    btn.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin"></i> Menyimpan...');
-
-    let requests = idsValid.map(id => saveRow(id));
-
-    $.when.apply($, requests)
-        .done(function() {
-            idsValid.forEach(id => dirtyRows.delete(id));   // yang ditahan tetap "belum disimpan"
-            updateUnsavedBadge();
-            if (bermasalah.length === 0) {
-                alert('Semua perubahan (' + idsValid.length + ' baris) berhasil disimpan!');
+        $('#btnSaveAll').on('click', function() {
+            if (dirtyRows.size === 0) {
+                alert('Belum ada perubahan untuk disimpan.');
+                return;
             }
-            loadAlertControl();
-            table.ajax.reload(null, false);
-        })
-        .fail(function() {
-            alert('Sebagian data gagal disimpan, cek console.');
-        })
-        .always(function() {
-            btn.prop('disabled', false)
-               .html('<i class="fa-solid fa-floppy-disk"></i> Save <span id="unsavedCount" class="badge bg-danger rounded-pill" style="display:none;">0</span>');
-            updateUnsavedBadge();
-        });
-});
 
-          
+            let ids = Array.from(dirtyRows);
+
+            // pisahkan: baris valid vs baris delay (>24 jam) yang reason-nya kosong
+            let bermasalah = [];
+            let idsValid = [];
+
+            ids.forEach(function(id) {
+                const masalah = cekReasonRow(id);
+                if (masalah) bermasalah.push(masalah);
+                else idsValid.push(id);
+            });
+
+            if (bermasalah.length > 0) {
+                let pesan = 'Reason gudang WAJIB diisi karena lebih dari 24 jam (Delay):\n\n';
+                bermasalah.forEach(function(m) {
+                    pesan += '- ' + m.no_shipment + ' | ' + m.tujuan + ' (' + m.gudang.join(', ') + ')\n';
+                });
+                if (idsValid.length > 0) {
+                    pesan += '\n' + idsValid.length + ' baris lain yang tidak bermasalah tetap disimpan.';
+                } else {
+                    pesan += '\nTidak ada yang disimpan.';
+                }
+                alert(pesan);
+
+                bermasalah.forEach(function(m) {
+                    $('tr[data-id="' + m.id + '"]').addClass('highlight-row');
+                });
+                setTimeout(function() { $('.highlight-row').removeClass('highlight-row'); }, 3000);
+            }
+
+            if (idsValid.length === 0) return;
+
+            let btn = $(this);
+            btn.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin"></i> Menyimpan...');
+
+            let requests = idsValid.map(id => saveRow(id));
+
+            $.when.apply($, requests)
+                .done(function() {
+                    idsValid.forEach(id => dirtyRows.delete(id));
+                    updateUnsavedBadge();
+                    if (bermasalah.length === 0) {
+                        alert('Semua perubahan (' + idsValid.length + ' baris) berhasil disimpan!');
+                    }
+                    loadAlertControl();
+                    table.ajax.reload(null, false);
+                })
+                .fail(function() {
+                    alert('Sebagian data gagal disimpan, cek console.');
+                })
+                .always(function() {
+                    btn.prop('disabled', false)
+                       .html('<i class="fa-solid fa-floppy-disk"></i> Save <span id="unsavedCount" class="badge bg-danger rounded-pill" style="display:none;">0</span>');
+                    updateUnsavedBadge();
+                });
+        });
 
         // ==========================================================
         // ALERT CONTROL
@@ -1309,7 +1296,6 @@ waktu_keluar_gudang_3: row.find('[name="waktu_keluar_gudang_3"]').val(),
             $('#alertControlList').html(html);
         }
 
-        // Klik item alert -> cari baris via search DataTables server-side
         $(document).on('click', '.alert-item', function() {
             let id = $(this).data('id');
             let shipmentText = $(this).find('b').text().replace('🚚', '').trim();
@@ -1385,97 +1371,121 @@ waktu_keluar_gudang_3: row.find('[name="waktu_keluar_gudang_3"]').val(),
             }
         });
 
-   // ==========================================================
-// LIVE: Lama / Status / SLA di gudang (tiba -> keluar)
-// Berbasis nomor kolom, jadi tidak perlu ubah controller
-// ==========================================================
-function dayNum(s) {
-    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s || '');
-    return m ? Date.UTC(+m[1], +m[2] - 1, +m[3]) / 86400000 : null;
-}
-
-// nomor kolom (mulai dari 0) di tabel: Lama, Status, SLA per gudang
-const GUDANG_COLS = [
-    { suffix: '',   cols: [45, 46, 47] },   // KACS
-    { suffix: '_2', cols: [48, 49, 50] },   // Sentul
-    { suffix: '_3', cols: [51, 52, 53] }    // CCIE
-];
-
-function recalcGudang($tr) {
-    const v = n => $tr.find('[name="' + n + '"]').val();
-    const $td = $tr.children('td');
-
-    GUDANG_COLS.forEach(function(g) {
-        const s = dayNum(v('tanggal_tiba_gudang' + g.suffix));
-        const e = dayNum(v('tanggal_keluar_gudang' + g.suffix));
-        let dur, st, sla;
-
-        if (s === null || e === null) {
-            dur = '-';
-            st  = '<span class="badge gray">-</span>';
-            sla = '<span class="badge bg-secondary">-</span>';
-        } else if (e - s > 0) {
-            dur = (e - s) + ' Hari';
-            st  = '<span class="badge red">Delay</span>';
-            sla = '<span class="badge red">H+' + (e - s) + '</span>';
-        } else {
-            dur = '0 Jam';
-            st  = '<span class="badge green">On Time</span>';
-            sla = '<span class="badge bg-success">Sesuai SLA</span>';
+        // ==========================================================
+        // LIVE: Lama / Status / SLA di gudang (tiba -> keluar)
+        // Aturan: <= 24 jam = On Time, > 24 jam = Delay
+        // Jam kosong dianggap 00:00
+        // ==========================================================
+        function dayNum(s) {
+            const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s || '');
+            return m ? Date.UTC(+m[1], +m[2] - 1, +m[3]) / 86400000 : null;
         }
 
-        $td.eq(g.cols[0]).text(dur);
-        $td.eq(g.cols[1]).html(st);
-        $td.eq(g.cols[2]).html(sla);
-    });
-}
+        // selisih menit (tanggal + jam)
+        function menitGudang(tTiba, wTiba, tKeluar, wKeluar) {
+            const d1 = dayNum(tTiba), d2 = dayNum(tKeluar);
+            if (d1 === null || d2 === null) return null;
 
-$(document).on('input change',
-    '#tablePlanner input[name^="tanggal_tiba_gudang"], #tablePlanner input[name^="tanggal_keluar_gudang"]',
-    function() {
-        recalcGudang($(this).closest('tr'));
-    });
+            const jam = function(w) {
+                const m = /^([01]\d|2[0-3]):([0-5]\d)$/.exec((w || '').trim());
+                return m ? (+m[1] * 60 + +m[2]) : 0;
+            };
 
-    // ==========================================================
-// VALIDASI: gudang Delay wajib isi reason
-// ==========================================================
-const GUDANG_CEK = [
-    { label: 'KACS',   suffix: '',   reason: 'reason_gudang'   },
-    { label: 'Sentul', suffix: '_2', reason: 'reason_gudang_2' },
-    { label: 'CCIE',   suffix: '_3', reason: 'reason_gudang_3' }
-];
-
-function cekReasonRow(id) {
-    const $tr = $('tr[data-id="' + id + '"]');
-    const v = n => $tr.find('[name="' + n + '"]').val();
-    const kurang = [];
-
-    GUDANG_CEK.forEach(function(g) {
-        const s = dayNum(v('tanggal_tiba_gudang' + g.suffix));
-        const e = dayNum(v('tanggal_keluar_gudang' + g.suffix));
-        const delay = (s !== null && e !== null && (e - s) > 0);
-
-        if (delay && !String(v(g.reason) || '').trim()) {
-            kurang.push(g.label);
+            return Math.max(0, (d2 * 1440 + jam(wKeluar)) - (d1 * 1440 + jam(wTiba)));
         }
-    });
 
-    if (kurang.length === 0) return null;
+        // nomor kolom (mulai dari 0): Lama, Status, SLA per gudang
+        const GUDANG_COLS = [
+            { suffix: '',   cols: [45, 46, 47] },   // KACS
+            { suffix: '_2', cols: [48, 49, 50] },   // Sentul
+            { suffix: '_3', cols: [51, 52, 53] }    // CCIE
+        ];
 
-    return {
-        id: id,
-        no_shipment: String(v('no_shipment') || '').trim() || '(tanpa no shipment)',
-        tujuan: String(v('tujuan') || '').trim() || '-',
-        gudang: kurang
-    };
-}
+        function recalcGudang($tr) {
+            const v = n => $tr.find('[name="' + n + '"]').val();
+            const $td = $tr.children('td');
+
+            GUDANG_COLS.forEach(function(g) {
+                const menit = menitGudang(
+                    v('tanggal_tiba_gudang' + g.suffix),   v('waktu_tiba_gudang' + g.suffix),
+                    v('tanggal_keluar_gudang' + g.suffix), v('waktu_keluar_gudang' + g.suffix)
+                );
+                let dur, st, sla;
+
+                if (menit === null) {
+                    dur = '-';
+                    st  = '<span class="badge gray">-</span>';
+                    sla = '<span class="badge bg-secondary">-</span>';
+                } else {
+                    const hari = Math.floor(menit / 1440);
+                    const jm   = Math.floor((menit % 1440) / 60);
+                    const mnt  = menit % 60;
+                    dur = ((hari ? hari + ' Hari ' : '') + (jm ? jm + ' Jam ' : '') + mnt + ' Menit').trim();
+
+                    if (menit > 1440) {   // lebih dari 24 jam
+                        st  = '<span class="badge red">Delay</span>';
+                        sla = '<span class="badge red">H+' + hari + '</span>';
+                    } else {
+                        st  = '<span class="badge green">On Time</span>';
+                        sla = '<span class="badge bg-success">Sesuai SLA</span>';
+                    }
+                }
+
+                $td.eq(g.cols[0]).text(dur);
+                $td.eq(g.cols[1]).html(st);
+                $td.eq(g.cols[2]).html(sla);
+            });
+        }
+
+        $(document).on('input change',
+            '#tablePlanner input[name^="tanggal_tiba_gudang"], #tablePlanner input[name^="tanggal_keluar_gudang"], ' +
+            '#tablePlanner input[name^="waktu_tiba_gudang"], #tablePlanner input[name^="waktu_keluar_gudang"]',
+            function() {
+                recalcGudang($(this).closest('tr'));
+            });
+
+        // ==========================================================
+        // VALIDASI: gudang Delay (> 24 jam) wajib isi reason
+        // ==========================================================
+        const GUDANG_CEK = [
+            { label: 'KACS',   suffix: '',   reason: 'reason_gudang'   },
+            { label: 'Sentul', suffix: '_2', reason: 'reason_gudang_2' },
+            { label: 'CCIE',   suffix: '_3', reason: 'reason_gudang_3' }
+        ];
+
+        function cekReasonRow(id) {
+            const $tr = $('tr[data-id="' + id + '"]');
+            const v = n => $tr.find('[name="' + n + '"]').val();
+            const kurang = [];
+
+            GUDANG_CEK.forEach(function(g) {
+                const menit = menitGudang(
+                    v('tanggal_tiba_gudang' + g.suffix),   v('waktu_tiba_gudang' + g.suffix),
+                    v('tanggal_keluar_gudang' + g.suffix), v('waktu_keluar_gudang' + g.suffix)
+                );
+                const delay = (menit !== null && menit > 1440);   // lebih dari 24 jam
+
+                if (delay && !String(v(g.reason) || '').trim()) {
+                    kurang.push(g.label);
+                }
+            });
+
+            if (kurang.length === 0) return null;
+
+            return {
+                id: id,
+                no_shipment: String(v('no_shipment') || '').trim() || '(tanpa no shipment)',
+                tujuan: String(v('tujuan') || '').trim() || '-',
+                gudang: kurang
+            };
+        }
+
         $('.select2-modal').select2({
             theme: 'bootstrap-5',
             dropdownParent: $('#addModal'),
             width: '100%'
         });
     });
-   
 
     $('#formGudang23').on('submit', function(e) {
         e.preventDefault();
@@ -1495,7 +1505,3 @@ function cekReasonRow(id) {
         });
     });
 </script>
-
-</body>
-
-</html>

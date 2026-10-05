@@ -215,7 +215,29 @@ class MonitoringController extends Controller
         if ($request->filled('keluar_gudang_tgl')) {
             $baseQuery->whereDate('tanggal_keluar_gudang', $request->input('keluar_gudang_tgl'));
         }
- 
+     
+ $kelFilter = array_filter((array) $request->input('kelengkapan', []));
+if (!empty($kelFilter)) {
+  $levelMap = [
+    'lengkap'           => [1],
+    'sampai_tujuan'     => [2],
+    'belum_lengkap'     => [3, 4],
+    'belum_jatuh_tempo' => [0],
+];
+    $levels = [];
+    foreach ($kelFilter as $f) {
+        if (is_string($f) && isset($levelMap[$f])) {
+            $levels = array_merge($levels, $levelMap[$f]);
+        }
+    }
+    $levels = array_values(array_unique($levels));
+
+    // kalau semua level dipilih, filter tidak perlu dipasang
+    // kalau semua level dipilih, filter tidak perlu dipasang
+if (!empty($levels) && count($levels) < 5) {
+        $baseQuery->whereRaw('(' . $this->kelengkapanSql() . ') IN (' . implode(',', $levels) . ')');
+    }
+}
         $totalRecords = (clone $baseQuery)->count();
  
         // ================= GLOBAL SEARCH =================
@@ -274,7 +296,11 @@ class MonitoringController extends Controller
  
         $orderCol = $request->input('order.0.column');
         $orderDir = strtolower($request->input('order.0.dir', 'asc')) === 'desc' ? 'DESC' : 'ASC';
- 
+
+$kelSort = strtolower((string) $request->input('kelengkapan_sort', ''));
+if (in_array($kelSort, ['asc', 'desc'], true)) {
+    $baseQuery->orderByRaw('(' . $this->kelengkapanSql() . ') ' . strtoupper($kelSort));
+}
         // Baris yang tanggal_bongkar-nya sudah diinput selalu di belakang
         $baseQuery->orderByRaw("CASE WHEN NULLIF(TRIM(tanggal_bongkar), '') IS NOT NULL THEN 1 ELSE 0 END ASC");
  
@@ -465,22 +491,23 @@ if ($blocked) {
         $today = strtotime(date('Y-m-d'));
         $isOverdue = ($estimasi && !$blocked) ? ($estimasi < $today) : false;
 
-        $missing = [];
-        if ($isOverdue) {
-            if (empty($r->tanggal_tiba)) $missing[] = 'Tgl Tiba';
-            if (empty($r->tanggal_bongkar)) $missing[] = 'Tgl Bongkar';
-        }
+     $missing = [];
+if (empty($r->tanggal_tiba))    $missing[] = 'Tgl Tiba';
+if (empty($r->waktu_tiba))      $missing[] = 'Jam Tiba';
+if (empty($r->tanggal_bongkar)) $missing[] = 'Tgl Bongkar';
+if (empty($r->waktu_bongkar))   $missing[] = 'Jam Bongkar';
 
-        if (!$isOverdue) {
-            $kelengkapanHtml = '<span class="badge completeness-badge gray" title="Belum jatuh tempo estimasi tiba">-</span>';
-        } elseif (count($missing) === 0) {
-            $kelengkapanHtml = '<span class="badge completeness-badge green" title="Data lengkap">✅ Lengkap</span>';
-        } else {
-            $cls = count($missing) === 1 ? 'orange' : 'red';
-            $text = '❌ ' . implode(', ', $missing);
-            $kelengkapanHtml = '<span class="badge completeness-badge ' . $cls . '" title="' . e($text) . '">' . e($text) . '</span>';
-        }
-
+if (count($missing) === 0) {
+    $kelengkapanHtml = '<span class="badge completeness-badge green" title="Data lengkap">✅ Lengkap</span>';
+} elseif (!empty($r->tanggal_tiba) && empty($r->tanggal_bongkar)) {
+    $kelengkapanHtml = '<span class="badge completeness-badge blue" title="Sudah sampai tujuan, belum bongkar">🚚 Sampai Tujuan</span>';
+} elseif (!$isOverdue) {
+    $kelengkapanHtml = '<span class="badge completeness-badge gray" title="Belum jatuh tempo estimasi tiba">-</span>';
+} else {
+    $cls = count($missing) === 1 ? 'orange' : 'red';
+    $text = '❌ ' . implode(', ', $missing);
+    $kelengkapanHtml = '<span class="badge completeness-badge ' . $cls . '" title="' . e($text) . '">' . e($text) . '</span>';
+}
        return [
    // 0 Tanggal Keluar Gudang
 $blocked
@@ -925,7 +952,7 @@ if (!empty($data['ata'])) {
         $today = date('Y-m-d');
 
         $query = DB::table('logistik_pengiriman')
-            ->select('id', 'no_shipment', 'estimasi_tiba', 'tanggal_tiba', 'tanggal_bongkar')
+            ->select('id', 'no_shipment', 'pic_monitoring','area','tujuan','estimasi_tiba', 'tanggal_tiba', 'tanggal_bongkar')
             ->whereNotNull('estimasi_tiba')
             ->where('estimasi_tiba', '<', $today)
             ->where(function ($q) {
@@ -981,13 +1008,17 @@ if (!empty($data['ata'])) {
                 $missingSummary['Tgl Bongkar'] = ($missingSummary['Tgl Bongkar'] ?? 0) + 1;
             }
 
-            $alertList[] = [
-                'id'         => $r->id,
-                'shipment'   => $r->no_shipment,
-                'missing'    => $missing,
-                'emptyCount' => count($missing),
-                'estimasi'   => $r->estimasi_tiba,
-            ];
+         $alertList[] = [
+    'id'             => $r->id,
+    'shipment'       => $r->no_shipment,
+     'tujuan'         => $r->tujuan,
+    'area'           => $r->area,
+   
+        'pic_monitoring' => $r->pic_monitoring,
+    'missing'        => $missing,
+    'emptyCount'     => count($missing),
+    'estimasi'       => $r->estimasi_tiba,
+];
         }
 
         return response()->json([
@@ -1164,7 +1195,58 @@ public function exportInTransit(Request $request)
 
     return Excel::download(new InTransitExport($rows), 'In_Transit_' . date('Ymd_His') . '.xlsx');
 }
+// 0 = belum jatuh tempo, 1 = lengkap, 2 = 1 field kosong, 3 = 2 field kosong
+private function kelengkapanSql(): string
+{
+    $filled = fn($c) => "NULLIF(TRIM({$c}), '') IS NOT NULL";
+    $empty  = fn($c) => "NULLIF(TRIM({$c}), '') IS NULL";
 
+    $cycles = [
+        ['planning_loading',   'tanggal_tiba_gudang',   'tanggal_keluar_gudang'],
+        ['planning_loading_2', 'tanggal_tiba_gudang_2', 'tanggal_keluar_gudang_2'],
+        ['planning_loading_3', 'tanggal_tiba_gudang_3', 'tanggal_keluar_gudang_3'],
+    ];
+    $blockedParts = [];
+    foreach ($cycles as [$p, $t, $k]) {
+        $blockedParts[] = '((' . $filled($p) . ' OR ' . $filled($t) . ') AND ' . $empty($k) . ')';
+    }
+    $blocked = '(' . implode(' OR ', $blockedParts) . ')';
+
+    $keluar = "GREATEST(
+        COALESCE(tanggal_keluar_gudang,'1900-01-01'),
+        COALESCE(tanggal_keluar_gudang_2,'1900-01-01'),
+        COALESCE(tanggal_keluar_gudang_3,'1900-01-01')
+    )";
+    $lead = "CAST(COALESCE(NULLIF(TRIM(transport_lead_time),''),0) AS UNSIGNED)";
+
+    $estimasi = "COALESCE(NULLIF(TRIM(estimasi_tiba),''),
+        CASE WHEN {$keluar} > '1900-01-01' THEN DATE_ADD({$keluar}, INTERVAL {$lead} DAY) END)";
+
+    $overdue = "(NOT {$blocked} AND DATE({$estimasi}) < CURDATE())";
+
+   $tibaEmpty    = $empty('tanggal_tiba');
+$bongkarEmpty = $empty('tanggal_bongkar');
+$tibaFilled   = $filled('tanggal_tiba');
+$wTibaEmpty   = $empty('waktu_tiba');
+$wBongkarEmpty = $empty('waktu_bongkar');
+
+$missing = "(
+    (CASE WHEN {$tibaEmpty}     THEN 1 ELSE 0 END) +
+    (CASE WHEN {$wTibaEmpty}    THEN 1 ELSE 0 END) +
+    (CASE WHEN {$bongkarEmpty}  THEN 1 ELSE 0 END) +
+    (CASE WHEN {$wBongkarEmpty} THEN 1 ELSE 0 END)
+)";
+
+// 0 = belum jatuh tempo, 1 = lengkap, 2 = sampai tujuan (belum bongkar),
+// 3 = 1 field kosong, 4 = 2+ field kosong
+return "CASE
+    WHEN {$missing} = 0 THEN 1
+    WHEN {$tibaFilled} AND {$bongkarEmpty} THEN 2
+    WHEN COALESCE({$overdue}, 0) = 0 THEN 0
+    WHEN {$missing} = 1 THEN 3
+    ELSE 4
+END";
+}
 // estimasi tiba: pakai yang tersimpan, kalau kosong hitung keluar terakhir + lead time
 private function inTransitEstimasiSql(): string
 {

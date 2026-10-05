@@ -443,8 +443,7 @@
                         <th>Tanggal Naik Logistik</th>
                         <th>Rencana Kirim</th>
                         <th class="col-small">Lead Time</th>
-                        <th>Nama Driver</th>
-                        <th>No Pol</th>
+                      
                         <th>Planner</th>
                         <th>No Shipment</th>
                         <th>Update Posisi Mobil</th>
@@ -528,6 +527,8 @@
                         <th>Status Akhir</th>
                         <th>Status Alert</th>
                         <th>Remarks</th>
+                          <th>Nama Driver</th>
+                        <th>No Pol</th>
                         <th>Route</th>
                         <th>Shipping Point</th>
                         <th>Pulau</th>
@@ -592,8 +593,7 @@
     { data: 'tanggal_naik_logistik_fmt', name: 'tanggal_naik_logistik' },
     { data: 'rencana_kirim_fmt', name: 'rencana_kirim' },
     { data: 'transport_lead_time', name: 'transport_lead_time', className: 'col-small' },
-    { data: 'nama_driver', name: 'nama_driver' },
-    { data: 'no_pol', name: 'no_pol' },
+   
     { data: 'planner', name: 'planner' },
     { data: 'no_shipment', name: 'no_shipment' },
     { data: 'status_pengiriman_badge', name: 'status_pengiriman', orderable: false, searchable: false },
@@ -686,6 +686,8 @@
     { data: 'status_alert_badge', name: 'status_alert', orderable: false, searchable: false },
 
     { data: 'remarks', name: 'remarks' },
+     { data: 'nama_driver', name: 'nama_driver' },
+    { data: 'no_pol', name: 'no_pol' },
     { data: 'route', name: 'route' },
     { data: 'route_awal', name: 'route_awal', orderable: false, searchable: false },
     { data: 'pulau', name: 'pulau' },

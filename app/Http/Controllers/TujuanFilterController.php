@@ -47,6 +47,7 @@ class TujuanFilterController extends Controller
             'pulau'        => 'nullable|string|max:100',
             'area'         => 'required|string|max:100',
             'Planner'      => 'nullable|string|max:100',
+            'code_planner' => 'nullable|string|max:100',
             'Monitoring'   => 'nullable|string|max:100',
             'biaya_kuli'   => 'nullable|numeric|min:0',
         ];

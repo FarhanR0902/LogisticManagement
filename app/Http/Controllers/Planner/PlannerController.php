@@ -405,9 +405,9 @@ public function inTransit(Request $request)
             'planning_loading'      => $request->planning_loading,
             'tanggal_tiba_gudang'   => $request->tanggal_tiba_gudang,
             'tanggal_keluar_gudang' => $request->tanggal_keluar_gudang,
-            'reason_gudang'         => $request->reason_gudang ?: null,
-            'reason_gudang_2'         => $request->reason_gudang_2 ?: null,
-            'reason_gudang_3'         => $request->reason_gudang_3 ?: null,
+'reason_gudang'   => ($rumus['status_gudang']   ?? null) === 'Delay' ? ($request->reason_gudang   ?: null) : null,
+'reason_gudang_2' => ($rumus['status_gudang_2'] ?? null) === 'Delay' ? ($request->reason_gudang_2 ?: null) : null,
+'reason_gudang_3' => ($rumus['status_gudang_3'] ?? null) === 'Delay' ? ($request->reason_gudang_3 ?: null) : null,
             'area'                  => $request->area,
             'via_kirim'             => $request->via_kirim,
 
@@ -611,7 +611,7 @@ $updateRow = [
            'planning_loading'      => $request->planning_loading,
 'tanggal_tiba_gudang'   => $request->tanggal_tiba_gudang,
 'tanggal_keluar_gudang' => $request->tanggal_keluar_gudang,
-'reason_gudang'         => $request->reason_gudang ?: null,
+'reason_gudang'         => ($rumus['status_gudang'] ?? null) === 'Delay' ? ($request->reason_gudang ?: null) : null,    
 'waktu_tiba_gudang'     => $this->cleanTime($request->waktu_tiba_gudang),
 'waktu_keluar_gudang'   => $this->cleanTime($request->waktu_keluar_gudang),
 'waktu_tiba_gudang_2'   => $this->cleanTime($request->waktu_tiba_gudang_2),
@@ -622,12 +622,12 @@ $updateRow = [
 'planning_loading_2'      => $request->planning_loading_2,
 'tanggal_tiba_gudang_2'   => $request->tanggal_tiba_gudang_2,
 'tanggal_keluar_gudang_2' => $request->tanggal_keluar_gudang_2,
-'reason_gudang_2'         => $request->reason_gudang_2 ?: null,
+'reason_gudang_2'         => ($rumus['status_gudang_2'] ?? null) === 'Delay' ? ($request->reason_gudang_2 ?: null) : null,
 
 'planning_loading_3'      => $request->planning_loading_3,
 'tanggal_tiba_gudang_3'   => $request->tanggal_tiba_gudang_3,
 'tanggal_keluar_gudang_3' => $request->tanggal_keluar_gudang_3,
-'reason_gudang_3'         => $request->reason_gudang_3 ?: null,
+'reason_gudang_3'         => ($rumus['status_gudang_3'] ?? null) === 'Delay' ? ($request->reason_gudang_3 ?: null) : null,
           
             'route'     => $request->route,
             'pulau'     => $request->pulau,
@@ -1260,18 +1260,17 @@ $r->pengiriman_optimal === 'OPTIMAL'
             // 33 sla dapat mobil
             $slaMobilHtml,
             // 34-36 KACS
-        // KACS (tiba gudang -> keluar gudang)
-'<span class="g1-durasi">' . e($durasiStatus($r->tanggal_tiba_gudang, $r->tanggal_keluar_gudang)) . '</span>',
-'<span class="g1-status">' . $statusBadge($r->tanggal_tiba_gudang, $r->tanggal_keluar_gudang) . '</span>',
-'<span class="g1-sla">'    . $slaBadge($r->tanggal_tiba_gudang, $r->tanggal_keluar_gudang) . '</span>',
+       ...$this->gudangCells($r, ''),
+            ...$this->gudangCells($r, '_2'),
+            ...$this->gudangCells($r, '_3'),
 // Sentul
-'<span class="g2-durasi">' . e($durasiStatus($r->tanggal_tiba_gudang_2, $r->tanggal_keluar_gudang_2)) . '</span>',
-'<span class="g2-status">' . $statusBadge($r->tanggal_tiba_gudang_2, $r->tanggal_keluar_gudang_2) . '</span>',
-'<span class="g2-sla">'    . $slaBadge($r->tanggal_tiba_gudang_2, $r->tanggal_keluar_gudang_2) . '</span>',
-// CCIE
-'<span class="g3-durasi">' . e($durasiStatus($r->tanggal_tiba_gudang_3, $r->tanggal_keluar_gudang_3)) . '</span>',
-'<span class="g3-status">' . $statusBadge($r->tanggal_tiba_gudang_3, $r->tanggal_keluar_gudang_3) . '</span>',
-'<span class="g3-sla">'    . $slaBadge($r->tanggal_tiba_gudang_3, $r->tanggal_keluar_gudang_3) . '</span>',
+// '<span class="g2-durasi">' . e($durasiStatus($r->tanggal_tiba_gudang_2, $r->tanggal_keluar_gudang_2)) . '</span>',
+// '<span class="g2-status">' . $statusBadge($r->tanggal_tiba_gudang_2, $r->tanggal_keluar_gudang_2) . '</span>',
+// '<span class="g2-sla">'    . $slaBadge($r->tanggal_tiba_gudang_2, $r->tanggal_keluar_gudang_2) . '</span>',
+// // CCIE
+// '<span class="g3-durasi">' . e($durasiStatus($r->tanggal_tiba_gudang_3, $r->tanggal_keluar_gudang_3)) . '</span>',
+// '<span class="g3-status">' . $statusBadge($r->tanggal_tiba_gudang_3, $r->tanggal_keluar_gudang_3) . '</span>',
+// '<span class="g3-sla">'    . $slaBadge($r->tanggal_tiba_gudang_3, $r->tanggal_keluar_gudang_3) . '</span>',
             // 43 shipping point
             $r->route ? explode('-', trim($r->route))[0] : '-',
             // 44 kelengkapan data
@@ -1281,7 +1280,34 @@ $r->pengiriman_optimal === 'OPTIMAL'
         ];
     }
 
+private function gudangCells($r, string $s): array
+{
+    $n    = $s === '' ? 1 : (int) ltrim($s, '_');
+    $info = $this->hitungGudang(
+        $r->{'tanggal_tiba_gudang' . $s},   $r->{'waktu_tiba_gudang' . $s},
+        $r->{'tanggal_keluar_gudang' . $s}, $r->{'waktu_keluar_gudang' . $s}
+    );
 
+    if (!$info) {
+        $durasi = '-';
+        $status = '<span class="badge gray">-</span>';
+        $sla    = '<span class="badge bg-secondary">-</span>';
+    } else {
+        $durasi = e($info['text']);
+        $status = $info['delay']
+            ? '<span class="badge red">Delay</span>'
+            : '<span class="badge green">On Time</span>';
+        $sla = $info['delay']
+            ? '<span class="badge red">H+' . $info['hari'] . '</span>'
+            : '<span class="badge bg-success">Sesuai SLA</span>';
+    }
+
+    return [
+        '<span class="g' . $n . '-durasi">' . $durasi . '</span>',
+        '<span class="g' . $n . '-status">' . $status . '</span>',
+        '<span class="g' . $n . '-sla">'    . $sla    . '</span>',
+    ];
+}
     private function cariKapasitasTarif($route, $mobil, $ekpedisi = null)
 {
     if (!$route || !$mobil) {
@@ -1632,65 +1658,20 @@ public function alerts(Request $request)
             $data['status_pengiriman'] = null;
         }
 
-        if ($request->tanggal_tiba_gudang && $request->tanggal_keluar_gudang) {
+       foreach (['', '_2', '_3'] as $s) {
+    $info = $this->hitungGudang(
+        $request->{'tanggal_tiba_gudang' . $s},
+        $request->{'waktu_tiba_gudang' . $s},
+        $request->{'tanggal_keluar_gudang' . $s},
+        $request->{'waktu_keluar_gudang' . $s}
+    );
 
-            $diff = $hitungSelisih(
-                $request->tanggal_tiba_gudang,
-                $request->tanggal_keluar_gudang
-            );
-
-            if ($diff) {
-                $data['lama_digudang'] = $diff['text'];
-
-                if ($diff['days'] > 0) {
-                    $data['status_gudang'] = 'Delay';
-                    $data['sla_loading']   = 'H+' . $diff['days'];
-                } else {
-                    $data['status_gudang'] = 'On Time';
-                    $data['sla_loading']   = 'Sesuai SLA';
-                }
-            }
-        }
-
-        if ($request->tanggal_tiba_gudang_2 && $request->tanggal_keluar_gudang_2) {
-
-            $diff = $hitungSelisih(
-                $request->tanggal_tiba_gudang_2,
-                $request->tanggal_keluar_gudang_2
-            );
-
-            if ($diff) {
-                $data['lama_digudang_2'] = $diff['text'];
-
-                if ($diff['days'] > 0) {
-                    $data['status_gudang_2'] = 'Delay';
-                    $data['sla_loading_2']   = 'H+' . $diff['days'];
-                } else {
-                    $data['status_gudang_2'] = 'On Time';
-                    $data['sla_loading_2']   = 'Sesuai SLA';
-                }
-            }
-        }
-
-        if ($request->tanggal_tiba_gudang_3 && $request->tanggal_keluar_gudang_3) {
-
-            $diff = $hitungSelisih(
-                $request->tanggal_tiba_gudang_3,
-                $request->tanggal_keluar_gudang_3
-            );
-
-            if ($diff) {
-                $data['lama_digudang_3'] = $diff['text'];
-
-                if ($diff['days'] > 0) {
-                    $data['status_gudang_3'] = 'Delay';
-                    $data['sla_loading_3']   = 'H+' . $diff['days'];
-                } else {
-                    $data['status_gudang_3'] = 'On Time';
-                    $data['sla_loading_3']   = 'Sesuai SLA';
-                }
-            }
-        }
+    if ($info) {
+        $data['lama_digudang' . $s] = $info['text'];
+        $data['status_gudang' . $s] = $info['delay'] ? 'Delay' : 'On Time';
+        $data['sla_loading' . $s]   = $info['delay'] ? 'H+' . $info['hari'] : 'Sesuai SLA';
+    }
+}
 
         return $data;
     }
@@ -2107,4 +2088,29 @@ public function alerts(Request $request)
             ->back()
             ->with('success', 'Data berhasil dihapus');
     }
+
+    /**
+ * Hitung durasi di gudang (tanggal + jam).
+ * Delay jika > 24 jam (1440 menit). Jam kosong dianggap 00:00.
+ */
+private function hitungGudang($tglTiba, $wTiba, $tglKeluar, $wKeluar): ?array
+{
+    if (empty($tglTiba) || empty($tglKeluar)) return null;
+
+    $awal  = strtotime(date('Y-m-d', strtotime($tglTiba))   . ' ' . ($this->cleanTime($wTiba)   ?: '00:00:00'));
+    $akhir = strtotime(date('Y-m-d', strtotime($tglKeluar)) . ' ' . ($this->cleanTime($wKeluar) ?: '00:00:00'));
+
+    $menit = max(0, intdiv($akhir - $awal, 60));
+    $hari  = intdiv($menit, 1440);
+    $jam   = intdiv($menit % 1440, 60);
+    $mnt   = $menit % 60;
+
+    $text = trim(($hari ? "{$hari} Hari " : '') . ($jam ? "{$jam} Jam " : '') . "{$mnt} Menit");
+
+    return [
+        'text'  => $text,
+        'delay' => $menit > 1440,   // lebih dari 24 jam
+        'hari'  => $hari,           // dipakai untuk label H+
+    ];
+}
 }

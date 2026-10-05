@@ -412,8 +412,7 @@ class LogistikController extends Controller
     0  => 'tanggal_naik_logistik',
     1  => 'rencana_kirim',
     2  => 'transport_lead_time',
-    3  => 'nama_driver',
-    4  => 'no_pol',
+   
     5  => 'planner',
     6  => 'no_shipment',
     8  => 'dist_channel',
@@ -479,6 +478,8 @@ class LogistikController extends Controller
     82 => 'reason_tiba',
     83 => 'reason_bongkar',
     86 => 'remarks',
+     3  => 'nama_driver',
+    4  => 'no_pol',
     87 => 'route',
     89 => 'pulau',
     90 => 'via_kirim',

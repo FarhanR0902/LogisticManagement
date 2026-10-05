@@ -38,9 +38,9 @@ class LogistikImport implements ToCollection, WithHeadingRow, WithEvents, WithCa
         'kode_planner'           => 'code_planner',
     ];
 
-    private static $customerMap  = null;
-    private static $tarifByRoute = null;
-    private static $plannerMap   = null;   // code_planner => nama planner
+       private static $customerMap    = null;   // tujuan => row         (cadangan, berdasarkan tujuan)
+    private static $customerByCode = null;   // "code|tujuan" => row  (prioritas, code_planner + tujuan)
+    private static $tarifByRoute   = null; // "code|tujuan" => row     (cara 2) // code_planner => nama planner
 
     private array $allColumns = [];        // semua kolom tabel
     private array $dbColumns  = [];        // [kolom => tipe], tanpa SKIP_COLUMNS
@@ -90,13 +90,28 @@ class LogistikImport implements ToCollection, WithHeadingRow, WithEvents, WithCa
         $this->hasCreatedAt = in_array('created_at', $this->allColumns, true);
         $this->hasUpdatedAt = in_array('updated_at', $this->allColumns, true);
 
-        if (self::$customerMap === null) {
-            self::$customerMap = DB::table('tujuanfillterr')
-                ->select('tujuan', 'dist_channel', 'pulau', 'area', 'biaya_kuli', 'transport_lead_time', 'Monitoring')
-                ->where('Div', 'HO Meruya')
-                ->get()
-                ->keyBy(fn($row) => strtolower(trim($row->tujuan)));
+      if (self::$customerMap === null) {
+    $rows = DB::table('tujuanfillterr')
+        ->select('tujuan', 'code_planner', 'Planner', 'dist_channel', 'pulau', 'area',
+                 'biaya_kuli', 'transport_lead_time', 'Monitoring')
+        ->where('Div', 'HO Meruya')
+        ->get();
+
+    self::$customerMap    = [];
+    self::$customerByCode = [];
+
+    foreach ($rows as $r) {
+        $t = $this->normTujuan($r->tujuan);
+        if ($t === '') continue;
+
+        self::$customerMap[$t] ??= $r;   // baris pertama per tujuan
+
+        $code = strtolower(trim((string) $r->code_planner));
+        if ($code !== '') {
+            self::$customerByCode[$code . '|' . $t] ??= $r;
         }
+    }
+}
 
         if (self::$tarifByRoute === null) {
             self::$tarifByRoute = DB::table(self::TARIF_TABLE)
@@ -105,16 +120,14 @@ class LogistikImport implements ToCollection, WithHeadingRow, WithEvents, WithCa
                 ->groupBy(fn($row) => $this->normalize($row->route));
         }
 
-        if (self::$plannerMap === null) {
-            self::$plannerMap = DB::table('tujuanfillterr')
-                ->select('code_planner', 'Planner')
-                ->whereNotNull('code_planner')->where('code_planner', '!=', '')
-                ->whereNotNull('Planner')->where('Planner', '!=', '')
-                ->get()
-                ->keyBy(fn($r) => strtolower(trim($r->code_planner)))
-                ->map(fn($r) => $r->Planner);
-        }
+      
     }
+
+    private function normTujuan(?string $value): string
+{
+    $value = str_replace("\xC2\xA0", ' ', (string) $value);
+    return preg_replace('/\s+/', ' ', strtolower(trim($value)));
+}
 
     // =========================================================
     // IMPORT PER BARIS
@@ -345,29 +358,68 @@ class LogistikImport implements ToCollection, WithHeadingRow, WithEvents, WithCa
         $tonase   = $tarifRow ? $this->parseNumber($tarifRow->tonase ?? null)   : null;
 
         // ================= LOOKUP MASTER TUJUAN =================
-        $tujuanKey    = preg_replace('/\s+/', ' ', trim(strtolower($tujuan)));
-        $customerData = self::$customerMap[$tujuanKey] ?? null;
+       // ================= LOOKUP MASTER TUJUAN =================
+// $tujuanKey    = $this->normTujuan($tujuan);
+// $customerData = self::$customerMap[$tujuanKey] ?? null;
+
+// ================= PLANNER & PIC MONITORING =================
+$codeExcel = $this->cleanText($this->pick($row, ['code_planner', 'kode_planner']));
+
+// if ($codeExcel !== null) {
+//     // CARA 2: code_planner + tujuan
+//     $plannerRow = self::$customerByCode[strtolower($codeExcel) . '|' . $tujuanKey] ?? null;
+
+//     if ($plannerRow === null) {
+//         $this->unknownPlannerCodes[] = $codeExcel . ' @ ' . $tujuan;
+//         $plannerRow = $customerData;          // fallback ke cara 1
+//     }
+// } else {
+//     // CARA 1: berdasarkan tujuan saja
+//     $plannerRow = $customerData;
+// }
+
+// $codePlanner   = $codeExcel ?? $this->cleanText($plannerRow->code_planner ?? null);
+// $planner       = $this->cleanText($plannerRow->Planner ?? null)
+//                  ?: $this->cleanText($row['planner'] ?? null);
+// $picMonitoring = $this->cleanText($plannerRow->Monitoring ?? null);
+
+// $distChannel         = $customerData->dist_channel ?? null;
+        // ================= LOOKUP MASTER TUJUAN =================
+        $tujuanKey    = $this->normTujuan($tujuan);
+        $customerData = self::$customerMap[$tujuanKey] ?? null;   // cadangan (berdasarkan tujuan)
+
+        // ================= PLANNER & PIC MONITORING =================
+        $codeExcel = $this->cleanText($this->pick($row, ['code_planner', 'kode_planner']));
+
+        if ($codeExcel !== null) {
+            // PRIORITAS: code_planner dari Excel + tujuan
+            $plannerRow = self::$customerByCode[strtolower($codeExcel) . '|' . $tujuanKey] ?? null;
+
+            if ($plannerRow === null) {
+                $this->unknownPlannerCodes[] = $codeExcel . ' @ ' . $tujuan;
+            }
+
+            $codePlanner   = $codeExcel;
+            $planner       = $this->cleanText($plannerRow->Planner ?? null)
+                             ?: $this->cleanText($row['planner'] ?? null);
+            $picMonitoring = $this->cleanText($plannerRow->Monitoring ?? null);
+        } else {
+            // CADANGAN: code_planner kosong -> ambil dari DB berdasarkan tujuan
+            $codePlanner   = $this->cleanText($customerData->code_planner ?? null);
+            $planner       = $this->cleanText($customerData->Planner ?? null)
+                             ?: $this->cleanText($row['planner'] ?? null);
+            $picMonitoring = $this->cleanText($customerData->Monitoring ?? null);
+        }
 
         $distChannel         = $customerData->dist_channel ?? null;
         $area                = $customerData->area ?? null;
-        $picMonitoring       = $customerData->Monitoring ?? null;
         $biayaKuli           = $customerData->biaya_kuli ?? null;
         $transport_lead_time = $customerData->transport_lead_time ?? null;
         $pulau               = ($customerData->pulau ?? null) ?: $this->cleanText($row['pulau'] ?? null);
-
-        // ================= PLANNER (dari code_planner, BUKAN dari tujuan) =================
-        $codePlanner = $this->cleanText($this->pick($row, ['code_planner', 'kode_planner']));
-        $planner     = null;
-
-        if ($codePlanner !== null) {
-            $planner = self::$plannerMap[strtolower($codePlanner)] ?? null;
-
-            if ($planner === null) {
-                $this->unknownPlannerCodes[] = $codePlanner;
-            }
-        }
-
-        $planner = $planner ?: $this->cleanText($row['planner'] ?? null);
+$area                = $customerData->area ?? null;
+$biayaKuli           = $customerData->biaya_kuli ?? null;
+$transport_lead_time = $customerData->transport_lead_time ?? null;
+$pulau               = ($customerData->pulau ?? null) ?: $this->cleanText($row['pulau'] ?? null);
 
         // ================= MONITORING =================
         $keluar = collect([$tanggalKeluarGudang, $tanggalKeluarGudang2, $tanggalKeluarGudang3])
