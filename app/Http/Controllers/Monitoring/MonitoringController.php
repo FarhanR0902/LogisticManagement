@@ -67,13 +67,18 @@ class MonitoringController extends Controller
         ));
     }
 
-    public function export(Request $request)
-    {
-        return Excel::download(
-            new MonitoringExport($request->pic_monitoring, $request->area),
-            'Monitoring_Logistik.xlsx'
-        );
-    }
+   public function export(Request $request)
+{
+    $filters = $request->only([
+        'pic_monitoring', 'area', 'bulan', 'tahun',
+        'keluar_gudang_tgl', 'tgl_dari', 'tgl_sampai',
+    ]);
+
+    return Excel::download(
+        new MonitoringExport($filters),
+        'Monitoring_Logistik_' . date('Ymd_His') . '.xlsx'
+    );
+}
 
     // =====================================================
     // HALAMAN DATA MONITORING
@@ -188,9 +193,10 @@ class MonitoringController extends Controller
         if ($request->filled('jenis')) {
             $baseQuery->where('transportasi', strtoupper($request->jenis));
         }
-        if ($request->filled('area')) {
-            $baseQuery->where('area', $request->input('area'));
-        }
+$areas = array_values(array_filter((array) $request->input('area', [])));
+if (!empty($areas)) {
+    $baseQuery->whereIn('area', $areas);
+}
         if ($request->filled('pic_monitoring')) {
             $baseQuery->where('pic_monitoring', $request->input('pic_monitoring'));
         }
@@ -491,22 +497,15 @@ if ($blocked) {
         $today = strtotime(date('Y-m-d'));
         $isOverdue = ($estimasi && !$blocked) ? ($estimasi < $today) : false;
 
-     $missing = [];
-if (empty($r->tanggal_tiba))    $missing[] = 'Tgl Tiba';
-if (empty($r->waktu_tiba))      $missing[] = 'Jam Tiba';
-if (empty($r->tanggal_bongkar)) $missing[] = 'Tgl Bongkar';
-if (empty($r->waktu_bongkar))   $missing[] = 'Jam Bongkar';
+  $today     = strtotime(date('Y-m-d'));
+$isOverdue = ($estimasi && !$blocked) ? ($estimasi < $today) : false;
 
-if (count($missing) === 0) {
-    $kelengkapanHtml = '<span class="badge completeness-badge green" title="Data lengkap">✅ Lengkap</span>';
-} elseif (!empty($r->tanggal_tiba) && empty($r->tanggal_bongkar)) {
-    $kelengkapanHtml = '<span class="badge completeness-badge blue" title="Sudah sampai tujuan, belum bongkar">🚚 Sampai Tujuan</span>';
-} elseif (!$isOverdue) {
-    $kelengkapanHtml = '<span class="badge completeness-badge gray" title="Belum jatuh tempo estimasi tiba">-</span>';
+if (!empty($r->tanggal_tiba)) {
+    $kelengkapanHtml = '<span class="badge completeness-badge blue" title="Sudah sampai tujuan">🚚 Sampai Tujuan</span>';
+} elseif ($isOverdue) {
+    $kelengkapanHtml = '<span class="badge completeness-badge red" title="Sudah lewat estimasi tiba, Tanggal Tiba belum diinput">❌ Belum Lengkap</span>';
 } else {
-    $cls = count($missing) === 1 ? 'orange' : 'red';
-    $text = '❌ ' . implode(', ', $missing);
-    $kelengkapanHtml = '<span class="badge completeness-badge ' . $cls . '" title="' . e($text) . '">' . e($text) . '</span>';
+    $kelengkapanHtml = '<span class="badge completeness-badge gray" title="Belum jatuh tempo estimasi tiba">-</span>';
 }
        return [
    // 0 Tanggal Keluar Gudang
@@ -551,8 +550,8 @@ $blocked
             e($estimasi_show),
          // 18 Tanggal Tiba (tanggal + jam terpisah)
 '<div class="dt-pair">'
-    . '<input type="text" class="flatpickr-date" name="tanggal_tiba" data-required="true" data-label="Tgl Tiba" value="' . ($r->tanggal_tiba ? date('Y-m-d', strtotime($r->tanggal_tiba)) : '') . '">'
-    . '<input type="text" class="flatpickr-time" name="waktu_tiba" value="' . ($r->waktu_tiba ? substr($r->waktu_tiba, 0, 5) : '') . '">'
+    . '<input type="text" class="flatpickr-date" name="tanggal_tiba" data-required="true" data-label="Tgl Tiba" placeholder="ddmmyyyy" value="' . ($r->tanggal_tiba ? date('Y-m-d', strtotime($r->tanggal_tiba)) : '') . '">'
+    . '<input type="text" class="input-jam" name="waktu_tiba" placeholder="HH:MM" maxlength="5" inputmode="numeric" autocomplete="off" value="' . ($r->waktu_tiba ? substr($r->waktu_tiba, 0, 5) : '') . '">'
     . '</div>',
             // 19 Lama Perjalanan
             e($lama_perjalanan),
@@ -560,8 +559,8 @@ $blocked
             $sla_tiba_html,
            // 21 Tanggal Bongkar (tanggal + jam terpisah)
 '<div class="dt-pair">'
-    . '<input type="text" class="flatpickr-date" name="tanggal_bongkar" data-required="true" data-label="Tgl Bongkar" value="' . ($r->tanggal_bongkar ? date('Y-m-d', strtotime($r->tanggal_bongkar)) : '') . '">'
-    . '<input type="text" class="flatpickr-time" name="waktu_bongkar" value="' . ($r->waktu_bongkar ? substr($r->waktu_bongkar, 0, 5) : '') . '">'
+    . '<input type="text" class="flatpickr-date" name="tanggal_bongkar" data-required="true" data-label="Tgl Bongkar" placeholder="ddmmyyyy" value="' . ($r->tanggal_bongkar ? date('Y-m-d', strtotime($r->tanggal_bongkar)) : '') . '">'
+    . '<input type="text" class="input-jam" name="waktu_bongkar" placeholder="HH:MM" maxlength="5" inputmode="numeric" autocomplete="off" value="' . ($r->waktu_bongkar ? substr($r->waktu_bongkar, 0, 5) : '') . '">'
     . '</div>',
             // 22 Status Bongkar
             $statusBongkarHtml,
@@ -848,6 +847,8 @@ $sla_bongkar = ($tiba && $bongkar)
  
     $logistik->sla_tiba = $sla_tiba;
     $logistik->sla_bongkar = $sla_bongkar;
+    $logistik->overstay_days   = $overstay;          // <-- TAMBAH
+$logistik->lama_perjalanan = $lama_perjalanan;   // <-- TAMBAH
  
     if (empty($logistik->estimasi_tiba)) {
         if (!$logistik->tanggal_bongkar && empty($logistik->estimasi_tiba)) {
@@ -966,9 +967,10 @@ if (!empty($data['ata'])) {
         if ($request->filled('pic_monitoring')) {
             $query->where('pic_monitoring', $request->input('pic_monitoring'));
         }
-        if ($request->filled('area')) {
-            $query->where('area', $request->input('area'));
-        }
+     $areas = array_values(array_filter((array) $request->input('area', [])));
+if (!empty($areas)) {
+    $query->whereIn('area', $areas);   // sebelumnya $baseQuery (salah)
+}
         if ($request->filled('bulan')) {
             $query->whereRaw("
                 MONTH(GREATEST(
@@ -1062,15 +1064,22 @@ private function inTransitFiltered(Request $request)
 {
     $base = $this->inTransitQuery();
 
-    if ($request->filled('area')) {
-        $base->where('area', $request->input('area'));
+    $areas = array_values(array_filter((array) $request->input('area', []), 'strlen'));
+    if (!empty($areas)) {
+        $base->whereIn('area', $areas);
     }
-    if ($request->filled('pic_monitoring')) {
-        $base->where('pic_monitoring', $request->input('pic_monitoring'));
+
+    $pics = array_values(array_filter((array) $request->input('pic_monitoring', []), 'strlen'));
+    if (!empty($pics)) {
+        $base->whereIn('pic_monitoring', $pics);
     }
-    if ($request->filled('gudang_asal')) {
-        $base->whereRaw('(' . $this->inTransitAsalSql() . ') = ?', [$request->input('gudang_asal')]);
+
+    $asal = array_values(array_filter((array) $request->input('gudang_asal', []), 'strlen'));
+    if (!empty($asal)) {
+        $placeholders = implode(',', array_fill(0, count($asal), '?'));
+        $base->whereRaw('(' . $this->inTransitAsalSql() . ") IN ({$placeholders})", $asal);
     }
+
     if ($request->filled('q')) {
         $this->applyInTransitSearch($base, $request->input('q'));
     }

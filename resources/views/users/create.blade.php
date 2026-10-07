@@ -177,8 +177,7 @@
 
                         <option value="manager">Manager</option>
                         <option value="kota">Kota</option>
-
-
+                         <option value="developer">Developer</option>  
                
 
                         <option value="spvplanner">SPV Planner</option>

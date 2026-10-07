@@ -1,58 +1,8 @@
 <?php
-/**
- * =============================================================================
- * LogistikController.php — REFACTORED (Server-Side Pagination, TANPA package
- * tambahan — pure Eloquent + response()->json(), tidak butuh Yajra sama sekali)
- * =============================================================================
- *
- * PERUBAHAN UTAMA dari versi lama:
- *
- * 1. dataLogistik() lama (fetch SEMUA baris + kalkulasi berat per baris di
- *    Blade + drawCallback yang parsing DOM tiap draw) DIPECAH jadi 2:
- *
- *      - dataLogistik()      -> hanya render halaman (tabel kosong, filter,
- *                                dropdown). TIDAK query data besar di sini.
- *      - dataLogistikAjax()  -> endpoint JSON manual yang mengikuti format
- *                                request/response DataTables serverSide.
- *                                MySQL yang filter/sort/LIMIT-OFFSET, browser
- *                                cuma terima 10-50 baris per request. Badge
- *                                dan status dihitung HANYA untuk baris yang
- *                                sedang ditampilkan di halaman itu — bukan
- *                                seluruh dataset.
- *
- * 2. Semua logic status/badge/SLA/alert/CR yang dulu ada di dalam @php block
- *    Blade (ratusan baris, dieksekusi per-row per-request) dipindah ke
- *    method private di controller ini -> lebih cepat, testable, reusable.
- *
- * 3. Cost Ratio (CR) yang dulu dihitung di JS drawCallback dengan parsing
- *    teks DOM (SANGAT lambat untuk ribuan baris, jalan ulang tiap draw)
- *    sekarang dihitung dari agregasi SQL (SUM(nilai_muatan) & MAX(biaya_kirim)
- *    GROUP BY no_shipment), dan hasil agregasinya di-cache 5 menit supaya
- *    tidak query ulang tiap kali ganti halaman/filter.
- *
- * 4. Dropdown (area, dist_channel, pic) di-cache 1 jam karena jarang berubah.
- *
- * TIDAK ADA DEPENDENCY BARU YANG PERLU DI-INSTALL. Cukup pastikan index
- * database di bawah ini ada supaya query filter/sort tetap cepat di data besar.
- *
- * ROUTE YANG PERLU DITAMBAHKAN (routes/web.php):
- *   Route::get('/datalogistik',        [LogistikController::class, 'dataLogistik'])->name('logistik.page');
- *   Route::match(['get','post'], '/datalogistik/ajax', [LogistikController::class, 'dataLogistikAjax'])->name('logistik.ajax');
- *
- * INDEX DATABASE YANG DISARANKAN (migration baru):
- *   Schema::table('logistik_pengiriman', function (Blueprint $table) {
- *       $table->index('tanggal_naik_logistik');
- *       $table->index('area');
- *       $table->index('no_shipment');
- *       $table->index('status_akhir');
- *       $table->index('dist_channel');
- *       $table->index('pic_monitoring');
- *   });
- * =============================================================================
- */
+
 
 namespace App\Http\Controllers;
-
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Http\Request;
 use App\Models\LogistikPengiriman;
 use Illuminate\Support\Facades\DB;
@@ -378,9 +328,10 @@ class LogistikController extends Controller
             $query->where('pic_monitoring', $request->pic_monitoring);
         }
 
-        if ($request->filled('area')) {
-            $query->where('area', $request->area);
-        }
+     $areas = array_values(array_filter((array) $request->input('area', []), 'strlen'));
+if (!empty($areas)) {
+    $query->whereIn('area', $areas);
+}
         
 
         // recordsTotal = total setelah filter dropdown custom (belum termasuk search box)
@@ -388,20 +339,108 @@ class LogistikController extends Controller
 
         // ---------- SEARCH BOX BAWAAN DATATABLES ----------
         $searchValue = trim((string) $request->input('search.value'));
+if ($searchValue !== '') {
 
-        if ($searchValue !== '') {
-            $query->where(function ($q) use ($searchValue) {
-                $q->where('no_shipment', 'like', "%{$searchValue}%")
-                    ->orWhere('tujuan', 'like', "%{$searchValue}%")
-                    ->orWhere('area', 'like', "%{$searchValue}%")
-                    ->orWhere('nama_driver', 'like', "%{$searchValue}%")
-                    ->orWhere('no_pol', 'like', "%{$searchValue}%")
-                    ->orWhere('planner', 'like', "%{$searchValue}%")
-                    ->orWhere('mobil', 'like', "%{$searchValue}%")
-                    ->orWhere('ekpedisi', 'like', "%{$searchValue}%")
-                    ->orWhere('pic_monitoring', 'like', "%{$searchValue}%");
-            });
+    // 1) semua kolom asli tabel (di-cache 1 jam)
+    $cols = Cache::remember('logistik_searchable_cols', 3600, function () {
+        return array_values(array_diff(
+            \Illuminate\Support\Facades\Schema::getColumnListing('logistik_pengiriman'),
+            ['id', 'created_at', 'updated_at']
+        ));
+    });
+
+    // 2) tanggal tampil d-m-Y, di DB Y-m-d -> cari dua-duanya
+    $variants = [$searchValue];
+    if (preg_match('/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})$/', $searchValue, $m)) {
+        $variants[] = sprintf('%04d-%02d-%02d', $m[3], $m[2], $m[1]);
+    }
+
+    // 3) kolom hasil hitungan/badge -> ditulis ulang dalam SQL
+    $f = fn($c) => "NULLIF(TRIM({$c}), '') IS NOT NULL";
+    $e = fn($c) => "NULLIF(TRIM({$c}), '') IS NULL";
+
+    $sisa = "DATEDIFF(DATE(estimasi_tiba), CURDATE())";
+    $num  = fn($c) => "CAST(COALESCE(NULLIF(TRIM({$c}),''),0) AS DECIMAL(20,4))";
+    $estAdmin = "DATE_ADD(rencana_kirim, INTERVAL (CAST(COALESCE(NULLIF(TRIM(transport_lead_time),''),0) AS UNSIGNED)
+                 + CASE WHEN LOWER(TRIM(area)) = 'jawa barat' THEN 1 ELSE 0 END) DAY)";
+
+    $computed = [
+        // Ketersediaan Unit
+        "CASE WHEN {$e('rencana_kirim')} OR {$e('tanggal_dpt_unit')} THEN 'BELUM DAPAT' ELSE 'SUDAH DAPAT' END",
+
+        // Update Posisi Mobil
+        "CASE
+            WHEN {$e('tanggal_dpt_unit')} THEN 'MENCARI UNIT'
+            WHEN {$e('planning_loading')} AND {$e('planning_loading_2')} AND {$e('planning_loading_3')} AND {$e('tanggal_tiba')} THEN 'PERJALANAN KE GUDANG'
+            WHEN {$f('planning_loading')}   AND {$e('tanggal_tiba_gudang')}   THEN 'PERJALANAN KE KACS'
+            WHEN {$f('planning_loading')}   AND {$f('tanggal_tiba_gudang')}   AND {$e('tanggal_keluar_gudang')}   THEN 'DI GUDANG KACS'
+            WHEN {$f('planning_loading_2')} AND {$e('tanggal_tiba_gudang_2')} THEN 'PERJALANAN KE SENTUL'
+            WHEN {$f('planning_loading_2')} AND {$f('tanggal_tiba_gudang_2')} AND {$e('tanggal_keluar_gudang_2')} THEN 'DI GUDANG SENTUL'
+            WHEN {$f('planning_loading_3')} AND {$e('tanggal_tiba_gudang_3')} THEN 'PERJALANAN KE CCIE'
+            WHEN {$f('planning_loading_3')} AND {$f('tanggal_tiba_gudang_3')} AND {$e('tanggal_keluar_gudang_3')} THEN 'DI GUDANG CCIE'
+            WHEN {$e('tanggal_tiba')} THEN 'PERJALANAN KE TUJUAN'
+            WHEN {$f('tanggal_bongkar')} THEN 'SUDAH SELESAI'
+            ELSE 'SUDAH TIBA TUJUAN' END",
+
+        // Alert
+        "CASE
+            WHEN {$f('tanggal_tiba')} THEN 'TIBA'
+            WHEN {$e('estimasi_tiba')} THEN ''
+            WHEN {$sisa} < 0 THEN CONCAT('Pending Tiba H+', ABS({$sisa}))
+            WHEN {$sisa} <= 7 THEN CONCAT('H-', {$sisa})
+            ELSE 'ON TRACK' END",
+
+        // Status Bongkar
+        "CASE
+            WHEN {$f('tanggal_bongkar')} THEN 'Sudah Bongkar'
+            WHEN {$f('tanggal_tiba')} THEN CONCAT('Pending Bongkar H+', GREATEST(0, DATEDIFF(CURDATE(), DATE(tanggal_tiba))))
+            ELSE '' END",
+
+        // Status Akhir
+        "CASE
+            WHEN {$e('tanggal_tiba')} THEN 'Dalam Perjalanan'
+            WHEN {$e('tanggal_bongkar')} THEN 'Sudah Tiba Dalam Pembongkaran'
+            WHEN UPPER(TRIM(sla_tiba)) = 'ON TIME' AND UPPER(TRIM(sla_bongkar)) = 'ON TIME' THEN 'Pengiriman On Time'
+            ELSE 'Pengiriman Delay' END",
+
+        // Status Alert
+        "CASE
+            WHEN UPPER(TRIM(sla_tiba)) = 'ON TIME' AND UPPER(TRIM(sla_bongkar)) = 'ON TIME' THEN 'Delivered Ontime'
+            WHEN UPPER(TRIM(sla_tiba)) = 'DELAY'   AND UPPER(TRIM(sla_bongkar)) = 'ON TIME' THEN 'Delay Perjalanan'
+            WHEN UPPER(TRIM(sla_tiba)) = 'ON TIME' AND UPPER(TRIM(sla_bongkar)) = 'DELAY'   THEN 'Delay Pembongkaran'
+            WHEN UPPER(TRIM(sla_tiba)) = 'DELAY'   AND UPPER(TRIM(sla_bongkar)) = 'DELAY'   THEN 'Delivered Delay'
+            ELSE 'Belum Selesai' END",
+
+        // Pengiriman Optimal
+        "CASE
+            WHEN {$num('kubikasi')} <= 0 AND {$num('tonase')} <= 0 THEN ''
+            WHEN ({$num('kubikasi')} > 0 AND {$num('total_kubik')} / {$num('kubikasi')} * 100 >= 85)
+              OR ({$num('tonase')}   > 0 AND {$num('total_tonase')} / {$num('tonase')}   * 100 >= 85) THEN 'Optimal'
+            ELSE 'Tidak Optimal' END",
+
+        // Ontime/Delay Admin
+        "CASE
+            WHEN {$e('rencana_kirim')} THEN ''
+            WHEN {$f('tanggal_tiba')} THEN CASE WHEN tanggal_tiba <= {$estAdmin} THEN 'On Time' ELSE 'Delay' END
+            WHEN CURDATE() > DATE({$estAdmin}) THEN 'Delay'
+            ELSE 'Belum Tiba' END",
+
+        // Estimasi Tiba Di Customer (d-m-Y)
+        "CASE WHEN {$e('rencana_kirim')} THEN '' ELSE DATE_FORMAT({$estAdmin}, '%d-%m-%Y') END",
+    ];
+
+    $query->where(function ($q) use ($variants, $cols, $computed) {
+        foreach ($variants as $v) {
+            $like = "%{$v}%";
+            foreach ($cols as $c) {
+                $q->orWhereRaw("CAST(`{$c}` AS CHAR) LIKE ?", [$like]);
+            }
+            foreach ($computed as $x) {
+                $q->orWhereRaw("({$x}) LIKE ?", [$like]);
+            }
         }
+    });
+}
 
         $recordsFiltered = (clone $query)->count();
 
@@ -657,45 +696,32 @@ class LogistikController extends Controller
     /* =========================================================
      * ARCHIVE / DELETE ALL (tetap sama)
      * ========================================================= */
-    public function archiveAll()
-    {
-        $data = DB::table('logistik_pengiriman')->get();
+   public function archiveAll()
+{
+    // hanya kolom yang ada di kedua tabel, kecuali id (storage generate id sendiri)
+    $cols = array_values(array_diff(
+        array_intersect(
+            Schema::getColumnListing('logistik_pengiriman'),
+            Schema::getColumnListing('logistik_storage')
+        ),
+        ['id']
+    ));
+    $list = '`' . implode('`,`', $cols) . '`';
 
-        foreach ($data as $row) {
-            DB::table('logistik_storage')->insert([
-                'no_shipment' => $row->no_shipment ?? null,
-                'tanggal_naik_logistik' => $row->tanggal_naik_logistik ?? null,
-                'rencana_kirim' => $row->rencana_kirim ?? null,
-                'dist_channel' => $row->dist_channel ?? null,
-                'tujuan' => $row->tujuan ?? null,
-                'area' => $row->area ?? null,
-                'nilai_muatan' => $row->nilai_muatan ?? 0,
-                'biaya_kirim' => $row->biaya_kirim ?? 0,
-                'kategori_ekspedisi' => $row->kategori_ekspedisi ?? null,
-                'ekspedisi' => $row->ekspedisi ?? null,
-                'status_pengiriman' => $row->status_pengiriman ?? null,
-                'status_gudang' => $row->status_gudang ?? null,
-                'status_akhir' => $row->status_akhir ?? null,
-                'sla_tiba' => $row->sla_tiba ?? null,
-                'sla_bongkar' => $row->sla_bongkar ?? null,
-                'total_do_qty_car' => $row->total_do_qty_car ?? 0,
-                'overstay_days' => $row->overstay_days ?? 0,
-                'tanggal_tiba_gudang' => $row->tanggal_tiba_gudang ?? null,
-                'tanggal_keluar_gudang' => $row->tanggal_keluar_gudang ?? null,
-                'tanggal_tiba' => $row->tanggal_tiba ?? null,
-                'tanggal_bongkar' => $row->tanggal_bongkar ?? null,
-                'remarks' => $row->remarks ?? null,
-                'reason_tiba' => $row->reason_tiba ?? null,
-                'reason_bongkar' => $row->reason_bongkar ?? null,
-                'created_at' => $row->created_at ?? now(),
-                'updated_at' => $row->updated_at ?? now(),
-            ]);
-        }
+    $moved = 0;
 
-        DB::table('logistik_pengiriman')->delete();
+    DB::transaction(function () use ($list, &$moved) {
+        DB::insert("INSERT INTO logistik_storage ({$list}) SELECT {$list} FROM logistik_pengiriman");
+        $moved = DB::table('logistik_pengiriman')->delete();
+    });
 
-        return back()->with('success', 'Data berhasil dipindahkan ke Storage');
+    Cache::forget('logistik_shipment_agg');
+    foreach (['area', 'dist_channel', 'pic_monitoring'] as $c) {
+        Cache::forget("list_{$c}");
     }
+
+    return back()->with('success', "{$moved} baris berhasil dipindahkan ke Storage");
+}
 
     public function deleteAll()
     {

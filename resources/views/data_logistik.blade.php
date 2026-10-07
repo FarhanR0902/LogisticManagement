@@ -385,6 +385,42 @@
             background: #157347;
             transform: translateY(-2px);
         }
+
+        
+/* ===== MULTI SELECT DROPDOWN ===== */
+.ms-dd { position: relative; width: 220px; flex: 0 0 220px; }
+.filter-box .ms-dd-btn {
+    width: 100%; height: 46px; display: flex; justify-content: space-between; align-items: center; gap: 8px;
+    background: #fff; color: #1e293b; border: 1px solid #cbd5e1; border-radius: 10px;
+    padding: 0 16px; font-size: 16px; font-weight: 400; cursor: pointer;
+}
+.filter-box .ms-dd-btn:hover { background: #fff; border-color: #3b82f6; }
+.ms-dd-btn .ms-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ms-dd.has-value .ms-dd-btn { border-color: #3b82f6; background: #eff6ff; }
+.ms-dd.has-value .ms-label { font-weight: 600; color: #1e40af; }
+.ms-dd-panel {
+    position: absolute; top: 50px; left: 0; z-index: 9999; width: 280px;
+    background: #fff; border: 1px solid #cbd5e1; border-radius: 10px;
+    box-shadow: 0 10px 25px rgba(0,0,0,.2); padding: 10px;
+}
+.filter-box .ms-dd-panel .ms-search {
+    width: 100%; box-sizing: border-box; min-width: 0; padding: 9px 12px; font-size: 15px; margin-bottom: 4px;
+}
+.ms-dd-actions { display: flex; justify-content: space-between; font-size: 14px; margin: 6px 2px; }
+.filter-box .ms-dd-actions a {
+    background: none; padding: 0; border-radius: 0; font-size: 14px; color: #2563eb; font-weight: 600; text-decoration: none;
+}
+.filter-box .ms-dd-actions a:hover { background: none; text-decoration: underline; }
+.ms-dd-list { max-height: 260px; overflow-y: auto; }
+.ms-dd-item { display: flex; align-items: center; gap: 8px; padding: 6px; margin: 0; font-size: 15px; cursor: pointer; }
+.ms-dd-item:hover { background: #f1f5f9; border-radius: 6px; }
+.filter-box .ms-dd-item input { width: auto; min-width: 0; margin: 0; padding: 0; }
+.ms-empty { padding: 8px; font-size: 14px; color: #94a3b8; display: none; }
+
+@media (max-width: 768px) {
+    .ms-dd { width: 100%; flex: 1 1 100%; }
+    .ms-dd-panel { width: 100%; }
+}
     </style>
 </head>
 
@@ -403,12 +439,28 @@
         <div class="filter-box">
             <form id="filterForm" onsubmit="return false;">
 
-                <select id="filterArea" name="area">
-                    <option value="">Semua Area</option>
-                    @foreach($areaList as $a)
-                        <option value="{{ $a }}">{{ $a }}</option>
-                    @endforeach
-                </select>
+              <div class="ms-dd" id="filterArea" data-default="Semua Area">
+    <button type="button" class="ms-dd-btn">
+        <span class="ms-label">Semua Area</span>
+        <span>▾</span>
+    </button>
+    <div class="ms-dd-panel" style="display:none;">
+        <input type="text" class="ms-search" placeholder="Cari area..." autocomplete="off">
+        <div class="ms-dd-actions">
+            <a href="#" class="ms-all">Pilih semua</a>
+            <a href="#" class="ms-clear">Hapus</a>
+        </div>
+        <div class="ms-dd-list">
+            @foreach($areaList as $a)
+                <label class="ms-dd-item">
+                    <input type="checkbox" class="ms-chk" name="area[]" value="{{ $a }}">
+                    <span>{{ $a }}</span>
+                </label>
+            @endforeach
+            <div class="ms-empty">Tidak ditemukan</div>
+        </div>
+    </div>
+</div>
 
                 <input type="date" id="filterDate" name="date">
 
@@ -549,6 +601,72 @@
     <script>
         $(document).ready(function() {
 
+        function getAreas() {
+    return $('#filterArea .ms-chk:checked').map(function () { return this.value; }).get();
+}
+
+function updateLabel(dd) {
+    var vals = getAreas();
+    var label = dd.attr('data-default');
+    if (vals.length === 1 || vals.length === 2) label = vals.join(', ');
+    else if (vals.length > 2) label = vals.length + ' dipilih';
+    dd.find('.ms-label').text(label);
+    dd.toggleClass('has-value', vals.length > 0);
+}
+
+var reloadTimer;
+function reloadDebounced() {
+    clearTimeout(reloadTimer);
+    reloadTimer = setTimeout(function () { table.ajax.reload(); }, 400);
+}
+
+(function initAreaDropdown() {
+    var dd     = $('#filterArea');
+    var panel  = dd.find('.ms-dd-panel');
+    var search = dd.find('.ms-search');
+    var empty  = dd.find('.ms-empty');
+
+    dd.find('.ms-dd-btn').on('click', function (e) {
+        e.stopPropagation();
+        var willOpen = panel.is(':hidden');
+        panel.toggle(willOpen);
+        if (willOpen) search.trigger('focus');
+    });
+
+    panel.on('click', function (e) { e.stopPropagation(); });
+    $(document).on('click', function () { panel.hide(); });
+
+    search.on('input', function () {
+        var q = this.value.toLowerCase().trim(), shown = 0;
+        dd.find('.ms-dd-item').each(function () {
+            var ok = $(this).text().toLowerCase().indexOf(q) !== -1;
+            $(this).toggle(ok);
+            if (ok) shown++;
+        });
+        empty.toggle(shown === 0);
+    });
+
+    dd.find('.ms-chk').on('change', function () {
+        updateLabel(dd);
+        reloadDebounced();
+    });
+
+    // pilih semua: hanya yang tampil sesuai hasil search
+    dd.find('.ms-all').on('click', function (e) {
+        e.preventDefault();
+        dd.find('.ms-dd-item:visible .ms-chk').prop('checked', true);
+        updateLabel(dd);
+        reloadDebounced();
+    });
+
+    dd.find('.ms-clear').on('click', function (e) {
+        e.preventDefault();
+        dd.find('.ms-chk').prop('checked', false);
+        updateLabel(dd);
+        reloadDebounced();
+    });
+})();
+
             let table = $('#tableLogistik').DataTable({
                 processing: true,
                 serverSide: true,
@@ -581,7 +699,7 @@
                         'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
                     },
                     data: function(d) {
-                        d.area = $('#filterArea').val();
+d.area = getAreas();   // jQuery otomatis mengirim sebagai area[]=...
                         d.date = $('#filterDate').val();
                         d.month = $('#filterMonth').val();
                         d.year = $('#filterYear').val();
@@ -699,7 +817,7 @@
             });
 
             // Reload table setiap filter berubah (server-side, jadi ringan)
-            $('#filterArea, #filterDate, #filterMonth, #filterYear, #filterPic').on('change', function() {
+            $(' #filterDate, #filterMonth, #filterYear, #filterPic').on('change', function() {
                 table.ajax.reload();
             });
 
@@ -733,6 +851,13 @@
                 window.location.href = finalUrl;
             });
         });
+        $('#btnResetFilter').on('click', function (e) {
+    e.preventDefault();
+    $('#filterForm')[0].reset();
+    $('#filterArea .ms-search').val('').trigger('input');
+    updateLabel($('#filterArea'));
+    table.ajax.reload();
+});
     </script>
 
 </body>

@@ -415,11 +415,7 @@ $currentRoute = request()->route()->getName() ?? '';
             </a>
         </li>
 
-        <li>
-            <a href="{{ url('/storage') }}">
-                🗄 Storage Archive
-            </a>
-        </li>
+   
 
         <li>
             <a href="{{ route('users.index') }}">
@@ -656,7 +652,18 @@ $currentRoute = request()->route()->getName() ?? '';
     </li>
 
 @endif
+
+{{-- ================= STORAGE ARCHIVE (satu untuk semua role) ================= --}}
+@if(in_array($role, ['manager', 'cmd', 'planner', 'spvplanner', 'developer']))
+<li>
+    <a href="{{ url('/storage') }}"
+       class="{{ request()->is('storage*') ? 'active' : '' }}">
+        🗄 Storage Archive
+    </a>
+</li>
+@endif
         {{-- ================= ACCOUNT ================= --}}
+        
 
 
         <li>

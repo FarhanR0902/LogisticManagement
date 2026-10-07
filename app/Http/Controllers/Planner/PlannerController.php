@@ -143,11 +143,15 @@ $data['pengiriman_optimal']  = $hasil['pengiriman_optimal'];
         ->take(10);
 
     $total_in_transit = $this->applyFilter($this->inTransitQuery(), $request)->count();
+    $total_in_transit = $this->applyFilter($this->inTransitQuery(), $request)->count();
+$total_in_gudang  = $this->applyFilter($this->inGudangQuery(), $request)->count();
 
     return view('planner.dashboard', compact(
         'total_data',
         'ontime',
         'total_in_transit',
+       
+    'total_in_gudang',
         'delay',
         'armada',
         'belum_armada',
@@ -1956,19 +1960,126 @@ public function alerts(Request $request)
         return view('planner.armada', compact('logistik'));
     }
 
-    public function exportPlanner(Request $request)
-    {
-        return Excel::download(
-            new PlannerExport(
-                $request->planner,
-                $request->area,
-                $request->bulan,
-                $request->tahun
-            ),
-            'Planner.xlsx'
-        );
+    private function inGudangQuery()
+{
+    return DB::table('logistik_pengiriman')
+        ->whereRaw($this->selesaiGudangSql() . ' = 0')
+        // 1 shipment = 1 baris (data gudang shared per no_shipment)
+        ->whereIn('id', function ($sub) {
+            $sub->from('logistik_pengiriman')
+                ->selectRaw('MIN(id)')
+                ->groupBy('no_shipment');
+        });
+}
+
+public function inGudang(Request $request)
+{
+    $base = $this->inGudangQuery();
+    $this->applyFilter($base, $request);
+
+    if ($request->filled('q')) {
+        $s = trim($request->input('q'));
+        $base->where(function ($q) use ($s) {
+            foreach (['no_shipment', 'tujuan', 'ekpedisi', 'nama_driver', 'no_pol', 'mobil', 'planner'] as $col) {
+                $q->orWhere($col, 'like', "%{$s}%");
+            }
+        });
+    }
+    if ($request->filled('planner')) {
+        $base->where('planner', $request->input('planner'));
     }
 
+    // ===== ringkasan =====
+    $semuaKosong = fn($q) => collect([
+        'planning_loading', 'tanggal_tiba_gudang', 'tanggal_keluar_gudang',
+        'planning_loading_2', 'tanggal_tiba_gudang_2', 'tanggal_keluar_gudang_2',
+        'planning_loading_3', 'tanggal_tiba_gudang_3', 'tanggal_keluar_gudang_3',
+    ])->each(fn($c) => $q->whereRaw("NULLIF(TRIM({$c}), '') IS NULL"));
+
+   $kolomGudang = [
+    'planning_loading', 'tanggal_tiba_gudang', 'tanggal_keluar_gudang',
+    'planning_loading_2', 'tanggal_tiba_gudang_2', 'tanggal_keluar_gudang_2',
+    'planning_loading_3', 'tanggal_tiba_gudang_3', 'tanggal_keluar_gudang_3',
+];
+
+$total   = (clone $base)->count();
+$qBelum  = clone $base;
+foreach ($kolomGudang as $c) {
+    $qBelum->whereRaw("NULLIF(TRIM({$c}), '') IS NULL");
+}
+$belumInput = $qBelum->count();
+
+$summary = [
+    'total'       => $total,
+    'belum_input' => $belumInput,
+    'sedang'      => $total - $belumInput,
+];
+
+    // ===== tabel =====
+    $list = (clone $base)
+        ->orderBy('tanggal_naik_logistik', 'ASC')
+        ->orderByRaw('CAST(no_shipment AS UNSIGNED) ASC')
+        ->paginate(50)
+        ->withQueryString();
+
+    $cycles = [
+        ['KACS',   'planning_loading',   'tanggal_tiba_gudang',   'tanggal_keluar_gudang'],
+        ['SENTUL', 'planning_loading_2', 'tanggal_tiba_gudang_2', 'tanggal_keluar_gudang_2'],
+        ['CCIE',   'planning_loading_3', 'tanggal_tiba_gudang_3', 'tanggal_keluar_gudang_3'],
+    ];
+
+   $list->getCollection()->transform(function ($r) use ($cycles) {
+    $selesai    = [];
+    $menggantung = [];
+
+    foreach ($cycles as [$nama, $plan, $tiba, $keluar]) {
+        $started = !empty($r->$plan) || !empty($r->$tiba);
+        $done    = !empty($r->$keluar);
+
+        if ($done) {
+            $selesai[] = $nama;
+        }
+
+        if ($started && !$done) {
+            $menggantung[] = empty($r->$tiba)
+                ? "Planning loading {$nama}, belum tiba"
+                : "Di gudang {$nama}, belum keluar";
+        }
+    }
+
+    if ($menggantung) {
+        $r->posisi_label = implode(' | ', $menggantung);
+        $r->posisi_class = 'orange';
+    } else {
+        $r->posisi_label = 'Belum diinput';
+        $r->posisi_class = 'red';
+    }
+
+    $r->gudang_selesai = $selesai ? implode(', ', $selesai) : '-';
+    return $r;
+});
+
+    $areaList    = DB::table('logistik_pengiriman')->whereNotNull('area')->distinct()->orderBy('area')->pluck('area');
+    $plannerList = DB::table('logistik_pengiriman')->whereNotNull('planner')->where('planner', '!=', '')->distinct()->orderBy('planner')->pluck('planner');
+
+    return view('planner.in_gudang', compact('list', 'summary', 'areaList', 'plannerList'));
+}
+
+public function exportPlanner(Request $request)
+{
+    $filters = [
+        'planner'    => $request->input('planner',    $request->input('planner_filter')),
+        'area'       => $request->input('area',       $request->input('area_filter')),
+        'create_tgl' => $request->input('create_tgl', $request->input('create_tgl_filter')),
+        'bulan'      => $request->input('bulan'),
+        'tahun'      => $request->input('tahun'),
+    ];
+
+    return Excel::download(
+        new PlannerExport(array_filter($filters)),
+        'Planner_' . date('Ymd_His') . '.xlsx'
+    );
+}
     public function armadaDelay(Request $request)
     {
         $query = DB::table('logistik_pengiriman')

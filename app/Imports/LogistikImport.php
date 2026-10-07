@@ -37,7 +37,7 @@ class LogistikImport implements ToCollection, WithHeadingRow, WithEvents, WithCa
         'via'                    => 'via_kirim',
         'kode_planner'           => 'code_planner',
     ];
-
+    private static $areaMap = null;   // area => ['planner' => ..., 'pic' => ...]
        private static $customerMap    = null;   // tujuan => row         (cadangan, berdasarkan tujuan)
     private static $customerByCode = null;   // "code|tujuan" => row  (prioritas, code_planner + tujuan)
     private static $tarifByRoute   = null; // "code|tujuan" => row     (cara 2) // code_planner => nama planner
@@ -90,7 +90,7 @@ class LogistikImport implements ToCollection, WithHeadingRow, WithEvents, WithCa
         $this->hasCreatedAt = in_array('created_at', $this->allColumns, true);
         $this->hasUpdatedAt = in_array('updated_at', $this->allColumns, true);
 
-      if (self::$customerMap === null) {
+if (self::$customerMap === null) {
     $rows = DB::table('tujuanfillterr')
         ->select('tujuan', 'code_planner', 'Planner', 'dist_channel', 'pulau', 'area',
                  'biaya_kuli', 'transport_lead_time', 'Monitoring')
@@ -104,15 +104,35 @@ class LogistikImport implements ToCollection, WithHeadingRow, WithEvents, WithCa
         $t = $this->normTujuan($r->tujuan);
         if ($t === '') continue;
 
-        self::$customerMap[$t] ??= $r;   // baris pertama per tujuan
+        self::$customerMap[$t] ??= $r;
 
         $code = strtolower(trim((string) $r->code_planner));
         if ($code !== '') {
             self::$customerByCode[$code . '|' . $t] ??= $r;
         }
     }
-}
 
+    // ---- peta area -> planner & PIC (paling sering muncul di master) ----
+    $tally = [];
+    foreach ($rows as $r) {
+        $a = trim((string) $r->area);
+        if ($a === '') continue;
+
+        $p = trim((string) $r->Planner);
+        $m = trim((string) $r->Monitoring);
+
+        if ($p !== '') $tally[$a]['p'][$p] = ($tally[$a]['p'][$p] ?? 0) + 1;
+        if ($m !== '') $tally[$a]['m'][$m] = ($tally[$a]['m'][$m] ?? 0) + 1;
+    }
+
+    self::$areaMap = [];
+    foreach ($tally as $a => $t) {
+        self::$areaMap[(string) $a] = [
+            'planner' => isset($t['p']) ? (string) array_search(max($t['p']), $t['p']) : null,
+            'pic'     => isset($t['m']) ? (string) array_search(max($t['m']), $t['m']) : null,
+        ];
+    }
+}
         if (self::$tarifByRoute === null) {
             self::$tarifByRoute = DB::table(self::TARIF_TABLE)
                 ->select('ekpedisi', 'route', 'mobil', 'biaya_kirim', 'kubikasi', 'tonase')
@@ -825,21 +845,69 @@ $pulau               = ($customerData->pulau ?? null) ?: $this->cleanText($row['
     public function registerEvents(): array
     {
         return [
-            AfterImport::class => function () {
-                try {
-                    $shipments = array_map('strval', array_values(array_unique($this->allNoShipmentInFile)));
+          AfterImport::class => function () {
+    try {
+        $shipments = array_map('strval', array_values(array_unique($this->allNoShipmentInFile)));
 
-                    $this->fillShipmentGaps($shipments);
-                    $this->recalcShipments($shipments);
-                } catch (\Throwable $e) {
-                    logger()->error('LOGISTIK IMPORT AFTER-IMPORT GAGAL', [
-                        'error' => $e->getMessage(),
-                        'line'  => $e->getLine(),
-                    ]);
-                }
-            },
+        $this->fillShipmentGaps($shipments);
+        $this->fillAreaAndPlannerGaps($shipments);   // <-- BARU
+        $this->recalcShipments($shipments);
+    } catch (\Throwable $e) {
+        logger()->error('LOGISTIK IMPORT AFTER-IMPORT GAGAL', [
+            'error' => $e->getMessage(),
+            'line'  => $e->getLine(),
+        ]);
+    }
+},
         ];
     }
+
+    /**
+ * 1) area kosong -> ikut area baris lain di no_shipment yang sama
+ *    (hanya kalau shipment itu cuma punya 1 area; kalau areanya campur, dilewati)
+ * 2) planner / pic_monitoring kosong -> isi dari master berdasarkan area
+ */
+private function fillAreaAndPlannerGaps(array $shipments): void
+{
+    foreach (array_chunk($shipments, 500) as $chunk) {
+        $in = implode(',', array_fill(0, count($chunk), '?'));
+
+        // ---- 1) area dari saudara satu shipment ----
+        DB::update("
+            UPDATE logistik_pengiriman lp
+            JOIN (
+                SELECT no_shipment, MIN(TRIM(area)) AS val
+                FROM logistik_pengiriman
+                WHERE NULLIF(TRIM(area), '') IS NOT NULL
+                  AND no_shipment IN ($in)
+                GROUP BY no_shipment
+                HAVING COUNT(DISTINCT TRIM(area)) = 1
+            ) x ON lp.no_shipment = x.no_shipment
+            SET lp.area = x.val
+            WHERE NULLIF(TRIM(lp.area), '') IS NULL
+              AND lp.no_shipment IN ($in)
+        ", array_merge($chunk, $chunk));
+
+        // ---- 2) planner & PIC dari master per area ----
+        foreach ((self::$areaMap ?? []) as $area => $info) {
+            if (!empty($info['planner']) && isset($this->dbColumns['planner'])) {
+                DB::table(self::TABLE)
+                    ->whereIn('no_shipment', $chunk)
+                    ->where('area', (string) $area)
+                    ->whereRaw("NULLIF(TRIM(planner), '') IS NULL")
+                    ->update(['planner' => $info['planner']]);
+            }
+
+            if (!empty($info['pic']) && isset($this->dbColumns['pic_monitoring'])) {
+                DB::table(self::TABLE)
+                    ->whereIn('no_shipment', $chunk)
+                    ->where('area', (string) $area)
+                    ->whereRaw("NULLIF(TRIM(pic_monitoring), '') IS NULL")
+                    ->update(['pic_monitoring' => $info['pic']]);
+            }
+        }
+    }
+}
 
     /** isi route/mobil/ekpedisi yang kosong dari baris lain dalam shipment yang sama */
     private function fillShipmentGaps(array $shipments): void

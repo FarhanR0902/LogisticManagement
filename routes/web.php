@@ -105,12 +105,17 @@ Route::post('/logistik/import', [LogistikController::class, 'import']);
 Route::get('/export', [LogistikController::class, 'export']);
 Route::get('/chart/status', [LogistikController::class, 'chartStatus']);
 
+
+Route::get('/storage',        [StorageController::class, 'index'])->name('storage.index');
+Route::get('/storage/data',   [StorageController::class, 'data'])->name('storage.data');
+Route::get('/storage/export', [StorageController::class, 'export']);
+Route::delete('/storage/delete-all', [StorageController::class, 'deleteAll']);
 /*
 |--------------------------------------------------------------------------
 | PLANNER (FIXED + CLEAN PREFIX)
 |--------------------------------------------------------------------------
 */
-
+Route::get('/_s', fn() => config('session.lifetime') . ' / ' . config('session.driver') . ' / ' . var_export(config('session.secure'), true) . ' / ' . var_export(config('session.domain'), true));
 Route::prefix('planner')->group(function () {
 
     Route::post('/planner/data-ajax', [App\Http\Controllers\Planner\PlannerController::class, 'dataAjax'])
@@ -121,6 +126,8 @@ Route::prefix('planner')->group(function () {
 
     Route::get('/planner/in-transit', [PlannerController::class, 'inTransit'])
     ->name('planner.intransit');
+
+    Route::get('/planner/in-gudang', [PlannerController::class, 'inGudang'])->name('planner.ingudang');
 
     Route::get('/dashboard', [PlannerController::class, 'dashboard'])
         ->name('planner.dashboard');

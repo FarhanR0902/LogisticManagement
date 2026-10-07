@@ -42,13 +42,12 @@
 
         /* ================= KPI ================= */
 
-        .kpi-row {
-            display: grid;
-            grid-template-columns: repeat(5, 1fr);
-            gap: 18px;
-            margin-bottom: 25px;
-        }
-
+     .kpi-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 18px;
+    margin-bottom: 25px;
+}
         .kpi {
               border-radius:18px;
     padding:28px;
@@ -236,6 +235,9 @@
             }
 
         }
+        .pink {
+    background: #ec4899;
+}
 
         @media(max-width:768px) {
 
@@ -303,6 +305,12 @@ $belum_tiba_rate = $total_data > 0
             <h2>{{ $total_data }}</h2>
         </div>
     </a>
+    <a href="{{ route('planner.ingudang') }}">
+    <div class="kpi pink">
+        <h4>🏭 In Gudang</h4>
+        <h2>{{ $total_in_gudang ?? 0 }}</h2>
+    </div>
+</a>
     
 
    <a href="{{ route('planner.intransit') }}">

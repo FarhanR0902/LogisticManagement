@@ -24,10 +24,36 @@
 
         .filter-box { background: #fff; padding: 16px 20px; border-radius: 14px; box-shadow: 0 4px 16px rgba(0,0,0,.07); margin-bottom: 20px; }
         .filter-box form { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
-        .filter-box input, .filter-box select { padding: 11px 14px; border: 1px solid #cbd5e1; border-radius: 10px; font-size: 15px; min-width: 190px; outline: none; }
-        .filter-box input:focus, .filter-box select:focus { border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,.15); }
+        .filter-box input[type=text], .filter-box select { padding: 11px 14px; border: 1px solid #cbd5e1; border-radius: 10px; font-size: 15px; min-width: 190px; outline: none; }
+        .filter-box input[type=text]:focus, .filter-box select:focus { border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,.15); }
         .btn { padding: 11px 20px; border: none; border-radius: 10px; font-size: 15px; font-weight: 600; cursor: pointer; color: #fff; text-decoration: none; display: inline-block; }
         .btn-primary { background: #2563eb; } .btn-reset { background: #ef4444; }
+
+        /* ===== MULTI SELECT DROPDOWN (checklist + search) ===== */
+        .ms-dd { position: relative; width: 220px; flex: 0 0 220px; }
+        .ms-dd-btn {
+            width: 100%; height: 44px; display: flex; justify-content: space-between; align-items: center; gap: 8px;
+            background: #fff; border: 1px solid #cbd5e1; border-radius: 10px; padding: 0 14px;
+            font-size: 15px; cursor: pointer; color: #1e293b;
+        }
+        .ms-dd-btn:hover { border-color: #3b82f6; }
+        .ms-dd-btn .ms-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .ms-dd.has-value .ms-dd-btn { border-color: #3b82f6; background: #eff6ff; }
+        .ms-dd.has-value .ms-label { font-weight: 600; color: #1e40af; }
+        .ms-dd-panel {
+            position: absolute; top: 48px; left: 0; z-index: 9999; width: 270px;
+            background: #fff; border: 1px solid #cbd5e1; border-radius: 10px;
+            box-shadow: 0 10px 25px rgba(0,0,0,.2); padding: 10px;
+        }
+        .ms-dd-panel .ms-search { width: 100%; box-sizing: border-box; min-width: 0 !important; padding: 8px 10px !important; font-size: 14px !important; margin-bottom: 4px; }
+        .ms-dd-actions { display: flex; justify-content: space-between; font-size: 13px; margin: 6px 2px; }
+        .ms-dd-actions a { color: #2563eb; text-decoration: none; font-weight: 600; }
+        .ms-dd-actions a:hover { text-decoration: underline; }
+        .ms-dd-list { max-height: 260px; overflow-y: auto; }
+        .ms-dd-item { display: flex; align-items: center; gap: 8px; padding: 5px 6px; margin: 0; font-size: 14px; cursor: pointer; }
+        .ms-dd-item:hover { background: #f1f5f9; border-radius: 6px; }
+        .ms-dd-item input { width: auto; min-width: 0; margin: 0; }
+        .ms-empty { padding: 8px; font-size: 13px; color: #94a3b8; display: none; }
 
         .card { background: #fff; padding: 16px; border-radius: 14px; box-shadow: 0 4px 20px rgba(0,0,0,.08); overflow-x: auto; }
         table { width: 100%; border-collapse: collapse; font-size: 14px; }
@@ -64,7 +90,9 @@
 
         @media (max-width: 768px) {
             .container { margin-left: 0; padding: 15px; }
-            .filter-box input, .filter-box select, .btn { width: 100%; }
+            .filter-box input[type=text], .filter-box select, .btn { width: 100%; }
+            .ms-dd { width: 100%; flex: 1 1 100%; }
+            .ms-dd-panel { width: 100%; }
         }
     </style>
 </head>
@@ -77,6 +105,17 @@
 
         <h2>🚚 In Transit</h2>
 
+        @php
+            $gudangAsalList = $gudangAsalList ?? ['KACS', 'SENTUL', 'CCIE'];
+
+            // dropdown multi: name => [label default, daftar pilihan]
+            $multiFilters = [
+                'area'           => ['Semua Area', $areaList],
+                'pic_monitoring' => ['Semua PIC', $picList],
+                'gudang_asal'    => ['Semua Gudang Asal', $gudangAsalList],
+            ];
+        @endphp
+
         <div class="filter-box">
             <form method="GET" action="{{ $formRoute ?? route('monitoring.intransit') }}">
 
@@ -86,29 +125,33 @@
 
                 <input type="text" name="q" value="{{ request('q') }}" placeholder="Cari shipment / tujuan / ekspedisi / driver / no pol...">
 
-                <select name="area">
-                    <option value="">Semua Area</option>
-                    @foreach($areaList as $a)
-                        <option value="{{ $a }}" {{ request('area') == $a ? 'selected' : '' }}>{{ $a }}</option>
-                    @endforeach
-                </select>
-
-                <select name="pic_monitoring">
-                    <option value="">Semua PIC</option>
-                    @foreach($picList as $p)
-                        <option value="{{ $p }}" {{ request('pic_monitoring') == $p ? 'selected' : '' }}>{{ $p }}</option>
-                    @endforeach
-                </select>
-
-                @php $gudangAsalList = $gudangAsalList ?? ['KACS', 'SENTUL', 'CCIE']; @endphp
-                @if(count($gudangAsalList))
-                    <select name="gudang_asal">
-                        <option value="">Semua Gudang Asal</option>
-                        @foreach($gudangAsalList as $g)
-                            <option value="{{ $g }}" {{ request('gudang_asal') == $g ? 'selected' : '' }}>{{ $g }}</option>
-                        @endforeach
-                    </select>
-                @endif
+                @foreach($multiFilters as $name => [$defaultLabel, $items])
+                    @continue(!count($items))
+                    @php $selected = array_values(array_filter((array) request($name, []))); @endphp
+                    <div class="ms-dd {{ count($selected) ? 'has-value' : '' }}" data-default="{{ $defaultLabel }}">
+                        <button type="button" class="ms-dd-btn">
+                            <span class="ms-label">{{ $defaultLabel }}</span>
+                            <span>▾</span>
+                        </button>
+                        <div class="ms-dd-panel" style="display:none;">
+                            <input type="text" class="ms-search" placeholder="Cari..." autocomplete="off">
+                            <div class="ms-dd-actions">
+                                <a href="#" class="ms-all">Pilih semua</a>
+                                <a href="#" class="ms-clear">Hapus</a>
+                            </div>
+                            <div class="ms-dd-list">
+                                @foreach($items as $item)
+                                    <label class="ms-dd-item">
+                                        <input type="checkbox" class="ms-chk" name="{{ $name }}[]" value="{{ $item }}"
+                                            {{ in_array((string) $item, array_map('strval', $selected), true) ? 'checked' : '' }}>
+                                        <span>{{ $item }}</span>
+                                    </label>
+                                @endforeach
+                                <div class="ms-empty">Tidak ditemukan</div>
+                            </div>
+                        </div>
+                    </div>
+                @endforeach
 
                 <button type="submit" class="btn btn-primary"><i class="fa-solid fa-magnifying-glass"></i> Filter</button>
                 <a href="{{ $formRoute ?? route('monitoring.intransit') }}" class="btn btn-reset">Reset</a>
@@ -196,6 +239,79 @@
         </div>
 
     </div>
+
+    <script>
+        (function () {
+            // label tombol: 0 = default, 1-2 = nama, >2 = "N dipilih"
+            function updateLabel(dd) {
+                var vals = Array.prototype.map.call(dd.querySelectorAll('.ms-chk:checked'), function (c) { return c.value; });
+                var label = dd.getAttribute('data-default');
+                if (vals.length === 1 || vals.length === 2) label = vals.join(', ');
+                else if (vals.length > 2) label = vals.length + ' dipilih';
+                dd.querySelector('.ms-label').textContent = label;
+                dd.classList.toggle('has-value', vals.length > 0);
+            }
+
+            function visibleItems(dd) {
+                return Array.prototype.filter.call(dd.querySelectorAll('.ms-dd-item'), function (el) {
+                    return el.style.display !== 'none';
+                });
+            }
+
+            document.querySelectorAll('.ms-dd').forEach(function (dd) {
+                var panel  = dd.querySelector('.ms-dd-panel');
+                var search = dd.querySelector('.ms-search');
+                var empty  = dd.querySelector('.ms-empty');
+
+                updateLabel(dd); // kondisi awal dari hasil filter sebelumnya
+
+                // buka / tutup panel (tutup dropdown lain)
+                dd.querySelector('.ms-dd-btn').addEventListener('click', function (e) {
+                    e.stopPropagation();
+                    var willOpen = panel.style.display === 'none';
+                    document.querySelectorAll('.ms-dd-panel').forEach(function (p) { p.style.display = 'none'; });
+                    panel.style.display = willOpen ? 'block' : 'none';
+                    if (willOpen) search.focus();
+                });
+
+                panel.addEventListener('click', function (e) { e.stopPropagation(); });
+
+                // search di dalam dropdown
+                search.addEventListener('input', function () {
+                    var q = search.value.toLowerCase().trim();
+                    var shown = 0;
+                    dd.querySelectorAll('.ms-dd-item').forEach(function (el) {
+                        var ok = el.textContent.toLowerCase().indexOf(q) !== -1;
+                        el.style.display = ok ? '' : 'none';
+                        if (ok) shown++;
+                    });
+                    empty.style.display = shown ? 'none' : 'block';
+                });
+
+                dd.querySelectorAll('.ms-chk').forEach(function (c) {
+                    c.addEventListener('change', function () { updateLabel(dd); });
+                });
+
+                // pilih semua (hanya yang tampil sesuai hasil search)
+                dd.querySelector('.ms-all').addEventListener('click', function (e) {
+                    e.preventDefault();
+                    visibleItems(dd).forEach(function (el) { el.querySelector('.ms-chk').checked = true; });
+                    updateLabel(dd);
+                });
+
+                dd.querySelector('.ms-clear').addEventListener('click', function (e) {
+                    e.preventDefault();
+                    dd.querySelectorAll('.ms-chk').forEach(function (c) { c.checked = false; });
+                    updateLabel(dd);
+                });
+            });
+
+            // klik di luar -> tutup semua panel
+            document.addEventListener('click', function () {
+                document.querySelectorAll('.ms-dd-panel').forEach(function (p) { p.style.display = 'none'; });
+            });
+        })();
+    </script>
 
 </body>
 

@@ -527,27 +527,37 @@ private function inTransitEstimasiSql(): string
 
 public function inTransit(Request $request)
 {
-    $today   = date('Y-m-d');
-    $todayTs = strtotime($today);
-    $soon    = date('Y-m-d', strtotime('+3 days'));
-    $est     = $this->inTransitEstimasiSql();
+   $today   = date('Y-m-d');
+$todayTs = strtotime($today);
+$soon    = date('Y-m-d', strtotime('+3 days'));
+$est     = $this->inTransitEstimasiSql();
 
-    $base = $this->inTransitQuery();
+$base = $this->inTransitQuery();
 
-    // filter dari dashboard (tanggal/bulan/tahun/area/channel/pulau) ikut terbawa
-    $this->applyFilter($base, $request);
+// filter dari dashboard (tanggal/bulan/tahun/area/channel/pulau) ikut terbawa
+// (area sudah mendukung array setelah applyFilter diubah)
+$this->applyFilter($base, $request);
 
-    if ($request->filled('pic_monitoring')) {
-        $base->where('pic_monitoring', $request->input('pic_monitoring'));
-    }
-    if ($request->filled('q')) {
-        $s = trim($request->input('q'));
-        $base->where(function ($q) use ($s) {
-            foreach (['no_shipment', 'tujuan', 'ekpedisi', 'nama_driver', 'no_pol', 'mobil'] as $col) {
-                $q->orWhere($col, 'like', "%{$s}%");
-            }
-        });
-    }
+// ===== MULTI FILTER dari halaman in transit =====
+$pics = array_values(array_filter((array) $request->input('pic_monitoring', []), 'strlen'));
+if (!empty($pics)) {
+    $base->whereIn('pic_monitoring', $pics);
+}
+
+$asal = array_values(array_filter((array) $request->input('gudang_asal', []), 'strlen'));
+if (!empty($asal)) {
+    $placeholders = implode(',', array_fill(0, count($asal), '?'));
+    $base->whereRaw('(' . $this->inTransitAsalSql() . ") IN ({$placeholders})", $asal);
+}
+
+if ($request->filled('q')) {
+    $s = trim($request->input('q'));
+    $base->where(function ($q) use ($s) {
+        foreach (['no_shipment', 'tujuan', 'ekpedisi', 'nama_driver', 'no_pol', 'mobil'] as $col) {
+            $q->orWhere($col, 'like', "%{$s}%");
+        }
+    });
+}
 
     // ===== ringkasan =====
     $sum = (clone $base)->selectRaw("
@@ -625,6 +635,18 @@ $list = (clone $base)
     $formRoute = route('manager.intransit');
 
     return view('monitoring.in_transit', compact('list', 'summary', 'areaList', 'picList', 'formRoute'));
+}
+
+private function inTransitAsalSql(): string
+{
+    $k1 = "COALESCE(NULLIF(TRIM(tanggal_keluar_gudang),''),'1900-01-01')";
+    $k2 = "COALESCE(NULLIF(TRIM(tanggal_keluar_gudang_2),''),'1900-01-01')";
+    $k3 = "COALESCE(NULLIF(TRIM(tanggal_keluar_gudang_3),''),'1900-01-01')";
+
+    return "CASE
+        WHEN {$k3} > '1900-01-01' AND {$k3} >= {$k1} AND {$k3} >= {$k2} THEN 'CCIE'
+        WHEN {$k2} > '1900-01-01' AND {$k2} >= {$k1} AND {$k2} >= {$k3} THEN 'SENTUL'
+        ELSE 'KACS' END";
 }
 
 // =====================================================
@@ -763,9 +785,10 @@ public function inTransitPasuruan(Request $request)
 
         // AREA
 
-        if ($request->area) {
-            $query->where('area', $request->area);
-        }
+      $areas = array_values(array_filter((array) $request->input('area', []), 'strlen'));
+if (!empty($areas)) {
+    $query->whereIn('area', $areas);
+}
 
         if ($request->dist_channel) {
             $query->where('dist_channel', $request->dist_channel);
