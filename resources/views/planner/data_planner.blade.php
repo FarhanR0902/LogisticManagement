@@ -385,6 +385,7 @@
                 <label class="form-label fw-bold">Filter data Import</label>
                 <input type="date" id="filterCreateTgl" class="form-control">
             </div>
+                 
 
             <div class="modal fade" id="addModal" tabindex="-1" aria-hidden="true">
                 <div class="modal-dialog modal-xl modal-dialog-centered">
@@ -555,27 +556,34 @@
                 </div>
             </div>
 
-            <div class="row mb-3">
+           <div class="col-md-3">
+    <label class="form-label fw-bold">Filter Dist Channel</label>
+    <select id="filterDistChannel" class="form-select" multiple data-placeholder="Semua Dist Channel">
+        @foreach($distChannelList as $dc)
+            <option value="{{ $dc }}">{{ $dc }}</option>
+        @endforeach
+    </select>
+</div>
 
-                <div class="col-md-3">
-                    <label class="form-label fw-bold">Filter Planner</label>
-                    <select id="filterPlanner" class="form-select">
-                        <option value="">Semua Planner</option>
-                        @foreach($planners as $planner)
-                            <option value="{{ $planner }}">{{ $planner }}</option>
-                        @endforeach
-                    </select>
-                </div>
+<div class="col-md-3">
+    <label class="form-label fw-bold">Filter Planner</label>
+    <select id="filterPlanner" class="form-select" multiple data-placeholder="Semua Planner">
+        @foreach($planners as $planner)
+            <option value="{{ $planner }}">{{ $planner }}</option>
+        @endforeach
+    </select>
+</div>
 
-                <div class="col-md-3">
-                    <label class="form-label fw-bold">Filter Area</label>
-                    <select id="filterArea" class="form-select">
-                        <option value="">Semua Area</option>
-                        @foreach($areas as $area)
-                            <option value="{{ $area }}">{{ $area }}</option>
-                        @endforeach
-                    </select>
-                </div>
+<div class="col-md-3">
+    <label class="form-label fw-bold">Filter Area</label>
+    <select id="filterArea" class="form-select" multiple data-placeholder="Semua Area">
+        @foreach($areas as $area)
+            <option value="{{ $area }}">{{ $area }}</option>
+        @endforeach
+    </select>
+</div>
+
+
 
                 {{-- ===== SUMMARY: FIELD YANG PALING BANYAK KOSONG (via AJAX ringan) ===== --}}
                 <div class="card mb-3">
@@ -833,9 +841,10 @@
         // ========================================================
         // FILTER STATE
         // ========================================================
-        var areaFilter = '';
-        var plannerFilter = '';
-        var createTglFilter = '';
+    var areaFilter = [];
+var plannerFilter = [];
+var createTglFilter = '';
+var distChannelFilter = [];
 
         // ========================================================
         // INIT DATATABLES - SERVER SIDE
@@ -853,6 +862,7 @@
                 data: function(d) {
                     d.planner_filter = plannerFilter;
                     d.area_filter = areaFilter;
+                        d.dist_channel_filter = distChannelFilter; 
                     d.create_tgl_filter = createTglFilter;
                     d._token = '{{ csrf_token() }}';
                 },
@@ -997,12 +1007,13 @@
         // =========================
         // SELECT2 (filter atas)
         // =========================
-        $('#filterPlanner, #filterArea').select2({
-            theme: 'bootstrap-5',
-            width: '100%',
-            placeholder: function() { return $(this).find('option:first').text(); },
-            allowClear: true
-        });
+    $('#filterPlanner, #filterArea, #filterDistChannel').select2({
+    theme: 'bootstrap-5',
+    width: '100%',
+    placeholder: function() { return $(this).data('placeholder'); },
+    allowClear: true,
+    closeOnSelect: false
+});
 
         // Select2 untuk dropdown DI DALAM baris
         function initSelect2Row() {
@@ -1051,32 +1062,38 @@
         // ======================
         // FILTER: Area / Planner / Tanggal Import
         // ======================
-        $('#filterArea').on('change', function() {
-            areaFilter = $(this).val();
-            table.draw();
-            loadAlertControl();
-        });
+$('#filterArea').on('change', function() {
+    areaFilter = $(this).val() || [];
+    table.draw();
+    loadAlertControl();
+});
 
-        $('#filterPlanner').on('change', function() {
-            plannerFilter = $(this).val();
-            table.draw();
-            loadAlertControl();
-        });
+$('#filterPlanner').on('change', function() {
+    plannerFilter = $(this).val() || [];
+    table.draw();
+    loadAlertControl();
+});
 
+$('#filterDistChannel').on('change', function() {
+    distChannelFilter = $(this).val() || [];
+    table.draw();
+    loadAlertControl();
+});
         $('#filterCreateTgl').on('change', function() {
             createTglFilter = $(this).val();
             table.draw();
         });
 
-        $('#btnExport').on('click', function(e) {
-            e.preventDefault();
-            let planner = $('#filterPlanner').val() || '';
-            let area = $('#filterArea').val() || '';
-            let url = "{{ route('planner.export') }}" +
-                "?planner=" + encodeURIComponent(planner) +
-                "&area=" + encodeURIComponent(area);
-            window.location.href = url;
-        });
+       $('#btnExport').on('click', function(e) {
+    e.preventDefault();
+    const params = new URLSearchParams();
+    ($('#filterPlanner').val() || []).forEach(v => params.append('planner[]', v));
+    ($('#filterDistChannel').val() || []).forEach(v => params.append('dist_channel[]', v));
+    ($('#filterArea').val() || []).forEach(v => params.append('area[]', v));
+
+    window.location.href = "{{ route('planner.export') }}" +
+        (params.toString() ? '?' + params.toString() : '');
+});
 
         // ==========================================================
         // DIRTY TRACKING + SAVE ALL
@@ -1248,7 +1265,8 @@
         function loadAlertControl() {
             $.getJSON("{{ route('planner.alerts') }}", {
                 planner_filter: plannerFilter,
-                area_filter: areaFilter
+                area_filter: areaFilter,
+                dist_channel_filter: distChannelFilter
             }, function(res) {
                 renderMissingFieldSummaryPlanner(res.missingSummary || {});
                 renderAlertControlPlanner(res.alerts || []);

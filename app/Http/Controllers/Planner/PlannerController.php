@@ -896,6 +896,17 @@ DB::table('logistik_pengiriman')
         );
     }
 
+    private function multiInput(Request $request, string ...$keys): array
+{
+    foreach ($keys as $key) {
+        $vals = array_values(array_filter(
+            (array) $request->input($key, []),
+            fn($v) => $v !== null && $v !== ''
+        ));
+        if (!empty($vals)) return $vals;
+    }
+    return [];
+}
    private function cleanTime($value): ?string
 {
     $value = trim((string) $value);
@@ -920,15 +931,18 @@ DB::table('logistik_pengiriman')
         $totalRecords = (clone $baseQuery)->count();
 
         // ===== FILTER: planner / area / tanggal import =====
-        if ($request->filled('planner_filter')) {
-            $baseQuery->where('planner', $request->input('planner_filter'));
-        }
-        if ($request->filled('area_filter')) {
-            $baseQuery->where('area', $request->input('area_filter'));
-        }
-        if ($request->filled('create_tgl_filter')) {
-            $baseQuery->whereDate('create_tgl', $request->input('create_tgl_filter'));
-        }
+       if ($vals = $this->multiInput($request, 'planner_filter')) {
+    $baseQuery->whereIn('planner', $vals);
+}
+if ($vals = $this->multiInput($request, 'area_filter')) {
+    $baseQuery->whereIn('area', $vals);
+}
+if ($vals = $this->multiInput($request, 'dist_channel_filter')) {
+    $baseQuery->whereIn('dist_channel', $vals);
+}
+if ($request->filled('create_tgl_filter')) {
+    $baseQuery->whereDate('create_tgl', $request->input('create_tgl_filter'));
+}
 
         // ===== GLOBAL SEARCH (kolom-kolom penting saja) =====
         if ($searchValue !== '') {
@@ -1423,13 +1437,15 @@ public function alerts(Request $request)
         ->select('id', 'no_shipment', 'mobil', 'ekpedisi', 'route', 'kubikasi', 'nama_driver', 'no_pol');
 
     // ===== FILTER ikut sama seperti dataAjax() =====
-    if ($request->filled('planner_filter')) {
-        $query->where('planner', $request->input('planner_filter'));
-    }
-    if ($request->filled('area_filter')) {
-        $query->where('area', $request->input('area_filter'));
-    }
-
+   if ($vals = $this->multiInput($request, 'planner_filter')) {
+    $query->whereIn('planner', $vals);
+}
+if ($vals = $this->multiInput($request, 'area_filter')) {
+    $query->whereIn('area', $vals);
+}
+if ($vals = $this->multiInput($request, 'dist_channel_filter')) {
+    $query->whereIn('dist_channel', $vals);
+}
     $rows = $query->where(function ($q) {
             $q->whereNull('mobil')->orWhere('mobil', '')
               ->orWhereNull('ekpedisi')->orWhere('ekpedisi', '')
@@ -2064,15 +2080,15 @@ $summary = [
 
     return view('planner.in_gudang', compact('list', 'summary', 'areaList', 'plannerList'));
 }
-
 public function exportPlanner(Request $request)
 {
     $filters = [
-        'planner'    => $request->input('planner',    $request->input('planner_filter')),
-        'area'       => $request->input('area',       $request->input('area_filter')),
-        'create_tgl' => $request->input('create_tgl', $request->input('create_tgl_filter')),
-        'bulan'      => $request->input('bulan'),
-        'tahun'      => $request->input('tahun'),
+        'planner'      => $this->multiInput($request, 'planner', 'planner_filter'),
+        'area'         => $this->multiInput($request, 'area', 'area_filter'),
+        'dist_channel' => $this->multiInput($request, 'dist_channel', 'dist_channel_filter'),
+        'create_tgl'   => $request->input('create_tgl', $request->input('create_tgl_filter')),
+        'bulan'        => $request->input('bulan'),
+        'tahun'        => $request->input('tahun'),
     ];
 
     return Excel::download(

@@ -67,11 +67,12 @@ class MonitoringController extends Controller
         ));
     }
 
-   public function export(Request $request)
+public function export(Request $request)
 {
     $filters = $request->only([
-        'pic_monitoring', 'area', 'bulan', 'tahun',
-        'keluar_gudang_tgl', 'tgl_dari', 'tgl_sampai',
+        'pic_monitoring', 'dist_channel', 'area', 'bulan', 'tahun',
+        'keluar_gudang_dari', 'keluar_gudang_sampai',
+        'tgl_dari', 'tgl_sampai',
     ]);
 
     return Excel::download(
@@ -93,6 +94,11 @@ class MonitoringController extends Controller
             return LogistikPengiriman::whereNotNull('area')
                 ->distinct()->orderBy('area')->pluck('area');
         });
+        $distChannelList = Cache::remember('monitoring_dist_channel_list', 3600, function () {
+    return LogistikPengiriman::whereNotNull('dist_channel')
+        ->where('dist_channel', '!=', '')
+        ->distinct()->orderBy('dist_channel')->pluck('dist_channel');
+});
 
         $picList = Cache::remember('monitoring_pic_list', 3600, function () {
             return LogistikPengiriman::whereNotNull('pic_monitoring')
@@ -140,7 +146,8 @@ class MonitoringController extends Controller
         return view('monitoring.data_monitoring', compact(
             'areaList',
             'picList',
-             'tujuanList', 
+             'tujuanList',
+             'distChannelList',
             'akurasiTiba',
             'akurasiBongkar',
             'akurasiQty',
@@ -173,7 +180,48 @@ class MonitoringController extends Controller
         'message' => 'Data transport laut berhasil diupdate'
     ]);
 }
+private function multiInput(Request $request, string $key): array
+{
+    return array_values(array_filter(
+        (array) $request->input($key, []),
+        fn($v) => $v !== null && $v !== ''
+    ));
+}
 
+private function applyCommonFilters($query, Request $request): void
+{
+    if ($request->filled('jenis')) {
+        $query->where('transportasi', strtoupper($request->input('jenis')));
+    }
+
+    foreach (['area', 'pic_monitoring', 'dist_channel'] as $col) {
+        $vals = $this->multiInput($request, $col);
+        if (!empty($vals)) {
+            $query->whereIn($col, $vals);
+        }
+    }
+
+    $keluarTerakhir = "GREATEST(
+        COALESCE(tanggal_keluar_gudang,'1900-01-01'),
+        COALESCE(tanggal_keluar_gudang_2,'1900-01-01'),
+        COALESCE(tanggal_keluar_gudang_3,'1900-01-01')
+    )";
+
+    foreach (['bulan' => 'MONTH', 'tahun' => 'YEAR'] as $key => $fn) {
+        $vals = array_map('intval', $this->multiInput($request, $key));
+        if (!empty($vals)) {
+            $ph = implode(',', array_fill(0, count($vals), '?'));
+            $query->whereRaw("{$fn}({$keluarTerakhir}) IN ({$ph})", $vals);
+        }
+    }
+
+    if ($request->filled('keluar_gudang_dari')) {
+        $query->whereDate('tanggal_keluar_gudang', '>=', $request->input('keluar_gudang_dari'));
+    }
+    if ($request->filled('keluar_gudang_sampai')) {
+        $query->whereDate('tanggal_keluar_gudang', '<=', $request->input('keluar_gudang_sampai'));
+    }
+}
     // =====================================================
     // ENDPOINT SERVER-SIDE DATATABLES
     // Hanya ambil & hitung baris yang benar-benar tampil
@@ -190,44 +238,14 @@ class MonitoringController extends Controller
         $baseQuery = LogistikPengiriman::query();
  
         // ================= FILTER =================
-        if ($request->filled('jenis')) {
-            $baseQuery->where('transportasi', strtoupper($request->jenis));
-        }
-$areas = array_values(array_filter((array) $request->input('area', [])));
-if (!empty($areas)) {
-    $baseQuery->whereIn('area', $areas);
-}
-        if ($request->filled('pic_monitoring')) {
-            $baseQuery->where('pic_monitoring', $request->input('pic_monitoring'));
-        }
-        if ($request->filled('bulan')) {
-            $baseQuery->whereRaw("
-                MONTH(GREATEST(
-                    COALESCE(tanggal_keluar_gudang,'1900-01-01'),
-                    COALESCE(tanggal_keluar_gudang_2,'1900-01-01'),
-                    COALESCE(tanggal_keluar_gudang_3,'1900-01-01')
-                )) = ?
-            ", [$request->input('bulan')]);
-        }
-        if ($request->filled('tahun')) {
-            $baseQuery->whereRaw("
-                YEAR(GREATEST(
-                    COALESCE(tanggal_keluar_gudang,'1900-01-01'),
-                    COALESCE(tanggal_keluar_gudang_2,'1900-01-01'),
-                    COALESCE(tanggal_keluar_gudang_3,'1900-01-01')
-                )) = ?
-            ", [$request->input('tahun')]);
-        }
-        if ($request->filled('keluar_gudang_tgl')) {
-            $baseQuery->whereDate('tanggal_keluar_gudang', $request->input('keluar_gudang_tgl'));
-        }
+      $this->applyCommonFilters($baseQuery, $request);
      
  $kelFilter = array_filter((array) $request->input('kelengkapan', []));
 if (!empty($kelFilter)) {
-  $levelMap = [
+$levelMap = [
     'lengkap'           => [1],
     'sampai_tujuan'     => [2],
-    'belum_lengkap'     => [3, 4],
+    'belum_lengkap'     => [3],        // sebelumnya [3, 4]
     'belum_jatuh_tempo' => [0],
 ];
     $levels = [];
@@ -240,7 +258,7 @@ if (!empty($kelFilter)) {
 
     // kalau semua level dipilih, filter tidak perlu dipasang
     // kalau semua level dipilih, filter tidak perlu dipasang
-if (!empty($levels) && count($levels) < 5) {
+if (!empty($levels) && count($levels) < 4) {
         $baseQuery->whereRaw('(' . $this->kelengkapanSql() . ') IN (' . implode(',', $levels) . ')');
     }
 }
@@ -493,20 +511,31 @@ if ($blocked) {
             ? '<span class="badge ' . $statusBongkarClass . '">' . e($statusBongkar) . '</span>'
             : '-';
 
-        // ===== Kelengkapan Data (per baris, sama logic seperti JS lama) =====
-        $today = strtotime(date('Y-m-d'));
-        $isOverdue = ($estimasi && !$blocked) ? ($estimasi < $today) : false;
-
-  $today     = strtotime(date('Y-m-d'));
+// ===== Kelengkapan Data =====
+$today     = strtotime(date('Y-m-d'));
 $isOverdue = ($estimasi && !$blocked) ? ($estimasi < $today) : false;
 
-if (!empty($r->tanggal_tiba)) {
-    $kelengkapanHtml = '<span class="badge completeness-badge blue" title="Sudah sampai tujuan">🚚 Sampai Tujuan</span>';
+$tibaEmpty  = trim((string) $r->tanggal_tiba) === '';
+$wTibaEmpty = trim((string) $r->waktu_tiba) === '';
+
+$tibaEmpty     = trim((string) $r->tanggal_tiba) === '';
+$wTibaEmpty    = trim((string) $r->waktu_tiba) === '';
+$bongkarEmpty  = trim((string) $r->tanggal_bongkar) === '';
+$wBongkarEmpty = trim((string) $r->waktu_bongkar) === '';
+
+if (!$tibaEmpty && !$wTibaEmpty && !$bongkarEmpty && !$wBongkarEmpty) {
+    $kelengkapanHtml = '<span class="badge completeness-badge green" title="Data tiba & bongkar lengkap">✅ Lengkap</span>';
+} elseif (!$tibaEmpty) {
+    $kelengkapanHtml = '<span class="badge completeness-badge blue" title="Sudah sampai tujuan, data bongkar belum lengkap">🚚 Sampai Tujuan</span>';
 } elseif ($isOverdue) {
     $kelengkapanHtml = '<span class="badge completeness-badge red" title="Sudah lewat estimasi tiba, Tanggal Tiba belum diinput">❌ Belum Lengkap</span>';
 } else {
     $kelengkapanHtml = '<span class="badge completeness-badge gray" title="Belum jatuh tempo estimasi tiba">-</span>';
 }
+
+  
+
+
        return [
    // 0 Tanggal Keluar Gudang
 $blocked
@@ -961,37 +990,7 @@ if (!empty($data['ata'])) {
             });
 
         // ================= FILTER — samain persis dgn dataAjax() =================
-        if ($request->filled('jenis')) {
-            $query->where('transportasi', strtoupper($request->input('jenis')));
-        }
-        if ($request->filled('pic_monitoring')) {
-            $query->where('pic_monitoring', $request->input('pic_monitoring'));
-        }
-     $areas = array_values(array_filter((array) $request->input('area', [])));
-if (!empty($areas)) {
-    $query->whereIn('area', $areas);   // sebelumnya $baseQuery (salah)
-}
-        if ($request->filled('bulan')) {
-            $query->whereRaw("
-                MONTH(GREATEST(
-                    COALESCE(tanggal_keluar_gudang,'1900-01-01'),
-                    COALESCE(tanggal_keluar_gudang_2,'1900-01-01'),
-                    COALESCE(tanggal_keluar_gudang_3,'1900-01-01')
-                )) = ?
-            ", [$request->input('bulan')]);
-        }
-        if ($request->filled('tahun')) {
-            $query->whereRaw("
-                YEAR(GREATEST(
-                    COALESCE(tanggal_keluar_gudang,'1900-01-01'),
-                    COALESCE(tanggal_keluar_gudang_2,'1900-01-01'),
-                    COALESCE(tanggal_keluar_gudang_3,'1900-01-01')
-                )) = ?
-            ", [$request->input('tahun')]);
-        }
-        if ($request->filled('keluar_gudang_tgl')) {
-            $query->whereDate('tanggal_keluar_gudang', $request->input('keluar_gudang_tgl'));
-        }
+       $this->applyCommonFilters($query, $request);
 
         $rows = $query->orderBy('estimasi_tiba', 'ASC')->limit(200)->get();
 
@@ -1233,29 +1232,18 @@ private function kelengkapanSql(): string
 
     $overdue = "(NOT {$blocked} AND DATE({$estimasi}) < CURDATE())";
 
-   $tibaEmpty    = $empty('tanggal_tiba');
-$bongkarEmpty = $empty('tanggal_bongkar');
-$tibaFilled   = $filled('tanggal_tiba');
-$wTibaEmpty   = $empty('waktu_tiba');
-$wBongkarEmpty = $empty('waktu_bongkar');
+       $tibaFilled     = $filled('tanggal_tiba');
+    $wTibaFilled    = $filled('waktu_tiba');
+    $bongkarFilled  = $filled('tanggal_bongkar');
+    $wBongkarFilled = $filled('waktu_bongkar');
 
-$missing = "(
-    (CASE WHEN {$tibaEmpty}     THEN 1 ELSE 0 END) +
-    (CASE WHEN {$wTibaEmpty}    THEN 1 ELSE 0 END) +
-    (CASE WHEN {$bongkarEmpty}  THEN 1 ELSE 0 END) +
-    (CASE WHEN {$wBongkarEmpty} THEN 1 ELSE 0 END)
-)";
-
-// 0 = belum jatuh tempo, 1 = lengkap, 2 = sampai tujuan (belum bongkar),
-// 3 = 1 field kosong, 4 = 2+ field kosong
-return "CASE
-    WHEN {$missing} = 0 THEN 1
-    WHEN {$tibaFilled} AND {$bongkarEmpty} THEN 2
-    WHEN COALESCE({$overdue}, 0) = 0 THEN 0
-    WHEN {$missing} = 1 THEN 3
-    ELSE 4
-END";
-}
+    return "CASE
+        WHEN {$tibaFilled} AND {$wTibaFilled} AND {$bongkarFilled} AND {$wBongkarFilled} THEN 1
+        WHEN {$tibaFilled} THEN 2
+        WHEN COALESCE({$overdue}, 0) = 0 THEN 0
+        ELSE 3
+    END";
+} 
 // estimasi tiba: pakai yang tersimpan, kalau kosong hitung keluar terakhir + lead time
 private function inTransitEstimasiSql(): string
 {

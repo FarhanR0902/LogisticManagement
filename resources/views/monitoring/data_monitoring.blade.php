@@ -68,6 +68,8 @@
         #tableMonitoring input[type=text] { min-width: 120px; }
         #tableMonitoring input[type=number] { width: 70px; }
         #tableMonitoring .dt-pair { display: flex; gap: 6px; }
+        #tableMonitoring td > input.flatpickr-date,
+#tableMonitoring td > input.flatpickr-date + input { width: 120px; }
         #tableMonitoring .dt-pair input[type=text].flatpickr-date { width: 100px; }
         #tableMonitoring .dt-pair input[type=text].flatpickr-time { width: 75px; }
         #tableMonitoring .save-btn { width: 70px; }
@@ -166,7 +168,27 @@
             vertical-align: middle;
             line-height: 1.4;
         }
-
+.ms-dd { position: relative; width: 200px; flex: 0 0 200px; }
+.ms-dd-sm { width: 130px; flex: 0 0 130px; }
+.ms-dd-btn {
+    width: 100%; height: 38px; display: flex; justify-content: space-between; align-items: center;
+    background: #fff; border: 1px solid #d1d5db; border-radius: 5px; padding: 0 10px;
+    font-size: 14px; cursor: pointer;
+}
+.ms-dd-btn .ms-dd-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ms-dd-panel {
+    position: absolute; top: 42px; left: 0; z-index: 9999; width: 260px;
+    background: #fff; border: 1px solid #d1d5db; border-radius: 8px;
+    box-shadow: 0 10px 25px rgba(0,0,0,.2); padding: 8px;
+}
+/* sel yang sedang aktif diberi garis biru, mirip Excel */
+#tableMonitoring tbody td:focus-within { outline: 2px solid #2563eb; outline-offset: -2px; }
+.ms-dd-search { margin-bottom: 4px; }
+.ms-dd-actions { display: flex; justify-content: space-between; font-size: 12px; margin: 6px 2px; }
+.ms-dd-list { max-height: 260px; overflow-y: auto; }
+.ms-dd-item { display: flex; align-items: center; gap: 8px; padding: 4px 6px; margin: 0; font-size: 13px; cursor: pointer; }
+.ms-dd-item:hover { background: #f3f4f6; border-radius: 6px; }
+.ms-dd-item input { width: auto; padding: 0; margin: 0; }
         /* ===== AREA DROPDOWN (checklist + search) ===== */
         .area-dd { position: relative; width: 220px; flex: 0 0 220px; }
         .area-dd-btn {
@@ -294,61 +316,95 @@
             </button>
         </div>
 
-        {{-- FILTER --}}
-        <div class="filter-box">
-            <select class="searchable" id="filter_pic_monitoring">
-                <option value="">PIC Monitoring</option>
+    <div class="filter-box">
+
+    {{-- PIC --}}
+    <div class="ms-dd" data-key="pic_monitoring" data-label="PIC Monitoring">
+        <button type="button" class="ms-dd-btn"><span class="ms-dd-label">PIC Monitoring</span><span>▾</span></button>
+        <div class="ms-dd-panel" style="display:none;">
+            <input type="text" class="ms-dd-search" placeholder="Cari..." autocomplete="off">
+            <div class="ms-dd-actions"><a href="#" class="ms-dd-all">Pilih semua</a><a href="#" class="ms-dd-clear">Hapus</a></div>
+            <div class="ms-dd-list">
                 @foreach($picList as $pic)
-                <option value="{{ $pic }}">{{ $pic }}</option>
+                <label class="ms-dd-item"><input type="checkbox" class="ms-chk" value="{{ $pic }}"><span>{{ $pic }}</span></label>
                 @endforeach
-            </select>
-
-            {{-- AREA: dropdown checklist + search --}}
-            <div class="area-dd" id="areaDD">
-                <button type="button" class="area-dd-btn" id="areaDDBtn">
-                    <span id="areaDDLabel">AREA</span> <span>▾</span>
-                </button>
-                <div class="area-dd-panel" id="areaDDPanel" style="display:none;">
-                    <input type="text" id="areaDDSearch" placeholder="Cari area..." autocomplete="off">
-                    <div class="area-dd-actions">
-                        <a href="#" id="areaDDAll">Pilih semua</a>
-                        <a href="#" id="areaDDClear">Hapus</a>
-                    </div>
-                    <div class="area-dd-list" id="areaDDList">
-                        @foreach($areaList as $area)
-                        <label class="area-dd-item">
-                            <input type="checkbox" class="area-chk" value="{{ $area }}">
-                            <span>{{ $area }}</span>
-                        </label>
-                        @endforeach
-                    </div>
-                </div>
             </div>
-
-            <select class="searchable" id="filter_bulan">
-                <option value="">BULAN</option>
-                @for($i=1; $i<=12; $i++)
-                    <option value="{{ $i }}">{{ $i }}</option>
-                @endfor
-            </select>
-
-            <select class="searchable" id="filter_tahun">
-                <option value="">TAHUN</option>
-                @for($i=2023; $i<=2030; $i++)
-                    <option value="{{ $i }}">{{ $i }}</option>
-                @endfor
-            </select>
-
-            <button type="button" class="btn btn-secondary btn-sm" id="btnResetFilter" style="height:38px;">
-                🔄 Reset Filter
-            </button>
         </div>
+    </div>
 
-        <div class="d-flex gap-3 mb-3 align-items-end">
-            <div>
-                <label class="form-label fw-bold">Filter Tanggal Keluar Gudang</label>
-                <input type="date" id="filterKeluarGudangTgl" class="form-control">
+    {{-- DIST CHANNEL --}}
+    <div class="ms-dd" data-key="dist_channel" data-label="DIST CHANNEL">
+        <button type="button" class="ms-dd-btn"><span class="ms-dd-label">DIST CHANNEL</span><span>▾</span></button>
+        <div class="ms-dd-panel" style="display:none;">
+            <input type="text" class="ms-dd-search" placeholder="Cari..." autocomplete="off">
+            <div class="ms-dd-actions"><a href="#" class="ms-dd-all">Pilih semua</a><a href="#" class="ms-dd-clear">Hapus</a></div>
+            <div class="ms-dd-list">
+                @foreach($distChannelList as $dc)
+                <label class="ms-dd-item"><input type="checkbox" class="ms-chk" value="{{ $dc }}"><span>{{ $dc }}</span></label>
+                @endforeach
             </div>
+        </div>
+    </div>
+
+    {{-- AREA (ini yang hilang di file kamu) --}}
+    <div class="area-dd" id="areaDD">
+        <button type="button" class="area-dd-btn" id="areaDDBtn">
+            <span id="areaDDLabel">AREA</span> <span>▾</span>
+        </button>
+        <div class="area-dd-panel" id="areaDDPanel" style="display:none;">
+            <input type="text" id="areaDDSearch" placeholder="Cari area..." autocomplete="off">
+            <div class="area-dd-actions">
+                <a href="#" id="areaDDAll">Pilih semua</a>
+                <a href="#" id="areaDDClear">Hapus</a>
+            </div>
+            <div class="area-dd-list" id="areaDDList">
+                @foreach($areaList as $area)
+                <label class="area-dd-item">
+                    <input type="checkbox" class="area-chk" value="{{ $area }}">
+                    <span>{{ $area }}</span>
+                </label>
+                @endforeach
+            </div>
+        </div>
+    </div>
+
+    {{-- BULAN --}}
+    <div class="ms-dd ms-dd-sm" data-key="bulan" data-label="BULAN">
+        <button type="button" class="ms-dd-btn"><span class="ms-dd-label">BULAN</span><span>▾</span></button>
+        <div class="ms-dd-panel" style="display:none;">
+            <div class="ms-dd-actions"><a href="#" class="ms-dd-all">Pilih semua</a><a href="#" class="ms-dd-clear">Hapus</a></div>
+            <div class="ms-dd-list">
+                @for($i=1; $i<=12; $i++)
+                <label class="ms-dd-item"><input type="checkbox" class="ms-chk" value="{{ $i }}"><span>{{ $i }}</span></label>
+                @endfor
+            </div>
+        </div>
+    </div>
+
+    {{-- TAHUN --}}
+    <div class="ms-dd ms-dd-sm" data-key="tahun" data-label="TAHUN">
+        <button type="button" class="ms-dd-btn"><span class="ms-dd-label">TAHUN</span><span>▾</span></button>
+        <div class="ms-dd-panel" style="display:none;">
+            <div class="ms-dd-actions"><a href="#" class="ms-dd-all">Pilih semua</a><a href="#" class="ms-dd-clear">Hapus</a></div>
+            <div class="ms-dd-list">
+                @for($i=2023; $i<=2030; $i++)
+                <label class="ms-dd-item"><input type="checkbox" class="ms-chk" value="{{ $i }}"><span>{{ $i }}</span></label>
+                @endfor
+            </div>
+        </div>
+    </div>
+
+    {{-- RESET (ini juga hilang) --}}
+    <button type="button" class="btn btn-secondary btn-sm" id="btnResetFilter" style="height:38px;">
+        🔄 Reset Filter
+    </button>
+</div>
+        <div class="d-flex gap-3 mb-3 align-items-end">
+<div>
+    <label class="form-label fw-bold">Filter Tanggal Keluar Gudang</label>
+    <input type="text" id="filterKeluarGudangTgl" class="form-control"
+           placeholder="Pilih rentang tanggal" style="min-width:260px;">
+</div>
             <div>
                 <label class="form-label fw-bold">Export: Dari Tanggal</label>
                 <input type="date" id="exportTglDari" class="form-control">
@@ -389,7 +445,7 @@
                         <th>Dist Channel</th>
                         <th>Area</th>
                         <th>No Shipment</th>
-                        <th class="editable">Tujuan</th>
+                        <th>Tujuan</th>
                         <th>Ekspedisi</th>
                         <th class="editable">PIC</th>
                         <th class="editable">Status</th>
@@ -413,10 +469,10 @@
                         <th class="editable">Reason Bongkar</th>
                         <th class="editable">Remarks</th>
                         <th class="editable">Nama Kapal</th>
-                        <th>ETD</th>
-                        <th>ETA</th>
-                        <th>ATD</th>
-                        <th>ATA</th>
+                        <th class="editable">ETD</th>
+                        <th class="editable">ETA</th>
+                        <th class="editable">ATD</th>
+                        <th class="editable">ATA</th>
                         <th class="th-kelengkapan" style="cursor:pointer;">Kelengkapan Data <span class="kel-ind"></span></th>
                         <th>Action</th>
                     </tr>
@@ -428,11 +484,78 @@
 
             <script>
                 let table;
+                let keluarFp = null;
                 let kelSort = '';     // '', 'desc', 'asc'
                 let kelFilter = [];
                 let lastOrderStr = null;
                 let editedRowIds = new Set(); // id baris yang PERNAH diedit selama sesi ini
 
+                // ================= MULTI-SELECT GENERIK (PIC, Dist Channel, Bulan, Tahun) =================
+function getMulti(key) {
+    return $('.ms-dd[data-key="' + key + '"] .ms-chk:checked').map(function() { return this.value; }).get();
+}
+function getKeluarRange() {
+    if (!keluarFp || !keluarFp.selectedDates.length) return { dari: '', sampai: '' };
+    const s = keluarFp.selectedDates;
+    const fmt = d => keluarFp.formatDate(d, 'Y-m-d');
+    return { dari: fmt(s[0]), sampai: fmt(s[s.length - 1]) };
+}
+
+function updateMultiLabel($dd) {
+    const vals = $dd.find('.ms-chk:checked').map(function() { return this.value; }).get();
+    let label = $dd.data('label');
+    if (vals.length === 1) label = vals[0];
+    else if (vals.length === 2) label = vals.join(', ');
+    else if (vals.length > 2) label = vals.length + ' dipilih';
+    $dd.find('.ms-dd-label').text(label).css('font-weight', vals.length ? '600' : '400');
+}
+
+let msTimer = null;
+function applyMultiFilter($dd) {
+    updateMultiLabel($dd);
+    clearTimeout(msTimer);
+    msTimer = setTimeout(function() {
+        table.draw();
+        loadAlertControl(false);
+    }, 300);
+}
+
+// buka/tutup panel (tutup panel lain)
+$(document).on('click', '.ms-dd-btn', function(e) {
+    e.stopPropagation();
+    const $panel = $(this).siblings('.ms-dd-panel');
+    $('.ms-dd-panel').not($panel).hide();
+    $('#areaDDPanel').hide();
+    $panel.toggle();
+    if ($panel.is(':visible')) $panel.find('.ms-dd-search').trigger('focus');
+});
+$(document).on('click', '.ms-dd-panel', function(e) { e.stopPropagation(); });
+$(document).on('click', function(e) {
+    if (!$(e.target).closest('.ms-dd').length) $('.ms-dd-panel').hide();
+});
+
+// search dalam panel
+$(document).on('input', '.ms-dd-search', function() {
+    const q = $(this).val().toLowerCase().trim();
+    $(this).closest('.ms-dd-panel').find('.ms-dd-item').each(function() {
+        $(this).toggle($(this).text().toLowerCase().indexOf(q) !== -1);
+    });
+});
+
+$(document).on('change', '.ms-chk', function() { applyMultiFilter($(this).closest('.ms-dd')); });
+
+$(document).on('click', '.ms-dd-all', function(e) {
+    e.preventDefault();
+    const $dd = $(this).closest('.ms-dd');
+    $dd.find('.ms-dd-item:visible .ms-chk').prop('checked', true);
+    applyMultiFilter($dd);
+});
+$(document).on('click', '.ms-dd-clear', function(e) {
+    e.preventDefault();
+    const $dd = $(this).closest('.ms-dd');
+    $dd.find('.ms-chk').prop('checked', false);
+    applyMultiFilter($dd);
+});
                 // ================= AREA DROPDOWN (checklist + search) =================
                 function getSelectedAreas() {
                     return $('.area-chk:checked').map(function() { return this.value; }).get();
@@ -511,11 +634,14 @@
                         ajax: {
                             url: "{{ route('monitoring.datalogistik.ajax') }}",
                             data: function(d) {
-                                d.pic_monitoring = $('#filter_pic_monitoring').val();
-                                d.area = getSelectedAreas();
-                                d.bulan = $('#filter_bulan').val();
-                                d.tahun = $('#filter_tahun').val();
-                                d.keluar_gudang_tgl = $('#filterKeluarGudangTgl').val();
+d.pic_monitoring = getMulti('pic_monitoring');
+d.dist_channel   = getMulti('dist_channel');
+d.area           = getSelectedAreas();
+d.bulan          = getMulti('bulan');
+d.tahun          = getMulti('tahun');
+const kg = getKeluarRange();
+d.keluar_gudang_dari   = kg.dari;
+d.keluar_gudang_sampai = kg.sampai;
 
                                 // kalau user klik sort kolom lain, sort kelengkapan otomatis dilepas
                                 let curOrder = JSON.stringify(d.order);
@@ -561,6 +687,20 @@
                             $(row).attr('data-id', $btn.data('id'));
                         }
                     });
+                    keluarFp = flatpickr('#filterKeluarGudangTgl', {
+    mode: 'range',
+    dateFormat: 'Y-m-d',
+    altInput: true,
+    altFormat: 'd-m-Y',
+    locale: { rangeSeparator: ' s/d ' },
+    onChange: function(selectedDates) {
+        // reload hanya kalau rentang sudah lengkap (2 tanggal) atau dikosongkan
+        if (selectedDates.length === 2 || selectedDates.length === 0) {
+            table.draw();
+            loadAlertControl(false);
+        }
+    }
+});
 
                     $('#shipNoShipment').on('change', function() {
                         let opt = $(this).find('option:selected');
@@ -572,25 +712,24 @@
                     });
 
                     // filter berubah -> reload dari server (area ditangani handler area sendiri)
-                    $('#filter_pic_monitoring, #filter_bulan, #filter_tahun, #filterKeluarGudangTgl')
-                        .on('change', function() {
-                            table.draw();
-                            loadAlertControl(false);
-                        });
 
-                    $('#btnResetFilter').on('click', function() {
-                        $('#filter_pic_monitoring, #filter_bulan, #filter_tahun').val('').trigger('change.select2');
-                        $('.area-chk').prop('checked', false);
-                        $('#areaDDSearch').val('');
-                        $('.area-dd-item').show();
-                        updateAreaLabel();
-                        $('#filterKeluarGudangTgl').val('');
-                        kelSort = ''; kelFilter = [];
-                        $('.kel-chk').prop('checked', false);
-                        updateKelIndicator();
-                        table.draw();
-                        loadAlertControl(false);
-                    });
+
+             $('#btnResetFilter').on('click', function() {
+    $('.ms-chk').prop('checked', false);
+    $('.ms-dd').each(function() { updateMultiLabel($(this)); });
+    $('.ms-dd-search').val('');
+    $('.ms-dd-item').show();
+    $('.area-chk').prop('checked', false);
+    $('#areaDDSearch').val('');
+    $('.area-dd-item').show();
+    updateAreaLabel();
+keluarFp.clear(false);
+    kelSort = ''; kelFilter = [];
+    $('.kel-chk').prop('checked', false);
+    updateKelIndicator();
+    table.draw();
+    loadAlertControl(false);
+});
 
                     $('.filter-box .searchable').select2({ width: '180px' });
                     $('#shipModal .searchable').select2({ width: '100%', dropdownParent: $('#shipModal') });
@@ -644,13 +783,15 @@
                     $.ajax({
                         url: "{{ route('monitoring.alerts') }}",
                         type: 'GET',
-                        data: {
-                            pic_monitoring: $('#filter_pic_monitoring').val(),
-                            area: getSelectedAreas(),
-                            bulan: $('#filter_bulan').val(),
-                            tahun: $('#filter_tahun').val(),
-                            keluar_gudang_tgl: $('#filterKeluarGudangTgl').val(),
-                        },
+                       data: {
+    pic_monitoring: getMulti('pic_monitoring'),
+    dist_channel: getMulti('dist_channel'),
+    area: getSelectedAreas(),
+    bulan: getMulti('bulan'),
+    tahun: getMulti('tahun'),
+   keluar_gudang_dari:   getKeluarRange().dari,
+keluar_gudang_sampai: getKeluarRange().sampai,
+},
                         success: function(res) {
                             renderMissingFieldSummary(res.missingSummary);
                             renderAlertControl(res.alerts, res.totalAlert);
@@ -981,6 +1122,12 @@ function normalizeJam(raw) {
 }
 
 function initDateTimePickers() {
+
+$('#tableMonitoring tbody input[type="date"]').each(function () {
+        this.type = 'text';
+        this.placeholder = 'ddmmyyyy';
+        $(this).addClass('flatpickr-date');
+    });
     // ---- TANGGAL: bisa diketik ddmmyyyy, kalender tetap bisa diklik ----
     $('.flatpickr-date').each(function () {
         if (this._flatpickr) return;
@@ -1025,21 +1172,141 @@ function initDateTimePickers() {
 }
 
                 // ================= EXPORT =================
-                $(document).on('click', '#btnExport', function() {
-                    const params = new URLSearchParams();
-                    const add = (k, v) => { if (v) params.append(k, v); };
+$(document).on('click', '#btnExport', function() {
+    const params = new URLSearchParams();
+    const add = (k, v) => { if (v) params.append(k, v); };
 
-                    add('pic_monitoring',    $('#filter_pic_monitoring').val());
-                    getSelectedAreas().forEach(a => params.append('area[]', a));
-                    add('bulan',             $('#filter_bulan').val());
-                    add('tahun',             $('#filter_tahun').val());
-                    add('keluar_gudang_tgl', $('#filterKeluarGudangTgl').val());
-                    add('tgl_dari',          $('#exportTglDari').val());
-                    add('tgl_sampai',        $('#exportTglSampai').val());
+    ['pic_monitoring', 'dist_channel', 'bulan', 'tahun'].forEach(function(k) {
+        getMulti(k).forEach(v => params.append(k + '[]', v));
+    });
+    getSelectedAreas().forEach(a => params.append('area[]', a));
 
-                    window.location.href = "{{ route('monitoring.export') }}" +
-                        (params.toString() ? '?' + params.toString() : '');
-                });
+    const kg = getKeluarRange();
+    add('keluar_gudang_dari',   kg.dari);
+    add('keluar_gudang_sampai', kg.sampai);
+    add('tgl_dari',             $('#exportTglDari').val());
+    add('tgl_sampai',           $('#exportTglSampai').val());
+
+    window.location.href = "{{ route('monitoring.export') }}" +
+        (params.toString() ? '?' + params.toString() : '');
+});
+// ================= NAVIGASI PANAH ALA EXCEL =================
+(function () {
+    let editableCols = null;
+    function getEditableCols() {
+        if (editableCols) return editableCols;
+        const set = new Set();
+        table.columns().every(function (i) {
+            if ($(this.header()).hasClass('editable')) set.add(i);
+        });
+        editableCols = set;
+        return set;
+    }
+
+    function rowFields(tr) {
+        const out = [];
+        const editable = getEditableCols();
+
+        $(tr).children('td').each(function (ti) {
+            if (!editable.has(ti)) return;
+
+            let fi = 0;
+            $(this).find('input, select').each(function () {
+                const $el = $(this);
+                let el = this, kind;
+
+                if ($el.is('.select2-search__field')) return;
+
+                if ($el.is('select.select2-hidden-accessible')) {
+                    el = $el.next('.select2-container').find('.select2-selection')[0];
+                    kind = 'select2';
+                    if (!el) return;
+                } else if ($el.is('select')) {
+                    kind = 'select';
+                } else {
+                    if (this.type === 'hidden' || this.readOnly || this.disabled || !$el.is(':visible')) return;
+                    const prev = this.previousElementSibling;
+                    if (prev && prev._flatpickr) {
+                        kind = 'fdate';   // input tampilan flatpickr
+                    } else {
+                        kind = this.type === 'number' ? 'number' : (this.type === 'date' ? 'date' : 'text');
+                    }
+                }
+                out.push({ el: el, td: ti, fi: fi++, kind: kind });
+            });
+        });
+        return out;
+    }
+function goTo(f) {
+    f.el.focus();
+    if ((f.kind === 'text' || f.kind === 'number' || f.kind === 'fdate') && f.el.select) {
+        try { f.el.select(); } catch (e) {}
+    }
+}
+
+    document.addEventListener('keydown', function (e) {
+        if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Enter'].includes(e.key)) return;
+        if (e.shiftKey || e.altKey || e.metaKey || e.isComposing) return;
+
+        const tr = e.target.closest && e.target.closest('#tableMonitoring tbody tr');
+        if (!tr) return;
+
+        const fields = rowFields(tr);
+        const cur = fields.find(f => f.el === e.target);
+        if (!cur) return;
+
+        const ctrl = e.ctrlKey;
+        const el = cur.el;
+        const isTextLike = cur.kind === 'text' || cur.kind === 'number' || cur.kind === 'fdate';
+        let dir = null;
+
+        if (e.key === 'Enter') {
+    if (ctrl) return;
+    if (cur.kind === 'select2') {
+        e.preventDefault();
+        e.stopPropagation();
+        $(cur.el).closest('.select2-container').prev('select').select2('open');
+        return;
+    }
+    if (!isTextLike) return;
+    dir = 'down';
+}
+ else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+            const left = e.key === 'ArrowLeft';
+            let ok = ctrl || ['select2', 'select', 'number', 'fdate'].includes(cur.kind);
+            if (!ok && cur.kind === 'text') {
+                const s = el.selectionStart, en = el.selectionEnd, len = el.value.length;
+                const allSelected = s === 0 && en === len;
+                ok = allSelected || (s === en && (left ? s === 0 : en === len));
+            }
+            if (!ok) return;
+            dir = left ? 'left' : 'right';
+      } else {
+    if (!(ctrl || isTextLike || cur.kind === 'select2')) return;
+    dir = e.key === 'ArrowUp' ? 'up' : 'down';
+}
+
+        let target = null;
+
+        if (dir === 'left' || dir === 'right') {
+            target = fields[fields.indexOf(cur) + (dir === 'left' ? -1 : 1)];
+        } else {
+            let r = dir === 'up' ? tr.previousElementSibling : tr.nextElementSibling;
+            while (r && !target) {
+                const f2 = rowFields(r);
+                target = f2.find(f => f.td === cur.td && f.fi === cur.fi) ||
+                         f2.find(f => f.td === cur.td);
+                r = dir === 'up' ? r.previousElementSibling : r.nextElementSibling;
+            }
+        }
+
+        if (!target) return;
+
+        e.preventDefault();
+        e.stopPropagation();
+        goTo(target);
+    }, true);
+})();
             </script>
         </div>
     </div>
