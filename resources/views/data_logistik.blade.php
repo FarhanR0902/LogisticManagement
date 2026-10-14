@@ -421,6 +421,9 @@
     .ms-dd { width: 100%; flex: 1 1 100%; }
     .ms-dd-panel { width: 100%; }
 }
+
+.tgl-lbl { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 600; color: #475569; }
+.tgl-lbl input { min-width: 170px; }
     </style>
 </head>
 
@@ -462,7 +465,17 @@
     </div>
 </div>
 
-                <input type="date" id="filterDate" name="date">
+              <select id="filterTglBasis" name="tgl_basis">
+    <option value="tanggal_naik_logistik">Tanggal Naik Logistik</option>
+    <option value="rencana_kirim">Rencana Kirim</option>
+</select>
+
+<label class="tgl-lbl">Dari
+    <input type="date" id="filterDateFrom" name="date_from">
+</label>
+<label class="tgl-lbl">Sampai
+    <input type="date" id="filterDateTo" name="date_to">
+</label>
 
                 <select id="filterMonth" name="month">
                     <option value="">Semua Bulan</option>
@@ -588,6 +601,8 @@
                         <th>Estimasi Tiba Di Customer</th>
                         <th>Ontime/Delay Admin</th>
                         <th>Create On</th>
+                        <th>No Delivery</th>
+<th>Customer Reference</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -700,10 +715,12 @@ function reloadDebounced() {
                     },
                     data: function(d) {
 d.area = getAreas();   // jQuery otomatis mengirim sebagai area[]=...
-                        d.date = $('#filterDate').val();
-                        d.month = $('#filterMonth').val();
-                        d.year = $('#filterYear').val();
-                        d.pic_monitoring = $('#filterPic').val();
+                      d.area = getAreas();
+d.tgl_basis = $('#filterTglBasis').val();
+d.date_from = $('#filterDateFrom').val();
+d.date_to = $('#filterDateTo').val();
+d.month = $('#filterMonth').val();
+d.year = $('#filterYear').val();
                     }
                 },
 
@@ -812,44 +829,49 @@ d.area = getAreas();   // jQuery otomatis mengirim sebagai area[]=...
     { data: 'via_kirim', name: 'via_kirim' },
     { data: 'estimasi_admin_fmt', name: 'estimasi_admin', orderable: false },
     { data: 'estimasi_admin_status_badge', name: 'estimasi_admin_status', orderable: false, searchable: false },
-    { data: 'create_on_fmt', name: 'create_on' }
+  { data: 'create_on_fmt', name: 'create_on' },
+{ data: 'no_delivery', name: 'no_delivery', defaultContent: '-' },
+{ data: 'customer_reference', name: 'customer_reference', defaultContent: '-' }
 ]
             });
 
             // Reload table setiap filter berubah (server-side, jadi ringan)
-            $(' #filterDate, #filterMonth, #filterYear, #filterPic').on('change', function() {
-                table.ajax.reload();
-            });
-
-            $('#btnResetFilter').on('click', function(e) {
-                e.preventDefault();
-                $('#filterForm')[0].reset();
-                table.ajax.reload();
-            });
+        $('#filterTglBasis, #filterDateFrom, #filterDateTo, #filterMonth, #filterYear').on('change', function () {
+    table.ajax.reload();
+});
+      $('#btnResetFilter').on('click', function (e) {
+    e.preventDefault();
+    $('#filterForm')[0].reset();                       // basis tanggal balik ke default
+    $('#filterArea .ms-search').val('').trigger('input');
+    updateLabel($('#filterArea'));
+    table.ajax.reload();
+});
 
             // ==========================================
             // EXPORT EXCEL SESUAI FILTER AKTIF
             // ==========================================
-            $('#btnExportExcel').on('click', function(e) {
-                e.preventDefault();
+           $('#btnExportExcel').on('click', function (e) {
+    e.preventDefault();
 
-                let params = new URLSearchParams();
+    let params = new URLSearchParams();
 
-                let filterArea = $('#filterArea').val();
-                let filterDate = $('#filterDate').val();
-                let filterMonth = $('#filterMonth').val();
-                let filterYear = $('#filterYear').val();
+    getAreas().forEach(a => params.append('area[]', a));
 
-                if (filterArea) params.append('area', filterArea);
-                if (filterDate) params.append('date', filterDate);
-                if (filterMonth) params.append('month', filterMonth);
-                if (filterYear) params.append('year', filterYear);
+    let basis = $('#filterTglBasis').val();
+    let from  = $('#filterDateFrom').val();
+    let to    = $('#filterDateTo').val();
+    let month = $('#filterMonth').val();
+    let year  = $('#filterYear').val();
 
-                let baseUrl = "{{ route('logistik.export') }}";
-                let finalUrl = params.toString() ? (baseUrl + '?' + params.toString()) : baseUrl;
+    if (basis) params.append('tgl_basis', basis);
+    if (from)  params.append('date_from', from);
+    if (to)    params.append('date_to', to);
+    if (month) params.append('month', month);
+    if (year)  params.append('year', year);
 
-                window.location.href = finalUrl;
-            });
+    let baseUrl = "{{ route('logistik.export') }}";
+    window.location.href = params.toString() ? (baseUrl + '?' + params.toString()) : baseUrl;
+});
         });
         $('#btnResetFilter').on('click', function (e) {
     e.preventDefault();

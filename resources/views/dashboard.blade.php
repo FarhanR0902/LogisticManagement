@@ -18,6 +18,9 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
+<!-- Tom Select (dropdown yang bisa di-search) -->
+<link href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
 
 <style>
 
@@ -632,6 +635,15 @@ tbody tr:last-child td{ border-bottom:none; }
     color:var(--text-muted);
     padding:22px 0;
 }
+.filter-form .ts-dropdown .dropdown-input{
+    height:34px;
+    min-width:0;
+    width:100%;
+    padding:0 10px;
+    border:1px solid var(--border);
+    border-radius:var(--radius-sm);
+    background:#fff;
+}
 
 /* ================= LAYOUT STACK ================= */
 .stack{
@@ -687,7 +699,41 @@ tbody tr:last-child td{ border-bottom:none; }
     padding:1px 6px;
     border-radius:4px;
 }
+/* ================= TOM SELECT (area & dist channel) ================= */
+.filter-form .ts-wrapper{ min-width:200px; }
+.filter-form .ts-control{
+    min-height:38px;
+    border:1px solid var(--border);
+    border-radius:var(--radius-sm);
+    background:#fbfcfe;
+    font-size:13.5px;
+    padding:0 12px;
+    align-items:center;
+    box-shadow:none;
+}
+.filter-form .ts-wrapper.focus .ts-control{
+    border-color:var(--primary);
+    background:#fff;
+    box-shadow:none;
+}
+/* wajib: style .filter-form input yang lama bakal merusak kotak search-nya */
+.filter-form .ts-control input{
+    height:auto;
+    min-width:0;
+    padding:0;
+    border:none;
+    background:transparent;
+}
+.filter-form select.tomselected{
+    min-width:0;
+    height:auto;
+    border:0;
+}
+.ts-dropdown{ font-size:13.5px; border-radius:var(--radius-sm); }
 
+@media(max-width:768px){
+    .filter-form .ts-wrapper{ min-width:130px; flex:1; }
+}
 /* ================= RESPONSIVE ================= */
 @media(max-width:1100px){
     .chart-grid{ grid-template-columns:1fr; }
@@ -728,10 +774,25 @@ tbody tr:last-child td{ border-bottom:none; }
 <!-- FILTER -->
 <div class="filter-box">
     <form method="GET" action="{{ url()->current() }}" class="filter-form" id="filterForm">
+<div class="field">
+    <label for="f-basis">Berdasarkan tanggal</label>
+    <select id="f-basis" name="tgl_basis">
+        <option value="rencana_kirim" {{ request('tgl_basis', 'rencana_kirim') == 'rencana_kirim' ? 'selected' : '' }}>
+            Rencana kirim
+        </option>
+        <option value="tanggal_naik_logistik" {{ request('tgl_basis') == 'tanggal_naik_logistik' ? 'selected' : '' }}>
+            Tanggal naik logistik
+        </option>
+    </select>
+</div>
+            <div class="field">
+           <label for="f-from">Periode dari</label>
+            <input id="f-from" type="date" name="date_from" value="{{ request('date_from') }}">
+        </div>
 
         <div class="field">
-            <label for="f-date">Tanggal</label>
-            <input id="f-date" type="date" name="date" value="{{ request('date') }}">
+            <label for="f-to">Sampai</label>
+            <input id="f-to" type="date" name="date_to" value="{{ request('date_to') }}">
         </div>
 
         <div class="field">
@@ -1528,6 +1589,21 @@ if (document.getElementById('shipmentMap')) {
         debugBox.innerHTML = html;
     }
 }
+// ================= DROPDOWN AREA & DIST CHANNEL (bisa di-search) =================
+// ================= DROPDOWN AREA & DIST CHANNEL (bisa di-search) =================
+['#f-area', '#f-dist'].forEach(function (sel) {
+    const el = document.querySelector(sel);
+    if (!el) return;
+    new TomSelect(el, {
+        create: false,
+        maxOptions: 500,
+        placeholder: el.id === 'f-area' ? 'Semua area' : 'Semua channel',
+        plugins: {
+            dropdown_input: {},
+            clear_button: { title: 'Hapus pilihan' }
+        }
+    });
+});
 
 </script>
 

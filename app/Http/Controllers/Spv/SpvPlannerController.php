@@ -3456,25 +3456,31 @@ $buildSelect('reason_gudang_3', $r->reason_gudang_3, $lists['reasonGudangList'],
             $r->tanggal_dpt_unit ? date('d-m-Y', strtotime($r->tanggal_dpt_unit)) : '-',
             $r->lama_waktu_pencarian ?? '-',
             $slaMobilHtml,
-            $fmtDate($r->planning_loading),
-            $fmtDate($r->tanggal_tiba_gudang),
-            $fmtDate($r->tanggal_keluar_gudang),
-            e($r->reason_gudang ?: '-'),  
+       $fmtDate($r->planning_loading),
+$fmtDate($r->tanggal_tiba_gudang),
+$fmtWaktu($r->waktu_tiba_gudang),            // BARU
+$fmtDate($r->tanggal_keluar_gudang),
+$fmtWaktu($r->waktu_keluar_gudang),          // BARU
+e($r->reason_gudang ?: '-'),
             $durasiGudang($r->planning_loading, $r->tanggal_tiba_gudang),
             $statusGudangBadge($r->planning_loading, $r->tanggal_tiba_gudang),
             $slaLoadingBadge($r->planning_loading, $r->tanggal_tiba_gudang),
-            $fmtDate($r->planning_loading_2),
-            $fmtDate($r->tanggal_tiba_gudang_2),
-            $fmtDate($r->tanggal_keluar_gudang_2),
-            e($r->reason_gudang_2 ?: '-'),  
+           $fmtDate($r->planning_loading_2),
+$fmtDate($r->tanggal_tiba_gudang_2),
+$fmtWaktu($r->waktu_tiba_gudang_2),          // BARU
+$fmtDate($r->tanggal_keluar_gudang_2),
+$fmtWaktu($r->waktu_keluar_gudang_2),        // BARU
+e($r->reason_gudang_2 ?: '-'),
             
             $r->lama_digudang_2 ?? '-',
             $badgeSla($r->sla_loading_2),
             $statusGudangBadgeGeneric($r->status_gudang_2),
-            $fmtDate($r->planning_loading_3),
-            $fmtDate($r->tanggal_tiba_gudang_3),
-            $fmtDate($r->tanggal_keluar_gudang_3),
-             e($r->reason_gudang_3 ?: '-'), 
+          $fmtDate($r->planning_loading_3),
+$fmtDate($r->tanggal_tiba_gudang_3),
+$fmtWaktu($r->waktu_tiba_gudang_3),          // BARU
+$fmtDate($r->tanggal_keluar_gudang_3),
+$fmtWaktu($r->waktu_keluar_gudang_3),        // BARU
+e($r->reason_gudang_3 ?: '-'),
             $r->lama_digudang_3 ?? '-',
             $badgeSla($r->sla_loading_3),
             $statusGudangBadgeGeneric($r->status_gudang_3),
@@ -3513,7 +3519,8 @@ $statusBongkarHtml,
             $r->pulau,
             $r->via_kirim,
             $estimasiAdmin ? $estimasiAdmin->format('d-m-Y') : '-',
-            $statusEstAdminHtml,
+         $statusEstAdminHtml,
+$fmtDate($r->create_on),  
         ];
     }
 

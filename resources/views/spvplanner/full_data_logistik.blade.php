@@ -613,23 +613,29 @@
                             <th>Tanggal Dapat Unit</th>
                             <th>Lama Waktu Pencarian</th>
                             <th>SLA Dapat Mobil</th>
-                            <th>Planning Loading KACS</th>
-                            <th>Tanggal Tiba KACS</th>
-                            <th>Tanggal Keluar KACS</th>
-                            <th>Reason KACS</th>    
+                      <th>Planning Loading KACS</th>
+<th>Tanggal Tiba KACS</th>
+<th>Waktu Tiba KACS</th>          <!-- BARU -->
+<th>Tanggal Keluar KACS</th>
+<th>Waktu Keluar KACS</th>        <!-- BARU -->
+<th>Reason KACS</th>   
                             <th>Lama Di KACS</th>
                             <th>Status KACS</th>
                             <th>SLA Loading</th>
-                            <th>Planning Loading Sentul</th>
-                            <th>Tanggal Tiba Sentul</th>
-                            <th>Tanggal Keluar Sentul</th>
-                            <th>Reason Sentul</th>    
+<th>Planning Loading Sentul</th>
+<th>Tanggal Tiba Sentul</th>
+<th>Waktu Tiba Sentul</th>        <!-- BARU -->
+<th>Tanggal Keluar Sentul</th>
+<th>Waktu Keluar Sentul</th>      <!-- BARU -->
+<th>Reason Sentul</th> 
                             <th>Lama Di Sentul</th>
                             <th>SLA Loading Sentul</th>
                             <th>Status Sentul</th>
                             <th>Planning Loading CCIE</th>
                             <th>Tanggal Tiba CCIE</th>
+                            <th>Waktu Tiba CCIE</th>          <!-- BARU -->
                             <th>Tanggal Keluar CCIE</th>
+                            <th>Waktu Keluar CCIE</th>        <!-- BARU -->
                             <th>Reason CCIE</th>    
                             <th>Lama Di CCIE</th>
                             <th>SLA Loading CCIE</th>
@@ -670,6 +676,7 @@
                             <th>Via Kirim</th>
                             <th>Estimasi Tiba Di Customer</th>
                             <th>Ontime/Delay Admin</th>
+<th>Create On</th>      
                         </tr>
                     </thead>
                     <tbody>

@@ -5,7 +5,8 @@
 
 <head>
     <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet">
-
+    
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.css">
 
     <link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet">
     <meta charset="UTF-8">
@@ -24,6 +25,22 @@
             font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
         }
 
+        .flatpickr-day.has-import {
+        background: #dcfce7; border-color: #86efac;
+        color: #166534; font-weight: 700; position: relative;
+    }
+    .flatpickr-day.has-import::after {
+        content: ''; position: absolute; bottom: 3px; left: 50%;
+        transform: translateX(-50%);
+        width: 5px; height: 5px; border-radius: 50%; background: #16a34a;
+    }
+    .flatpickr-day.has-import.selected { background: #0284c7; border-color: #0284c7; color: #fff; }
+    .chip-import {
+        display: inline-block; padding: 3px 9px; margin: 2px 3px 0 0;
+        border-radius: 14px; background: #f1f5f9; border: 1px solid #cbd5e1;
+        font-size: 11px; cursor: pointer;
+    }
+    .chip-import:hover, .chip-import.active { background: #0284c7; color: #fff; border-color: #0284c7; }
         body {
             background: #f8fafc;
             color: #334155;
@@ -381,10 +398,14 @@
 
         <div class="row mb-3">
 
-            <div class="col-md-3">
-                <label class="form-label fw-bold">Filter data Import</label>
-                <input type="date" id="filterCreateTgl" class="form-control">
-            </div>
+          <div class="col-md-3">
+    <label class="form-label fw-bold">Filter data Import</label>
+    <div class="input-group">
+        <input type="text" id="filterCreateTgl" class="form-control" placeholder="Pilih tanggal import">
+        <button type="button" class="btn btn-outline-secondary" id="btnResetTgl" title="Hapus filter">X</button>
+    </div>
+  
+</div>
                  
 
             <div class="modal fade" id="addModal" tabindex="-1" aria-hidden="true">
@@ -686,7 +707,7 @@
                         </table>
                     </div>
                 </div>
-
+                <script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.js"></script>
                 <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
                 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
                 <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
@@ -1079,20 +1100,44 @@ $('#filterDistChannel').on('change', function() {
     table.draw();
     loadAlertControl();
 });
-        $('#filterCreateTgl').on('change', function() {
-            createTglFilter = $(this).val();
-            table.draw();
-        });
+        let importDates = {};   // { 'YYYY-MM-DD': jumlah_baris }
 
-       $('#btnExport').on('click', function(e) {
-    e.preventDefault();
-    const params = new URLSearchParams();
-    ($('#filterPlanner').val() || []).forEach(v => params.append('planner[]', v));
-    ($('#filterDistChannel').val() || []).forEach(v => params.append('dist_channel[]', v));
-    ($('#filterArea').val() || []).forEach(v => params.append('area[]', v));
+const fpImport = flatpickr('#filterCreateTgl', {
+    dateFormat: 'Y-m-d',
+    altInput: true,
+    altFormat: 'd/m/Y',
+    onDayCreate: function (dObj, dStr, instance, dayElem) {
+        const key = instance.formatDate(dayElem.dateObj, 'Y-m-d');
+        if (importDates[key]) {
+            dayElem.classList.add('has-import');
+            dayElem.title = importDates[key] + ' baris diimport';
+        }
+    },
+    onChange: function (selectedDates, dateStr) {
+        createTglFilter = dateStr;      // '' kalau dihapus
+        table.draw();
+        $('.chip-import').removeClass('active')
+            .filter('[data-tgl="' + dateStr + '"]').addClass('active');
+    }
+});
 
-    window.location.href = "{{ route('planner.export') }}" +
-        (params.toString() ? '?' + params.toString() : '');
+$('#btnResetTgl').on('click', function () { fpImport.clear(); });
+
+$.getJSON("{{ route('planner.importDates') }}", function (res) {
+    importDates = res || {};
+    fpImport.redraw();
+
+    // 10 tanggal import terbaru sebagai tombol cepat
+    const chips = Object.keys(importDates).slice(0, 10).map(function (t) {
+        const [y, m, d] = t.split('-');
+        return '<span class="chip-import" data-tgl="' + t + '">' +
+               d + '/' + m + ' (' + importDates[t] + ')</span>';
+    }).join('');
+    $('#importChips').html(chips);
+});
+
+$(document).on('click', '.chip-import', function () {
+    fpImport.setDate($(this).data('tgl'), true);   // true = jalankan onChange
 });
 
         // ==========================================================

@@ -397,15 +397,31 @@ class PasuruanController extends Controller
             ->route('pasuruan.dataLogistik')
             ->with('success', $msg);
 
-        if ($import->getFailedCount() > 0) {
-            $failed = array_map(
-                fn($f) => "Gagal: {$f['no_shipment']} - {$f['tujuan']} ({$f['error']})",
-                $import->getFailedList()
-            );
-            $redirect->with('not_found_list', $failed);
-        }
+       $redirect = redirect()
+    ->route('pasuruan.dataLogistik')
+    ->with('success', $msg);
 
-        return $redirect;
+$notes = [];
+
+if ($import->getFailedCount() > 0) {
+    foreach ($import->getFailedList() as $f) {
+        $notes[] = "Gagal: {$f['no_shipment']} - {$f['tujuan']} ({$f['error']})";
+    }
+}
+
+foreach ($import->getNoLeadTime() as $x) {
+    $notes[] = "Estimasi tiba kosong (lead time tidak ketemu): {$x}";
+}
+
+foreach ($import->getUnmatchedTujuan() as $t) {
+    $notes[] = "Tujuan tidak ada di master Pasuruan: {$t}";
+}
+
+if ($notes) {
+    $redirect->with('not_found_list', $notes);
+}
+
+return $redirect;
     }
 
     // ============================================================

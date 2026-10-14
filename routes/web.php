@@ -120,6 +120,7 @@ Route::prefix('planner')->group(function () {
 
     Route::post('/planner/data-ajax', [App\Http\Controllers\Planner\PlannerController::class, 'dataAjax'])
         ->name('planner.data.ajax');
+        Route::get('/import-dates', [PlannerController::class, 'importDates'])->name('planner.importDates');
     Route::get('/planner/alerts', [App\Http\Controllers\Planner\PlannerController::class, 'alerts'])
         ->name('planner.alerts');
         

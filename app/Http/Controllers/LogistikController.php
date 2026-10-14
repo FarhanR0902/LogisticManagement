@@ -14,6 +14,65 @@ use Carbon\Carbon;
 
 class LogistikController extends Controller
 {
+
+private const PULAU_MAP = [
+    'JAWA'       => ['JABODEBEK','BANTEN','JAWA_BARAT','JAWA_TENGAH','JAWA_TIMUR','YOGYAKARTA'],
+    'SUMATERA'   => ['ACEH','SUMATERA_UTARA','SUMATERA_BARAT','RIAU','KEP._RIAU','JAMBI','SUMATERA_SELATAN','BENGKULU','LAMPUNG','KEP._BANGKA_BELITUNG'],
+    'KALIMANTAN' => ['KALIMANTAN_BARAT','KALIMANTAN_TENGAH','KALIMANTAN_SELATAN','KALIMANTAN_TIMUR','KALIMANTAN_UTARA'],
+    'SULAWESI'   => ['SULAWESI_UTARA','SULAWESI_TENGAH','SULAWESI_SELATAN','SULAWESI_TENGGARA','SULAWESI_BARAT','GORONTALO'],
+    'BALI_NUSRA' => ['PROV._BALI','NUSA_TENGGARA_BARAT','NUSA_TENGGARA_TIMUR'],
+    'MALUKU'     => ['PROV._MALUKU','PROV._MALUKU_UTARA'],
+    'PAPUA'      => ['PROV._PAPUA','PAPUA_BARAT','PAPUA_BARAT_DAYA','PAPUA_SELATAN','PAPUA_TENGAH'],
+];
+
+/**
+ * Filter dari dashboard manager (dikirim sebagai dash[...]).
+ * Logikanya HARUS sama dengan ManagerController::applyFilter().
+ */
+private function applyDashboardFilter($query, array $f)
+{
+    $areas = array_values(array_filter((array) ($f['area'] ?? []), 'strlen'));
+    if (!empty($areas)) {
+        $query->whereIn('area', $areas);
+    }
+
+    if (!empty($f['dist_channel'])) {
+        $query->where('dist_channel', $f['dist_channel']);
+    }
+
+    if (!empty($f['pulau']) && isset(self::PULAU_MAP[$f['pulau']])) {
+        $query->whereIn('area', self::PULAU_MAP[$f['pulau']]);
+    }
+
+    // dasar tanggal: rencana_kirim (default) atau tanggal_naik_logistik
+    $col = (($f['tgl_basis'] ?? '') === 'tanggal_naik_logistik')
+        ? 'tanggal_naik_logistik'
+        : 'rencana_kirim';
+
+    $from = $f['date_from'] ?? null;
+    $to   = $f['date_to'] ?? null;
+
+    if ($from && $to && $from > $to) {
+        [$from, $to] = [$to, $from];
+    }
+    if ($from) {
+        $query->whereDate($col, '>=', $from);
+    }
+    if ($to) {
+        $query->whereDate($col, '<=', $to);
+    }
+
+    if (!empty($f['month'])) {
+        $query->whereMonth($col, substr($f['month'], 5, 2));
+        $query->whereYear($col, substr($f['month'], 0, 4));
+    }
+
+    if (!empty($f['year'])) {
+        $query->whereYear($col, $f['year']);
+    }
+
+    return $query;
+}
     /* =========================================================
      * DASHBOARD (tidak diubah — tetap sama seperti sebelumnya)
      * ========================================================= */
@@ -234,6 +293,41 @@ class LogistikController extends Controller
         'unknown_planner' => $import->getUnknownPlannerCodes(),
     ]);
 }
+
+/**
+ * Filter tanggal: periode (dari-sampai) + bulan + tahun,
+ * semuanya mengikuti kolom dasar yang dipilih user.
+ */
+private function applyTanggalFilter($query, Request $request)
+{
+    $col = $request->input('tgl_basis') === 'rencana_kirim'
+        ? 'rencana_kirim'
+        : 'tanggal_naik_logistik';
+
+    $from = $request->input('date_from');
+    $to   = $request->input('date_to');
+
+    // kalau kebalik (dari > sampai), tukar otomatis
+    if ($from && $to && $from > $to) {
+        [$from, $to] = [$to, $from];
+    }
+
+    if ($from) {
+        $query->whereDate($col, '>=', $from);
+    }
+    if ($to) {
+        $query->whereDate($col, '<=', $to);
+    }
+
+    if ($request->filled('month')) {
+        $query->whereMonth($col, $request->month);
+    }
+    if ($request->filled('year')) {
+        $query->whereYear($col, $request->year);
+    }
+
+    return $query;
+}
  
 
     /* =========================================================
@@ -260,21 +354,12 @@ class LogistikController extends Controller
 
         $this->filterByDistChannel($query);
 
-        if ($request->date) {
-            $query->whereDate('tanggal_naik_logistik', $request->date);
-        }
+$this->applyTanggalFilter($query, $request);
 
-        if ($request->month) {
-            $query->whereMonth('tanggal_naik_logistik', $request->month);
-        }
-
-        if ($request->year) {
-            $query->whereYear('tanggal_naik_logistik', $request->year);
-        }
-
-        if ($request->area) {
-            $query->where('area', $request->area);
-        }
+$areas = array_values(array_filter((array) $request->input('area', []), 'strlen'));
+if (!empty($areas)) {
+    $query->whereIn('area', $areas);
+}
 
         $logistik = $query->orderBy('id', 'DESC')->get();
 
@@ -312,17 +397,7 @@ class LogistikController extends Controller
         $this->filterByDistChannel($query);
 
         // ---------- FILTER DARI DROPDOWN CUSTOM ----------
-        if ($request->filled('date')) {
-            $query->whereDate('rencana_kirim', $request->date);
-        }
-
-        if ($request->filled('month')) {
-            $query->whereMonth('tanggal_naik_logistik', $request->month);
-        }
-
-        if ($request->filled('year')) {
-            $query->whereYear('tanggal_naik_logistik', $request->year);
-        }
+      $this->applyTanggalFilter($query, $request);
 
         if ($request->filled('pic_monitoring')) {
             $query->where('pic_monitoring', $request->pic_monitoring);
@@ -332,7 +407,29 @@ class LogistikController extends Controller
 if (!empty($areas)) {
     $query->whereIn('area', $areas);
 }
-        
+        // ---------- FILTER DARI DASHBOARD MANAGER ----------
+// ---------- FILTER DARI DASHBOARD MANAGER ----------
+// Prioritas: dash[...] dari JS. Fallback: query string halaman (Referer),
+// jadi view data_logistik tidak wajib diubah.
+$dash = $request->input('dash');
+
+if (!is_array($dash) || empty($dash)) {
+    $dash = [];
+    $refQuery = parse_url((string) $request->headers->get('referer'), PHP_URL_QUERY);
+    if ($refQuery) {
+        parse_str($refQuery, $dash);
+    }
+}
+
+$dash = array_intersect_key($dash, array_flip([
+    'tgl_basis', 'date_from', 'date_to', 'month', 'year',
+    'area', 'dist_channel', 'pulau',
+]));
+$dash = array_filter($dash, 'is_scalar');
+
+if (!empty($dash)) {
+    $this->applyDashboardFilter($query, $dash);
+}
 
         // recordsTotal = total setelah filter dropdown custom (belum termasuk search box)
         $recordsTotal = (clone $query)->count();
@@ -525,6 +622,8 @@ if ($searchValue !== '') {
 
     // kolom baru di akhir
     93 => 'create_on',
+94 => 'no_delivery',
+95 => 'customer_reference',
 
 ];
 
@@ -663,7 +762,9 @@ if ($searchValue !== '') {
                 'via_kirim'                   => $r->via_kirim,
                 'estimasi_admin_fmt'          => $estimasiAdmin ? $estimasiAdmin->format('d-m-Y') : '-',
                 'estimasi_admin_status_badge' => $this->badgeEstimasiAdmin($r),
-                'create_on_fmt' => $this->fmtDate($r->create_on),
+              'create_on_fmt'      => $this->fmtDate($r->create_on),
+'no_delivery'        => e($r->no_delivery) ?: '-',
+'customer_reference' => e($r->customer_reference) ?: '-',
             ];
         });
         

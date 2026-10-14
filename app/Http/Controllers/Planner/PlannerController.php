@@ -2032,11 +2032,41 @@ $summary = [
 ];
 
     // ===== tabel =====
-    $list = (clone $base)
-        ->orderBy('tanggal_naik_logistik', 'ASC')
-        ->orderByRaw('CAST(no_shipment AS UNSIGNED) ASC')
-        ->paginate(50)
-        ->withQueryString();
+  // whitelist kolom yang boleh di-sort (key = nama di URL)
+$belumSql   = implode(' AND ', array_map(fn($c) => "NULLIF(TRIM({$c}), '') IS NULL", $kolomGudang));
+$selesaiSql = implode(' + ', array_map(
+    fn($c) => "(NULLIF(TRIM({$c}), '') IS NOT NULL)",
+    ['tanggal_keluar_gudang', 'tanggal_keluar_gudang_2', 'tanggal_keluar_gudang_3']
+));
+
+$sortMap = [
+    'no_shipment'    => 'CAST(no_shipment AS UNSIGNED)',
+    'planner'        => 'planner',
+    'tujuan'         => 'tujuan',
+    'area'           => 'area',
+     'dist_channel'   => 'dist_channel',
+    'rencana_kirim'  => 'rencana_kirim',
+    'ekpedisi'       => 'ekpedisi',
+    'driver'         => 'nama_driver',
+    'gudang_selesai' => "({$selesaiSql})",
+    'posisi'         => "(CASE WHEN {$belumSql} THEN 1 ELSE 0 END)",
+];
+
+$sort = $request->input('sort');
+$dir  = strtolower($request->input('dir', 'asc')) === 'desc' ? 'DESC' : 'ASC';
+
+$q = clone $base;
+
+if ($sort && isset($sortMap[$sort])) {
+    $q->orderByRaw("{$sortMap[$sort]} {$dir}");
+}
+
+// fallback / tie-breaker supaya urutan antar halaman stabil
+$list = $q->orderBy('tanggal_naik_logistik', 'ASC')
+    ->orderByRaw('CAST(no_shipment AS UNSIGNED) ASC')
+    ->orderBy('id', 'ASC')
+    ->paginate(50)
+    ->withQueryString();
 
     $cycles = [
         ['KACS',   'planning_loading',   'tanggal_tiba_gudang',   'tanggal_keluar_gudang'],
@@ -2077,8 +2107,23 @@ $summary = [
 
     $areaList    = DB::table('logistik_pengiriman')->whereNotNull('area')->distinct()->orderBy('area')->pluck('area');
     $plannerList = DB::table('logistik_pengiriman')->whereNotNull('planner')->where('planner', '!=', '')->distinct()->orderBy('planner')->pluck('planner');
+    $channelList = DB::table('logistik_pengiriman')
+    ->whereNotNull('dist_channel')->where('dist_channel', '!=', '')
+    ->distinct()->orderBy('dist_channel')->pluck('dist_channel');
+    return view('planner.in_gudang', compact('list', 'summary', 'areaList', 'plannerList', 'channelList'));
+}
 
-    return view('planner.in_gudang', compact('list', 'summary', 'areaList', 'plannerList'));
+public function importDates()
+{
+    $rows = DB::table('logistik_pengiriman')
+        ->whereNotNull('create_tgl')
+        ->selectRaw('DATE(create_tgl) AS tgl, COUNT(*) AS total')
+        ->groupByRaw('DATE(create_tgl)')
+        ->orderByRaw('DATE(create_tgl) DESC')
+        ->get();
+
+    // hasil: { "2026-10-09": 120, "2026-10-05": 87, ... }
+    return response()->json($rows->pluck('total', 'tgl'));
 }
 public function exportPlanner(Request $request)
 {

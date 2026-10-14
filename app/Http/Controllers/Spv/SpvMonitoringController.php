@@ -234,6 +234,12 @@ class SpvMonitoringController extends Controller
             ->distinct()
             ->orderBy('pic_monitoring')
             ->pluck('pic_monitoring');
+            // ================= LIST DIST CHANNEL =================
+$distChannelList = LogistikPengiriman::whereNotNull('dist_channel')
+    ->where('dist_channel', '!=', '')
+    ->distinct()
+    ->orderBy('dist_channel')
+    ->pluck('dist_channel');
 
         // ================= LIST SHIPMENT (dropdown "No Shipment") =================
     $shipmentList = LogistikPengiriman::selectRaw('
@@ -270,6 +276,7 @@ return view('monitoring.data_monitoring', compact(
     'akurasiTiba',
     'akurasiBongkar',
     'akurasiQty',
+        'distChannelList',   
     'picList',
     'shipmentList'
 ));

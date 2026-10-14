@@ -132,12 +132,12 @@ class ManagerController extends Controller
             })
             ->count();
 
-        $list_dist_channel = (clone $base)
-            ->select('dist_channel')
-            ->whereNotNull('dist_channel')
-            ->distinct()
-            ->orderBy('dist_channel')
-            ->get();
+      $list_dist_channel = DB::table('logistik_pengiriman')
+    ->select('dist_channel')
+    ->whereNotNull('dist_channel')
+    ->distinct()
+    ->orderBy('dist_channel')
+    ->get();
 
 
         // ================= PLANNER =================
@@ -195,19 +195,10 @@ class ManagerController extends Controller
 
         // ================= SUMMARY PULAU =================
 
-        $summary_pulau = DB::table('logistik_pengiriman')
-            ->when($request->filled('bulan'), function ($q) use ($request) {
-                $q->whereMonth('tanggal_naik_logistik', $request->bulan);
-            })
-            ->when($request->filled('tahun'), function ($q) use ($request) {
-                $q->whereYear('tanggal_naik_logistik', $request->tahun);
-            })
-            ->when($request->filled('area'), function ($q) use ($request) {
-                $q->where('area', $request->area);
-            })
-            ->when($request->filled('dist_channel'), function ($q) use ($request) {
-                $q->where('dist_channel', $request->dist_channel);
-            })
+               // sengaja tanpa filter pulau, supaya semua kotak pulau tetap tampil
+        $reqTanpaPulau = $request->duplicate($request->except('pulau'));
+
+        $summary_pulau = $this->applyFilter(DB::table('logistik_pengiriman'), $reqTanpaPulau)
             ->select(
                 'pulau',
                 DB::raw('COUNT(DISTINCT no_shipment) AS total_shipment'),
@@ -219,6 +210,34 @@ class ManagerController extends Controller
             ->groupBy('pulau')
             ->orderByDesc('total_muatan')
             ->get();
+
+        $label_pulau        = $summary_pulau->pluck('pulau');
+        $value_muatan_pulau = $summary_pulau->pluck('total_muatan');
+        $value_biaya_pulau  = $summary_pulau->pluck('total_biaya');
+        //  $summary_pulau = DB::table('logistik_pengiriman')
+        //     ->when($request->filled('bulan'), function ($q) use ($request) {
+        //         $q->whereMonth('tanggal_naik_logistik', $request->bulan);
+        //     })
+        //     ->when($request->filled('tahun'), function ($q) use ($request) {
+        //         $q->whereYear('tanggal_naik_logistik', $request->tahun);
+        //     })
+        //     ->when($request->filled('area'), function ($q) use ($request) {
+        //         $q->where('area', $request->area);
+        //     })
+        //     ->when($request->filled('dist_channel'), function ($q) use ($request) {
+        //         $q->where('dist_channel', $request->dist_channel);
+        //     })
+        //     ->select(
+        //         'pulau',
+        //         DB::raw('COUNT(DISTINCT no_shipment) AS total_shipment'),
+        //         DB::raw('SUM(nilai_muatan) AS total_muatan'),
+        //         DB::raw('SUM(biaya_kirim) AS total_biaya')
+        //     )
+        //     ->whereNotNull('pulau')
+        //     ->whereRaw("TRIM(pulau) <> ''")
+        //     ->groupBy('pulau')
+        //     ->orderByDesc('total_muatan')
+        //     ->get();
 
         $label_pulau        = $summary_pulau->pluck('pulau');
         $value_muatan_pulau = $summary_pulau->pluck('total_muatan');
@@ -400,28 +419,15 @@ $total_in_transit = $this->applyFilter($this->inTransitQuery(), $request)->count
 
    public function slaDelay(Request $request)
     {
-        $query = $this->slaDelayQuery();
+          $query = $this->slaDelayQuery();
 
-        if ($request->filled('bulan')) {
-            $query->whereMonth('tanggal_naik_logistik', $request->bulan);
-        }
+    $this->applyFilter($query, $request);
 
-        if ($request->filled('tahun')) {
-            $query->whereYear('tanggal_naik_logistik', $request->tahun);
-        }
+    $list = $query
+        ->orderBy('tanggal_naik_logistik', 'DESC')
+        ->paginate(10)
+        ->withQueryString();
 
-        if ($request->filled('area')) {
-            $query->where('area', $request->area);
-        }
-
-        if ($request->filled('dist_channel')) {
-            $query->where('dist_channel', $request->dist_channel);
-        }
-
-        $list = $query
-            ->orderBy('tanggal_naik_logistik', 'DESC')
-            ->paginate(10)
-            ->withQueryString();
 
         $list_area = DB::table('logistik_pengiriman')
             ->select('area')
@@ -780,60 +786,63 @@ public function inTransitPasuruan(Request $request)
     |--------------------------------------------------------------------------
     */
 
-    private function applyFilter($query, $request)
-    {
-
-        // AREA
-
-      $areas = array_values(array_filter((array) $request->input('area', []), 'strlen'));
-if (!empty($areas)) {
-    $query->whereIn('area', $areas);
+  /**
+ * Kolom tanggal yang dipakai buat filter periode.
+ * Di-whitelist supaya aman dari input sembarang.
+ */
+private function dateFilterColumn($request): string
+{
+    return $request->input('tgl_basis') === 'tanggal_naik_logistik'
+        ? 'tanggal_naik_logistik'
+        : 'rencana_kirim';
 }
 
-        if ($request->dist_channel) {
-            $query->where('dist_channel', $request->dist_channel);
-        }
-
-        if ($request->filled('pulau') && isset(self::PULAU_MAP[$request->pulau])) {
-            $query->whereIn('area', self::PULAU_MAP[$request->pulau]);
-        }
-
-        // DATE
-
-        if ($request->date) {
-            $query->whereDate(
-                'tanggal_naik_logistik',
-                $request->date
-            );
-        }
-
-        // MONTH
-
-        if ($request->month) {
-            $query->whereMonth(
-                'tanggal_naik_logistik',
-                substr($request->month, 5, 2)
-            );
-
-            $query->whereYear(
-                'tanggal_naik_logistik',
-                substr($request->month, 0, 4)
-            );
-        }
-
-        // YEAR
-
-        if ($request->year) {
-            $query->whereYear(
-                'tanggal_naik_logistik',
-                $request->year
-            );
-        }
-
-        return $query;
+private function applyFilter($query, $request)
+{
+    // AREA
+    $areas = array_values(array_filter((array) $request->input('area', []), 'strlen'));
+    if (!empty($areas)) {
+        $query->whereIn('area', $areas);
     }
 
+    if ($request->dist_channel) {
+        $query->where('dist_channel', $request->dist_channel);
+    }
 
+    if ($request->filled('pulau') && isset(self::PULAU_MAP[$request->pulau])) {
+        $query->whereIn('area', self::PULAU_MAP[$request->pulau]);
+    }
+
+    // PERIODE (dasar tanggal: rencana_kirim ATAU tanggal_naik_logistik)
+    $col  = $this->dateFilterColumn($request);
+    $from = $request->input('date_from');
+    $to   = $request->input('date_to');
+
+    // kalau kebalik (mis. 10 Okt sampai 2 Okt), ditukar otomatis
+    if ($from && $to && $from > $to) {
+        [$from, $to] = [$to, $from];
+    }
+
+    if ($from) {
+        $query->whereDate($col, '>=', $from);
+    }
+    if ($to) {
+        $query->whereDate($col, '<=', $to);
+    }
+
+    // MONTH
+    if ($request->month) {
+        $query->whereMonth($col, substr($request->month, 5, 2));
+        $query->whereYear($col, substr($request->month, 0, 4));
+    }
+
+    // YEAR
+    if ($request->year) {
+        $query->whereYear($col, $request->year);
+    }
+
+    return $query;
+}
     /*
     |--------------------------------------------------------------------------
     | GET AREA
@@ -1338,58 +1347,42 @@ if (!empty($areas)) {
     | BONGKAR ONTIME (FIXED: pakai applyFilter, bukan tanggal_bongkar manual)
     |--------------------------------------------------------------------------
     */
-    public function bongkarOntime(Request $request)
-    {
-        $query = DB::table('logistik_pengiriman')
-            ->selectRaw("
-                *,
-                CASE
-                    WHEN DATEDIFF(DATE(tanggal_bongkar), DATE(tanggal_tiba)) <= 0
-                    THEN 'On Time'
-                    ELSE 'Delay'
-                END AS sla_bongkar
-            ")
-            ->whereNotNull('tanggal_bongkar')
-            ->whereNotNull('tanggal_tiba')
-            ->where('tanggal_bongkar', '!=', '1899-12-31 00:00:00')
-            ->whereRaw("
-                DATEDIFF(
-                    DATE(tanggal_bongkar),
-                    DATE(tanggal_tiba)
-                ) <= 0
-            ");
+public function bongkarOntime(Request $request)
+{
+    $query = DB::table('logistik_pengiriman')
+        ->selectRaw("*, 'On Time' AS sla_bongkar")
+        ->whereNotNull('tanggal_bongkar')
+        ->where('tanggal_bongkar', '!=', '1899-12-31 00:00:00')
+        ->where(function ($q) {
+            $q->whereNull('overstay_days')
+              ->orWhere('overstay_days', 0);
+        });
 
-        $this->applyFilter($query, $request);
+    $this->applyFilter($query, $request);
 
-        $list = $query
-            ->orderByDesc('tanggal_bongkar')
-            ->get();
+    $list = $query->orderByDesc('tanggal_bongkar')->get();
 
-        return view('manager.bongkar_ontime', compact('list'));
-    }
+    return view('manager.bongkar_ontime', compact('list'));
+}
 
     /*
     |--------------------------------------------------------------------------
     | BONGKAR DELAY (FIXED: pakai applyFilter, bukan tanggal_bongkar manual)
     |--------------------------------------------------------------------------
     */
-    public function bongkarDelay(Request $request)
-    {
-        $query = DB::table('logistik_pengiriman')
-            ->where(function ($q) {
-                $q->whereIn('sla_bongkar', ['Delay', 'Critical Delay'])
-                  ->orWhere('overstay_days', '>', 0);
-            })
-            ->whereNotNull('tanggal_bongkar')
-            ->where('tanggal_bongkar', '!=', '1899-12-31 00:00:00');
+   public function bongkarDelay(Request $request)
+{
+    $query = DB::table('logistik_pengiriman')
+        ->whereNotNull('tanggal_bongkar')
+        ->where('tanggal_bongkar', '!=', '1899-12-31 00:00:00')
+        ->where('overstay_days', '>', 0);
 
-        $this->applyFilter($query, $request);
+    $this->applyFilter($query, $request);
 
-        $list = $query->orderByDesc('tanggal_bongkar')->get();
+    $list = $query->orderByDesc('tanggal_bongkar')->get();
 
-        return view('manager.bongkar_delay', compact('list'));
-    }
-
+    return view('manager.bongkar_delay', compact('list'));
+}
     // Method lama ini sudah tidak dipakai route manapun — dibiarkan apa adanya.
     public function bongkarDelaya(Request $request)
     {

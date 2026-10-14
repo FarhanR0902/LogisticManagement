@@ -106,6 +106,8 @@ class LogistikPengiriman extends Model
     'waktu_keluar_gudang_2',
     'waktu_tiba_gudang_3',
     'waktu_keluar_gudang_3',
+    'no_delivery',
+    'customer_reference',
     'create_on',
     'code_planner',
         'create_tgl'

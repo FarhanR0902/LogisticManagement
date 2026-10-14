@@ -47,9 +47,23 @@
         @media(max-width:768px) {
             .container { width: 100%; margin-left: 0; padding: 15px; }
         }
+        th a.sort { color: #fff; display: inline-flex; gap: 6px; align-items: center; }
+th a.sort span { font-size: 11px; opacity: .5; }
+th a.sort.active span { opacity: 1; color: #fbbf24; }
+th a.sort:hover { text-decoration: underline; }
     </style>
 </head>
-
+@php
+    $sortLink = function ($key, $label) {
+        $cur  = request('sort');
+        $dir  = request('dir', 'asc');
+        $next = ($cur === $key && $dir === 'asc') ? 'desc' : 'asc';
+        $icon = $cur === $key ? ($dir === 'asc' ? '▲' : '▼') : '⇅';
+        $url  = request()->fullUrlWithQuery(['sort' => $key, 'dir' => $next, 'page' => null]);
+        return '<a href="' . e($url) . '" class="sort' . ($cur === $key ? ' active' : '') . '">'
+             . e($label) . ' <span>' . $icon . '</span></a>';
+    };
+@endphp
 <body>
 <div class="container">
 
@@ -90,29 +104,40 @@
                     <option value="{{ $p }}" @selected(request('planner') === $p)>{{ $p }}</option>
                 @endforeach
             </select>
+            <select name="dist_channel">
+    <option value="">Semua Channel</option>
+    @foreach($channelList as $c)
+        <option value="{{ $c }}" @selected(request('dist_channel') === $c)>{{ $c }}</option>
+    @endforeach
+</select>
 
-            <button type="submit">Filter</button>
-            <a href="{{ route('planner.ingudang') }}" class="reset">Reset</a>
+        @if(request('sort'))
+    <input type="hidden" name="sort" value="{{ request('sort') }}">
+    <input type="hidden" name="dir" value="{{ request('dir', 'asc') }}">
+@endif
+
+<button type="submit">Filter</button>
+<a href="{{ route('planner.ingudang') }}" class="reset">Reset</a>
         </form>
     </div>
 
     <div class="card">
         <div class="table-wrap">
             <table>
-                <thead>
-                    <tr>
-                        <th>No</th>
-                        <th>No Shipment</th>
-                        <th>Planner</th>
-                        <th>Tujuan</th>
-                        <th>Area</th>
-                        <th>Rencana Kirim</th>
-                        <th>Ekspedisi</th>
-                        <th>Driver / No Pol</th>
-                        <th>Gudang Selesai</th>
-                        <th>Posisi / Status</th>
-                    </tr>
-                </thead>
+            <thead>
+    <tr>
+<th>No</th>
+<th>{!! $sortLink('no_shipment', 'No Shipment') !!}</th>
+<th>{!! $sortLink('planner', 'Planner') !!}</th>
+<th>{!! $sortLink('tujuan', 'Tujuan') !!}</th>
+<th>{!! $sortLink('area', 'Area') !!}</th>
+<th>{!! $sortLink('dist_channel', 'Channel') !!}</th>   {{-- BARU --}}
+<th>{!! $sortLink('rencana_kirim', 'Rencana Kirim') !!}</th>
+<th>{!! $sortLink('ekpedisi', 'Ekspedisi') !!}</th>
+<th>{!! $sortLink('driver', 'Driver / No Pol') !!}</th>
+<th>{!! $sortLink('gudang_selesai', 'Gudang Selesai') !!}</th>
+<th>{!! $sortLink('posisi', 'Posisi / Status') !!}</th>    </tr>
+</thead>
                 <tbody>
                 @forelse($list as $r)
                     <tr>
@@ -121,6 +146,7 @@
                         <td>{{ $r->planner ?: '-' }}</td>
                         <td>{{ $r->tujuan ?: '-' }}</td>
                         <td>{{ $r->area ?: '-' }}</td>
+                        <td>{{ $r->dist_channel ?: '-' }}</td>
                         <td>{{ $r->rencana_kirim ? date('d-m-Y', strtotime($r->rencana_kirim)) : '-' }}</td>
                         <td>{{ $r->ekpedisi ?: '-' }}</td>
                         <td>{{ $r->nama_driver ?: '-' }} / {{ $r->no_pol ?: '-' }}</td>

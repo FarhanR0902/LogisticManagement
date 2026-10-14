@@ -310,7 +310,7 @@ h1,h2,h3,h4{
 
 .kpi-row{
     display:grid;
-    grid-template-columns:repeat(8,minmax(0,1fr));
+    grid-template-columns:repeat(9,minmax(0,1fr));
     gap:14px;
 }
 
