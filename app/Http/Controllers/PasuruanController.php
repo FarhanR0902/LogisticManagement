@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+                          
+use App\Imports\LogistikPasuruanImport;
 use Illuminate\Http\Request;
 use App\Models\LogistikPengirimanPasuruan;
 use App\Models\ShipmentPasuruanArchive;
@@ -381,7 +383,7 @@ class PasuruanController extends Controller
             'file' => 'required|mimes:xlsx,xls,csv',
         ]);
 
-        $import = new PasuruanImport;
+        $import = new LogistikPasuruanImport;
         Excel::import($import, $request->file('file'));
 
         $this->invalidatePlannerAreaCachePasuruan();

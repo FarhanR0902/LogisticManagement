@@ -283,6 +283,12 @@ Route::prefix('manager')->group(function () {
 
     Route::get('/manager/pasuruan/in-transit', [App\Http\Controllers\Manager\ManagerController::class, 'inTransitPasuruan'])
     ->name('manager.pasuruan.intransit');
+    Route::get('/pasuruan/gudang/ontime', [ManagerController::class, 'gudangOntimePasuruan'])->name('manager.pasuruan.gudang.ontime');
+Route::get('/pasuruan/gudang/delay',  [ManagerController::class, 'gudangDelayPasuruan'])->name('manager.pasuruan.gudang.delay');
+Route::get('/pasuruan/tujuan/ontime', [ManagerController::class, 'tujuanOntimePasuruan'])->name('manager.pasuruan.tujuan.ontime');
+Route::get('/pasuruan/tujuan/delay',  [ManagerController::class, 'tujuanDelayPasuruan'])->name('manager.pasuruan.tujuan.delay');
+Route::get('/pasuruan/bongkar/ontime', [ManagerController::class, 'bongkarOntimePasuruan'])->name('manager.pasuruan.bongkar.ontime');
+Route::get('/pasuruan/bongkar/delay',  [ManagerController::class, 'bongkarDelayPasuruan'])->name('manager.pasuruan.bongkar.delay');
 
     Route::match(['get', 'post'], '/manager/data-pasuruan/ajax', [
         \App\Http\Controllers\Manager\ManagerController::class,

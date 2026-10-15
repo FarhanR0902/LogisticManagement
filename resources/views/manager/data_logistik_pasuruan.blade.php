@@ -40,6 +40,7 @@
         .badge-success { background: linear-gradient(135deg,#16a34a,#22c55e); }
         .badge-warning { background: linear-gradient(135deg,#f59e0b,#fbbf24); color:#222; }
         .badge-info { background: linear-gradient(135deg,#2563eb,#3b82f6); }
+       .badge.cream, .badge-cream { background: #e8d5b0; color: #5b4636; }
         .badge-danger { background: linear-gradient(135deg,#dc2626,#ef4444); }
         .badge-secondary { background: linear-gradient(135deg,#00e5ff,#9ca3af); }
         .cr-value { color: #0056b3; font-weight: 700; font-size: 14px; }

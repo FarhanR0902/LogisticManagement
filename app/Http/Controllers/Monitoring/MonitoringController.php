@@ -328,13 +328,18 @@ if (in_array($kelSort, ['asc', 'desc'], true)) {
         // Baris yang tanggal_bongkar-nya sudah diinput selalu di belakang
         $baseQuery->orderByRaw("CASE WHEN NULLIF(TRIM(tanggal_bongkar), '') IS NOT NULL THEN 1 ELSE 0 END ASC");
  
-        if ($orderCol !== null && isset($orderColumnMap[$orderCol])) {
-            $baseQuery->orderBy($orderColumnMap[$orderCol], $orderDir);
-            // tie-breaker biar urutan stabil antar baris yg nilainya sama
-            $baseQuery->orderBy('no_shipment', 'ASC')->orderBy('act_urutan_bongkar', 'ASC');
-        } else {
-            $baseQuery->orderBy('no_shipment', 'ASC')->orderBy('act_urutan_bongkar', 'ASC');
-        }
+      // urutan kelompok selalu dipakai (header sort hanya mengurutkan di dalam kelompok)
+$baseQuery->orderByRaw('(' . $this->prioritasTampilSql() . ') ASC');
+
+if ($orderCol !== null && isset($orderColumnMap[$orderCol])) {
+    $baseQuery->orderBy($orderColumnMap[$orderCol], $orderDir);
+} else {
+    // default: tanggal keluar gudang terakhir (paling lama di atas)
+    $baseQuery->orderByRaw($this->keluarTerakhirSql() . ' ASC');
+}
+
+// tie-breaker supaya baris dalam 1 shipment tetap berkumpul
+$baseQuery->orderBy('no_shipment', 'ASC')->orderBy('act_urutan_bongkar', 'ASC');
  
         $rows = $baseQuery
             ->skip($start)
@@ -448,39 +453,47 @@ if (in_array($kelSort, ['asc', 'desc'], true)) {
         $estimasi_show = '-';
         
 
+$alert = '';
+$alertClass = 'gray';
+
 if ($blocked) {
     $estimasi_show = $blockedLabel;
     $alertClass = 'gray';
 } else {
     $estimasi_show = $estimasi ? date('d-m-Y', $estimasi) : '-';
 
-            if (!$r->tanggal_tiba && $estimasi) {
-                $today = strtotime(date('Y-m-d'));
-                $hariSisa = floor(($estimasi - $today) / 86400);
+    // Hitung H- hanya kalau belum tiba
+    if (!$r->tanggal_tiba && $estimasi) {
+        $today = strtotime(date('Y-m-d'));
+        $hariSisa = floor(($estimasi - $today) / 86400);
 
-                if ($hariSisa < 0) {
-                    $alert = 'Pending Tiba  H+' . abs($hariSisa);
-                    $alertClass = 'red';
-                } elseif ($hariSisa == 0) {
-                    $alert = 'H-0'; $alertClass = 'red';
-                } elseif ($hariSisa == 1) {
-                    $alert = 'H-1'; $alertClass = 'red';
-                } elseif ($hariSisa == 2) {
-                    $alert = 'H-2'; $alertClass = 'orange';
-                } elseif ($hariSisa == 3) {
-                    $alert = 'H-3'; $alertClass = 'orange';
-                } elseif ($hariSisa <= 7) {
-                    $alert = 'H-' . $hariSisa; $alertClass = 'blue';
-                } else {
-                    $alert = 'ON TRACK'; $alertClass = 'green';
-                }
-            }
+        if ($hariSisa < 0) {
+            $alert = 'Pending Tiba  H+' . abs($hariSisa);
+            $alertClass = 'red';
+        } elseif ($hariSisa == 0) {
+            $alert = 'H-0'; $alertClass = 'red';
+        } elseif ($hariSisa == 1) {
+            $alert = 'H-1'; $alertClass = 'red';
+        } elseif ($hariSisa == 2) {
+            $alert = 'H-2'; $alertClass = 'orange';
+        } elseif ($hariSisa == 3) {
+            $alert = 'H-3'; $alertClass = 'orange';
+        } elseif ($hariSisa <= 7) {
+            $alert = 'H-' . $hariSisa; $alertClass = 'blue';
+        } else {
+            $alert = 'ON TRACK'; $alertClass = 'green';
         }
+    }
+}
 
-        $alertHtml = $r->tanggal_tiba
-            ? '<span class="badge green">✅ TIBA</span>'
-            : '<span class="badge ' . $alertClass . '">' . e($alert) . '</span>';
-
+// Prioritas: Selesai (bongkar) > Tiba > Alert H-
+if ($r->tanggal_bongkar) {
+    $alertHtml = '<span class="badge green">✅ Sudah Selesai</span>';
+} elseif ($r->tanggal_tiba) {
+    $alertHtml = '<span class="badge blue">🚚 Tiba (Belum Bongkar)</span>';
+} else {
+    $alertHtml = '<span class="badge ' . $alertClass . '">' . e($alert) . '</span>';
+}
         $sla_tiba = $r->sla_tiba ?? '-';
         $sla_tiba_html = $sla_tiba == '-'
             ? '-'
@@ -1202,6 +1215,40 @@ public function exportInTransit(Request $request)
         ->map(fn($r) => $this->decorateInTransitRow($r, $todayTs));
 
     return Excel::download(new InTransitExport($rows), 'In_Transit_' . date('Ymd_His') . '.xlsx');
+}
+
+// 0 = sudah keluar gudang, 1 = gudang berikutnya (blocked), 2 = belum diinput, 3 = sudah bongkar
+private function prioritasTampilSql(): string
+{
+    $filled = fn($c) => "NULLIF(TRIM({$c}), '') IS NOT NULL";
+    $empty  = fn($c) => "NULLIF(TRIM({$c}), '') IS NULL";
+
+    $cycles = [
+        ['planning_loading',   'tanggal_tiba_gudang',   'tanggal_keluar_gudang'],
+        ['planning_loading_2', 'tanggal_tiba_gudang_2', 'tanggal_keluar_gudang_2'],
+        ['planning_loading_3', 'tanggal_tiba_gudang_3', 'tanggal_keluar_gudang_3'],
+    ];
+    $parts = [];
+    foreach ($cycles as [$p, $t, $k]) {
+        $parts[] = '((' . $filled($p) . ' OR ' . $filled($t) . ') AND ' . $empty($k) . ')';
+    }
+    $blocked = '(' . implode(' OR ', $parts) . ')';
+
+    return "CASE
+        WHEN {$filled('tanggal_bongkar')} THEN 3
+        WHEN {$blocked} THEN 1
+        WHEN " . $this->keluarTerakhirSql() . " > '1900-01-01' THEN 0
+        ELSE 2
+    END";
+}
+
+private function keluarTerakhirSql(): string
+{
+    return "GREATEST(
+        COALESCE(NULLIF(TRIM(tanggal_keluar_gudang),''),'1900-01-01'),
+        COALESCE(NULLIF(TRIM(tanggal_keluar_gudang_2),''),'1900-01-01'),
+        COALESCE(NULLIF(TRIM(tanggal_keluar_gudang_3),''),'1900-01-01')
+    )";
 }
 // 0 = belum jatuh tempo, 1 = lengkap, 2 = 1 field kosong, 3 = 2 field kosong
 private function kelengkapanSql(): string

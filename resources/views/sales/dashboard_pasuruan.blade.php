@@ -666,6 +666,27 @@ tbody tr:last-child td{ border-bottom:none; }
     .total-row{ grid-template-columns:1fr; }
     .two-col{ grid-template-columns:1fr; }
 }
+.ms-dd{ position:relative; width:220px; }
+.filter-form .ms-dd-btn{
+    width:100%; height:38px; display:flex; justify-content:space-between; align-items:center; gap:8px;
+    padding:0 12px; border:1px solid var(--border); border-radius:var(--radius-sm);
+    background:#fbfcfe; font-size:13.5px; color:var(--text-primary); cursor:pointer;
+}
+.ms-label{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.ms-dd.has-value .ms-dd-btn{ border-color:var(--primary); background:var(--primary-light); }
+.ms-dd-panel{
+    position:absolute; top:42px; left:0; z-index:9999; width:280px; padding:10px;
+    background:#fff; border:1px solid var(--border); border-radius:var(--radius-sm);
+    box-shadow:0 10px 25px rgba(0,0,0,.18);
+}
+.filter-form .ms-dd-panel .ms-search{ width:100%; min-width:0; }
+.ms-dd-actions{ display:flex; justify-content:space-between; margin:8px 2px; font-size:12.5px; }
+.ms-dd-actions a{ color:var(--primary); font-weight:600; text-decoration:none; }
+.ms-dd-list{ max-height:240px; overflow-y:auto; }
+.ms-dd-item{ display:flex; align-items:center; gap:8px; padding:6px; font-size:13.5px; cursor:pointer; }
+.ms-dd-item:hover{ background:var(--slate-light); border-radius:6px; }
+.filter-form .ms-dd-item input{ width:auto; height:auto; min-width:0; }
+.ms-empty{ padding:8px; font-size:13px; color:var(--text-muted); }
 
 </style>
 </head>
@@ -688,10 +709,23 @@ tbody tr:last-child td{ border-bottom:none; }
 <div class="filter-box">
     <form method="GET" action="{{ url()->current() }}" class="filter-form" id="filterForm">
 
-        <div class="field">
-            <label for="f-date">Tanggal</label>
-            <input id="f-date" type="date" name="date" value="{{ request('date') }}">
-        </div>
+     <div class="field">
+    <label for="f-basis">Dasar tanggal</label>
+    <select id="f-basis" name="tgl_basis">
+        <option value="tanggal_terima_po_pasuruan" {{ request('tgl_basis', 'tanggal_terima_po_pasuruan') == 'tanggal_terima_po_pasuruan' ? 'selected' : '' }}>Tanggal Terima PO</option>
+        <option value="rencana_kirim_pasuruan" {{ request('tgl_basis') == 'rencana_kirim_pasuruan' ? 'selected' : '' }}>Rencana Kirim</option>
+    </select>
+</div>
+
+<div class="field">
+    <label for="f-from">Dari tanggal</label>
+    <input id="f-from" type="date" name="date_from" value="{{ request('date_from') }}">
+</div>
+
+<div class="field">
+    <label for="f-to">Sampai tanggal</label>
+    <input id="f-to" type="date" name="date_to" value="{{ request('date_to') }}">
+</div>
 
         <div class="field">
             <label for="f-month">Bulan</label>
@@ -710,17 +744,31 @@ tbody tr:last-child td{ border-bottom:none; }
             </select>
         </div>
 
-        <div class="field">
-            <label for="f-area">Area</label>
-            <select id="f-area" name="area">
-                <option value="">Semua area</option>
+<div class="field">
+    <label>Area</label>
+    <div class="ms-dd" id="filterArea">
+        <button type="button" class="ms-dd-btn">
+            <span class="ms-label">Semua area</span><span>▾</span>
+        </button>
+        <div class="ms-dd-panel" hidden>
+            <input type="text" class="ms-search" placeholder="Cari area..." autocomplete="off">
+            <div class="ms-dd-actions">
+                <a href="#" class="ms-all">Pilih semua</a>
+                <a href="#" class="ms-clear">Hapus</a>
+            </div>
+            <div class="ms-dd-list">
                 @foreach($list_area as $a)
-                    <option value="{{ $a }}" {{ request('area') == $a ? 'selected' : '' }}>
-                        {{ $a }}
-                    </option>
+                    <label class="ms-dd-item">
+                        <input type="checkbox" class="ms-chk" name="area[]" value="{{ $a }}"
+                               {{ in_array($a, (array) request('area', [])) ? 'checked' : '' }}>
+                        <span>{{ $a }}</span>
+                    </label>
                 @endforeach
-            </select>
+                <div class="ms-empty" hidden>Tidak ditemukan</div>
+            </div>
         </div>
+    </div>
+</div>
 
         <!-- Filter pulau dikirim lewat hidden input ini, diisi otomatis pas kotak pulau diklik -->
         <input type="hidden" name="pulau" id="f-pulau" value="{{ request('pulau') }}">
@@ -779,55 +827,49 @@ tbody tr:last-child td{ border-bottom:none; }
         </div>
     </div>
 </div>
-
 <!-- KPI -->
 <div class="section-label">Ringkasan status</div>
 <div class="kpi-row">
 
-<a href="{{ route('sales.data.pasuruan') }}" class="card blue">
-    <h4>Total Shipment</h4>
-    <h1>{{ $total_data }}</h1>
-</a>
+    <a href="{{ route('sales.data.pasuruan', request()->query()) }}" class="card blue">
+        <h4>Total Shipment</h4>
+        <h1>{{ $total_data }}</h1>
+    </a>
 
-<a href="{{ route('sales.intransit.pasuruan', request()->query()) }}" class="card blue">
-    <h4>Dalam Perjalanan (In Transit)</h4>
-    <h1>{{ $total_in_transit }}</h1>
-</a>
+    <a href="{{ route('sales.intransit.pasuruan', request()->query()) }}" class="card blue">
+        <h4>In Transit</h4>
+        <h1>{{ $total_in_transit }}</h1>
+    </a>
 
-<a href="{{ route('pasuruan.gudang.ontime') }}" class="card green">
-    <h4>Sudah Tiba Di Gudang</h4>
-    <h1>{{ $gudang_ontime }}</h1>
-</a>
+    <a href="{{ route('sales.pasuruan.gudang.ontime', request()->query()) }}" class="card green">
+        <h4>Sudah Tiba Di Gudang</h4>
+        <h1>{{ $gudang_ontime }}</h1>
+    </a>
 
-<a href="{{ route('pasuruan.gudang.delay') }}" class="card red">
-    <h4>Belum Tiba Di Gudang</h4>
-    <h1>{{ $gudang_delay }}</h1>
-</a>
+    <a href="{{ route('sales.pasuruan.gudang.delay', request()->query()) }}" class="card red">
+        <h4>Belum Tiba Di Gudang</h4>
+        <h1>{{ $gudang_delay }}</h1>
+    </a>
 
-<a href="{{ route('pasuruan.tujuan.ontime') }}" class="card teal">
-    <h4>Tiba Tujuan OnTime</h4>
-    <h1>{{ $customer_ontime }}</h1>
-</a>
+    <a href="{{ route('sales.pasuruan.tujuan.ontime', request()->query()) }}" class="card teal">
+        <h4>Tiba Tujuan OnTime</h4>
+        <h1>{{ $customer_ontime }}</h1>
+    </a>
 
-<a href="{{ route('pasuruan.tujuan.delay') }}" class="card orange">
-    <h4>Tiba Tujuan Delay</h4>
-    <h1>{{ $customer_delay }}</h1>
-</a>
+    <a href="{{ route('sales.pasuruan.tujuan.delay', request()->query()) }}" class="card orange">
+        <h4>Tiba Tujuan Delay</h4>
+        <h1>{{ $customer_delay }}</h1>
+    </a>
 
-<a href="{{ route('pasuruan.bongkar.ontime') }}" class="card purple">
-    <h4>Bongkar OnTime</h4>
-    <h1>{{ $bongkar_ontime }}</h1>
-</a>
+    <a href="{{ route('sales.pasuruan.bongkar.ontime', request()->query()) }}" class="card purple">
+        <h4>Bongkar OnTime</h4>
+        <h1>{{ $bongkar_ontime }}</h1>
+    </a>
 
-<a href="{{ route('pasuruan.bongkar.delay') }}" class="card dark">
-    <h4>Bongkar Delay</h4>
-    <h1>{{ $bongkar_delay }}</h1>
-</a>
-
-<!-- <a href="{{ route('manager.summary.area') }}" class="card blue">
-    <h4>Summary Area</h4>
-    <h1>{{ count($summary_area) }}</h1>
-</a> -->
+    <a href="{{ route('sales.pasuruan.bongkar.delay', request()->query()) }}" class="card dark">
+        <h4>Bongkar Delay</h4>
+        <h1>{{ $bongkar_delay }}</h1>
+    </a>
 
 </div>
 <!-- HERO TOTALS -->
@@ -1529,6 +1571,59 @@ if (document.getElementById('shipmentMap')) {
         debugBox.innerHTML = html;
     }
 }
+(function () {
+    const dd = document.getElementById('filterArea');
+    if (!dd) return;
+
+    const panel = dd.querySelector('.ms-dd-panel');
+    const search = dd.querySelector('.ms-search');
+    const empty = dd.querySelector('.ms-empty');
+    const items = [...dd.querySelectorAll('.ms-dd-item')];
+    const chks = [...dd.querySelectorAll('.ms-chk')];
+    const label = dd.querySelector('.ms-label');
+
+    function updateLabel() {
+        const v = chks.filter(c => c.checked).map(c => c.value);
+        label.textContent = v.length === 0 ? 'Semua area'
+                          : v.length <= 2 ? v.join(', ')
+                          : v.length + ' dipilih';
+        dd.classList.toggle('has-value', v.length > 0);
+    }
+
+    dd.querySelector('.ms-dd-btn').addEventListener('click', e => {
+        e.stopPropagation();
+        panel.hidden = !panel.hidden;
+        if (!panel.hidden) search.focus();
+    });
+    panel.addEventListener('click', e => e.stopPropagation());
+    document.addEventListener('click', () => { panel.hidden = true; });
+
+    search.addEventListener('input', () => {
+        const q = search.value.toLowerCase().trim();
+        let shown = 0;
+        items.forEach(it => {
+            const ok = it.textContent.toLowerCase().includes(q);
+            it.style.display = ok ? '' : 'none';
+            if (ok) shown++;
+        });
+        empty.hidden = shown !== 0;
+    });
+
+    chks.forEach(c => c.addEventListener('change', updateLabel));
+
+    dd.querySelector('.ms-all').addEventListener('click', e => {
+        e.preventDefault();
+        items.forEach(it => { if (it.style.display !== 'none') it.querySelector('.ms-chk').checked = true; });
+        updateLabel();
+    });
+    dd.querySelector('.ms-clear').addEventListener('click', e => {
+        e.preventDefault();
+        chks.forEach(c => c.checked = false);
+        updateLabel();
+    });
+
+    updateLabel();
+})();
 
 </script>
 

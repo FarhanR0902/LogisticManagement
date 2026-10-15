@@ -22,7 +22,13 @@ class LogistikImport implements ToCollection, WithHeadingRow, WithEvents, WithCa
     private const ROUTE_ALIASES = [
         'jabodetabek' => 'Sentul-Jabodetabek',
     ];
-
+    private const EKSPEDISI_ALIASES = [
+    // 'namadiexcel' => 'PT Nama Di Master',
+];
+// kolom hasil lookup master tujuan yang boleh "ikut" baris lain di shipment yang sama
+private const SIBLING_FILL_COLUMNS = [
+    'dist_channel', 'area', 'pulau', 'transport_lead_time', 'planner', 'pic_monitoring',
+];
     // header Excel (sudah di-slug) -> kolom DB, hanya untuk yang namanya BEDA
     private const HEADER_ALIASES = [
         'tgl_terima_dari_admin'  => 'tanggal_naik_logistik',
@@ -37,10 +43,11 @@ class LogistikImport implements ToCollection, WithHeadingRow, WithEvents, WithCa
         'via'                    => 'via_kirim',
         'kode_planner'           => 'code_planner',
     ];
-    private static $areaMap = null;   // area => ['planner' => ..., 'pic' => ...]
-       private static $customerMap    = null;   // tujuan => row         (cadangan, berdasarkan tujuan)
+
+    private static $areaMap        = null;   // area => ['planner' => ..., 'pic' => ...]
+    private static $customerMap    = null;   // tujuan => row         (cadangan, berdasarkan tujuan)
     private static $customerByCode = null;   // "code|tujuan" => row  (prioritas, code_planner + tujuan)
-    private static $tarifByRoute   = null; // "code|tujuan" => row     (cara 2) // code_planner => nama planner
+    private static $tarifByRoute   = null;   // route => rows tarif
 
     private array $allColumns = [];        // semua kolom tabel
     private array $dbColumns  = [];        // [kolom => tipe], tanpa SKIP_COLUMNS
@@ -53,8 +60,9 @@ class LogistikImport implements ToCollection, WithHeadingRow, WithEvents, WithCa
     private $lastNoShipment    = null;     // reset route/mobil/ekpedisi per shipment
     private $lastRoute         = null;
     private $lastMobil         = null;
-    private $lastEkpedisi      = null;
-
+  private $lastEkpedisi      = null;
+private array $shipmentKubik     = [];   // no_shipment => total kubik di file
+private array $ekspedisiResolved = [];   // cache: "route|ekspedisi excel" => nama di master
     // ===== hasil proses =====
     private $inserted = 0;
     private $updated  = 0;
@@ -90,70 +98,86 @@ class LogistikImport implements ToCollection, WithHeadingRow, WithEvents, WithCa
         $this->hasCreatedAt = in_array('created_at', $this->allColumns, true);
         $this->hasUpdatedAt = in_array('updated_at', $this->allColumns, true);
 
-if (self::$customerMap === null) {
-    $rows = DB::table('tujuanfillterr')
-        ->select('tujuan', 'code_planner', 'Planner', 'dist_channel', 'pulau', 'area',
-                 'biaya_kuli', 'transport_lead_time', 'Monitoring')
-        ->where('Div', 'HO Meruya')
-        ->get();
+        if (self::$customerMap === null) {
+            $rows = DB::table('tujuanfillterr')
+                ->select('tujuan', 'code_planner', 'Planner', 'dist_channel', 'pulau', 'area',
+                         'biaya_kuli', 'transport_lead_time', 'Monitoring')
+                ->where('Div', 'HO Meruya')
+                ->get();
 
-    self::$customerMap    = [];
-    self::$customerByCode = [];
+            self::$customerMap    = [];
+            self::$customerByCode = [];
 
-    foreach ($rows as $r) {
-        $t = $this->normTujuan($r->tujuan);
-        if ($t === '') continue;
+            foreach ($rows as $r) {
+                $t = $this->normTujuan($r->tujuan);
+                if ($t === '') continue;
 
-        self::$customerMap[$t] ??= $r;
+                self::$customerMap[$t] ??= $r;
 
-        $code = strtolower(trim((string) $r->code_planner));
-        if ($code !== '') {
-            self::$customerByCode[$code . '|' . $t] ??= $r;
+                $code = strtolower(trim((string) $r->code_planner));
+                if ($code !== '') {
+                    self::$customerByCode[$code . '|' . $t] ??= $r;
+                }
+            }
+
+            // ---- peta area -> planner & PIC (paling sering muncul di master) ----
+            $tally = [];
+            foreach ($rows as $r) {
+                $a = trim((string) $r->area);
+                if ($a === '') continue;
+
+                $p = trim((string) $r->Planner);
+                $m = trim((string) $r->Monitoring);
+
+                if ($p !== '') $tally[$a]['p'][$p] = ($tally[$a]['p'][$p] ?? 0) + 1;
+                if ($m !== '') $tally[$a]['m'][$m] = ($tally[$a]['m'][$m] ?? 0) + 1;
+            }
+
+            self::$areaMap = [];
+            foreach ($tally as $a => $t) {
+                self::$areaMap[(string) $a] = [
+                    'planner' => isset($t['p']) ? (string) array_search(max($t['p']), $t['p']) : null,
+                    'pic'     => isset($t['m']) ? (string) array_search(max($t['m']), $t['m']) : null,
+                ];
+            }
         }
-    }
 
-    // ---- peta area -> planner & PIC (paling sering muncul di master) ----
-    $tally = [];
-    foreach ($rows as $r) {
-        $a = trim((string) $r->area);
-        if ($a === '') continue;
-
-        $p = trim((string) $r->Planner);
-        $m = trim((string) $r->Monitoring);
-
-        if ($p !== '') $tally[$a]['p'][$p] = ($tally[$a]['p'][$p] ?? 0) + 1;
-        if ($m !== '') $tally[$a]['m'][$m] = ($tally[$a]['m'][$m] ?? 0) + 1;
-    }
-
-    self::$areaMap = [];
-    foreach ($tally as $a => $t) {
-        self::$areaMap[(string) $a] = [
-            'planner' => isset($t['p']) ? (string) array_search(max($t['p']), $t['p']) : null,
-            'pic'     => isset($t['m']) ? (string) array_search(max($t['m']), $t['m']) : null,
-        ];
-    }
-}
         if (self::$tarifByRoute === null) {
             self::$tarifByRoute = DB::table(self::TARIF_TABLE)
                 ->select('ekpedisi', 'route', 'mobil', 'biaya_kirim', 'kubikasi', 'tonase')
                 ->get()
                 ->groupBy(fn($row) => $this->normalize($row->route));
         }
-
-      
     }
 
     private function normTujuan(?string $value): string
-{
-    $value = str_replace("\xC2\xA0", ' ', (string) $value);
-    return preg_replace('/\s+/', ' ', strtolower(trim($value)));
-}
+    {
+        $value = str_replace("\xC2\xA0", ' ', (string) $value);
+        return preg_replace('/\s+/', ' ', strtolower(trim($value)));
+    }
 
     // =========================================================
     // IMPORT PER BARIS
     // =========================================================
     public function collection(Collection $rows)
     {
+        // total kubik per shipment (ikut aturan merge no_shipment)
+$this->shipmentKubik = [];
+$lastNo = null;
+foreach ($rows as $rc) {
+    $r  = $rc->toArray();
+    $no = $this->cleanText($r['no_shipment'] ?? null);
+    $tj = $this->cleanText($r['tujuan'] ?? null);
+
+    if ($no === null && $tj !== null) $no = $lastNo;
+    if ($no !== null) $lastNo = $no;
+    if ($no === null || $tj === null) continue;
+
+    $k = $this->parseNumber($this->pick($r, ['total_kubik', 'total_kubik_m3', 'total_kubik_m_3', 'totalkubik']));
+    if ($k !== null && $k > 0) {
+        $this->shipmentKubik[$no] = ($this->shipmentKubik[$no] ?? 0) + $k;
+    }
+}
         foreach ($rows as $rowCollection) {
             $row = $rowCollection->toArray();
 
@@ -368,42 +392,27 @@ if (self::$customerMap === null) {
         $nilaiMuatan = $this->parseNumber($this->pick($row, ['nilai_muatan', 'nilai_muatan_rp', 'nilai_muatan_rp_', 'nilai_muatan_pasuruan']));
 
         // ================= BIAYA KIRIM & KAPASITAS DARI TARIF =================
-        $tarifRow    = $this->findTarif($route, $ekpedisi, $mobil);
-        $biayaExcel  = $this->parseNumber($this->pick($row, ['biaya_kirim', 'biaya_kirim_rp']));
-        $biayaKirim  = ($biayaExcel !== null && $biayaExcel > 0)
-            ? $biayaExcel
-            : ($tarifRow ? $this->parseNumber($tarifRow->biaya_kirim) : null);
+        // biaya tarif = biaya 1 mobil penuh (sesuai route + ekpedisi + mobil).
+        // biaya per baris = total_kubik / kubikasi x biaya tarif (porsi kubik baris ini).
+        $tarifRow   = $this->findTarif($route, $ekpedisi, $mobil);
+        $biayaExcel = $this->parseNumber($this->pick($row, ['biaya_kirim', 'biaya_kirim_rp']));
 
-        $kubikasi = $tarifRow ? $this->parseNumber($tarifRow->kubikasi ?? null) : null;
-        $tonase   = $tarifRow ? $this->parseNumber($tarifRow->tonase ?? null)   : null;
+        $kubikasi   = $tarifRow ? $this->parseNumber($tarifRow->kubikasi ?? null) : null;
+        $tonase     = $tarifRow ? $this->parseNumber($tarifRow->tonase ?? null)   : null;
+        $biayaTarif = $tarifRow ? $this->parseNumber($tarifRow->biaya_kirim)      : null;
 
-        // ================= LOOKUP MASTER TUJUAN =================
-       // ================= LOOKUP MASTER TUJUAN =================
-// $tujuanKey    = $this->normTujuan($tujuan);
-// $customerData = self::$customerMap[$tujuanKey] ?? null;
+        if ($biayaExcel !== null && $biayaExcel > 0) {
+            // diisi manual di Excel -> dipakai apa adanya
+            $biayaKirim = $biayaExcel;
+} elseif ($biayaTarif !== null && $kubikasi > 0 && $totalKubik > 0) {
+    // kalau muatan shipment melebihi kubikasi, bagi berdasarkan total kubik shipment
+    $kapasitas  = max($kubikasi, $this->shipmentKubik[$noShipment] ?? 0);
+    $biayaKirim = round(($totalKubik / $kapasitas) * $biayaTarif, 2);
+} else {
+            // kubik/kubikasi belum lengkap -> fallback ke biaya tarif penuh
+            $biayaKirim = $biayaTarif;
+        }
 
-// ================= PLANNER & PIC MONITORING =================
-$codeExcel = $this->cleanText($this->pick($row, ['code_planner', 'kode_planner']));
-
-// if ($codeExcel !== null) {
-//     // CARA 2: code_planner + tujuan
-//     $plannerRow = self::$customerByCode[strtolower($codeExcel) . '|' . $tujuanKey] ?? null;
-
-//     if ($plannerRow === null) {
-//         $this->unknownPlannerCodes[] = $codeExcel . ' @ ' . $tujuan;
-//         $plannerRow = $customerData;          // fallback ke cara 1
-//     }
-// } else {
-//     // CARA 1: berdasarkan tujuan saja
-//     $plannerRow = $customerData;
-// }
-
-// $codePlanner   = $codeExcel ?? $this->cleanText($plannerRow->code_planner ?? null);
-// $planner       = $this->cleanText($plannerRow->Planner ?? null)
-//                  ?: $this->cleanText($row['planner'] ?? null);
-// $picMonitoring = $this->cleanText($plannerRow->Monitoring ?? null);
-
-// $distChannel         = $customerData->dist_channel ?? null;
         // ================= LOOKUP MASTER TUJUAN =================
         $tujuanKey    = $this->normTujuan($tujuan);
         $customerData = self::$customerMap[$tujuanKey] ?? null;   // cadangan (berdasarkan tujuan)
@@ -436,10 +445,6 @@ $codeExcel = $this->cleanText($this->pick($row, ['code_planner', 'kode_planner']
         $biayaKuli           = $customerData->biaya_kuli ?? null;
         $transport_lead_time = $customerData->transport_lead_time ?? null;
         $pulau               = ($customerData->pulau ?? null) ?: $this->cleanText($row['pulau'] ?? null);
-$area                = $customerData->area ?? null;
-$biayaKuli           = $customerData->biaya_kuli ?? null;
-$transport_lead_time = $customerData->transport_lead_time ?? null;
-$pulau               = ($customerData->pulau ?? null) ?: $this->cleanText($row['pulau'] ?? null);
 
         // ================= MONITORING =================
         $keluar = collect([$tanggalKeluarGudang, $tanggalKeluarGudang2, $tanggalKeluarGudang3])
@@ -573,7 +578,7 @@ $pulau               = ($customerData->pulau ?? null) ?: $this->cleanText($row['
 
         // ================= SISA HEADER EXCEL (apa adanya) =================
         // header yang cocok dengan kolom DB tapi belum diisi di atas
-        // (waktu_*, reason_gudang*, remarks, nama_kapal, etd/eta/atd/ata, dst)
+        // (no_delivery, customer_reference, waktu_*, reason_gudang*, remarks, nama_kapal, etd/eta/atd/ata, dst)
         foreach ($this->map as $header => [$col, $kind]) {
             if (($attrs[$col] ?? null) !== null) continue;
 
@@ -814,30 +819,86 @@ $pulau               = ($customerData->pulau ?? null) ?: $this->cleanText($row['
         $value = str_replace("\xC2\xA0", ' ', (string) $value);
         return strtolower(preg_replace('/\s+/', ' ', trim($value)));
     }
+/** huruf kecil, buang badan usaha di depan (PT/CV/UD/PD), buang spasi, titik, tanda baca */
+private function ekspedisiKey(?string $v): string
+{
+    $k = strtolower($this->normalize($v));
+    $k = preg_replace('/^(pt|cv|ud|pd)\b[\s\.]*/', '', $k);
+    return preg_replace('/[^a-z0-9]+/', '', $k);
+}
 
-    private function findTarif(?string $route, ?string $ekpedisi, ?string $mobil)
-    {
-        $mobilExcel  = $this->normalizeMobil($mobil);
-        $ekpedisiKey = $ekpedisi !== null ? $this->normalize($ekpedisi) : '';
+/** cari nama ekspedisi di master (khusus route ini) yang paling mirip dengan nama di Excel */
+private function resolveEkspedisiName(?string $name, $candidates): ?string
+{
+    $key = $this->ekspedisiKey($name);
+    if ($key === '') return null;
 
-        $candidates = self::$tarifByRoute[$this->normalize($route)] ?? null;
-
-        if (!$candidates || $mobilExcel === '') {
-            return null;
-        }
-
-        if ($ekpedisiKey !== '') {
-            $strict = $candidates->first(function ($row) use ($ekpedisiKey, $mobilExcel) {
-                return $this->normalize($row->ekpedisi) === $ekpedisiKey
-                    && str_starts_with($this->normalizeMobil($row->mobil), $mobilExcel);
-            });
-            if ($strict) return $strict;
-        }
-
-        return $candidates->first(function ($row) use ($mobilExcel) {
-            return str_starts_with($this->normalizeMobil($row->mobil), $mobilExcel);
-        });
+    if (isset(self::EKSPEDISI_ALIASES[$key])) {
+        return self::EKSPEDISI_ALIASES[$key];
     }
+
+    $best = null; $bestScore = 0.0; $second = 0.0;
+
+    foreach ($candidates->pluck('ekpedisi')->filter()->unique() as $master) {
+        $mk = $this->ekspedisiKey($master);
+        if ($mk === '') continue;
+
+        if ($mk === $key) return $master;
+
+        similar_text($key, $mk, $pct);
+        $score = $pct / 100;
+
+        if (min(strlen($key), strlen($mk)) >= 6
+            && (str_contains($mk, $key) || str_contains($key, $mk))) {
+            $score = max($score, 0.9);
+        }
+
+        if ($score > $bestScore)  { $second = $bestScore; $bestScore = $score; $best = $master; }
+        elseif ($score > $second) { $second = $score; }
+    }
+
+    return ($best !== null && $bestScore >= 0.85 && ($bestScore - $second) >= 0.05) ? $best : null;
+}
+    private function findTarif(?string $route, ?string $ekpedisi, ?string $mobil)
+{
+    $mobilExcel = $this->normalizeMobil($mobil);
+    $routeKey   = $this->normalize($route);
+    $candidates = self::$tarifByRoute[$routeKey] ?? null;
+
+    if (!$candidates || $mobilExcel === '' || $this->ekspedisiKey($ekpedisi) === '') {
+        return null;
+    }
+
+    $cacheKey = $routeKey . '|' . $ekpedisi;
+    if (!array_key_exists($cacheKey, $this->ekspedisiResolved)) {
+        $master = $this->resolveEkspedisiName($ekpedisi, $candidates);
+        $this->ekspedisiResolved[$cacheKey] = $master;
+
+        if ($master !== null && $this->ekspedisiKey($master) !== $this->ekspedisiKey($ekpedisi)) {
+            logger()->info('LOGISTIK IMPORT: nama ekspedisi disamakan dengan master', [
+                'route' => $route, 'excel' => $ekpedisi, 'master' => $master,
+            ]);
+        }
+    }
+
+    $master = $this->ekspedisiResolved[$cacheKey];
+    $found  = null;
+
+    if ($master !== null) {
+        $found = $candidates->first(fn($row) =>
+            $row->ekpedisi === $master
+            && str_starts_with($this->normalizeMobil($row->mobil), $mobilExcel)
+        );
+    }
+
+    if (!$found) {
+        logger()->warning('LOGISTIK IMPORT: tarif tidak ditemukan', [
+            'route' => $route, 'ekpedisi' => $ekpedisi, 'mobil' => $mobil,
+        ]);
+    }
+
+    return $found;
+}
 
     // =========================================================
     // SETELAH IMPORT
@@ -845,69 +906,100 @@ $pulau               = ($customerData->pulau ?? null) ?: $this->cleanText($row['
     public function registerEvents(): array
     {
         return [
-          AfterImport::class => function () {
-    try {
-        $shipments = array_map('strval', array_values(array_unique($this->allNoShipmentInFile)));
+            AfterImport::class => function () {
+                try {
+                    $shipments = array_map('strval', array_values(array_unique($this->allNoShipmentInFile)));
 
-        $this->fillShipmentGaps($shipments);
-        $this->fillAreaAndPlannerGaps($shipments);   // <-- BARU
-        $this->recalcShipments($shipments);
-    } catch (\Throwable $e) {
-        logger()->error('LOGISTIK IMPORT AFTER-IMPORT GAGAL', [
-            'error' => $e->getMessage(),
-            'line'  => $e->getLine(),
-        ]);
-    }
-},
+                    $this->fillShipmentGaps($shipments);
+                    $this->fillAreaAndPlannerGaps($shipments);          
+                    $this->fillMasterGapsFromSiblings($shipments);
+                    $this->recalcShipments($shipments);
+                } catch (\Throwable $e) {
+                    logger()->error('LOGISTIK IMPORT AFTER-IMPORT GAGAL', [
+                        'error' => $e->getMessage(),
+                        'line'  => $e->getLine(),
+                    ]);
+                }
+            },
         ];
     }
 
     /**
- * 1) area kosong -> ikut area baris lain di no_shipment yang sama
- *    (hanya kalau shipment itu cuma punya 1 area; kalau areanya campur, dilewati)
- * 2) planner / pic_monitoring kosong -> isi dari master berdasarkan area
+ * kolom master yang kosong -> ikut baris lain di no_shipment yang sama.
+ * Hanya diisi kalau nilai di shipment itu seragam (1 nilai unik); kalau campur, dilewati.
  */
-private function fillAreaAndPlannerGaps(array $shipments): void
+private function fillMasterGapsFromSiblings(array $shipments): void
 {
     foreach (array_chunk($shipments, 500) as $chunk) {
         $in = implode(',', array_fill(0, count($chunk), '?'));
 
-        // ---- 1) area dari saudara satu shipment ----
-        DB::update("
-            UPDATE logistik_pengiriman lp
-            JOIN (
-                SELECT no_shipment, MIN(TRIM(area)) AS val
-                FROM logistik_pengiriman
-                WHERE NULLIF(TRIM(area), '') IS NOT NULL
-                  AND no_shipment IN ($in)
-                GROUP BY no_shipment
-                HAVING COUNT(DISTINCT TRIM(area)) = 1
-            ) x ON lp.no_shipment = x.no_shipment
-            SET lp.area = x.val
-            WHERE NULLIF(TRIM(lp.area), '') IS NULL
-              AND lp.no_shipment IN ($in)
-        ", array_merge($chunk, $chunk));
+        foreach (self::SIBLING_FILL_COLUMNS as $col) {
+            if (!isset($this->dbColumns[$col])) continue;
 
-        // ---- 2) planner & PIC dari master per area ----
-        foreach ((self::$areaMap ?? []) as $area => $info) {
-            if (!empty($info['planner']) && isset($this->dbColumns['planner'])) {
-                DB::table(self::TABLE)
-                    ->whereIn('no_shipment', $chunk)
-                    ->where('area', (string) $area)
-                    ->whereRaw("NULLIF(TRIM(planner), '') IS NULL")
-                    ->update(['planner' => $info['planner']]);
-            }
-
-            if (!empty($info['pic']) && isset($this->dbColumns['pic_monitoring'])) {
-                DB::table(self::TABLE)
-                    ->whereIn('no_shipment', $chunk)
-                    ->where('area', (string) $area)
-                    ->whereRaw("NULLIF(TRIM(pic_monitoring), '') IS NULL")
-                    ->update(['pic_monitoring' => $info['pic']]);
-            }
+            DB::update("
+                UPDATE logistik_pengiriman lp
+                JOIN (
+                    SELECT no_shipment, MIN(TRIM($col)) AS val
+                    FROM logistik_pengiriman
+                    WHERE NULLIF(TRIM($col), '') IS NOT NULL
+                      AND no_shipment IN ($in)
+                    GROUP BY no_shipment
+                    HAVING COUNT(DISTINCT TRIM($col)) = 1
+                ) x ON lp.no_shipment = x.no_shipment
+                SET lp.$col = x.val
+                WHERE NULLIF(TRIM(lp.$col), '') IS NULL
+                  AND lp.no_shipment IN ($in)
+            ", array_merge($chunk, $chunk));
         }
     }
 }
+
+    /**
+     * 1) area kosong -> ikut area baris lain di no_shipment yang sama
+     *    (hanya kalau shipment itu cuma punya 1 area; kalau areanya campur, dilewati)
+     * 2) planner / pic_monitoring kosong -> isi dari master berdasarkan area
+     */
+    private function fillAreaAndPlannerGaps(array $shipments): void
+    {
+        foreach (array_chunk($shipments, 500) as $chunk) {
+            $in = implode(',', array_fill(0, count($chunk), '?'));
+
+            // ---- 1) area dari saudara satu shipment ----
+            DB::update("
+                UPDATE logistik_pengiriman lp
+                JOIN (
+                    SELECT no_shipment, MIN(TRIM(area)) AS val
+                    FROM logistik_pengiriman
+                    WHERE NULLIF(TRIM(area), '') IS NOT NULL
+                      AND no_shipment IN ($in)
+                    GROUP BY no_shipment
+                    HAVING COUNT(DISTINCT TRIM(area)) = 1
+                ) x ON lp.no_shipment = x.no_shipment
+                SET lp.area = x.val
+                WHERE NULLIF(TRIM(lp.area), '') IS NULL
+                  AND lp.no_shipment IN ($in)
+            ", array_merge($chunk, $chunk));
+
+            // ---- 2) planner & PIC dari master per area ----
+            foreach ((self::$areaMap ?? []) as $area => $info) {
+                if (!empty($info['planner']) && isset($this->dbColumns['planner'])) {
+                    DB::table(self::TABLE)
+                        ->whereIn('no_shipment', $chunk)
+                        ->where('area', (string) $area)
+                        ->whereRaw("NULLIF(TRIM(planner), '') IS NULL")
+                        ->update(['planner' => $info['planner']]);
+                }
+
+                if (!empty($info['pic']) && isset($this->dbColumns['pic_monitoring'])) {
+                    DB::table(self::TABLE)
+                        ->whereIn('no_shipment', $chunk)
+                        ->where('area', (string) $area)
+                        ->whereRaw("NULLIF(TRIM(pic_monitoring), '') IS NULL")
+                        ->update(['pic_monitoring' => $info['pic']]);
+                }
+            }
+        }
+    }
 
     /** isi route/mobil/ekpedisi yang kosong dari baris lain dalam shipment yang sama */
     private function fillShipmentGaps(array $shipments): void
@@ -934,8 +1026,9 @@ private function fillAreaAndPlannerGaps(array $shipments): void
     }
 
     /**
-     * CR: per baris sesuai kontribusi muatan.
-     * Hasil kubik/tonase/optimal: SUM total per shipment / kapasitas.
+     * CR: per baris sesuai kontribusi nilai_muatan, total biaya = SUM biaya_kirim per shipment.
+     * Hasil kubik/tonase: per baris (kontribusi baris / kapasitas mobil).
+     * Pengiriman optimal: per shipment (SUM total / kapasitas).
      */
     private function recalcShipments(array $shipments): void
     {
@@ -948,7 +1041,7 @@ private function fillAreaAndPlannerGaps(array $shipments): void
                 UPDATE logistik_pengiriman lp
                 JOIN (
                     SELECT no_shipment,
-                           MAX(biaya_kirim) AS biaya,
+                           SUM(COALESCE(biaya_kirim, 0))  AS biaya,
                            SUM(COALESCE(nilai_muatan, 0)) AS muatan
                     FROM logistik_pengiriman
                     WHERE no_shipment IN ($in)
@@ -957,12 +1050,12 @@ private function fillAreaAndPlannerGaps(array $shipments): void
                 SET lp.cr = IF(
                     x.muatan = 0 OR COALESCE(lp.nilai_muatan, 0) <= 0,
                     0,
-                    ROUND((lp.nilai_muatan * COALESCE(x.biaya, 0)) / (x.muatan * x.muatan) * 100, 4)
+                    ROUND((lp.nilai_muatan * x.biaya) / (x.muatan * x.muatan) * 100, 4)
                 )
                 WHERE lp.no_shipment IN ($in)
             ", $bindings);
 
-            // ---- HASIL KUBIK / TONASE / OPTIMAL ----
+            // ---- HASIL KUBIK / TONASE (per baris) + OPTIMAL (per shipment) ----
             DB::update("
                 UPDATE logistik_pengiriman lp
                 JOIN (
@@ -977,11 +1070,11 @@ private function fillAreaAndPlannerGaps(array $shipments): void
                 ) x ON lp.no_shipment = x.no_shipment
                 SET
                     lp.hasil_kubik = CASE
-                        WHEN x.kubikasi > 0 THEN ROUND(x.sum_kubik / x.kubikasi * 100, 2)
+                        WHEN x.kubikasi > 0 THEN ROUND(COALESCE(lp.total_kubik, 0) / x.kubikasi * 100, 2)
                         ELSE NULL
                     END,
                     lp.hasil_tonase = CASE
-                        WHEN x.tonase > 0 THEN ROUND(x.sum_tonase / x.tonase * 100, 2)
+                        WHEN x.tonase > 0 THEN ROUND(COALESCE(lp.total_tonase, 0) / x.tonase * 100, 2)
                         ELSE NULL
                     END,
                     lp.pengiriman_optimal = CASE
