@@ -671,14 +671,16 @@ if ($searchValue !== '') {
                 'nilai_muatan_fmt'            => 'Rp ' . number_format((float) $r->nilai_muatan, 0, ',', '.'),
                 'biaya_kirim_fmt'             => 'Rp ' . number_format((float) $r->biaya_kirim, 0, ',', '.'),
                 'cr_fmt'                      => $this->formatCR($this->computeCR($r, $shipmentAgg)),
-                'kubikasi_fmt'                => $this->formatPersen($r->kubikasi ?? null),
+'kubikasi_fmt' => $this->formatKubik($r->kubikasi ?? null),
                 'tonase_fmt'                  => $this->formatTonase($r->tonase ?? null),
                'total_kubik_fmt'  => $this->formatKubik($r->total_kubik ?? null),
 'total_tonase_fmt' => $this->formatTonase($r->total_tonase ?? null),
                 'hasil_kubik_fmt'             => $this->formatHasilPersen($this->computeHasilKubik($r)),
                 'hasil_tonase_fmt'            => $this->formatHasilPersen($this->computeHasilTonase($r)),
-                'pengiriman_optimal_badge'    => $this->badgePengirimanOptimal($r),
-               'reason_optimal'               => $r->reason_optimal,
+'pengiriman_optimal_badge' => $this->badgePengirimanOptimal($r, $shipmentAgg),
+             'reason_optimal'               => $r->reason_optimal,
+'pengiriman_optimal_customer_badge' => $this->badgePengirimanOptimalCustomer($r),
+'reason_optimal_customer'      => $r->reason_optimal_customer ?: '-',
                 'kategori_ekspedisi_badge'    => $this->badgeKategoriEkspedisi($r->kategori_ekspedisi),
                 'ekpedisi'                    => $r->ekpedisi,
                 'tanggal_dpt_unit_fmt'        => $this->fmtDate($r->tanggal_dpt_unit),
@@ -1277,49 +1279,40 @@ if ($searchValue !== '') {
      * Return: ['SHIPMENT001' => ['total_muatan' => x, 'total_biaya' => y], ...]
      */
     private function shipmentAggregates(): array
-    {
-        return DB::table('logistik_pengiriman')
-            ->select(
-                'no_shipment',
-                DB::raw('SUM(nilai_muatan) as total_muatan'),
-                DB::raw('MAX(biaya_kirim) as total_biaya')
-            )
-            ->whereNotNull('no_shipment')
-            ->where('no_shipment', '!=', '')
-            ->groupBy('no_shipment')
-            ->get()
-            ->keyBy('no_shipment')
-            ->map(fn($g) => [
-                'total_muatan' => (float) $g->total_muatan,
-                'total_biaya'  => (float) $g->total_biaya,
-            ])
-            ->toArray();
-    }
-
+{
+    return DB::table('logistik_pengiriman')
+        ->select(
+            'no_shipment',
+            DB::raw('SUM(nilai_muatan) as total_muatan'),
+            DB::raw('MAX(biaya_kirim) as total_biaya'),
+            DB::raw('SUM(COALESCE(total_kubik, 0)) as sum_kubik'),
+            DB::raw('SUM(COALESCE(total_tonase, 0)) as sum_tonase'),
+            DB::raw('MAX(kubikasi) as kubikasi'),
+            DB::raw('MAX(tonase) as tonase')
+        )
+        ->whereNotNull('no_shipment')
+        ->where('no_shipment', '!=', '')
+        ->groupBy('no_shipment')
+        ->get()
+        ->keyBy('no_shipment')
+        ->map(fn($g) => [
+            'total_muatan' => (float) $g->total_muatan,
+            'total_biaya'  => (float) $g->total_biaya,
+            'sum_kubik'    => (float) $g->sum_kubik,
+            'sum_tonase'   => (float) $g->sum_tonase,
+            'kubikasi'     => (float) $g->kubikasi,
+            'tonase'       => (float) $g->tonase,
+        ])
+        ->toArray();
+}
     /** Replikasi persis logic CR yang dulu ada di drawCallback JS */
-    private function computeCR($r, array $shipmentAgg): float
-    {
-        $noShipment = trim((string) $r->no_shipment);
+private function computeCR($r, array $shipmentAgg): float
+{
+    $muatan = (float) $r->nilai_muatan;
+    $biaya  = (float) $r->biaya_kirim;
 
-        if ($noShipment === '' || !isset($shipmentAgg[$noShipment])) {
-            $muatan = (float) $r->nilai_muatan;
-            $biaya  = (float) $r->biaya_kirim;
-            return $muatan > 0 ? ($biaya / $muatan) * 100 : 0;
-        }
-
-        $totalMuatan = $shipmentAgg[$noShipment]['total_muatan'];
-        $totalBiaya  = $shipmentAgg[$noShipment]['total_biaya'];
-        $nilaiBaris  = (float) $r->nilai_muatan;
-
-        if ($totalMuatan <= 0 || $nilaiBaris <= 0) {
-            return 0;
-        }
-
-        $totalCR    = ($totalBiaya / $totalMuatan) * 100;
-        $kontribusi = $nilaiBaris / $totalMuatan;
-
-        return $kontribusi * $totalCR;
-    }
+    return $muatan > 0 ? ($biaya / $muatan) * 100 : 0;
+}
     private function formatPersen($value): string
 {
     if ($value === null || $value === '') {
@@ -1408,23 +1401,63 @@ private function computeHasilTonase($r): ?float
      * Badge Pengiriman Optimal: optimal jika SALAH SATU dari hasil_Kubik
      * atau hasil_Tonase di atas 85%.
      */
-    private function badgePengirimanOptimal($r): string
-    {
+
+    /**
+ * Optimal per customer (per baris). Pakai nilai di DB kalau sudah terisi,
+ * kalau kosong dihitung dari hasil_kubik / hasil_tonase baris itu.
+ */
+/**
+ * PER SHIPMENT: hasil kubik/tonase semua baris di no_shipment yang sama dijumlahkan.
+ * Optimal jika salah satunya >= 85%.
+ */
+private function badgePengirimanOptimal($r, array $shipmentAgg = []): string
+{
+    $no  = trim((string) $r->no_shipment);
+    $agg = ($no !== '' && isset($shipmentAgg[$no])) ? $shipmentAgg[$no] : null;
+
+    if ($agg && isset($agg['sum_kubik'])) {
+        $kapKubik   = $agg['kubikasi'];
+        $kapTonase  = $agg['tonase'];
+        $hasilKubik  = $kapKubik  > 0 ? ($agg['sum_kubik']  / $kapKubik)  * 100 : null;
+        $hasilTonase = $kapTonase > 0 ? ($agg['sum_tonase'] / $kapTonase) * 100 : null;
+    } else {
+        // shipment tidak ada di agregat -> pakai baris ini saja
         $hasilKubik  = $this->computeHasilKubik($r);
         $hasilTonase = $this->computeHasilTonase($r);
-
-        if ($hasilKubik === null && $hasilTonase === null) {
-            return '<span class="badge gray">-</span>';
-        }
-
-       $isOptimal = ($hasilKubik !== null && $hasilKubik >= 85)
-    || ($hasilTonase !== null && $hasilTonase >= 85);
-
-        return $isOptimal
-            ? '<span class="badge green">✅ Optimal</span>'
-            : '<span class="badge orange">⚠️ Tidak Optimal</span>';
     }
 
+    if ($hasilKubik === null && $hasilTonase === null) {
+        return '<span class="badge gray">-</span>';
+    }
+
+    $isOptimal = ($hasilKubik !== null && $hasilKubik >= 85)
+              || ($hasilTonase !== null && $hasilTonase >= 85);
+
+    return $isOptimal
+        ? '<span class="badge green">✅ Optimal</span>'
+        : '<span class="badge orange">⚠️ Tidak Optimal</span>';
+}
+
+/**
+ * PER CUSTOMER (per baris/tujuan): hanya muatan baris itu sendiri.
+ * Kurang dari 85% ya Tidak Optimal, tanpa digabung dengan baris lain.
+ */
+private function badgePengirimanOptimalCustomer($r): string
+{
+    $hasilKubik  = $this->computeHasilKubik($r);
+    $hasilTonase = $this->computeHasilTonase($r);
+
+    if ($hasilKubik === null && $hasilTonase === null) {
+        return '<span class="badge gray">-</span>';
+    }
+
+    $isOptimal = ($hasilKubik !== null && $hasilKubik >= 85)
+              || ($hasilTonase !== null && $hasilTonase >= 85);
+
+    return $isOptimal
+        ? '<span class="badge green">✅ Optimal</span>'
+        : '<span class="badge orange">⚠️ Tidak Optimal</span>';
+}
     private function formatCR(float $cr): string
     {
         return $cr > 0

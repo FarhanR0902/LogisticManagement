@@ -108,6 +108,8 @@ class LogistikPengiriman extends Model
     'waktu_keluar_gudang_3',
     'no_delivery',
     'customer_reference',
+    'pengiriman_optimal_customer',
+    'reason_optimal_customer',
     'create_on',
     'code_planner',
         'create_tgl'

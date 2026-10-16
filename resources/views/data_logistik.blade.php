@@ -528,8 +528,10 @@
                          <th>Hasil Kubik</th>
                          <th>Hasil Tonase</th>
                          <th>Pengiriman Optimal</th>
-                         <th>Reason Optimal</th>
-                        <th>Kategori Ekspedisi</th>
+                        <th>Reason Optimal</th>
+<th>Pengiriman Optimal Customer</th>
+<th>Reason Optimal Customer</th>
+<th>Kategori Ekspedisi</th>
                         <th>Ekspedisi</th>
                         <th>Tanggal Dapat Unit</th>
                         <th>Lama Waktu Pencarian</th>
@@ -748,8 +750,10 @@ d.year = $('#filterYear').val();
     { data: 'hasil_kubik_fmt', name: 'hasil_kubik', orderable: false, searchable: false },
     { data: 'hasil_tonase_fmt', name: 'hasil_tonase', orderable: false, searchable: false },
     { data: 'pengiriman_optimal_badge', name: 'pengiriman_optimal', orderable: false, searchable: false },
-    { data: 'reason_optimal', name: 'reason_optimal', orderable: false, searchable: false },
-    { data: 'kategori_ekspedisi_badge', name: 'kategori_ekspedisi' },
+{ data: 'reason_optimal', name: 'reason_optimal', orderable: false, searchable: false },
+{ data: 'pengiriman_optimal_customer_badge', name: 'pengiriman_optimal_customer', orderable: false, searchable: false },
+{ data: 'reason_optimal_customer', name: 'reason_optimal_customer', orderable: false, searchable: false, defaultContent: '-' },
+{ data: 'kategori_ekspedisi_badge', name: 'kategori_ekspedisi' },
     { data: 'ekpedisi', name: 'ekpedisi' },
     { data: 'tanggal_dpt_unit_fmt', name: 'tanggal_dpt_unit' },
     { data: 'lama_waktu_pencarian', name: 'lama_waktu_pencarian', orderable: false, defaultContent: '-' },

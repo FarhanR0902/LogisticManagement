@@ -1965,23 +1965,11 @@ public function inTransit(Request $request)
             'via_kirim',
         ]);
 
-        $kapasitas = $this->cariKapasitasTarif($request->route, $request->mobil, $request->ekpedisi);
-
-        $data['kubikasi']     = $kapasitas['kubikasi'] ?? $this->cleanPersen($request->kubikasi);
-        $data['tonase']       = $kapasitas['tonase'];
+      
         $data['total_kubik']  = $this->cleanDecimalPlanner($request->total_kubik);
         $data['total_tonase'] = $this->cleanDecimalPlanner($request->total_tonase);
 
-        $hasil = $this->hitungHasilOptimal(
-            $data['total_kubik'],
-            $data['kubikasi'],
-            $data['total_tonase'],
-            $data['tonase']
-        );
-
-        $data['hasil_kubik']        = $hasil['hasil_kubik'];
-        $data['hasil_tonase']       = $hasil['hasil_tonase'];
-        $data['pengiriman_optimal'] = $hasil['pengiriman_optimal'];
+      
 
         LogistikPengiriman::create(array_merge($data, $rumus));
 
@@ -2167,91 +2155,29 @@ public function inTransit(Request $request)
 
         'updated_at' => now(),
     ];
-
-    DB::table('logistik_pengiriman')
+ DB::table('logistik_pengiriman')
         ->where(function ($q) use ($oldNoShipment, $newNoShipment) {
             $q->where('no_shipment', $oldNoShipment)
                 ->orWhere('no_shipment', $newNoShipment);
         })
         ->update($updateShipment);
-
-    $autoBiaya = $this->cariBiayaKirimOtomatis(
-        $request->route,
-        $request->mobil,
-        $request->ekpedisi
-    );
-
-    if ($autoBiaya !== null) {
-        DB::table('logistik_pengiriman')
-            ->where('no_shipment', $shipment)
-            ->update([
-                'biaya_kirim' => $this->cleanMoney($autoBiaya),
-                'updated_at'  => now(),
-            ]);
-    }
-
-    // ===== field per row: kubikasi, tonase, hasil optimal (sama kayak autosaveRow) =====
-    $kapasitas = $this->cariKapasitasTarif($request->route, $request->mobil, $request->ekpedisi);
-
-    $totalKubik  = $this->cleanDecimalPlanner($request->total_kubik);
-    $totalTonase = $this->cleanDecimalPlanner($request->total_tonase);
-
-    $hasil = $this->hitungHasilOptimal(
-        $totalKubik,
-        $kapasitas['kubikasi'],
-        $totalTonase,
-        $kapasitas['tonase']
-    );
-
-    $updateRow = [
-        'tujuan'             => $request->tujuan,
-        'pulau'              => $request->pulau,
-        'total_do_qty_car'   => $request->total_do_qty_car,
-        'kubikasi'           => $kapasitas['kubikasi'] ?? $this->cleanPersen($request->kubikasi),
-        'tonase'             => $kapasitas['tonase'],
-        'total_kubik'        => $totalKubik,
-        'total_tonase'       => $totalTonase,
-        'hasil_kubik'        => $hasil['hasil_kubik'],
-        'hasil_tonase'       => $hasil['hasil_tonase'],
-        'pengiriman_optimal' => $hasil['pengiriman_optimal'],
-        'reason_optimal'     => $request->reason_optimal ?: null,
-        'nilai_muatan'       => $this->cleanMoney($request->nilai_muatan),
-        'updated_at'         => now(),
-    ];
-
-    if ($autoBiaya === null) {
-        $updateRow['biaya_kirim'] = $this->cleanMoney($request->biaya_kirim);
-    }
-
-    DB::table('logistik_pengiriman')
-        ->where('id', $id)
-        ->update($updateRow);
-
-    $rows = DB::table('logistik_pengiriman')
-        ->where('no_shipment', $shipment)
-        ->get();
-
-    $totalMuatan = $rows->sum(fn($r) => (float) $r->nilai_muatan);
-    $totalBiaya  = $rows->max(fn($r) => (float) $r->biaya_kirim);
-
-    foreach ($rows as $r) {
-        $crRow = 0;
-        $nilaiMuatanRow = (float) $r->nilai_muatan;
-
-        if ($totalMuatan > 0 && $nilaiMuatanRow > 0) {
-            $kontribusi = $nilaiMuatanRow / $totalMuatan;
-            $totalCR    = ($totalBiaya / $totalMuatan) * 100;
-            $crRow      = $kontribusi * $totalCR;
-        }
-
-        DB::table('logistik_pengiriman')
-            ->where('id', $r->id)
-            ->update(['cr' => round($crRow, 4)]);
-    }
+  
+    // FIELD PER ROW
+    // biaya_kirim, cr, kubikasi, tonase, hasil_kubik, hasil_tonase, pengiriman_optimal
+    // TIDAK disentuh (dihitung saat import di LogistikImport)
+    DB::table('logistik_pengiriman')->where('id', $id)->update([
+        'tujuan'           => $request->tujuan,
+        'pulau'            => $request->pulau,
+        'total_do_qty_car' => $request->total_do_qty_car,
+        'total_kubik'      => $this->cleanDecimalPlanner($request->total_kubik),
+        'total_tonase'     => $this->cleanDecimalPlanner($request->total_tonase),
+        'reason_optimal'   => $request->reason_optimal ?: null,
+        'nilai_muatan'     => $this->cleanMoney($request->nilai_muatan),
+        'updated_at'       => now(),
+    ]);
 
     return back()->with('success', 'Data berhasil diperbarui');
 }
-
     private function cleanPersen($value)
     {
         if ($value === null || $value === '') return null;
@@ -3800,16 +3726,7 @@ if (!$blocked && $keluar && $leadTime !== null && $leadTime !== '') {
 }
         $rumus = $this->hitungSla($request);
 
-        $autoBiaya = $this->cariBiayaKirimOtomatis(
-            $request->route,
-            $request->mobil,
-            $request->ekpedisi
-        );
-
-        $biayaKirim = $autoBiaya !== null
-            ? $this->cleanMoney($autoBiaya)
-            : $this->cleanMoney($request->biaya_kirim);
-
+       
         $updateShipment = [
             'planner'       => $request->planner,
             'no_shipment'   => $newNoShipment,
@@ -3869,86 +3786,34 @@ if (!$blocked && $keluar && $leadTime !== null && $leadTime !== '') {
         ];
 
         DB::table('logistik_pengiriman')
-            ->where(function ($q) use ($oldNoShipment, $newNoShipment) {
-                $q->where('no_shipment', $oldNoShipment)
-                    ->orWhere('no_shipment', $newNoShipment);
-            })
-            ->update($updateShipment);
+        ->where(function ($q) use ($oldNoShipment, $newNoShipment) {
+            $q->where('no_shipment', $oldNoShipment)
+                ->orWhere('no_shipment', $newNoShipment);
+        })
+        ->update($updateShipment);
 
-        if ($autoBiaya !== null) {
-            DB::table('logistik_pengiriman')
-                ->where('no_shipment', $shipment)
-                ->update([
-                    'biaya_kirim' => $biayaKirim,
-                    'updated_at'  => now(),
-                ]);
-        }
+    DB::table('logistik_pengiriman')->where('id', $id)->update([
+        'tujuan'           => $request->tujuan,
+        'pulau'            => $request->pulau,
+        'total_do_qty_car' => $request->total_do_qty_car,
+        'total_kubik'      => $this->cleanDecimalPlanner($request->total_kubik),
+        'total_tonase'     => $this->cleanDecimalPlanner($request->total_tonase),
+        'reason_optimal'   => $request->reason_optimal ?: null,
+        'nilai_muatan'     => $this->cleanMoney($request->nilai_muatan),
+        'updated_at'       => now(),
+    ]);
 
-        $kapasitas = $this->cariKapasitasTarif($request->route, $request->mobil, $request->ekpedisi);
+    // kembalikan nilai yang tersimpan di DB, bukan hitungan baru
+    $row = DB::table('logistik_pengiriman')->where('id', $id)->first(['biaya_kirim', 'cr']);
 
-        $totalKubik  = $this->cleanDecimalPlanner($request->total_kubik);
-        $totalTonase = $this->cleanDecimalPlanner($request->total_tonase);
-
-        $hasil = $this->hitungHasilOptimal(
-            $totalKubik,
-            $kapasitas['kubikasi'],
-            $totalTonase,
-            $kapasitas['tonase']
-        );
-
-        $updateRow = [
-            'total_do_qty_car'   => $request->total_do_qty_car,
-            'kubikasi'           => $kapasitas['kubikasi'] ?? $this->cleanPersen($request->kubikasi),
-            'tonase'             => $kapasitas['tonase'],
-            'total_kubik'        => $totalKubik,
-            'total_tonase'       => $totalTonase,
-            'hasil_kubik'        => $hasil['hasil_kubik'],
-            'hasil_tonase'       => $hasil['hasil_tonase'],
-            'pengiriman_optimal' => $hasil['pengiriman_optimal'],
-             'reason_optimal'     => $request->reason_optimal ?: null,
-            'nilai_muatan'       => $this->cleanMoney($request->nilai_muatan),
-            'updated_at'         => now(),
-            'tujuan'             => $request->tujuan,
-        ];
-
-        if ($autoBiaya === null) {
-            $updateRow['biaya_kirim'] = $biayaKirim;
-        }
-
-        DB::table('logistik_pengiriman')
-            ->where('id', $id)
-            ->update($updateRow);
-
-        $rows = DB::table('logistik_pengiriman')
-            ->where('no_shipment', $shipment)
-            ->get();
-
-        $totalMuatan = $rows->sum(fn($r) => (float) $r->nilai_muatan);
-        $totalBiaya  = $rows->max(fn($r) => (float) $r->biaya_kirim);
-
-        foreach ($rows as $r) {
-            $crRow = 0;
-            $nilaiMuatanRow = (float) $r->nilai_muatan;
-
-            if ($totalMuatan > 0 && $nilaiMuatanRow > 0) {
-                $kontribusi = $nilaiMuatanRow / $totalMuatan;
-                $totalCR    = ($totalBiaya / $totalMuatan) * 100;
-                $crRow      = $kontribusi * $totalCR;
-            }
-
-            DB::table('logistik_pengiriman')
-                ->where('id', $r->id)
-                ->update(['cr' => round($crRow, 4)]);
-        }
-
-        return response()->json([
-            'success'       => true,
-            'biaya_kirim'   => $biayaKirim,
-            'estimasi_tiba' => $request->estimasi_tiba,
-            'sla'           => $rumus,
-        ]);
-    }
-
+    return response()->json([
+        'success'       => true,
+        'biaya_kirim'   => $row->biaya_kirim ?? null,
+        'cr'            => $row->cr ?? null,
+        'estimasi_tiba' => $request->estimasi_tiba,
+        'sla'           => $rumus,
+    ]);
+}
     private function getReasonGudangList()
 {
     return DB::table('akurasi3')

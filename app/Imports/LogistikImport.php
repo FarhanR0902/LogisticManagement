@@ -23,12 +23,14 @@ class LogistikImport implements ToCollection, WithHeadingRow, WithEvents, WithCa
         'jabodetabek' => 'Sentul-Jabodetabek',
     ];
     private const EKSPEDISI_ALIASES = [
-    // 'namadiexcel' => 'PT Nama Di Master',
-];
-// kolom hasil lookup master tujuan yang boleh "ikut" baris lain di shipment yang sama
-private const SIBLING_FILL_COLUMNS = [
-    'dist_channel', 'area', 'pulau', 'transport_lead_time', 'planner', 'pic_monitoring',
-];
+        // 'namadiexcel' => 'PT Nama Di Master',
+    ];
+
+    // kolom hasil lookup master tujuan yang boleh "ikut" baris lain di shipment yang sama
+    private const SIBLING_FILL_COLUMNS = [
+        'dist_channel', 'area', 'pulau', 'transport_lead_time', 'planner', 'pic_monitoring',
+    ];
+
     // header Excel (sudah di-slug) -> kolom DB, hanya untuk yang namanya BEDA
     private const HEADER_ALIASES = [
         'tgl_terima_dari_admin'  => 'tanggal_naik_logistik',
@@ -60,9 +62,9 @@ private const SIBLING_FILL_COLUMNS = [
     private $lastNoShipment    = null;     // reset route/mobil/ekpedisi per shipment
     private $lastRoute         = null;
     private $lastMobil         = null;
-  private $lastEkpedisi      = null;
-private array $shipmentKubik     = [];   // no_shipment => total kubik di file
-private array $ekspedisiResolved = [];   // cache: "route|ekspedisi excel" => nama di master
+    private $lastEkpedisi      = null;
+    private array $ekspedisiResolved = []; // cache: "route|ekspedisi excel" => nama di master
+
     // ===== hasil proses =====
     private $inserted = 0;
     private $updated  = 0;
@@ -161,23 +163,6 @@ private array $ekspedisiResolved = [];   // cache: "route|ekspedisi excel" => na
     // =========================================================
     public function collection(Collection $rows)
     {
-        // total kubik per shipment (ikut aturan merge no_shipment)
-$this->shipmentKubik = [];
-$lastNo = null;
-foreach ($rows as $rc) {
-    $r  = $rc->toArray();
-    $no = $this->cleanText($r['no_shipment'] ?? null);
-    $tj = $this->cleanText($r['tujuan'] ?? null);
-
-    if ($no === null && $tj !== null) $no = $lastNo;
-    if ($no !== null) $lastNo = $no;
-    if ($no === null || $tj === null) continue;
-
-    $k = $this->parseNumber($this->pick($r, ['total_kubik', 'total_kubik_m3', 'total_kubik_m_3', 'totalkubik']));
-    if ($k !== null && $k > 0) {
-        $this->shipmentKubik[$no] = ($this->shipmentKubik[$no] ?? 0) + $k;
-    }
-}
         foreach ($rows as $rowCollection) {
             $row = $rowCollection->toArray();
 
@@ -393,7 +378,7 @@ foreach ($rows as $rc) {
 
         // ================= BIAYA KIRIM & KAPASITAS DARI TARIF =================
         // biaya tarif = biaya 1 mobil penuh (sesuai route + ekpedisi + mobil).
-        // biaya per baris = total_kubik / kubikasi x biaya tarif (porsi kubik baris ini).
+        // biaya_kirim baris = total_kubik : kubikasi x biaya tarif.
         $tarifRow   = $this->findTarif($route, $ekpedisi, $mobil);
         $biayaExcel = $this->parseNumber($this->pick($row, ['biaya_kirim', 'biaya_kirim_rp']));
 
@@ -404,11 +389,10 @@ foreach ($rows as $rc) {
         if ($biayaExcel !== null && $biayaExcel > 0) {
             // diisi manual di Excel -> dipakai apa adanya
             $biayaKirim = $biayaExcel;
-} elseif ($biayaTarif !== null && $kubikasi > 0 && $totalKubik > 0) {
-    // kalau muatan shipment melebihi kubikasi, bagi berdasarkan total kubik shipment
-    $kapasitas  = max($kubikasi, $this->shipmentKubik[$noShipment] ?? 0);
-    $biayaKirim = round(($totalKubik / $kapasitas) * $biayaTarif, 2);
-} else {
+        } elseif ($biayaTarif !== null && $kubikasi > 0 && $totalKubik > 0) {
+            // total_kubik : kubikasi x biaya tarif
+            $biayaKirim = round(($totalKubik / $kubikasi) * $biayaTarif, 2);
+        } else {
             // kubik/kubikasi belum lengkap -> fallback ke biaya tarif penuh
             $biayaKirim = $biayaTarif;
         }
@@ -565,14 +549,14 @@ foreach ($rows as $rc) {
             'reason_tiba'    => $this->cleanText($this->pick($row, ['reason_tiba', 'reason_waktu_tiba'])),
             'reason_bongkar' => $this->cleanText($this->pick($row, ['reason_bongkar', 'reason_waktu_bongkar'])),
 
-            'act_pgi_date'    => $actPgiDate,
-            'cust_grp_5_desc' => $this->cleanText($row['cust_grp_5_desc'] ?? null),
-            'created_by'      => $this->cleanText($row['created_by'] ?? null),
-            'cust_grp_3_desc' => $this->cleanText($row['cust_grp_3_desc'] ?? null),
-            'ship_no'         => $this->cleanText($row['ship_no'] ?? null),
-            'cust_desc'       => $this->cleanText($row['cust_desc'] ?? null),
-            'addt_text_4'     => $this->cleanText($row['addt_text'] ?? null),
-            'service_agent'   => $this->cleanText($row['service_agent'] ?? null),
+            'act_pgi_date'     => $actPgiDate,
+            'cust_grp_5_desc'  => $this->cleanText($row['cust_grp_5_desc'] ?? null),
+            'created_by'       => $this->cleanText($row['created_by'] ?? null),
+            'cust_grp_3_desc'  => $this->cleanText($row['cust_grp_3_desc'] ?? null),
+            'ship_no'          => $this->cleanText($row['ship_no'] ?? null),
+            'cust_desc'        => $this->cleanText($row['cust_desc'] ?? null),
+            'addt_text_4'      => $this->cleanText($row['addt_text'] ?? null),
+            'service_agent'    => $this->cleanText($row['service_agent'] ?? null),
             'total_do_qty_car' => $totalDoCar,
         ];
 
@@ -819,86 +803,88 @@ foreach ($rows as $rc) {
         $value = str_replace("\xC2\xA0", ' ', (string) $value);
         return strtolower(preg_replace('/\s+/', ' ', trim($value)));
     }
-/** huruf kecil, buang badan usaha di depan (PT/CV/UD/PD), buang spasi, titik, tanda baca */
-private function ekspedisiKey(?string $v): string
-{
-    $k = strtolower($this->normalize($v));
-    $k = preg_replace('/^(pt|cv|ud|pd)\b[\s\.]*/', '', $k);
-    return preg_replace('/[^a-z0-9]+/', '', $k);
-}
 
-/** cari nama ekspedisi di master (khusus route ini) yang paling mirip dengan nama di Excel */
-private function resolveEkspedisiName(?string $name, $candidates): ?string
-{
-    $key = $this->ekspedisiKey($name);
-    if ($key === '') return null;
-
-    if (isset(self::EKSPEDISI_ALIASES[$key])) {
-        return self::EKSPEDISI_ALIASES[$key];
+    /** huruf kecil, buang badan usaha di depan (PT/CV/UD/PD), buang spasi, titik, tanda baca */
+    private function ekspedisiKey(?string $v): string
+    {
+        $k = strtolower($this->normalize($v));
+        $k = preg_replace('/^(pt|cv|ud|pd)\b[\s\.]*/', '', $k);
+        return preg_replace('/[^a-z0-9]+/', '', $k);
     }
 
-    $best = null; $bestScore = 0.0; $second = 0.0;
+    /** cari nama ekspedisi di master (khusus route ini) yang paling mirip dengan nama di Excel */
+    private function resolveEkspedisiName(?string $name, $candidates): ?string
+    {
+        $key = $this->ekspedisiKey($name);
+        if ($key === '') return null;
 
-    foreach ($candidates->pluck('ekpedisi')->filter()->unique() as $master) {
-        $mk = $this->ekspedisiKey($master);
-        if ($mk === '') continue;
-
-        if ($mk === $key) return $master;
-
-        similar_text($key, $mk, $pct);
-        $score = $pct / 100;
-
-        if (min(strlen($key), strlen($mk)) >= 6
-            && (str_contains($mk, $key) || str_contains($key, $mk))) {
-            $score = max($score, 0.9);
+        if (isset(self::EKSPEDISI_ALIASES[$key])) {
+            return self::EKSPEDISI_ALIASES[$key];
         }
 
-        if ($score > $bestScore)  { $second = $bestScore; $bestScore = $score; $best = $master; }
-        elseif ($score > $second) { $second = $score; }
+        $best = null; $bestScore = 0.0; $second = 0.0;
+
+        foreach ($candidates->pluck('ekpedisi')->filter()->unique() as $master) {
+            $mk = $this->ekspedisiKey($master);
+            if ($mk === '') continue;
+
+            if ($mk === $key) return $master;
+
+            similar_text($key, $mk, $pct);
+            $score = $pct / 100;
+
+            if (min(strlen($key), strlen($mk)) >= 6
+                && (str_contains($mk, $key) || str_contains($key, $mk))) {
+                $score = max($score, 0.9);
+            }
+
+            if ($score > $bestScore)  { $second = $bestScore; $bestScore = $score; $best = $master; }
+            elseif ($score > $second) { $second = $score; }
+        }
+
+        return ($best !== null && $bestScore >= 0.85 && ($bestScore - $second) >= 0.05) ? $best : null;
     }
 
-    return ($best !== null && $bestScore >= 0.85 && ($bestScore - $second) >= 0.05) ? $best : null;
-}
     private function findTarif(?string $route, ?string $ekpedisi, ?string $mobil)
-{
-    $mobilExcel = $this->normalizeMobil($mobil);
-    $routeKey   = $this->normalize($route);
-    $candidates = self::$tarifByRoute[$routeKey] ?? null;
+    {
+        $mobilExcel = $this->normalizeMobil($mobil);
+        $routeKey   = $this->normalize($route);
+        $candidates = self::$tarifByRoute[$routeKey] ?? null;
 
-    if (!$candidates || $mobilExcel === '' || $this->ekspedisiKey($ekpedisi) === '') {
-        return null;
-    }
+        if (!$candidates || $mobilExcel === '' || $this->ekspedisiKey($ekpedisi) === '') {
+            return null;
+        }
 
-    $cacheKey = $routeKey . '|' . $ekpedisi;
-    if (!array_key_exists($cacheKey, $this->ekspedisiResolved)) {
-        $master = $this->resolveEkspedisiName($ekpedisi, $candidates);
-        $this->ekspedisiResolved[$cacheKey] = $master;
+        $cacheKey = $routeKey . '|' . $ekpedisi;
+        if (!array_key_exists($cacheKey, $this->ekspedisiResolved)) {
+            $master = $this->resolveEkspedisiName($ekpedisi, $candidates);
+            $this->ekspedisiResolved[$cacheKey] = $master;
 
-        if ($master !== null && $this->ekspedisiKey($master) !== $this->ekspedisiKey($ekpedisi)) {
-            logger()->info('LOGISTIK IMPORT: nama ekspedisi disamakan dengan master', [
-                'route' => $route, 'excel' => $ekpedisi, 'master' => $master,
+            if ($master !== null && $this->ekspedisiKey($master) !== $this->ekspedisiKey($ekpedisi)) {
+                logger()->info('LOGISTIK IMPORT: nama ekspedisi disamakan dengan master', [
+                    'route' => $route, 'excel' => $ekpedisi, 'master' => $master,
+                ]);
+            }
+        }
+
+        $master = $this->ekspedisiResolved[$cacheKey];
+        $found  = null;
+
+        if ($master !== null) {
+            $found = $candidates->first(fn($row) =>
+                $row->ekpedisi === $master
+                && str_starts_with($this->normalizeMobil($row->mobil), $mobilExcel)
+            );
+        }
+
+        if (!$found) {
+            logger()->warning('LOGISTIK IMPORT: tarif tidak ditemukan', [
+                'route' => $route, 'ekpedisi' => $ekpedisi, 'mobil' => $mobil,
             ]);
         }
+
+        return $found;
     }
-
-    $master = $this->ekspedisiResolved[$cacheKey];
-    $found  = null;
-
-    if ($master !== null) {
-        $found = $candidates->first(fn($row) =>
-            $row->ekpedisi === $master
-            && str_starts_with($this->normalizeMobil($row->mobil), $mobilExcel)
-        );
-    }
-
-    if (!$found) {
-        logger()->warning('LOGISTIK IMPORT: tarif tidak ditemukan', [
-            'route' => $route, 'ekpedisi' => $ekpedisi, 'mobil' => $mobil,
-        ]);
-    }
-
-    return $found;
-}
 
     // =========================================================
     // SETELAH IMPORT
@@ -911,7 +897,7 @@ private function resolveEkspedisiName(?string $name, $candidates): ?string
                     $shipments = array_map('strval', array_values(array_unique($this->allNoShipmentInFile)));
 
                     $this->fillShipmentGaps($shipments);
-                    $this->fillAreaAndPlannerGaps($shipments);          
+                    $this->fillAreaAndPlannerGaps($shipments);
                     $this->fillMasterGapsFromSiblings($shipments);
                     $this->recalcShipments($shipments);
                 } catch (\Throwable $e) {
@@ -925,34 +911,34 @@ private function resolveEkspedisiName(?string $name, $candidates): ?string
     }
 
     /**
- * kolom master yang kosong -> ikut baris lain di no_shipment yang sama.
- * Hanya diisi kalau nilai di shipment itu seragam (1 nilai unik); kalau campur, dilewati.
- */
-private function fillMasterGapsFromSiblings(array $shipments): void
-{
-    foreach (array_chunk($shipments, 500) as $chunk) {
-        $in = implode(',', array_fill(0, count($chunk), '?'));
+     * kolom master yang kosong -> ikut baris lain di no_shipment yang sama.
+     * Hanya diisi kalau nilai di shipment itu seragam (1 nilai unik); kalau campur, dilewati.
+     */
+    private function fillMasterGapsFromSiblings(array $shipments): void
+    {
+        foreach (array_chunk($shipments, 500) as $chunk) {
+            $in = implode(',', array_fill(0, count($chunk), '?'));
 
-        foreach (self::SIBLING_FILL_COLUMNS as $col) {
-            if (!isset($this->dbColumns[$col])) continue;
+            foreach (self::SIBLING_FILL_COLUMNS as $col) {
+                if (!isset($this->dbColumns[$col])) continue;
 
-            DB::update("
-                UPDATE logistik_pengiriman lp
-                JOIN (
-                    SELECT no_shipment, MIN(TRIM($col)) AS val
-                    FROM logistik_pengiriman
-                    WHERE NULLIF(TRIM($col), '') IS NOT NULL
-                      AND no_shipment IN ($in)
-                    GROUP BY no_shipment
-                    HAVING COUNT(DISTINCT TRIM($col)) = 1
-                ) x ON lp.no_shipment = x.no_shipment
-                SET lp.$col = x.val
-                WHERE NULLIF(TRIM(lp.$col), '') IS NULL
-                  AND lp.no_shipment IN ($in)
-            ", array_merge($chunk, $chunk));
+                DB::update("
+                    UPDATE logistik_pengiriman lp
+                    JOIN (
+                        SELECT no_shipment, MIN(TRIM($col)) AS val
+                        FROM logistik_pengiriman
+                        WHERE NULLIF(TRIM($col), '') IS NOT NULL
+                          AND no_shipment IN ($in)
+                        GROUP BY no_shipment
+                        HAVING COUNT(DISTINCT TRIM($col)) = 1
+                    ) x ON lp.no_shipment = x.no_shipment
+                    SET lp.$col = x.val
+                    WHERE NULLIF(TRIM(lp.$col), '') IS NULL
+                      AND lp.no_shipment IN ($in)
+                ", array_merge($chunk, $chunk));
+            }
         }
     }
-}
 
     /**
      * 1) area kosong -> ikut area baris lain di no_shipment yang sama
@@ -1026,67 +1012,90 @@ private function fillMasterGapsFromSiblings(array $shipments): void
     }
 
     /**
-     * CR: per baris sesuai kontribusi nilai_muatan, total biaya = SUM biaya_kirim per shipment.
-     * Hasil kubik/tonase: per baris (kontribusi baris / kapasitas mobil).
-     * Pengiriman optimal: per shipment (SUM total / kapasitas).
+     * CR            : per baris = biaya_kirim baris / nilai_muatan baris x 100.
+     * Hasil kubik   : per baris = total_kubik / kubikasi x 100.
+     * Hasil tonase  : per baris = total_tonase / tonase x 100.
+     * Pengiriman optimal: per shipment (SUM total / kapasitas >= 85%).
      */
     private function recalcShipments(array $shipments): void
-    {
-        foreach (array_chunk($shipments, 500) as $chunk) {
-            $in       = implode(',', array_fill(0, count($chunk), '?'));
-            $bindings = array_merge($chunk, $chunk);
+{
+    foreach (array_chunk($shipments, 500) as $chunk) {
+        $in       = implode(',', array_fill(0, count($chunk), '?'));
+        $bindings = array_merge($chunk, $chunk);
 
-            // ---- CR ----
+        // ---- CR = biaya_kirim / nilai_muatan x 100 (per baris) ----
+        DB::update("
+            UPDATE logistik_pengiriman lp
+            SET lp.cr = IF(
+                COALESCE(lp.nilai_muatan, 0) <= 0,
+                0,
+                ROUND(COALESCE(lp.biaya_kirim, 0) / lp.nilai_muatan * 100, 4)
+            )
+            WHERE lp.no_shipment IN ($in)
+        ", $chunk);
+
+        // ---- HASIL KUBIK / TONASE (per baris) + OPTIMAL (per shipment) ----
+        DB::update("
+            UPDATE logistik_pengiriman lp
+            JOIN (
+                SELECT no_shipment,
+                       SUM(COALESCE(total_kubik, 0))  AS sum_kubik,
+                       SUM(COALESCE(total_tonase, 0)) AS sum_tonase,
+                       MAX(kubikasi) AS kubikasi,
+                       MAX(tonase)   AS tonase
+                FROM logistik_pengiriman
+                WHERE no_shipment IN ($in)
+                GROUP BY no_shipment
+            ) x ON lp.no_shipment = x.no_shipment
+            SET
+                lp.hasil_kubik = CASE
+                    WHEN x.kubikasi > 0 THEN ROUND(COALESCE(lp.total_kubik, 0) / x.kubikasi * 100, 2)
+                    ELSE NULL
+                END,
+                lp.hasil_tonase = CASE
+                    WHEN x.tonase > 0 THEN ROUND(COALESCE(lp.total_tonase, 0) / x.tonase * 100, 2)
+                    ELSE NULL
+                END,
+                lp.pengiriman_optimal = CASE
+                    WHEN (x.kubikasi > 0 AND (x.sum_kubik  / x.kubikasi * 100) >= 85)
+                      OR (x.tonase   > 0 AND (x.sum_tonase / x.tonase   * 100) >= 85)
+                        THEN 'OPTIMAL'
+                    WHEN x.kubikasi > 0 OR x.tonase > 0
+                        THEN 'TIDAK OPTIMAL'
+                    ELSE NULL
+                END
+            WHERE lp.no_shipment IN ($in)
+        ", $bindings);
+
+        // ---- OPTIMAL PER CUSTOMER (per baris, tidak digabung shipment) ----
+        if (isset($this->dbColumns['pengiriman_optimal_customer'])) {
             DB::update("
                 UPDATE logistik_pengiriman lp
-                JOIN (
-                    SELECT no_shipment,
-                           SUM(COALESCE(biaya_kirim, 0))  AS biaya,
-                           SUM(COALESCE(nilai_muatan, 0)) AS muatan
-                    FROM logistik_pengiriman
-                    WHERE no_shipment IN ($in)
-                    GROUP BY no_shipment
-                ) x ON lp.no_shipment = x.no_shipment
-                SET lp.cr = IF(
-                    x.muatan = 0 OR COALESCE(lp.nilai_muatan, 0) <= 0,
-                    0,
-                    ROUND((lp.nilai_muatan * x.biaya) / (x.muatan * x.muatan) * 100, 4)
+                SET lp.pengiriman_optimal_customer = CASE
+                    WHEN COALESCE(lp.hasil_kubik, 0)  >= 85
+                      OR COALESCE(lp.hasil_tonase, 0) >= 85 THEN 'OPTIMAL'
+                    WHEN lp.hasil_kubik IS NOT NULL
+                      OR lp.hasil_tonase IS NOT NULL THEN 'TIDAK OPTIMAL'
+                    ELSE NULL
+                END
+                WHERE lp.no_shipment IN ($in)
+            ", $chunk);
+        }
+
+        // ---- REASON OPTIMAL CUSTOMER (isi otomatis hanya kalau kosong) ----
+        if (isset($this->dbColumns['reason_optimal_customer'])) {
+            DB::update("
+                UPDATE logistik_pengiriman lp
+                SET lp.reason_optimal_customer = CONCAT(
+                    'Isi kubik ', COALESCE(lp.hasil_kubik, 0),
+                    '%, tonase ', COALESCE(lp.hasil_tonase, 0),
+                    '% (di bawah 85%)'
                 )
                 WHERE lp.no_shipment IN ($in)
-            ", $bindings);
-
-            // ---- HASIL KUBIK / TONASE (per baris) + OPTIMAL (per shipment) ----
-            DB::update("
-                UPDATE logistik_pengiriman lp
-                JOIN (
-                    SELECT no_shipment,
-                           SUM(COALESCE(total_kubik, 0))  AS sum_kubik,
-                           SUM(COALESCE(total_tonase, 0)) AS sum_tonase,
-                           MAX(kubikasi) AS kubikasi,
-                           MAX(tonase)   AS tonase
-                    FROM logistik_pengiriman
-                    WHERE no_shipment IN ($in)
-                    GROUP BY no_shipment
-                ) x ON lp.no_shipment = x.no_shipment
-                SET
-                    lp.hasil_kubik = CASE
-                        WHEN x.kubikasi > 0 THEN ROUND(COALESCE(lp.total_kubik, 0) / x.kubikasi * 100, 2)
-                        ELSE NULL
-                    END,
-                    lp.hasil_tonase = CASE
-                        WHEN x.tonase > 0 THEN ROUND(COALESCE(lp.total_tonase, 0) / x.tonase * 100, 2)
-                        ELSE NULL
-                    END,
-                    lp.pengiriman_optimal = CASE
-                        WHEN (x.kubikasi > 0 AND (x.sum_kubik  / x.kubikasi * 100) >= 85)
-                          OR (x.tonase   > 0 AND (x.sum_tonase / x.tonase   * 100) >= 85)
-                            THEN 'OPTIMAL'
-                        WHEN x.kubikasi > 0 OR x.tonase > 0
-                            THEN 'TIDAK OPTIMAL'
-                        ELSE NULL
-                    END
-                WHERE lp.no_shipment IN ($in)
-            ", $bindings);
+                  AND lp.pengiriman_optimal_customer = 'TIDAK OPTIMAL'
+                  AND NULLIF(TRIM(lp.reason_optimal_customer), '') IS NULL
+            ", $chunk);
         }
     }
+}
 }

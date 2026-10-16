@@ -1442,39 +1442,69 @@ private function renderSalesPasuruanRow($r, array $crMap)
         $r->via_kirim_pasuruan,
     ];
 }
- 
+
+
+ /**
+ * Kolom tanggal untuk filter periode (whitelist).
+ * Default: rencana_kirim, atau tanggal_naik_logistik kalau dipilih.
+ */
+private function dateFilterColumn($request): string
+{
+    return $request->input('tgl_basis') === 'tanggal_naik_logistik'
+        ? 'tanggal_naik_logistik'
+        : 'rencana_kirim';
+}
+
+public function applyFilter($query, $request)
+{
+    // AREA (mendukung string maupun array)
+    $areas = array_values(array_filter((array) $request->input('area', []), 'strlen'));
+    if (!empty($areas)) {
+        $query->whereIn('area', $areas);
+    }
+
+    // PULAU
+    if ($request->filled('pulau') && isset(self::PULAU_MAP[$request->pulau])) {
+        $query->whereIn('area', self::PULAU_MAP[$request->pulau]);
+    }
+
+    // PERIODE (dasar tanggal: rencana_kirim ATAU tanggal_naik_logistik)
+    $col  = $this->dateFilterColumn($request);
+    $from = $request->input('date_from');
+    $to   = $request->input('date_to');
+
+    // kalau kebalik (dari > sampai), ditukar otomatis
+    if ($from && $to && $from > $to) {
+        [$from, $to] = [$to, $from];
+    }
+
+    if ($from) {
+        $query->whereDate($col, '>=', $from);
+    }
+    if ($to) {
+        $query->whereDate($col, '<=', $to);
+    }
+
+    // MONTH (format YYYY-MM dari input type="month")
+    if ($request->month) {
+        $query->whereMonth($col, substr($request->month, 5, 2));
+        $query->whereYear($col, substr($request->month, 0, 4));
+    }
+
+    // YEAR
+    if ($request->year) {
+        $query->whereYear($col, $request->year);
+    }
+
+    return $query;
+}
     /*
     |--------------------------------------------------------------------------
     | FILTER
     |--------------------------------------------------------------------------
     */
 
-   public function applyFilter($query, $request)
-{
-    if ($request->date) {
-        $query->whereDate('create_tgl', $request->date);
-    }
-      if ($request->filled('pulau') && isset(self::PULAU_MAP[$request->pulau])) {
-        $query->whereIn('area', self::PULAU_MAP[$request->pulau]);
-    }
-
-
-    if ($request->month) {
-        $query->whereMonth('create_tgl', substr($request->month, 5, 2))
-              ->whereYear('create_tgl', substr($request->month, 0, 4));
-    }
-
-    if ($request->year) {
-        $query->whereYear('create_tgl', $request->year);
-    }
-
-    if ($request->area) {
-        $query->where('area', $request->area);
-    }
-
-    return $query;
-}
-
+ 
 
 
     /*
