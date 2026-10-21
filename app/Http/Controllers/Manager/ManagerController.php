@@ -154,63 +154,56 @@ class ManagerController extends Controller
             ->whereRaw('DATE(tanggal_dpt_unit) > DATE(rencana_kirim)')
             ->count();
 
-        // ================= TOTAL NILAI MUATAN =================
+    // ================= TOTAL NILAI MUATAN + CR =================
+$grp = $this->grupBiayaQuery($base);
 
-        $totalNilaiMuatan = (clone $base)->sum('nilai_muatan');
+$tot = DB::query()->fromSub($grp, 'g')
+    ->selectRaw('COALESCE(SUM(biaya),0) AS total_biaya, COALESCE(SUM(nilai),0) AS total_nilai')
+    ->first();
 
-        $totalBiayaKirim = (clone $base)
-            ->selectRaw("SUM(biaya_kirim) as total")
-            ->value('total');
+$totalBiayaKirim  = (float) $tot->total_biaya;
+$totalNilaiMuatan = (float) $tot->total_nilai;
+$costRatio        = $totalNilaiMuatan > 0
+    ? round($totalBiayaKirim / $totalNilaiMuatan * 100, 4)
+    : 0;
 
+// ================= SUMMARY AREA =================
+$summary_area = DB::query()->fromSub($grp, 'g')
+    ->selectRaw('area,
+                 SUM(jml_do) AS total_shipment,
+                 SUM(biaya)  AS total_biaya,
+                 SUM(nilai)  AS total_muatan')
+    ->whereNotNull('area')
+    ->groupBy('area')
+    ->orderByDesc('total_shipment')
+    ->get();
 
-        // ================= SUMMARY AREA =================
+// ================= SUMMARY TUJUAN =================
+$summary_tujuan = DB::query()->fromSub($grp, 'g')
+    ->selectRaw('tj AS tujuan,
+                 SUM(jml_do) AS total_shipment,
+                 SUM(biaya)  AS total_biaya,
+                 SUM(nilai)  AS total_muatan')
+    ->where('tj', '<>', '')
+    ->groupBy('tj')
+    ->orderByDesc('total_shipment')
+    ->get();
 
-        $summary_area = (clone $base)
-            ->select(
-                'area',
-                DB::raw('COUNT(*) as total_shipment'),
-                DB::raw('COALESCE(SUM(biaya_kirim),0) as total_biaya'),
-                DB::raw('COALESCE(SUM(nilai_muatan),0) as total_muatan')
-            )
-            ->whereNotNull('area')
-            ->groupBy('area')
-            ->orderByDesc('total_shipment')
-            ->get();
+$reqTanpaPulau = $request->duplicate($request->except('pulau'));
 
+$basePulau = $this->applyFilter(DB::table('logistik_pengiriman'), $reqTanpaPulau);
+$grpPulau  = $this->grupBiayaQuery($basePulau);
 
-        // ================= SUMMARY TUJUAN =================
-
-        $summary_tujuan = (clone $base)
-            ->select(
-                'tujuan',
-                DB::raw('COUNT(*) as total_shipment'),
-                DB::raw('COALESCE(SUM(biaya_kirim),0) as total_biaya'),
-                DB::raw('COALESCE(SUM(nilai_muatan),0) as total_muatan')
-            )
-            ->whereNotNull('tujuan')
-            ->groupBy('tujuan')
-            ->orderByDesc('total_shipment')
-            ->get();
-
-
-        // ================= SUMMARY PULAU =================
-
-               // sengaja tanpa filter pulau, supaya semua kotak pulau tetap tampil
-        $reqTanpaPulau = $request->duplicate($request->except('pulau'));
-
-        $summary_pulau = $this->applyFilter(DB::table('logistik_pengiriman'), $reqTanpaPulau)
-            ->select(
-                'pulau',
-                DB::raw('COUNT(DISTINCT no_shipment) AS total_shipment'),
-                DB::raw('SUM(nilai_muatan) AS total_muatan'),
-                DB::raw('SUM(biaya_kirim) AS total_biaya')
-            )
-            ->whereNotNull('pulau')
-            ->whereRaw("TRIM(pulau) <> ''")
-            ->groupBy('pulau')
-            ->orderByDesc('total_muatan')
-            ->get();
-
+$summary_pulau = DB::query()->fromSub($grpPulau, 'g')
+    ->selectRaw('pulau,
+                 COUNT(DISTINCT sh) AS total_shipment,
+                 SUM(nilai)         AS total_muatan,
+                 SUM(biaya)         AS total_biaya')
+    ->whereNotNull('pulau')
+    ->whereRaw("TRIM(pulau) <> ''")
+    ->groupBy('pulau')
+    ->orderByDesc('total_muatan')
+    ->get();
         $label_pulau        = $summary_pulau->pluck('pulau');
         $value_muatan_pulau = $summary_pulau->pluck('total_muatan');
         $value_biaya_pulau  = $summary_pulau->pluck('total_biaya');
@@ -792,11 +785,12 @@ public function inTransitPasuruan(Request $request)
  */
 private function dateFilterColumn($request): string
 {
-    return $request->input('tgl_basis') === 'tanggal_naik_logistik'
-        ? 'tanggal_naik_logistik'
-        : 'rencana_kirim';
+    return match ($request->input('tgl_basis')) {
+        'tanggal_naik_logistik' => 'tanggal_naik_logistik',
+        'created_at'            => 'created_at',   // Tanggal Import
+        default                 => 'rencana_kirim',
+    };
 }
-
 private function applyFilter($query, $request)
 {
     // AREA
@@ -858,7 +852,20 @@ private function applyFilter($query, $request)
             ->orderBy('area')
             ->get();
     }
-
+private function grupBiayaQuery($query)
+{
+    return (clone $query)
+        ->selectRaw("
+            COALESCE(NULLIF(TRIM(no_shipment),''), CONCAT('id', id)) AS sh,
+            COALESCE(tujuan,'')            AS tj,
+            MAX(area)                      AS area,
+            MAX(pulau)                     AS pulau,
+            MAX(COALESCE(biaya_kirim,0))   AS biaya,
+            SUM(COALESCE(nilai_muatan,0))  AS nilai,
+            COUNT(*)                       AS jml_do
+        ")
+        ->groupByRaw('sh, tj');
+}
 
     /*
     |--------------------------------------------------------------------------
@@ -1432,18 +1439,14 @@ public function bongkarOntime(Request $request)
         $query = DB::table('logistik_pengiriman');
 
         $this->applyFilter($query, $request);
+$grp = $this->grupBiayaQuery($query);
 
-        $summary_area = $query
-            ->select(
-                'area',
-                DB::raw('COUNT(*) as total_shipment'),
-                DB::raw('COALESCE(SUM(biaya_kirim),0) as total_biaya'),
-                DB::raw('COALESCE(SUM(nilai_muatan),0) as total_muatan')
-            )
-            ->whereNotNull('area')
-            ->groupBy('area')
-            ->orderByDesc('total_shipment')
-            ->get();
+$summary_area = DB::query()->fromSub($grp, 'g')
+    ->selectRaw('area, SUM(jml_do) AS total_shipment, SUM(biaya) AS total_biaya, SUM(nilai) AS total_muatan')
+    ->whereNotNull('area')
+    ->groupBy('area')
+    ->orderByDesc('total_shipment')
+    ->get();
 
         return view('manager.summary_area', compact(
             'summary_area'

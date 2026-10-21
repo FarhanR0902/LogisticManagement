@@ -351,18 +351,17 @@ private function getReasonOptimalList()
             $query->whereIn('area', self::PULAU_MAP[$request->pulau]);
         }
 
-        if ($request->date) {
-            $query->whereDate('rencana_kirim', $request->date);
-        }
+       if ($request->date) {
+    $query->whereDate('create_tgl', $request->date);
+}
+if ($request->month) {
+    $query->whereMonth('create_tgl', substr($request->month, 5, 2));
+    $query->whereYear('create_tgl', substr($request->month, 0, 4));
+}
 
-        if ($request->month) {
-            $query->whereMonth('tanggal_naik_logistik', substr($request->month, 5, 2));
-            $query->whereYear('tanggal_naik_logistik', substr($request->month, 0, 4));
-        }
-
-        if ($request->year) {
-            $query->whereYear('tanggal_naik_logistik', $request->year);
-        }
+if ($request->year) {
+    $query->whereYear('create_tgl', $request->year);
+}
 
         return $query;
     }
@@ -1403,15 +1402,15 @@ $total_in_transit = $this->inTransitQueryPasuruan()
             ->limit(5)
             ->get();
 
-        $trend_pengiriman_bulanan = (clone $base)
-            ->select(
-                DB::raw("DATE_FORMAT(tanggal_naik_logistik, '%Y-%m') as bulan"),
-                DB::raw('COUNT(*) as total')
-            )
-            ->whereNotNull('tanggal_naik_logistik')
-            ->groupBy('bulan')
-            ->orderBy('bulan')
-            ->get();
+      $trend_pengiriman_bulanan = (clone $base)
+    ->select(
+        DB::raw("DATE_FORMAT(create_tgl, '%Y-%m') as bulan"),
+        DB::raw('COUNT(*) as total')
+    )
+    ->whereNotNull('create_tgl')
+    ->groupBy('bulan')
+    ->orderBy('bulan')
+    ->get();
 
 
         $customer_ontime = (clone $base)
@@ -1530,12 +1529,12 @@ $total_in_transit = $this->inTransitQueryPasuruan()
             ->get();
 
         $summary_pulau = DB::table('logistik_pengiriman')
-            ->when($request->filled('bulan'), function ($q) use ($request) {
-                $q->whereMonth('tanggal_naik_logistik', $request->bulan);
-            })
-            ->when($request->filled('tahun'), function ($q) use ($request) {
-                $q->whereYear('tanggal_naik_logistik', $request->tahun);
-            })
+          ->when($request->filled('bulan'), function ($q) use ($request) {
+    $q->whereMonth('create_tgl', $request->bulan);
+})
+->when($request->filled('tahun'), function ($q) use ($request) {
+    $q->whereYear('create_tgl', $request->tahun);
+})
             ->when($request->filled('area'), function ($q) use ($request) {
                 $q->where('area', $request->area);
             })
@@ -3765,23 +3764,18 @@ if (!$blocked && $keluar && $leadTime !== null && $leadTime !== '') {
             'nama_driver' => $request->nama_driver,
             'no_pol'      => $request->no_pol,
             'mobil'       => $request->mobil,
-
             'lama_waktu_pencarian' => $rumus['lama_waktu_pencarian'] ?? null,
             'sla_dapat_mobil'      => $rumus['sla_dapat_mobil'] ?? null,
             'status_pengiriman'    => $rumus['status_pengiriman'] ?? null,
-
             'lama_digudang' => $rumus['lama_digudang'] ?? null,
             'status_gudang' => $rumus['status_gudang'] ?? null,
             'sla_loading'   => $rumus['sla_loading'] ?? null,
-
             'lama_digudang_2' => $rumus['lama_digudang_2'] ?? null,
             'status_gudang_2' => $rumus['status_gudang_2'] ?? null,
             'sla_loading_2'   => $rumus['sla_loading_2'] ?? null,
-
             'lama_digudang_3' => $rumus['lama_digudang_3'] ?? null,
             'status_gudang_3' => $rumus['status_gudang_3'] ?? null,
             'sla_loading_3'   => $rumus['sla_loading_3'] ?? null,
-
             'updated_at' => now(),
         ];
 
