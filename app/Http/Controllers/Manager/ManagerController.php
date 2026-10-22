@@ -2322,9 +2322,12 @@ private function listAreaPasuruan()
     }
 
     // dasar tanggal (whitelist)
-    $col = $request->input('tgl_basis') === 'rencana_kirim_pasuruan'
-        ? 'rencana_kirim_pasuruan'
-        : 'tanggal_terima_po_pasuruan';
+  // dasar tanggal (whitelist)
+$col = match ($request->input('tgl_basis')) {
+    'rencana_kirim_pasuruan' => 'rencana_kirim_pasuruan',
+    'created_at'             => 'created_at',   // Create Tgl / tanggal import
+    default                  => 'tanggal_terima_po_pasuruan',
+};
 
     // PERIODE dari - sampai
     $from = $request->input('date_from');
