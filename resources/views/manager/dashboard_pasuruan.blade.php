@@ -909,7 +909,7 @@ tbody tr:last-child td{ border-bottom:none; }
                 ? ($totalBiayaKirim / $totalNilaiMuatan) * 100
                 : 0;
         @endphp
-        <div class="hero-value">{{ number_format($ratio,2) }}%</div>
+      
     </div>
 
 </div>
