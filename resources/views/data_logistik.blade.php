@@ -189,6 +189,9 @@
             border-radius: 8px !important;
         }
 
+        .btn-tujuan { color:#2563eb; font-weight:600; text-decoration:none; }
+.btn-tujuan:hover { text-decoration:underline; }
+
         .dataTables_processing {
             background: rgba(255, 255, 255, .92) !important;
             border-radius: 12px;
@@ -527,10 +530,10 @@
                          <th>Total Tonase</th>
                          <th>Hasil Kubik</th>
                          <th>Hasil Tonase</th>
-                         <th>Pengiriman Optimal</th>
-                        <th>Reason Optimal</th>
+                         <th>Pengiriman Optimal Shipment</th>
+                        <th>Reason Tidak Optimal Per Shipment</th>
 <th>Pengiriman Optimal Customer</th>
-<th>Reason Optimal Customer</th>
+
 <th>Kategori Ekspedisi</th>
                         <th>Ekspedisi</th>
                         <th>Tanggal Dapat Unit</th>
@@ -604,7 +607,6 @@
                         <th>Ontime/Delay Admin</th>
                         <th>Create On</th>
                         <th>No Delivery</th>
-<th>Customer Reference</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -691,9 +693,7 @@ function reloadDebounced() {
                 scrollX: true,
                 pageLength: 10,
                 lengthMenu: [10, 25, 50, 100],
-                order: [
-                    [0, 'desc']
-                ],
+              order: [[6, 'asc']],   // kolom 6 = no_shipment
                 language: {
                     processing: "Memuat data...",
                     search: "Cari:",
@@ -735,7 +735,7 @@ d.year = $('#filterYear').val();
     { data: 'no_shipment', name: 'no_shipment' },
     { data: 'status_pengiriman_badge', name: 'status_pengiriman', orderable: false, searchable: false },
     { data: 'dist_channel_badge', name: 'dist_channel' },
-    { data: 'tujuan', name: 'tujuan' },
+   { data: 'tujuan_html', name: 'tujuan' },
     { data: 'area', name: 'area' },
     { data: 'ketersediaan_unit_badge', name: 'ketersediaan_unit', orderable: false, searchable: false },
     { data: 'mobil', name: 'mobil' },
@@ -752,7 +752,7 @@ d.year = $('#filterYear').val();
     { data: 'pengiriman_optimal_badge', name: 'pengiriman_optimal', orderable: false, searchable: false },
 { data: 'reason_optimal', name: 'reason_optimal', orderable: false, searchable: false },
 { data: 'pengiriman_optimal_customer_badge', name: 'pengiriman_optimal_customer', orderable: false, searchable: false },
-{ data: 'reason_optimal_customer', name: 'reason_optimal_customer', orderable: false, searchable: false, defaultContent: '-' },
+
 { data: 'kategori_ekspedisi_badge', name: 'kategori_ekspedisi' },
     { data: 'ekpedisi', name: 'ekpedisi' },
     { data: 'tanggal_dpt_unit_fmt', name: 'tanggal_dpt_unit' },
@@ -833,11 +833,65 @@ d.year = $('#filterYear').val();
     { data: 'via_kirim', name: 'via_kirim' },
     { data: 'estimasi_admin_fmt', name: 'estimasi_admin', orderable: false },
     { data: 'estimasi_admin_status_badge', name: 'estimasi_admin_status', orderable: false, searchable: false },
-  { data: 'create_on_fmt', name: 'create_on' },
-{ data: 'no_delivery', name: 'no_delivery', defaultContent: '-' },
-{ data: 'customer_reference', name: 'customer_reference', defaultContent: '-' }
+   { data: 'create_on_fmt', name: 'create_on' },
+{ data: 'no_delivery', name: 'no_delivery', defaultContent: '-' }
 ]
             });
+
+              function esc(s) {
+                return String(s ?? '-').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+            }
+
+         function buildDetail(rows) {
+    if (!rows.length) return '<div style="padding:10px">Tidak ada rincian.</div>';
+
+    var total = 0;
+    var h = '<table style="margin:8px 0 8px 40px;width:auto;background:#fff">'
+          + '<thead><tr>'
+          + '<th>Sales Document</th><th>Customer Reference</th><th>Contract End Date</th><th>NO DO</th>'
+          + '<th>Qty</th><th>Nilai Muatan</th><th>Kirim Kontribusi</th><th>Total Kubik</th><th>Total Tonase</th>'
+          + '</tr></thead><tbody>';
+
+    rows.forEach(function (r) {
+        total += Number(r.kirim_kontribusi_raw) || 0;
+        h += '<tr><td>' + esc(r.sales_document) + '</td><td>' + esc(r.customer_reference)
+           + '</td><td>' + esc(r.contract_end_date) + '</td><td>' + esc(r.no_do)
+           + '</td><td>' + esc(r.qty) + '</td><td>' + esc(r.nilai_muatan)
+           + '</td><td>' + esc(r.kirim_kontribusi)
+           + '</td><td>' + esc(r.total_kubik) + '</td><td>' + esc(r.total_tonase) + '</td></tr>';
+    });
+
+    h += '<tr style="font-weight:700;background:#f1f5f9">'
+       + '<td colspan="6" style="text-align:right">Total Kirim Kontribusi</td>'
+       + '<td>Rp ' + Math.round(total).toLocaleString('id-ID') + '</td>'
+       + '<td colspan="2"></td></tr>';
+
+    return h + '</tbody></table>';
+}
+
+            $('#tableLogistik tbody').on('click', '.btn-tujuan', function (e) {
+                e.preventDefault();
+                var $a = $(this), tr = $a.closest('tr'), row = table.row(tr);
+
+                if (row.child.isShown()) {
+                    row.child.hide();
+                    $a.html($a.html().replace('▼', '▶'));
+                    return;
+                }
+
+                row.child('<div style="padding:10px">Memuat rincian...</div>').show();
+                $a.html($a.html().replace('▶', '▼'));
+
+                $.get("{{ route('logistik.detail') }}", {
+                    no_shipment: $a.data('shipment'),
+                    tujuan: $a.data('tujuan')
+                }).done(function (res) {
+                    row.child(buildDetail(res.data)).show();
+                }).fail(function () {
+                    row.child('<div style="padding:10px;color:#dc2626">Gagal memuat rincian.</div>').show();
+                });
+            });
+
 
             // Reload table setiap filter berubah (server-side, jadi ringan)
         $('#filterTglBasis, #filterDateFrom, #filterDateTo, #filterMonth, #filterYear').on('change', function () {
@@ -877,13 +931,7 @@ d.year = $('#filterYear').val();
     window.location.href = params.toString() ? (baseUrl + '?' + params.toString()) : baseUrl;
 });
         });
-        $('#btnResetFilter').on('click', function (e) {
-    e.preventDefault();
-    $('#filterForm')[0].reset();
-    $('#filterArea .ms-search').val('').trigger('input');
-    updateLabel($('#filterArea'));
-    table.ajax.reload();
-});
+      
     </script>
 
 </body>

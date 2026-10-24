@@ -52,6 +52,11 @@ class PasuruanImport implements ToCollection, WithHeadingRow, WithCalculatedForm
 
     // no_shipment yang ada di file ini -> dipakai buat recalc di AfterImport
     private array $touchedShipments = [];
+    private array $shipmentKubik = [];   // no_shipment => total kubik di file
+private array $shipmentKK    = [];   // no_shipment => total kirim kontribusi di file
+private array $shipmentRows  = [];   // no_shipment => jumlah baris di file
+private array $kkSeen        = [];   // no_shipment => baris yang sudah diproses
+private array $kkAlloc       = [];   // no_shipment => total yang sudah dialokasikan
 
     public function getInsertedCount(): int { return $this->inserted; }
     public function getUpdatedCount(): int { return $this->updated; }
@@ -93,6 +98,23 @@ class PasuruanImport implements ToCollection, WithHeadingRow, WithCalculatedForm
 
     public function collection(Collection $rows)
     {
+        foreach ($rows as $rc) {
+    $r  = $rc->toArray();
+    $no = $this->cleanText($r['no_shipment_pasuruan'] ?? null);
+    if (empty($no)) continue;
+
+    $this->shipmentRows[$no] = ($this->shipmentRows[$no] ?? 0) + 1;
+
+    $k = $this->cleanDecimal($r['total_kubikasi_pasuruan'] ?? $r['total_kubik_pasuruan'] ?? null);
+    if ($k !== null && $k > 0) {
+        $this->shipmentKubik[$no] = ($this->shipmentKubik[$no] ?? 0) + $k;
+    }
+
+    $kk = $this->cleanDecimal($r['kirim_kontribusi_pasuruan'] ?? null);
+    if ($kk !== null && $kk > 0) {
+        $this->shipmentKK[$no] = ($this->shipmentKK[$no] ?? 0) + $kk;
+    }
+}
         foreach ($rows as $row) {
             $row = $row->toArray();
 
@@ -221,17 +243,42 @@ class PasuruanImport implements ToCollection, WithHeadingRow, WithCalculatedForm
 
         $this->lastNoShipment = $noShipment;
 
-        // ================= BIAYA KIRIM & KAPASITAS DARI TARIF =================
-        $tarifRow = $this->findTarif($route, $ekspedisi, $mobil);
+     // ================= BIAYA KIRIM & KAPASITAS DARI TARIF =================
+$tarifRow   = $this->findTarif($route, $ekspedisi, $mobil);
+$kubikasi   = $tarifRow ? $this->cleanDecimal($tarifRow->kubikasi ?? null) : null;
+$tonase     = $tarifRow ? $this->cleanDecimal($tarifRow->tonase ?? null)   : null;
+$biayaTarif = $tarifRow ? $this->cleanNumberTarif($tarifRow->biaya_kirim)  : null;
+$biayaExcel = $this->cleanNumber($row['biaya_kirim_pasuruan'] ?? null);
 
-        $biayaKirim = $tarifRow
-            ? $this->cleanNumberTarif($tarifRow->biaya_kirim)
-            : $this->cleanNumber($row['biaya_kirim_pasuruan'] ?? null);
+// ---- kirim kontribusi: total per shipment dibagi per kontribusi total_kubik ----
+$kirimKontribusi = null;
+$totKK = $this->shipmentKK[$noShipment] ?? 0;
 
-        // kapasitas BUKAN persen -> cleanDecimal (tidak dipotong 100)
-        $kubikasi = $tarifRow ? $this->cleanDecimal($tarifRow->kubikasi ?? null) : null;
-        $tonase   = $tarifRow ? $this->cleanDecimal($tarifRow->tonase ?? null)   : null;
+if ($totKK > 0) {
+    $sumKubik = $this->shipmentKubik[$noShipment] ?? 0;
+    $nRows    = $this->shipmentRows[$noShipment] ?? 1;
 
+    $this->kkSeen[$noShipment] = ($this->kkSeen[$noShipment] ?? 0) + 1;
+
+    if ($this->kkSeen[$noShipment] >= $nRows) {
+        // baris terakhir ambil sisa, supaya total pas tanpa selisih pembulatan
+        $kirimKontribusi = round($totKK - ($this->kkAlloc[$noShipment] ?? 0), 2);
+    } else {
+        $share = $sumKubik > 0 ? (($totalKubik ?? 0) / $sumKubik) : (1 / $nRows);
+        $kirimKontribusi = round($totKK * $share, 2);
+    }
+
+    $this->kkAlloc[$noShipment] = ($this->kkAlloc[$noShipment] ?? 0) + $kirimKontribusi;
+}
+
+if ($kirimKontribusi !== null) {
+    $biayaKirim = $kirimKontribusi;
+} elseif ($biayaTarif !== null && $kubikasi > 0 && $totalKubik > 0) {
+    $kapasitas  = max($kubikasi, $this->shipmentKubik[$noShipment] ?? 0);
+    $biayaKirim = round(($totalKubik / $kapasitas) * $biayaTarif, 2);
+} else {
+    $biayaKirim = $biayaTarif ?? $biayaExcel;
+}
         // ================= LOOKUP MASTER (Div = Pasuruan) =================
         $tujuanKey    = preg_replace('/\s+/', ' ', trim(strtolower((string) $tujuan)));
         $customerData = self::$customerMap[$tujuanKey] ?? null;
@@ -478,7 +525,7 @@ class PasuruanImport implements ToCollection, WithHeadingRow, WithCalculatedForm
                         UPDATE {$table} lp
                         JOIN (
                             SELECT no_shipment_pasuruan,
-                                   MAX(CAST(NULLIF(TRIM(biaya_kirim_pasuruan), '') AS DECIMAL(18,4))) AS biaya,
+                                 SUM(COALESCE(CAST(NULLIF(TRIM(biaya_kirim_pasuruan), '') AS DECIMAL(18,4)), 0)) AS biaya,
                                    SUM(COALESCE(CAST(NULLIF(TRIM(nilai_muatan_pasuruan), '') AS DECIMAL(18,4)), 0)) AS muatan
                             FROM {$table}
                             WHERE no_shipment_pasuruan IN ($in)

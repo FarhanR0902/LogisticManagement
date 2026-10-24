@@ -74,6 +74,8 @@ class LogistikPengirimanPasuruan extends Model
     'pengiriman_optimal_pasuruan',
     'kubikasi_pasuruan',
     'transport_lead_time_pasuruan',
+    'pengiriman_optimal_customer_pasuruan',
+    'reason_pengiriman_optimal_customer_pasuruan',
 
     'planner_pasuruan',
     'no_shipment_pasuruan',

@@ -278,6 +278,9 @@ Route::prefix('manager')->group(function () {
     Route::get('/kpi/monitoring', [KpiController::class, 'monitoring'])->name('manager.kpi.monitoring');
     Route::get('/dashboard', [ManagerController::class, 'dashboard'])
         ->name('manager.dashboard');
+
+        Route::get('/manager/pasuruan/detail', [ManagerController::class, 'dataLogistikDetailPasuruan'])
+    ->name('manager.pasuruan.detail');
         Route::get('/sla-delay', [ManagerController::class, 'slaDelay'])
     ->name('manager.sla-delay');
 
@@ -349,12 +352,15 @@ Route::get('/pasuruan/tujuan/ontime', [PasuruanController::class, 'tujuanOntimeP
 Route::post('/pasuruan/data-ajax', [\App\Http\Controllers\PasuruanController::class, 'dataLogistikAjax'])
     ->name('pasuruan.dataAjax');
 Route::get('/datalogistik', [LogistikController::class, 'dataLogistik'])->name('logistik.page');
+Route::get('/logistik/detail', [LogistikController::class, 'dataLogistikDetail'])->name('logistik.detail');
 Route::match(['get', 'post'], '/datalogistik/ajax', [LogistikController::class, 'dataLogistikAjax'])->name('logistik.ajax');
 Route::get('/pasuruan/data-logistik', [PasuruanController::class, 'dataLogistik'])->name('pasuruan.dataLogistik');
 Route::match(['get', 'post'], '/pasuruan/data-logistik/ajax', [PasuruanController::class, 'dataLogistikAjaxPasuruan'])->name('pasuruan.dataLogistikAjax');
 
 Route::get('/pasuruan/tujuan/delay', [PasuruanController::class, 'tujuanDelayPasuruan'])
     ->name('pasuruan.tujuan.delay');
+    Route::get('/pasuruan/data-logistik/detail', [PasuruanController::class, 'dataLogistikDetailPasuruan'])
+    ->name('pasuruan.detail');
 
 Route::get('/pasuruan/bongkar/ontime', [PasuruanController::class, 'bongkarOntimePasuruan'])
     ->name('pasuruan.bongkar.ontime');
@@ -451,6 +457,8 @@ Route::middleware(['auth'])->prefix('spvplanner')->group(function () {
     Route::get('/kpi/monitoring', [KpiController::class, 'monitoring'])->name('spvplanner.kpi.monitoring');
     Route::post('/spvplanner/data-ajax', [App\Http\Controllers\Spv\SpvPlannerController::class, 'dataAjax'])
         ->name('spvplanner.data.ajax');
+        Route::get('/spvplanner/full-data-logistik/detail', [SpvPlannerController::class, 'fullDataDetail'])
+    ->name('spvplanner.full.detail');
         Route::get('/belum-tiba-gudang', [SpvPlannerController::class, 'belumTibaGudang'])
     ->name('spvplanner.belum.tiba.gudang');
         Route::get('/spvplanner/pasuruan/in-transit', [App\Http\Controllers\Spv\SpvPlannerController::class, 'inTransitPasuruan'])
@@ -638,6 +646,10 @@ Route::middleware(['auth'])
         Route::get('/summary-area', [SpvMonitoringController::class, 'summaryArea'])
             ->name('summary.area');
 
+         Route::post('/pasuruan/ajax', [SpvMonitoringController::class, 'dataLogistikPasuruanAjax'])
+    ->name('pasuruan.ajax');
+Route::get('/pasuruan/detail', [SpvMonitoringController::class, 'dataLogistikDetailPasuruan'])
+    ->name('pasuruan.detail'); 
         Route::get(
             '/full-data-logistik',
             [SpvMonitoringController::class, 'fullDataLogistik']
@@ -714,6 +726,8 @@ Route::get(
     '/spvplanner/full-dashboard',
     [SpvPlannerController::class, 'fullDashboard']
 )->name('spvplanner.full.dashboard');
+Route::get('/spvplanner/data-pasuruan/detail', [SpvPlannerController::class, 'dataLogistikDetailPasuruan'])
+    ->name('spvplanner.data.pasuruan.detail');
 
 Route::get('/spvplanner/in-transit', [SpvPlannerController::class, 'inTransit'])
     ->name('spvplanner.intransit');
@@ -915,12 +929,15 @@ Route::prefix('pasuruan')->group(function () {
 
     Route::delete('/delete-filtered', [PasuruanController::class, 'deleteFiltered'])
         ->name('pasuruan.deleteFiltered');
+         Route::get('/export-full', [PasuruanController::class, 'exportFull'])
+        ->name('pasuruan.export.full');
 
     Route::post('/data-ajax-pasuruan', [PasuruanController::class, 'dataAjaxPasuruan'])
         ->name('pasuruan.dataAjaxPasuruan');
 
     Route::get('/list-no-shipment', [PasuruanController::class, 'listNoShipmentPasuruan'])
         ->name('pasuruan.listNoShipment');
+  
 
     Route::get('/data-logistik', [PasuruanController::class, 'dataLogistik'])
         ->name('pasuruan.dataLogistik');

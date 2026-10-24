@@ -35,7 +35,11 @@ class LogistikPengiriman extends Model
         'cr',
         'kategori_ekspedisi',
         'ekpedisi',
-      
+'nama_driver',
+'no_pol',
+'sales_document', 
+'contract_end_date',
+'no_do',
         'status_pengiriman',
         'tanggal_dpt_unit',
         'planning_loading',

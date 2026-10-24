@@ -728,7 +728,14 @@ tbody tr:last-child td{ border-bottom:none; }
 <!-- FILTER -->
 <div class="filter-box">
     <form method="GET" action="{{ url()->current() }}" class="filter-form" id="filterForm">
-
+<div class="field">
+    <label for="f-basis">Dasar tanggal</label>
+    <select id="f-basis" name="tgl_basis">
+        <option value="tanggal_terima_po_pasuruan" {{ request('tgl_basis', 'tanggal_terima_po_pasuruan') == 'tanggal_terima_po_pasuruan' ? 'selected' : '' }}>Tanggal Naik Logistik</option>
+        <option value="rencana_kirim_pasuruan" {{ request('tgl_basis') == 'rencana_kirim_pasuruan' ? 'selected' : '' }}>Rencana Kirim</option>
+        <option value="create_tgl_pasuruan" {{ request('tgl_basis') == 'create_tgl_pasuruan' ? 'selected' : '' }}>Create Tgl</option>
+    </select>
+</div>
         <div class="field">
             <label for="f-date">Tanggal</label>
             <input id="f-date" type="date" name="date" value="{{ request('date') }}">
@@ -769,7 +776,7 @@ tbody tr:last-child td{ border-bottom:none; }
             <select id="f-dist" name="dist_channel">
                 <option value="">Semua channel</option>
                 @foreach($list_dist_channel as $d)
-                    <option value="{{ $d->dist_channel_pasuruan }}" {{ request('dist_channel_pasuruan') == $d->dist_channel_pasuruan? 'selected' : '' }}>
+                  <option value="{{ $d->dist_channel_pasuruan }}" {{ request('dist_channel') == $d->dist_channel_pasuruan ? 'selected' : '' }}>
                         {{ $d->dist_channel_pasuruan }}
                     </option>
                 @endforeach
@@ -833,51 +840,49 @@ tbody tr:last-child td{ border-bottom:none; }
 
 <!-- KPI -->
 <div class="section-label">Ringkasan status</div>
-
 <div class="kpi-row">
 
-<a href="{{ url('/datalogistik') }}?{{ http_build_query(request()->query()) }}" class="card blue">
+<a href="{{ route('spvplanner.data.pasuruan', request()->query()) }}" class="card blue">
     <h4>Total Shipment</h4>
     <h1>{{ $total_data }}</h1>
 </a>
+
 <a href="{{ route('spvplanner.pasuruan.intransit', request()->query()) }}" class="card orange">
     <h4>Dalam Perjalanan (In Transit)</h4>
     <h1>{{ $total_in_transit ?? 0 }}</h1>
 </a>
 
-<a href="{{ route('manager.gudang.ontime', request()->query()) }}" class="card green">
+<a href="{{ route('manager.pasuruan.gudang.ontime', request()->query()) }}" class="card green">
     <h4>Sudah Tiba Di Gudang</h4>
     <h1>{{ $gudang_ontime }}</h1>
 </a>
 
-<a href="{{ route('manager.gudang.delay', request()->query()) }}" class="card red">
+<a href="{{ route('manager.pasuruan.gudang.delay', request()->query()) }}" class="card red">
     <h4>Belum Tiba Di Gudang</h4>
     <h1>{{ $gudang_delay }}</h1>
 </a>
 
-<a href="{{ route('manager.customer.ontime', request()->query()) }}" class="card teal">
+<a href="{{ route('manager.pasuruan.tujuan.ontime', request()->query()) }}" class="card teal">
     <h4>Tiba Tujuan OnTime</h4>
     <h1>{{ $customer_ontime }}</h1>
 </a>
 
-<a href="{{ route('manager.customer.delay', request()->query()) }}" class="card orange">
+<a href="{{ route('manager.pasuruan.tujuan.delay', request()->query()) }}" class="card orange">
     <h4>Tiba Tujuan Delay</h4>
     <h1>{{ $customer_delay }}</h1>
 </a>
 
-<a href="{{ route('manager.bongkar.ontime', request()->query()) }}" class="card purple">
+<a href="{{ route('manager.pasuruan.bongkar.ontime', request()->query()) }}" class="card purple">
     <h4>Bongkar OnTime</h4>
     <h1>{{ $bongkar_ontime }}</h1>
 </a>
 
-<a href="{{ route('manager.bongkar.delay', request()->query()) }}" class="card dark">
+<a href="{{ route('manager.pasuruan.bongkar.delay', request()->query()) }}" class="card dark">
     <h4>Bongkar Delay</h4>
     <h1>{{ $bongkar_delay }}</h1>
 </a>
 
-
 </div>
-
 <!-- HERO TOTALS -->
 <div class="section-label">Nilai & biaya</div>
 <div class="total-row">

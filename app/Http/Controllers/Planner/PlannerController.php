@@ -443,19 +443,68 @@ public function inTransit(Request $request)
             // 2. FIELD SPESIFIK PER ROW
         // biaya_kirim, cr, hasil_kubik, hasil_tonase, pengiriman_optimal(_customer), kubikasi, tonase
         // TIDAK disentuh (dihitung saat import)
-        DB::table('logistik_pengiriman')->where('id', $id)->update([
-            'tujuan'           => $request->tujuan,
-            'pulau'            => $request->pulau,
-            'total_do_qty_car' => $request->total_do_qty_car,
-            'total_kubik'      => $this->cleanDecimalPlanner($request->total_kubik),
-            'total_tonase'     => $this->cleanDecimalPlanner($request->total_tonase),
-            'reason_optimal'   => $request->reason_optimal ?: null,
-            'nilai_muatan'     => $this->cleanMoney($request->nilai_muatan),
-            'updated_at'       => now(),
-        ]);
-
+ // total_*, nilai_muatan, qty TIDAK disentuh (yang tampil adalah hasil penjumlahan semua DO)
+$this->groupScope($old, $shipment)->update([
+    'pulau'                   => $request->pulau,
+    'reason_optimal'          => $request->reason_optimal ?: null,
+    'reason_optimal_customer' => $request->reason_optimal_customer ?: null,
+    'updated_at'              => now(),
+]);
         return back()->with('success', 'Data berhasil diperbarui');
     }
+
+    /** Subquery: 1 id wakil (MIN id) per shipment+tujuan dari query yang sudah terfilter */
+private function groupIdsQuery($query)
+{
+    return (clone $query)
+        ->select(DB::raw('MIN(id) as id'))
+        ->groupByRaw("COALESCE(NULLIF(TRIM(no_shipment),''), CONCAT('id', id)), COALESCE(tujuan,'')");
+}
+
+private function countGroups($query): int
+{
+    return DB::query()->fromSub($this->groupIdsQuery($query), 'g')->count();
+}
+
+/** Total per shipment+tujuan untuk baris yang tampil di halaman ini */
+private function plannerGroupAgg($rows): array
+{
+    $shipments = $rows->pluck('no_shipment')
+        ->filter(fn($v) => trim((string) $v) !== '')
+        ->unique()->values();
+
+    if ($shipments->isEmpty()) return [];
+
+    return LogistikPengiriman::query()
+        ->whereIn('no_shipment', $shipments)
+   ->selectRaw("no_shipment,
+    COALESCE(tujuan,'') AS tujuan_key,
+    COUNT(*) AS jml_do,
+    SUM(COALESCE(nilai_muatan,0))     AS sum_nilai,
+    SUM(COALESCE(total_kubik,0))      AS sum_kubik,
+    MAX(COALESCE(biaya_kirim,0))      AS sum_biaya,
+    SUM(COALESCE(total_tonase,0))     AS sum_tonase,
+    SUM(COALESCE(total_do_qty_car,0)) AS sum_qty,
+    MAX(kubikasi)                     AS kap_kubik,
+    MAX(tonase)                       AS kap_tonase")
+        ->groupBy('no_shipment', 'tujuan_key')
+        ->get()
+        ->keyBy(fn($g) => $g->no_shipment . '|' . $g->tujuan_key)
+        ->all();
+}
+
+/** Scope semua DO dalam 1 grup (no_shipment + tujuan) */
+private function groupScope($row, ?string $shipment = null)
+{
+    $shipment = $shipment ?: $row->no_shipment;
+    $q = DB::table('logistik_pengiriman');
+
+    if (trim((string) $shipment) === '') {
+        return $q->where('id', $row->id);
+    }
+    return $q->where('no_shipment', $shipment)
+             ->whereRaw("COALESCE(tujuan,'') = ?", [(string) $row->tujuan]);
+}
     /**
      * =====================================================
      * AUTOSAVE ROW (inline edit per-cell)
@@ -575,16 +624,13 @@ public function inTransit(Request $request)
 
         // ====================================================
               // 2. FIELD SPESIFIK PER ROW (kolom hasil import tidak disentuh)
-        DB::table('logistik_pengiriman')->where('id', $id)->update([
-            'tujuan'           => $request->tujuan,
-            'pulau'            => $request->pulau,
-            'total_do_qty_car' => $request->total_do_qty_car,
-            'total_kubik'      => $this->cleanDecimalPlanner($request->total_kubik),
-            'total_tonase'     => $this->cleanDecimalPlanner($request->total_tonase),
-            'reason_optimal'   => $request->reason_optimal ?: null,
-            'nilai_muatan'     => $this->cleanMoney($request->nilai_muatan),
-            'updated_at'       => now(),
-        ]);
+     // total_*, nilai_muatan, qty TIDAK disentuh (yang tampil adalah hasil penjumlahan semua DO)
+$this->groupScope($old, $shipment)->update([
+    'pulau'                   => $request->pulau,
+    'reason_optimal'          => $request->reason_optimal ?: null,
+    'reason_optimal_customer' => $request->reason_optimal_customer ?: null,
+    'updated_at'              => now(),
+]);
 
         // kembalikan nilai yang tersimpan di DB, bukan hitungan baru
         $row = DB::table('logistik_pengiriman')->where('id', $id)->first(['biaya_kirim', 'cr']);
@@ -749,88 +795,114 @@ public function inTransit(Request $request)
      * (biasanya 10-25 baris), bukan semua data.
      * =====================================================
      */
-    public function dataAjax(Request $request)
-    {
-        $draw   = (int) $request->input('draw', 1);
-        $start  = (int) $request->input('start', 0);
-        $length = (int) $request->input('length', 10);
-        $searchValue = trim((string) $request->input('search.value', ''));
+   public function dataAjax(Request $request)
+{
+    $draw   = (int) $request->input('draw', 1);
+    $start  = (int) $request->input('start', 0);
+    $length = (int) $request->input('length', 10);
+    $searchValue = trim((string) $request->input('search.value', ''));
 
-        $baseQuery = LogistikPengiriman::query();
-        $totalRecords = (clone $baseQuery)->count();
+    $baseQuery    = LogistikPengiriman::query();
+    $totalRecords = $this->countGroups(LogistikPengiriman::query());
 
-        // ===== FILTER: planner / area / tanggal import =====
-       if ($vals = $this->multiInput($request, 'planner_filter')) {
-    $baseQuery->whereIn('planner', $vals);
-}
-if ($vals = $this->multiInput($request, 'area_filter')) {
-    $baseQuery->whereIn('area', $vals);
-}
-if ($vals = $this->multiInput($request, 'dist_channel_filter')) {
-    $baseQuery->whereIn('dist_channel', $vals);
-}
-if ($request->filled('create_tgl_filter')) {
-    $baseQuery->whereDate('create_tgl', $request->input('create_tgl_filter'));
-}
-
-        // ===== GLOBAL SEARCH (kolom-kolom penting saja) =====
-        if ($searchValue !== '') {
-            $baseQuery->where(function ($q) use ($searchValue) {
-                $cols = [
-                    'planner', 'no_shipment', 'tujuan', 'route', 'pulau', 'area',
-                    'via_kirim', 'dist_channel', 'kategori_ekspedisi', 'ekpedisi',
-                    'nama_driver', 'no_pol', 'mobil', 'transport_lead_time',
-                ];
-                foreach ($cols as $col) {
-                    $q->orWhere($col, 'like', "%{$searchValue}%");
-                }
-            });
-        }
-
-
-        $recordsFiltered = (clone $baseQuery)->count();
-
-  $rows = $baseQuery
-    ->orderByRaw($this->selesaiGudangSql() . ' ASC')   // belum selesai di depan, selesai di belakang
-    ->orderByRaw('CAST(no_shipment AS UNSIGNED) ASC')
-    ->orderBy('id', 'ASC')                             // supaya urutan antar halaman stabil
-    ->skip($start)
-    ->take($length)
-    ->get();
-
-        // list dropdown untuk render select di tiap baris
-        $tujuanList = DB::table('tujuanfillterr')->whereNotNull('tujuan')->where('tujuan', '!=', '')->distinct()->orderBy('tujuan')->pluck('tujuan');
-        $pulauList = DB::table('tujuanfillterr')->whereNotNull('pulau')->where('pulau', '!=', '')->distinct()->orderBy('pulau')->pluck('pulau');
-        $areas = DB::table('tujuanfillterr')->whereNotNull('area')->where('area', '!=', '')->distinct()->orderBy('area')->pluck('area');
-        $distChannelList = DB::table('tujuanfillterr')->whereNotNull('dist_channel')->where('dist_channel', '!=', '')->distinct()->orderBy('dist_channel')->pluck('dist_channel');
-        $ekpedisiList = DB::table('tarif_pengiriman')->whereNotNull('ekpedisi')->where('ekpedisi', '!=', '')->distinct()->orderBy('ekpedisi')->pluck('ekpedisi');
-        $mobilList = DB::table('tarif_pengiriman')->whereNotNull('mobil')->where('mobil', '!=', '')->distinct()->orderBy('mobil')->pluck('mobil');
-      $routeList = DB::table('tarif_pengiriman')->whereNotNull('route')->where('route', '!=', '')->distinct()->orderBy('route')->pluck('route');   // <-- INI YANG HILANG
-        $reasonOptimalList = DB::table('akurasi3')
-    ->whereNotNull('reason_optimal')->where('reason_optimal', '!=', '')
-    ->distinct()->orderBy('reason_optimal')->pluck('reason_optimal');
-    $reasonGudangList = DB::table('akurasi3')
-    ->whereNotNull('reason_gudang')->where('reason_gudang', '!=', '')
-    ->distinct()->orderBy('reason_gudang')->pluck('reason_gudang');
-
-$lists = compact(
-    'tujuanList', 'pulauList', 'areas', 'distChannelList',
-    'ekpedisiList', 'mobilList', 'routeList', 'reasonOptimalList',
-    'reasonGudangList'
-);
-
-        $data = [];
-        foreach ($rows as $r) {
-            $data[] = $this->renderRowColumns($r, $lists);
-        }
-
-        return response()->json([
-            'draw'            => $draw,
-            'recordsTotal'    => $totalRecords,
-            'recordsFiltered' => $recordsFiltered,
-            'data'            => $data,
-        ]);
+    if ($vals = $this->multiInput($request, 'planner_filter')) {
+        $baseQuery->whereIn('planner', $vals);
     }
+    if ($vals = $this->multiInput($request, 'area_filter')) {
+        $baseQuery->whereIn('area', $vals);
+    }
+    if ($vals = $this->multiInput($request, 'dist_channel_filter')) {
+        $baseQuery->whereIn('dist_channel', $vals);
+    }
+    if ($request->filled('create_tgl_filter')) {
+        $baseQuery->whereDate('create_tgl', $request->input('create_tgl_filter'));
+    }
+
+    if ($searchValue !== '') {
+        $baseQuery->where(function ($q) use ($searchValue) {
+            $cols = [
+                'planner', 'no_shipment', 'tujuan', 'route', 'pulau', 'area',
+                'via_kirim', 'dist_channel', 'kategori_ekspedisi', 'ekpedisi',
+                'nama_driver', 'no_pol', 'mobil', 'transport_lead_time',
+            ];
+            foreach ($cols as $col) {
+                $q->orWhere($col, 'like', "%{$searchValue}%");
+            }
+        });
+    }
+
+    $recordsFiltered = $this->countGroups($baseQuery);
+
+    $rows = LogistikPengiriman::query()
+        ->whereIn('id', $this->groupIdsQuery($baseQuery))
+        ->orderByRaw($this->selesaiGudangSql() . ' ASC')
+        ->orderByRaw('CAST(no_shipment AS UNSIGNED) ASC')
+        ->orderBy('id', 'ASC')
+        ->skip($start)
+        ->take($length)
+        ->get();
+
+   $groupAgg = $this->plannerGroupAgg($rows);
+$shipOpt  = $this->optimalPerShipment($groupAgg);   // BARU
+
+    // ===== list dropdown (sama seperti sebelumnya) =====
+    $tujuanList = DB::table('tujuanfillterr')->whereNotNull('tujuan')->where('tujuan', '!=', '')->distinct()->orderBy('tujuan')->pluck('tujuan');
+    $pulauList = DB::table('tujuanfillterr')->whereNotNull('pulau')->where('pulau', '!=', '')->distinct()->orderBy('pulau')->pluck('pulau');
+    $areas = DB::table('tujuanfillterr')->whereNotNull('area')->where('area', '!=', '')->distinct()->orderBy('area')->pluck('area');
+    $distChannelList = DB::table('tujuanfillterr')->whereNotNull('dist_channel')->where('dist_channel', '!=', '')->distinct()->orderBy('dist_channel')->pluck('dist_channel');
+    $ekpedisiList = DB::table('tarif_pengiriman')->whereNotNull('ekpedisi')->where('ekpedisi', '!=', '')->distinct()->orderBy('ekpedisi')->pluck('ekpedisi');
+    $mobilList = DB::table('tarif_pengiriman')->whereNotNull('mobil')->where('mobil', '!=', '')->distinct()->orderBy('mobil')->pluck('mobil');
+    $routeList = DB::table('tarif_pengiriman')->whereNotNull('route')->where('route', '!=', '')->distinct()->orderBy('route')->pluck('route');
+    $reasonOptimalList = DB::table('akurasi3')->whereNotNull('reason_optimal')->where('reason_optimal', '!=', '')->distinct()->orderBy('reason_optimal')->pluck('reason_optimal');
+    $reasonGudangList = DB::table('akurasi3')->whereNotNull('reason_gudang')->where('reason_gudang', '!=', '')->distinct()->orderBy('reason_gudang')->pluck('reason_gudang');
+
+    $lists = compact(
+        'tujuanList', 'pulauList', 'areas', 'distChannelList',
+        'ekpedisiList', 'mobilList', 'routeList', 'reasonOptimalList',
+        'reasonGudangList'
+    );
+
+    // ===== bangun baris: totalan per shipment + tujuan =====
+    $data = [];
+    foreach ($rows as $r) {
+        $r->jml_do = 1;
+        $g = $groupAgg[$r->no_shipment . '|' . ($r->tujuan ?? '')] ?? null;
+
+        if ($g && trim((string) $r->no_shipment) !== '') {
+            $r->jml_do       = (int) $g->jml_do;
+            $r->nilai_muatan = $g->sum_nilai;
+            $r->biaya_kirim  = $g->sum_biaya;
+            $r->total_kubik  = $g->sum_kubik;
+            $r->total_tonase = $g->sum_tonase;
+
+            $q = (float) $g->sum_qty;
+            $r->total_do_qty_car = floor($q) == $q ? (int) $q : $q;
+
+            $r->cr = (float) $g->sum_nilai > 0
+                ? ((float) $g->sum_biaya / (float) $g->sum_nilai) * 100
+                : 0;
+
+           $h = $this->hitungHasilOptimal($r->total_kubik, $r->kubikasi, $r->total_tonase, $r->tonase);
+$r->hasil_kubik  = $h['hasil_kubik'];
+$r->hasil_tonase = $h['hasil_tonase'];
+
+// customer: satu per satu (hasil grup ini saja)
+$r->pengiriman_optimal_customer = $h['pengiriman_optimal'];
+
+// internal: gabungan seluruh shipment
+$r->pengiriman_optimal = $shipOpt[$r->no_shipment] ?? $h['pengiriman_optimal']; 
+        }
+
+        $data[] = $this->renderRowColumns($r, $lists);
+    }
+
+    return response()->json([
+        'draw'            => $draw,
+        'recordsTotal'    => $totalRecords,
+        'recordsFiltered' => $recordsFiltered,
+        'data'            => $data,
+    ]);
+}
 
     private function selesaiGudangSql(): string
 {
@@ -888,6 +960,12 @@ $dateTimeInput = function ($dateName, $dateVal, $timeName, $timeVal) use ($dateI
         $textInput = function ($name, $value, $extraClass = '') use ($formAttr) {
             return '<input type="text" ' . $formAttr . ' name="' . $name . '" class="' . $extraClass . '" value="' . e($value) . '">';
         };
+        $fmtDec = fn($v) => ($v === null || $v === '')
+    ? '' : rtrim(rtrim(number_format((float) $v, 4, ',', ''), '0'), ',');
+
+$roInput = fn($name, $value, $cls = '') =>
+    '<input type="text" ' . $formAttr . ' name="' . $name . '" class="' . $cls . '" readonly '
+    . 'style="background:#f1f5f9;" value="' . e($value) . '">';
 
         $buildSelect = function ($name, $selected, $options, $extraClass = '', $required = false) use ($formAttr) {
             $html = '<select ' . $formAttr . ' name="' . $name . '" class="' . $extraClass . ' select2-row">';
@@ -1071,12 +1149,9 @@ $buildSelect('reason_gudang_3', $r->reason_gudang_3, $lists['reasonGudangList'],
             // 26 mobil (required)
             $buildSelect('mobil', $r->mobil, $lists['mobilList'], 'row-mobil'),
             // 27 total qty
-            '<input type="number" ' . $formAttr . ' name="total_do_qty_car" value="' . e($r->total_do_qty_car) . '">',
-            // 28 nilai muatan
-            $textInput('nilai_muatan', $formattedRupiah($r->nilai_muatan), 'row-nilai-muatan input-rupiah'),
-            // 29 biaya kirim
-            $textInput('biaya_kirim', $formattedRupiah($r->biaya_kirim), 'row-biaya-kirim input-rupiah'),
-          
+           $roInput('total_do_qty_car', $r->total_do_qty_car),
+          $roInput('nilai_muatan', $formattedRupiah($r->nilai_muatan), 'row-nilai-muatan input-rupiah'),
+$roInput('biaya_kirim',  $formattedRupiah($r->biaya_kirim),  'row-biaya-kirim input-rupiah'),
            
             // 30 cr
             '<input type="text" ' . $formAttr . ' name="cr" class="row-cr" readonly style="background:#f1f5f9;color:#0284c7;font-weight:600;" value="' . e(is_numeric($r->cr) ? number_format((float) $r->cr, 4) : $r->cr) . '">',
@@ -1086,8 +1161,8 @@ $textInput('kubikasi', $formattedPersen($r->kubikasi), 'row-kubikasi'),
 '<input type="text" readonly style="background:#f1f5f9;" value="' . e($r->tonase !== null ? number_format((float)$r->tonase, 2, ',', '.') . '%' : '-') . '">',
 
 // total kubik (manual)
-$textInput('total_kubik', $r->total_kubik, 'row-total-kubikasi'),
-$textInput('total_tonase', $r->total_tonase, 'row-total-tonase'),
+$roInput('total_kubik',  $fmtDec($r->total_kubik),  'row-total-kubikasi'),
+$roInput('total_tonase', $fmtDec($r->total_tonase), 'row-total-tonase'),
 
 // hasil kubik
 '<span>' . e($r->hasil_kubik !== null ? number_format((float)$r->hasil_kubik, 2, ',', '.') . '%' : '-') . '</span>',
@@ -1100,8 +1175,19 @@ $r->pengiriman_optimal === 'OPTIMAL'
     ? '<span class="badge green">✅ Optimal</span>'
     : ($r->pengiriman_optimal ? '<span class="badge orange">⚠️ Tidak Optimal</span>' : '<span class="badge gray">-</span>'),
     $buildSelect('reason_optimal', $r->reason_optimal, $lists['reasonOptimalList'], 'row-reason-optimal'),
-            // 31 status mobil
-            $statusMobilHtml,
+
+    // pengiriman optimal customer (badge, sama seperti pengiriman_optimal)
+    strtoupper(trim((string) $r->pengiriman_optimal_customer)) === 'OPTIMAL'
+        ? '<span class="badge green">✅ Optimal</span>'
+        : (trim((string) $r->pengiriman_optimal_customer) !== ''
+            ? '<span class="badge orange">⚠️ Tidak Optimal</span>'
+            : '<span class="badge gray">-</span>'),
+
+    // reason optimal customer (dropdown search, sumber sama: akurasi3.reason_optimal)
+    $buildSelect('reason_optimal_customer', $r->reason_optimal_customer, $lists['reasonOptimalList'], 'row-reason-optimal-customer'),
+
+    // 31 status mobil
+    $statusMobilHtml,
             // 32 lama waktu pencarian
             '<span class="text-primary fw-medium">' . e($r->lama_waktu_pencarian) . '</span>',
             // 33 sla dapat mobil
@@ -1201,6 +1287,35 @@ private function gudangCells($r, string $s): array
         'tonase'   => $match->tonase ?? null,
     ];
 }
+private function statusOptimal($hasilKubik, $hasilTonase): ?string
+{
+    if ($hasilKubik === null && $hasilTonase === null) return null;
+
+    return (($hasilKubik ?? 0) >= 85 || ($hasilTonase ?? 0) >= 85)
+        ? 'OPTIMAL'
+        : 'TIDAK OPTIMAL';
+}
+
+/** Status optimal per no_shipment: hasil_kubik & hasil_tonase semua grup (tujuan) dijumlah dulu */
+private function optimalPerShipment(array $groupAgg): array
+{
+    $k = [];
+    $t = [];
+
+    foreach ($groupAgg as $g) {
+        $h  = $this->hitungHasilOptimal($g->sum_kubik, $g->kap_kubik, $g->sum_tonase, $g->kap_tonase);
+        $no = $g->no_shipment;
+
+        if ($h['hasil_kubik']  !== null) $k[$no] = ($k[$no] ?? 0) + $h['hasil_kubik'];
+        if ($h['hasil_tonase'] !== null) $t[$no] = ($t[$no] ?? 0) + $h['hasil_tonase'];
+    }
+
+    $out = [];
+    foreach (array_unique(array_merge(array_keys($k), array_keys($t))) as $no) {
+        $out[$no] = $this->statusOptimal($k[$no] ?? null, $t[$no] ?? null);
+    }
+    return $out;
+}
 
 private function hitungHasilOptimal($totalKubik, $kubikasi, $totalTonase, $tonase)
 {
@@ -1215,12 +1330,7 @@ private function hitungHasilOptimal($totalKubik, $kubikasi, $totalTonase, $tonas
         $hasilTonase = round(((float) $totalTonase / (float) $tonase) * 100, 2);
     }
 
-    $pengirimanOptimal = null;
-    if ($hasilKubik !== null || $hasilTonase !== null) {
-        $pengirimanOptimal = (($hasilKubik >= 85) || ($hasilTonase >= 85))
-            ? 'OPTIMAL'
-            : 'TIDAK OPTIMAL';
-    }
+   $pengirimanOptimal = $this->statusOptimal($hasilKubik, $hasilTonase);
 
     return [
         'hasil_kubik'         => $hasilKubik,

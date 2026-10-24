@@ -728,7 +728,14 @@ tbody tr:last-child td{ border-bottom:none; }
 <!-- FILTER -->
 <div class="filter-box">
     <form method="GET" action="{{ url()->current() }}" class="filter-form" id="filterForm">
-
+<div class="field">
+    <label for="f-basis">Dasar tanggal</label>
+    <select id="f-basis" name="tgl_basis">
+        <option value="create_tgl" {{ request('tgl_basis', 'create_tgl') == 'create_tgl' ? 'selected' : '' }}>Create Tgl</option>
+        <option value="rencana_kirim" {{ request('tgl_basis') == 'rencana_kirim' ? 'selected' : '' }}>Rencana Kirim</option>
+        <option value="tanggal_naik_logistik" {{ request('tgl_basis') == 'tanggal_naik_logistik' ? 'selected' : '' }}>Tanggal Naik Logistik</option>
+    </select>
+</div>
         <div class="field">
             <label for="f-date">Tanggal</label>
             <input id="f-date" type="date" name="date" value="{{ request('date') }}">
@@ -837,52 +844,47 @@ tbody tr:last-child td{ border-bottom:none; }
 
 <!-- KPI -->
 <div class="section-label">Ringkasan status</div>
-
 <div class="kpi-row">
 
-<a href="{{ url('/datalogistik') }}?{{ http_build_query(request()->query()) }}" class="card blue">
+<a href="{{ $kpiLinks['total'] }}" class="card blue">
     <h4>Total Shipment</h4>
     <h1>{{ $total_data }}</h1>
 </a>
-<a href="{{ route('spvplanner.belum.tiba.gudang', request()->query()) }}" class="card orange">
-    <h4>Belum Tiba Di Gudang</h4>
-    <h1>{{ $total_belum_tiba_gudang }}</h1>
-</a>
-<a href="{{ route('spvplanner.intransit', request()->query()) }}" class="card teal">
-    <h4>🚚 In Transit</h4>
+
+<a href="{{ $kpiLinks['in_transit'] }}" class="card orange">
+    <h4>Dalam Perjalanan (In Transit)</h4>
     <h1>{{ $total_in_transit ?? 0 }}</h1>
 </a>
 
-<a href="{{ route('manager.gudang.ontime', request()->query()) }}" class="card green">
+<a href="{{ $kpiLinks['gudang_ontime'] }}" class="card green">
     <h4>Sudah Tiba Di Gudang</h4>
     <h1>{{ $gudang_ontime }}</h1>
 </a>
 
-<a href="{{ route('manager.gudang.delay', request()->query()) }}" class="card red">
+<a href="{{ $kpiLinks['gudang_delay'] }}" class="card red">
     <h4>Belum Dapat Armada</h4>
     <h1>{{ $gudang_delay }}</h1>
 </a>
 
-<a href="{{ route('manager.customer.ontime', request()->query()) }}" class="card teal">
+<a href="{{ $kpiLinks['customer_ontime'] }}" class="card teal">
     <h4>Tiba Tujuan OnTime</h4>
     <h1>{{ $customer_ontime }}</h1>
 </a>
 
-<a href="{{ route('manager.customer.delay', request()->query()) }}" class="card orange">
+<a href="{{ $kpiLinks['customer_delay'] }}" class="card orange">
     <h4>Tiba Tujuan Delay</h4>
     <h1>{{ $customer_delay }}</h1>
 </a>
 
-<a href="{{ route('manager.bongkar.ontime', request()->query()) }}" class="card purple">
+<a href="{{ $kpiLinks['bongkar_ontime'] }}" class="card purple">
     <h4>Bongkar OnTime</h4>
     <h1>{{ $bongkar_ontime }}</h1>
 </a>
 
-<a href="{{ route('manager.bongkar.delay', request()->query()) }}" class="card dark">
+<a href="{{ $kpiLinks['bongkar_delay'] }}" class="card dark">
     <h4>Bongkar Delay</h4>
     <h1>{{ $bongkar_delay }}</h1>
 </a>
-
 
 </div>
 

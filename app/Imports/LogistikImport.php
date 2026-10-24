@@ -28,11 +28,11 @@ class LogistikImport implements ToCollection, WithHeadingRow, WithEvents, WithCa
 
     // kolom hasil lookup master tujuan yang boleh "ikut" baris lain di shipment yang sama
     private const SIBLING_FILL_COLUMNS = [
-        'dist_channel', 'area', 'pulau', 'transport_lead_time', 'planner', 'pic_monitoring',
+       'area', 'pulau', 'transport_lead_time', 'planner', 'pic_monitoring',
     ];
 
     // header Excel (sudah di-slug) -> kolom DB, hanya untuk yang namanya BEDA
-    private const HEADER_ALIASES = [
+     private const HEADER_ALIASES = [
         'tgl_terima_dari_admin'  => 'tanggal_naik_logistik',
         'tgl_rencana_kirim'      => 'rencana_kirim',
         'tanggal_tiba_di_gudang' => 'tanggal_tiba_gudang',
@@ -44,6 +44,16 @@ class LogistikImport implements ToCollection, WithHeadingRow, WithEvents, WithCa
         'nopol'                  => 'no_pol',
         'via'                    => 'via_kirim',
         'kode_planner'           => 'code_planner',
+
+        // ===== header file pivot DO =====
+        'nomer_shipment'     => 'no_shipment',
+        'sold_to_party_name' => 'tujuan',
+        'vendor'             => 'ekpedisi',
+        'route_name'         => 'route',
+        'sum_of_nilai_do'    => 'nilai_muatan',
+        'sum_of_qty_do'      => 'total_do_qty_car',
+        'sum_of_kubikasi2'   => 'total_kubik',
+        'sum_of_tonase3'     => 'total_tonase',
     ];
 
     private static $areaMap        = null;   // area => ['planner' => ..., 'pic' => ...]
@@ -62,8 +72,11 @@ class LogistikImport implements ToCollection, WithHeadingRow, WithEvents, WithCa
     private $lastNoShipment    = null;     // reset route/mobil/ekpedisi per shipment
     private $lastRoute         = null;
     private $lastMobil         = null;
+    private $lastBiaya = null;
     private $lastEkpedisi      = null;
-    private array $ekspedisiResolved = []; // cache: "route|ekspedisi excel" => nama di master
+    private array $ekspedisiResolved = [];
+    
+    private array $groupBiaya = [];  // "shipment|tujuan" => [shipment, tujuan, biaya dari Excel] // cache: "route|ekspedisi excel" => nama di master
 
     // ===== hasil proses =====
     private $inserted = 0;
@@ -102,7 +115,7 @@ class LogistikImport implements ToCollection, WithHeadingRow, WithEvents, WithCa
 
         if (self::$customerMap === null) {
             $rows = DB::table('tujuanfillterr')
-                ->select('tujuan', 'code_planner', 'Planner', 'dist_channel', 'pulau', 'area',
+                ->select('tujuan', 'code_planner', 'Planner', 'pulau', 'area',
                          'biaya_kuli', 'transport_lead_time', 'Monitoring')
                 ->where('Div', 'HO Meruya')
                 ->get();
@@ -164,7 +177,18 @@ class LogistikImport implements ToCollection, WithHeadingRow, WithEvents, WithCa
     public function collection(Collection $rows)
     {
         foreach ($rows as $rowCollection) {
-            $row = $rowCollection->toArray();
+                      $row = $rowCollection->toArray();
+
+            // samakan nama header Excel dengan nama kolom DB
+            foreach (self::HEADER_ALIASES as $from => $to) {
+                if (array_key_exists($from, $row) && !array_key_exists($to, $row)) {
+                    $row[$to] = $row[$from];
+                }
+            }
+
+            if ($this->map === null) {
+                $this->buildMap(array_keys($row));
+            }
 
             if ($this->map === null) {
                 $this->buildMap(array_keys($row));
@@ -196,8 +220,9 @@ class LogistikImport implements ToCollection, WithHeadingRow, WithEvents, WithCa
             $this->allNoShipmentInFile[] = $noShipment;
 
             try {
+                $noDo  = $this->cleanText($row['no_do'] ?? null);
                 $attrs = $this->buildAttributes($row, $noShipment, $tujuan);
-                $this->save($noShipment, $tujuan, $attrs);
+                $this->save($noShipment, $tujuan, $noDo, $attrs);
             } catch (\Throwable $e) {
                 $this->failed++;
                 $this->failedList[] = [
@@ -229,21 +254,30 @@ class LogistikImport implements ToCollection, WithHeadingRow, WithEvents, WithCa
     }
 
     // =========================================================
-    // SIMPAN (insert / update berdasarkan no_shipment + tujuan)
+    // SIMPAN (insert / update berdasarkan no_shipment + tujuan + no_do)
+    // 1 tujuan bisa punya banyak DO -> tiap DO = 1 baris di DB.
     // =========================================================
-    private function save(string $noShipment, string $tujuan, array $attrs): void
+    private function save(string $noShipment, string $tujuan, ?string $noDo, array $attrs): void
     {
         $attrs = $this->filterToColumns($attrs);
 
         if (isset($this->dbColumns['no_shipment'])) $attrs['no_shipment'] = $noShipment;
         if (isset($this->dbColumns['tujuan']))      $attrs['tujuan']      = $tujuan;
+        if ($noDo !== null && isset($this->dbColumns['no_do'])) $attrs['no_do'] = $noDo;
 
         $now = now();
 
-        $existingId = DB::table(self::TABLE)
+        $base = DB::table(self::TABLE)
             ->where('no_shipment', $noShipment)
-            ->where('tujuan', $tujuan)
-            ->value('id');
+            ->where('tujuan', $tujuan);
+
+        if ($noDo !== null) {
+            // 1) cocok persis no_do; 2) kalau tidak ada, pakai baris lama yang no_do-nya masih kosong
+            $existingId = (clone $base)->where('no_do', $noDo)->value('id')
+                ?? (clone $base)->where(fn($x) => $x->whereNull('no_do')->orWhere('no_do', ''))->value('id');
+        } else {
+            $existingId = $base->value('id');
+        }
 
         if ($existingId) {
             if ($this->hasUpdatedAt) $attrs['updated_at'] = $now;
@@ -357,6 +391,7 @@ class LogistikImport implements ToCollection, WithHeadingRow, WithEvents, WithCa
         if ($noShipment !== $this->lastNoShipment) {
             $this->lastRoute    = null;
             $this->lastMobil    = null;
+            $this->lastBiaya = null;
             $this->lastEkpedisi = null;
         }
 
@@ -376,26 +411,20 @@ class LogistikImport implements ToCollection, WithHeadingRow, WithEvents, WithCa
         $totalTonase = $this->parseNumber($this->pick($row, ['total_tonase', 'total_tonase_ton', 'totaltonase']));
         $nilaiMuatan = $this->parseNumber($this->pick($row, ['nilai_muatan', 'nilai_muatan_rp', 'nilai_muatan_rp_', 'nilai_muatan_pasuruan']));
 
-        // ================= BIAYA KIRIM & KAPASITAS DARI TARIF =================
-        // biaya tarif = biaya 1 mobil penuh (sesuai route + ekpedisi + mobil).
-        // biaya_kirim baris = total_kubik : kubikasi x biaya tarif.
-        $tarifRow   = $this->findTarif($route, $ekpedisi, $mobil);
-        $biayaExcel = $this->parseNumber($this->pick($row, ['biaya_kirim', 'biaya_kirim_rp']));
+      // ================= KAPASITAS DARI TARIF (biaya TIDAK dari tarif) =================
+$tarifRow = $this->findTarif($route, $ekpedisi, $mobil);
+$kubikasi = $tarifRow ? $this->parseNumber($tarifRow->kubikasi ?? null) : null;
+$tonase   = $tarifRow ? $this->parseNumber($tarifRow->tonase ?? null)   : null;
 
-        $kubikasi   = $tarifRow ? $this->parseNumber($tarifRow->kubikasi ?? null) : null;
-        $tonase     = $tarifRow ? $this->parseNumber($tarifRow->tonase ?? null)   : null;
-        $biayaTarif = $tarifRow ? $this->parseNumber($tarifRow->biaya_kirim)      : null;
+// ================= BIAYA KIRIM DARI EXCEL (per shipment + tujuan) =================
+$groupKey   = $noShipment . '|' . $tujuan;
+// ================= BIAYA 1 MOBIL DARI EXCEL (per no_shipment) =================
+$biayaExcel = $this->parseNumber($this->pick($row, ['biaya_kirim', 'biaya_kirim_rp', 'kirim_kontribusi']));
 
-        if ($biayaExcel !== null && $biayaExcel > 0) {
-            // diisi manual di Excel -> dipakai apa adanya
-            $biayaKirim = $biayaExcel;
-        } elseif ($biayaTarif !== null && $kubikasi > 0 && $totalKubik > 0) {
-            // total_kubik : kubikasi x biaya tarif
-            $biayaKirim = round(($totalKubik / $kubikasi) * $biayaTarif, 2);
-        } else {
-            // kubik/kubikasi belum lengkap -> fallback ke biaya tarif penuh
-            $biayaKirim = $biayaTarif;
-        }
+if ($biayaExcel !== null && $biayaExcel > 0) {
+    $this->groupBiaya[$noShipment] = [$noShipment, $biayaExcel];
+}
+$biayaKirim = null;   // biaya_kirim per tujuan dihitung di recalcShipments()
 
         // ================= LOOKUP MASTER TUJUAN =================
         $tujuanKey    = $this->normTujuan($tujuan);
@@ -558,21 +587,28 @@ class LogistikImport implements ToCollection, WithHeadingRow, WithEvents, WithCa
             'addt_text_4'      => $this->cleanText($row['addt_text'] ?? null),
             'service_agent'    => $this->cleanText($row['service_agent'] ?? null),
             'total_do_qty_car' => $totalDoCar,
+
+            // ===== RINCIAN PER DO =====
+            'customer_reference' => $this->cleanText($row['customer_reference'] ?? null),
+            'sales_document'     => $this->cleanText($row['sales_document'] ?? null),
+            'contract_end_date'  => $this->convertDate($row['contract_end_date'] ?? null),
+            'no_do'              => $this->cleanText($row['no_do'] ?? null),
         ];
 
         // ================= SISA HEADER EXCEL (apa adanya) =================
         // header yang cocok dengan kolom DB tapi belum diisi di atas
-        // (no_delivery, customer_reference, waktu_*, reason_gudang*, remarks, nama_kapal, etd/eta/atd/ata, dst)
-        foreach ($this->map as $header => [$col, $kind]) {
-            if (($attrs[$col] ?? null) !== null) continue;
+        // (no_delivery, waktu_*, reason_gudang*, remarks, nama_kapal, etd/eta/atd/ata, dst)
+      foreach ($this->map as $header => [$col, $kind]) {
+    if ($col === 'kirim_kontribusi') continue;   // <-- cuma tambah baris ini
+    if (($attrs[$col] ?? null) !== null) continue;
 
-            $v = $this->convert($row[$header] ?? null, $kind, $col);
-            if ($v !== null) {
-                $attrs[$col] = $v;
-            }
-        }
+    $v = $this->convert($row[$header] ?? null, $kind, $col);
+    if ($v !== null) {
+        $attrs[$col] = $v;
+    }
+}
 
-        return $attrs;
+return $attrs;
     }
 
     private function applyRouteAlias(?string $route): ?string
@@ -1017,24 +1053,64 @@ class LogistikImport implements ToCollection, WithHeadingRow, WithEvents, WithCa
      * Hasil tonase  : per baris = total_tonase / tonase x 100.
      * Pengiriman optimal: per shipment (SUM total / kapasitas >= 85%).
      */
-    private function recalcShipments(array $shipments): void
+   private function recalcShipments(array $shipments): void
 {
     foreach (array_chunk($shipments, 500) as $chunk) {
         $in       = implode(',', array_fill(0, count($chunk), '?'));
         $bindings = array_merge($chunk, $chunk);
 
-        // ---- CR = biaya_kirim / nilai_muatan x 100 (per baris) ----
+              // ---- 1) KIRIM KONTRIBUSI per DO = biaya 1 mobil x total_kubik DO / SUM total_kubik SELURUH shipment ----
+        if (isset($this->dbColumns['kirim_kontribusi'])) {
+            foreach ($this->groupBiaya as [$sh, $pool]) {
+                if (!in_array((string) $sh, $chunk, true)) continue;
+
+                DB::update("
+                    UPDATE logistik_pengiriman lp
+                    JOIN (
+                        SELECT SUM(COALESCE(total_kubik,0)) AS sum_kubik, COUNT(*) AS cnt
+                        FROM logistik_pengiriman
+                        WHERE no_shipment = ?
+                    ) g
+                    SET lp.kirim_kontribusi = CASE
+                        WHEN g.sum_kubik > 0 THEN ROUND(? * COALESCE(lp.total_kubik,0) / g.sum_kubik, 2)
+                        ELSE ROUND(? / g.cnt, 2)
+                    END
+                    WHERE lp.no_shipment = ?
+                ", [$sh, $pool, $pool, $sh]);
+            }
+
+            // ---- 2) BIAYA KIRIM per tujuan = SUM kirim_kontribusi DO di tujuan itu ----
+            DB::update("
+                UPDATE logistik_pengiriman lp
+                JOIN (
+                    SELECT no_shipment, COALESCE(tujuan,'') AS tj,
+                           SUM(COALESCE(kirim_kontribusi,0)) AS total
+                    FROM logistik_pengiriman
+                    WHERE no_shipment IN ($in)
+                    GROUP BY no_shipment, COALESCE(tujuan,'')
+                ) g ON lp.no_shipment = g.no_shipment AND COALESCE(lp.tujuan,'') = g.tj
+                SET lp.biaya_kirim = g.total
+                WHERE lp.no_shipment IN ($in)
+                  AND g.total > 0
+            ", $bindings);
+        }
+
+        // ---- 3) CR per shipment + tujuan = biaya_kirim / SUM nilai_muatan tujuan x 100 ----
         DB::update("
             UPDATE logistik_pengiriman lp
-            SET lp.cr = IF(
-                COALESCE(lp.nilai_muatan, 0) <= 0,
-                0,
-                ROUND(COALESCE(lp.biaya_kirim, 0) / lp.nilai_muatan * 100, 4)
-            )
+            JOIN (
+                SELECT no_shipment, COALESCE(tujuan,'') AS tj,
+                       SUM(COALESCE(nilai_muatan,0)) AS sum_nilai
+                FROM logistik_pengiriman
+                WHERE no_shipment IN ($in)
+                GROUP BY no_shipment, COALESCE(tujuan,'')
+            ) g ON lp.no_shipment = g.no_shipment AND COALESCE(lp.tujuan,'') = g.tj
+            SET lp.cr = IF(g.sum_nilai <= 0, 0,
+                           ROUND(COALESCE(lp.biaya_kirim,0) / g.sum_nilai * 100, 4))
             WHERE lp.no_shipment IN ($in)
-        ", $chunk);
-
+        ", $bindings);
         // ---- HASIL KUBIK / TONASE (per baris) + OPTIMAL (per shipment) ----
+        // (isi sama seperti sebelumnya, tidak diubah)
         DB::update("
             UPDATE logistik_pengiriman lp
             JOIN (
@@ -1067,7 +1143,7 @@ class LogistikImport implements ToCollection, WithHeadingRow, WithEvents, WithCa
             WHERE lp.no_shipment IN ($in)
         ", $bindings);
 
-        // ---- OPTIMAL PER CUSTOMER (per baris, tidak digabung shipment) ----
+        // ---- OPTIMAL PER CUSTOMER ----
         if (isset($this->dbColumns['pengiriman_optimal_customer'])) {
             DB::update("
                 UPDATE logistik_pengiriman lp
@@ -1082,20 +1158,8 @@ class LogistikImport implements ToCollection, WithHeadingRow, WithEvents, WithCa
             ", $chunk);
         }
 
-        // ---- REASON OPTIMAL CUSTOMER (isi otomatis hanya kalau kosong) ----
-        if (isset($this->dbColumns['reason_optimal_customer'])) {
-            DB::update("
-                UPDATE logistik_pengiriman lp
-                SET lp.reason_optimal_customer = CONCAT(
-                    'Isi kubik ', COALESCE(lp.hasil_kubik, 0),
-                    '%, tonase ', COALESCE(lp.hasil_tonase, 0),
-                    '% (di bawah 85%)'
-                )
-                WHERE lp.no_shipment IN ($in)
-                  AND lp.pengiriman_optimal_customer = 'TIDAK OPTIMAL'
-                  AND NULLIF(TRIM(lp.reason_optimal_customer), '') IS NULL
-            ", $chunk);
-        }
+        // ---- REASON OPTIMAL CUSTOMER ----
+      
     }
 }
 }

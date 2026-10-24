@@ -4,6 +4,7 @@
 namespace App\Http\Controllers;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Http\Request;
+use App\Exports\LogistikExportFull;
 use App\Models\LogistikPengiriman;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
@@ -348,23 +349,24 @@ private function applyTanggalFilter($query, Request $request)
      * EXPORT EXCEL (tetap sama — tetap query langsung karena export
      * memang butuh semua baris hasil filter, bukan per-page)
      * ========================================================= */
-    public function export(Request $request)
-    {
-        $query = LogistikPengiriman::query();
+   public function export(Request $request)
+{
+    $query = LogistikPengiriman::query();
 
-        $this->filterByDistChannel($query);
+    $this->filterByDistChannel($query);
+    $this->applyTanggalFilter($query, $request);
 
-$this->applyTanggalFilter($query, $request);
-
-$areas = array_values(array_filter((array) $request->input('area', []), 'strlen'));
-if (!empty($areas)) {
-    $query->whereIn('area', $areas);
-}
-
-        $logistik = $query->orderBy('id', 'DESC')->get();
-
-        return Excel::download(new LogistikExport($logistik), 'logistik.xlsx');
+    $areas = array_values(array_filter((array) $request->input('area', []), 'strlen'));
+    if (!empty($areas)) {
+        $query->whereIn('area', $areas);
     }
+
+    // kirim Builder, bukan hasil get() -> Maatwebsite yang chunk otomatis
+  return Excel::download(
+    new LogistikExportFull($query),
+    'data_logistik_full_' . date('Ymd_His') . '.xlsx'
+    );
+}
 
     /* =========================================================
      * DATA LOGISTIK — HALAMAN (ringan, tanpa query data besar)
@@ -432,7 +434,7 @@ if (!empty($dash)) {
 }
 
         // recordsTotal = total setelah filter dropdown custom (belum termasuk search box)
-        $recordsTotal = (clone $query)->count();
+$recordsTotal = $this->countGroups($query);
 
         // ---------- SEARCH BOX BAWAAN DATATABLES ----------
         $searchValue = trim((string) $request->input('search.value'));
@@ -539,7 +541,8 @@ if ($searchValue !== '') {
     });
 }
 
-        $recordsFiltered = (clone $query)->count();
+$recordsFiltered = $this->countGroups($query);
+$query = LogistikPengiriman::query()->whereIn('id', $this->groupIdsQuery($query));
 
         // ---------- SORTING ----------
         // Peta index kolom (urutan HARUS sama persis dengan array `columns` di blade JS).
@@ -623,35 +626,89 @@ if ($searchValue !== '') {
     // kolom baru di akhir
     93 => 'create_on',
 94 => 'no_delivery',
-95 => 'customer_reference',
+ 96 => 'sales_document',
+    97 => 'contract_end_date',
+    98 => 'no_do',
 
 ];
 
         $orderColIndex = (int) $request->input('order.0.column', 0);
-        $orderDir = strtolower($request->input('order.0.dir', 'desc')) === 'asc' ? 'asc' : 'desc';
+$orderDir = strtolower($request->input('order.0.dir', 'desc')) === 'asc' ? 'asc' : 'desc';
+
+$orderName = (string) $request->input('columns.' . (int) $request->input('order.0.column', 0) . '.name');
+$allCols   = Cache::remember('logistik_searchable_cols', 3600, fn () => array_values(array_diff(
+    Schema::getColumnListing('logistik_pengiriman'), ['id', 'created_at', 'updated_at']
+)));
+$orderColumn = in_array($orderName, $allCols, true) ? $orderName : 'tanggal_naik_logistik';
         $orderColumn = $orderableColumns[$orderColIndex] ?? 'tanggal_naik_logistik';
 
-        $query->orderBy($orderColumn, $orderDir);
+if ($orderColumn === 'no_shipment') {
+    // no_shipment diurutkan sebagai angka, bukan teks
+    $query->orderByRaw("CAST(no_shipment AS UNSIGNED) {$orderDir}");
+} else {
+    $query->orderBy($orderColumn, $orderDir)
+          ->orderByRaw('CAST(no_shipment AS UNSIGNED) ASC');   // pengurut cadangan
+}
+
+// supaya tujuan dalam 1 shipment selalu berdekatan dan urutan antar halaman stabil
+$query->orderBy('tujuan')->orderBy('id');
 
         // ---------- PAGINATION (LIMIT/OFFSET) ----------
         $start = max(0, (int) $request->input('start', 0));
         $length = (int) $request->input('length', 25);
         $length = $length > 0 ? min($length, 200) : $recordsFiltered; // cap biar gak diminta ambil semua sekaligus
 
-        $rows = $query->skip($start)->take($length)->get();
+       $rows = $query->skip($start)->take($length)->get();
 
-        // Agregat CR (SUM/MAX per no_shipment) di-cache 5 menit -> tidak query ulang tiap ganti halaman/filter
-        $shipmentAgg = Cache::remember('logistik_shipment_agg', 300, fn() => $this->shipmentAggregates());
+$shipments = $rows->pluck('no_shipment')->filter()->unique()->values();
 
-        // ---------- BANGUN BARIS OUTPUT (hanya untuk baris yang tampil) ----------
-      $data = $rows->map(function ($r) use ($shipmentAgg) {
-    $estimasi = $this->computeEstimasiDanAlert($r);
+$groupAgg = LogistikPengiriman::query()
+    ->whereIn('no_shipment', $shipments)
+    ->select(
+        'no_shipment',
+        DB::raw("COALESCE(tujuan,'') as tujuan_key"),
+        DB::raw('COUNT(*) as jml_do'),
+        DB::raw('SUM(COALESCE(nilai_muatan,0)) as sum_nilai'),
+              DB::raw('SUM(COALESCE(total_kubik,0)) as sum_kubik'),
+        DB::raw('SUM(COALESCE(total_tonase,0)) as sum_tonase'),
+        DB::raw('SUM(COALESCE(total_do_qty_car,0)) as sum_qty'),
+        DB::raw('SUM(kirim_kontribusi) as sum_kontribusi'),
+        DB::raw('MAX(COALESCE(biaya_kirim,0)) as sum_biaya')
+    )
     
-    $estimasiAdmin = $this->computeEstimasiAdmin($r);
+    ->groupBy('no_shipment', 'tujuan_key')
+    ->get()
+    ->keyBy(fn($g) => $g->no_shipment . '|' . $g->tujuan_key);
 
-    if ($r->no_shipment === '4200067817') {
-      
-    }
+$shipmentAgg = Cache::remember('logistik_shipment_agg', 300, fn() => $this->shipmentAggregates());
+            // ---------- BANGUN BARIS OUTPUT (hanya untuk baris yang tampil) ----------
+    
+$data = $rows->map(function ($r) use ($shipmentAgg, $groupAgg) {
+
+    // agregat per shipment + tujuan (jumlahan semua DO)
+    $g = $groupAgg[$r->no_shipment . '|' . ($r->tujuan ?? '')] ?? null;
+   if ($g) {
+    // timpa di memori saja (tidak disimpan ke DB)
+    $r->nilai_muatan     = $g->sum_nilai;
+    $r->total_kubik      = $g->sum_kubik;
+    $r->total_tonase     = $g->sum_tonase;
+    $r->kirim_kontribusi = $g->sum_kontribusi;
+    $r->biaya_kirim      = $g->sum_biaya;
+
+    $q = (float) $g->sum_qty;
+    $r->total_do_qty_car = floor($q) == $q ? (int) $q : $q;
+
+    // BARU: actual, selisih, dan biaya kuli per grup
+    $sumSelisih          = (float) $g->sum_selisih;
+    $r->selisih_qty      = $sumSelisih != 0 ? $sumSelisih : null;
+    $r->qty_monitoring   = $q - $sumSelisih;                    // 2262 - 100 = 2162
+    $biayaKuli           = (float) $g->max_kuli;
+    $r->biaya_kuli       = $biayaKuli;
+    $r->total_biaya_kuli = $r->qty_monitoring * $biayaKuli;     // 2162 x 300 = 648.600
+}
+
+    $estimasi      = $this->computeEstimasiDanAlert($r);
+    $estimasiAdmin = $this->computeEstimasiAdmin($r);
 
             return [
                 'tanggal_naik_logistik_fmt'   => $this->fmtDate($r->tanggal_naik_logistik),
@@ -663,12 +720,20 @@ if ($searchValue !== '') {
                 'no_shipment'                 => $r->no_shipment,
                 'status_pengiriman_badge'     => $this->badgeStatusPengiriman($r),
                 'dist_channel_badge'          => $this->badgeDistChannel($r->dist_channel),
-                'tujuan'                      => $r->tujuan,
+           // HAPUS, ganti dengan ini:
+'tujuan_html' => $r->no_shipment
+    ? '<a href="#" class="btn-tujuan" data-shipment="' . e($r->no_shipment) . '" data-tujuan="' . e($r->tujuan) . '">▶ '
+        . e($r->tujuan) . ($g && $g->jml_do > 1 ? ' <span class="badge gray">' . $g->jml_do . ' DO</span>' : '') . '</a>'
+    : e($r->tujuan),
+
+// HAPUS: 'customer_reference' => ..., dan entri sales_document / contract_end_date_fmt / no_do
                 'area'                        => $r->area,
                 'ketersediaan_unit_badge'     => $this->badgeKetersediaanUnit($r),
                 'mobil'                       => $r->mobil,
                 'total_do_qty_car'            => $r->total_do_qty_car,
                 'nilai_muatan_fmt'            => 'Rp ' . number_format((float) $r->nilai_muatan, 0, ',', '.'),
+                'kirim_kontribusi_fmt' => $r->kirim_kontribusi !== null
+    ? 'Rp ' . number_format((float) $r->kirim_kontribusi, 0, ',', '.') : '-',
                 'biaya_kirim_fmt'             => 'Rp ' . number_format((float) $r->biaya_kirim, 0, ',', '.'),
                 'cr_fmt'                      => $this->formatCR($this->computeCR($r, $shipmentAgg)),
 'kubikasi_fmt' => $this->formatKubik($r->kubikasi ?? null),
@@ -767,6 +832,9 @@ if ($searchValue !== '') {
               'create_on_fmt'      => $this->fmtDate($r->create_on),
 'no_delivery'        => e($r->no_delivery) ?: '-',
 'customer_reference' => e($r->customer_reference) ?: '-',
+'sales_document'     => e($r->sales_document) ?: '-',
+'contract_end_date_fmt' => $this->fmtDate($r->contract_end_date),
+'no_do'              => e($r->no_do) ?: '-',
             ];
         });
         
@@ -779,6 +847,49 @@ if ($searchValue !== '') {
         ]);
     }
 
+    public function dataLogistikDetail(Request $request)
+{
+    $request->validate([
+        'no_shipment' => 'required|string',
+        'tujuan'      => 'nullable|string',
+    ]);
+
+    $q = LogistikPengiriman::query()->where('no_shipment', $request->no_shipment);
+    $this->filterByDistChannel($q);
+
+    $tujuan = (string) $request->tujuan;
+    $tujuan !== ''
+        ? $q->where('tujuan', $tujuan)
+        : $q->where(fn($x) => $x->whereNull('tujuan')->orWhere('tujuan', ''));
+
+    $data = $q->orderBy('sales_document')->orderBy('id')->get()->map(fn($r) => [
+        'sales_document'     => $r->sales_document ?: '-',
+        'customer_reference' => $r->customer_reference ?: '-',
+        'contract_end_date'  => $this->fmtDate($r->contract_end_date),
+        'no_do'              => $r->no_do ?: '-',
+        'qty'                => $r->total_do_qty_car,
+      'nilai_muatan'         => 'Rp ' . number_format((float) $r->nilai_muatan, 0, ',', '.'),
+'kirim_kontribusi'     => $r->kirim_kontribusi !== null
+    ? 'Rp ' . number_format((float) $r->kirim_kontribusi, 0, ',', '.') : '-',
+'kirim_kontribusi_raw' => (float) $r->kirim_kontribusi,   // untuk baris total di JS
+'total_kubik'          => $this->formatKubik($r->total_kubik),
+        'total_tonase'       => $this->formatTonase($r->total_tonase),
+    ]);
+
+    return response()->json(['data' => $data]);
+}
+/** Subquery: 1 id wakil (MIN id) per shipment+tujuan dari query yang sudah terfilter */
+private function groupIdsQuery($query)
+{
+    return (clone $query)
+        ->select(DB::raw('MIN(id) as id'))
+        ->groupByRaw("COALESCE(NULLIF(TRIM(no_shipment),''), CONCAT('id', id)), COALESCE(tujuan,'')");
+}
+
+private function countGroups($query): int
+{
+    return DB::query()->fromSub($this->groupIdsQuery($query), 'g')->count();
+}
     private function fmtWaktu($value): string
 {
     if (empty($value)) {
@@ -1309,7 +1420,7 @@ if ($searchValue !== '') {
 private function computeCR($r, array $shipmentAgg): float
 {
     $muatan = (float) $r->nilai_muatan;
-    $biaya  = (float) $r->biaya_kirim;
+   $biaya  = (float) ($r->kirim_kontribusi ?? $r->biaya_kirim);
 
     return $muatan > 0 ? ($biaya / $muatan) * 100 : 0;
 }

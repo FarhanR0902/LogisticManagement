@@ -678,9 +678,10 @@
 <th class="th-system">Hasil Tonase</th>
 <th class="th-system">Pengiriman Optimal</th>
 <th class="th-edit">Reason Optimal</th>
+<th class="th-system">Pengiriman Optimal Customer</th>
+<th class="th-edit">Reason Optimal Customer</th>
 
-
-                                    <th class="th-system">Status Mobil</th>
+<th class="th-system">Status Mobil</th>
                                     <th class="th-system">Lama Waktu Pencarian</th>
                                     <th class="th-system">SLA Dapat Mobil</th>
 
@@ -896,7 +897,7 @@ var distChannelFilter = [];
             },
             columnDefs: [{
                 className: "dt-center",
-                targets: [0, 1, 2, 30, 40, 42, 44, 46, 47, 49, 50, 52, 53, 55]
+targets: [0, 1, 2, 30, 40, 42, 44, 46, 48, 49, 51, 52, 54, 55, 57]
             }],
             rowCallback: function(row, data, index) {
                 let $row = $(row);
@@ -1204,6 +1205,7 @@ $(document).on('click', '.chip-import', function () {
                     route: row.find('[name="route"]').val(),
                     pulau: row.find('[name="pulau"]').val(),
                     reason_optimal: row.find('[name="reason_optimal"]').val(),
+                    reason_optimal_customer: row.find('[name="reason_optimal_customer"]').val(),
                     area: row.find('[name="area"]').val(),
                     via_kirim: row.find('[name="via_kirim"]').val(),
 
@@ -1458,11 +1460,11 @@ $(document).on('click', '.chip-import', function () {
         }
 
         // nomor kolom (mulai dari 0): Lama, Status, SLA per gudang
-        const GUDANG_COLS = [
-            { suffix: '',   cols: [45, 46, 47] },   // KACS
-            { suffix: '_2', cols: [48, 49, 50] },   // Sentul
-            { suffix: '_3', cols: [51, 52, 53] }    // CCIE
-        ];
+    const GUDANG_COLS = [
+    { suffix: '',   cols: [47, 48, 49] },   // KACS
+    { suffix: '_2', cols: [50, 51, 52] },   // Sentul
+    { suffix: '_3', cols: [53, 54, 55] }    // CCIE
+];
 
         function recalcGudang($tr) {
             const v = n => $tr.find('[name="' + n + '"]').val();

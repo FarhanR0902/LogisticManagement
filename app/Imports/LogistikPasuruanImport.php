@@ -18,6 +18,10 @@ use PhpOffice\PhpSpreadsheet\Shared\Date;
  *
  * Di dalam kode semua atribut tetap pakai nama "dasar" (tanpa suffix),
  * lalu dipetakan otomatis ke kolom aktual (nama + _pasuruan) lewat $baseToActual.
+ *
+ * Template Excel:
+ * sales_document, customer_reference, Contract End Date, no_do, planner (berisi kode, mis. MSNLOG-14),
+ * no_shipment, tujuan, ekpedisi, route, mobil, nilai_muatan, total_do_qty_car, total_kubik, total_tonase
  */
 class LogistikPasuruanImport implements ToCollection, WithHeadingRow, WithEvents, WithCalculatedFormulas
 {
@@ -31,6 +35,9 @@ class LogistikPasuruanImport implements ToCollection, WithHeadingRow, WithEvents
 
     // kolom yang tidak pernah diisi dari Excel
     private const SKIP_COLUMNS = ['id', 'created_at', 'updated_at'];
+
+    // nilai teks yang dianggap kosong (dibandingkan dengan huruf kecil)
+    private const BLANK_TOKENS = ['#value!', '#n/a', '#ref!', '#div/0!', '(blank)'];
 
     // nama dasar (di kode) -> nama dasar di tabel Pasuruan, hanya untuk yang BEDA
     private const BASE_ALIASES = [
@@ -87,7 +94,10 @@ class LogistikPasuruanImport implements ToCollection, WithHeadingRow, WithEvents
     private $lastEkpedisi      = null;
     private array $shipmentKubik     = [];   // no_shipment => total kubik di file
     private array $ekspedisiResolved = [];   // cache: "route|ekspedisi excel" => nama di master
-
+private array $shipmentKK    = [];   // no_shipment => total kirim_kontribusi di file
+private array $shipmentRows  = [];   // no_shipment => jumlah baris di file
+private array $kkSeen        = [];   // no_shipment => baris yang sudah diproses
+private array $kkAlloc       = [];   // no_shipment => total yang sudah dialokasikan
     // ===== hasil proses =====
     private $inserted = 0;
     private $updated  = 0;
@@ -263,6 +273,12 @@ class LogistikPasuruanImport implements ToCollection, WithHeadingRow, WithEvents
             if ($k !== null && $k > 0) {
                 $this->shipmentKubik[$no] = ($this->shipmentKubik[$no] ?? 0) + $k;
             }
+            $this->shipmentRows[$no] = ($this->shipmentRows[$no] ?? 0) + 1;
+
+$kk = $this->parseNumber($this->pick($r, ['kirim_kontribusi', 'kirim_kontribusi_pasuruan']));
+if ($kk !== null && $kk > 0) {
+    $this->shipmentKK[$no] = ($this->shipmentKK[$no] ?? 0) + $kk;
+}
         }
 
         foreach ($rows as $rowCollection) {
@@ -332,7 +348,7 @@ class LogistikPasuruanImport implements ToCollection, WithHeadingRow, WithEvents
     }
 
     // =========================================================
-    // SIMPAN (insert / update berdasarkan no_shipment + tujuan)
+    // SIMPAN (insert / update berdasarkan no_shipment + tujuan + no_do)
     // =========================================================
     private function save(string $noShipment, string $tujuan, array $attrs): void
     {
@@ -345,10 +361,22 @@ class LogistikPasuruanImport implements ToCollection, WithHeadingRow, WithEvents
 
         $now = now();
 
-        $existingId = DB::table(self::TABLE)
+        // satu shipment + tujuan bisa punya banyak DO (mis. CHI / DRY / FRZ) -> no_do ikut jadi kunci
+     $colDo = $this->actualCol('no_delivery') ?? $this->actualCol('no_do');
+$noDo  = ($colDo !== null && isset($attrs[$colDo])) ? $attrs[$colDo] : null;
+        $q = DB::table(self::TABLE)
             ->where($colNo, $noShipment)
-            ->where($colTj, $tujuan)
-            ->value('id');
+            ->where($colTj, $tujuan);
+
+        if ($noDo !== null) {
+            // cocokkan no_do; kalau tidak ada, pakai baris lama yang no_do-nya masih kosong
+            $existingId = (clone $q)->where($colDo, $noDo)->value('id')
+                ?? (clone $q)->where(function ($w) use ($colDo) {
+                        $w->whereNull($colDo)->orWhere($colDo, '');
+                    })->value('id');
+        } else {
+            $existingId = $q->value('id');
+        }
 
         if ($existingId) {
             if ($this->hasUpdatedAt) $attrs['updated_at'] = $now;
@@ -420,6 +448,7 @@ class LogistikPasuruanImport implements ToCollection, WithHeadingRow, WithEvents
         $tanggalTibaAktual   = $this->convertDateTime($row['tanggal_tiba'] ?? null);
         $tanggalBongkar      = $this->convertDateTime($row['tanggal_bongkar'] ?? null);
         $actPgiDate          = $this->convertDate($row['act_pgi_date'] ?? null);
+        $contractEndDate     = $this->convertDate($row['contract_end_date'] ?? null);
 
         // ================= SLA DAPAT MOBIL =================
         $lamaWaktuPencarian = null;
@@ -454,28 +483,41 @@ class LogistikPasuruanImport implements ToCollection, WithHeadingRow, WithEvents
         $totalTonase = $this->parseNumber($this->pick($row, ['total_tonase', 'total_tonase_ton', 'totaltonase']));
         $nilaiMuatan = $this->parseNumber($this->pick($row, ['nilai_muatan', 'nilai_muatan_rp', 'nilai_muatan_rp_', 'nilai_muatan_pasuruan']));
 
+
+        // ================= KIRIM KONTRIBUSI (dibagi per kontribusi total_kubik) =================
+$kirimKontribusi = null;
+$totKK = $this->shipmentKK[$noShipment] ?? 0;
+
+if ($totKK > 0) {
+    $sumKubik = $this->shipmentKubik[$noShipment] ?? 0;
+    $nRows    = $this->shipmentRows[$noShipment] ?? 1;
+
+    $this->kkSeen[$noShipment] = ($this->kkSeen[$noShipment] ?? 0) + 1;
+
+    if ($this->kkSeen[$noShipment] >= $nRows) {
+        // baris terakhir: ambil sisa supaya total tepat (tidak ada selisih pembulatan)
+        $kirimKontribusi = round($totKK - ($this->kkAlloc[$noShipment] ?? 0), 2);
+    } else {
+        $share = $sumKubik > 0
+            ? (($totalKubik ?? 0) / $sumKubik)
+            : (1 / $nRows);                    // fallback kalau kubik kosong semua
+        $kirimKontribusi = round($totKK * $share, 2);
+    }
+
+    $this->kkAlloc[$noShipment] = ($this->kkAlloc[$noShipment] ?? 0) + $kirimKontribusi;
+}
+
+
         // ================= BIAYA KIRIM & KAPASITAS DARI TARIF =================
         // biaya tarif = biaya 1 mobil penuh (sesuai route + ekpedisi + mobil).
         // biaya per baris = total_kubik / kubikasi x biaya tarif (porsi kubik baris ini).
-        $tarifRow   = $this->findTarif($route, $ekpedisi, $mobil);
-        $biayaExcel = $this->parseNumber($this->pick($row, ['biaya_kirim', 'biaya_kirim_rp']));
+      // ================= KAPASITAS DARI TARIF (biaya tarif TIDAK dipakai) =================
+$tarifRow = $this->findTarif($route, $ekpedisi, $mobil);
+$kubikasi = $tarifRow ? $this->parseNumber($tarifRow->kubikasi ?? null) : null;
+$tonase   = $tarifRow ? $this->parseNumber($tarifRow->tonase ?? null)   : null;
 
-        $kubikasi   = $tarifRow ? $this->parseNumber($tarifRow->kubikasi ?? null) : null;
-        $tonase     = $tarifRow ? $this->parseNumber($tarifRow->tonase ?? null)   : null;
-        $biayaTarif = $tarifRow ? $this->parseNumber($tarifRow->biaya_kirim)      : null;
-
-        if ($biayaExcel !== null && $biayaExcel > 0) {
-            // diisi manual di Excel -> dipakai apa adanya
-            $biayaKirim = $biayaExcel;
-        } elseif ($biayaTarif !== null && $kubikasi > 0 && $totalKubik > 0) {
-            // kalau muatan shipment melebihi kubikasi, bagi berdasarkan total kubik shipment
-            $kapasitas  = max($kubikasi, $this->shipmentKubik[$noShipment] ?? 0);
-            $biayaKirim = round(($totalKubik / $kapasitas) * $biayaTarif, 2);
-        } else {
-            // kubik/kubikasi belum lengkap -> fallback ke biaya tarif penuh
-            $biayaKirim = $biayaTarif;
-        }
-
+// biaya_kirim = kirim_kontribusi (total template dibagi per total_kubik)
+$biayaKirim = $kirimKontribusi;
         // ================= LOOKUP MASTER TUJUAN =================
         $tujuanKey    = $this->normTujuan($tujuan);
         $customerData = self::$customerMap[$tujuanKey] ?? null;   // cadangan (berdasarkan tujuan)
@@ -485,7 +527,16 @@ class LogistikPasuruanImport implements ToCollection, WithHeadingRow, WithEvents
         }
 
         // ================= PLANNER & PIC MONITORING =================
-        $codeExcel = $this->cleanText($this->pick($row, ['code_planner', 'kode_planner']));
+        $plannerRaw = $this->cleanText($row['planner'] ?? null);
+        $codeExcel  = $this->cleanText($this->pick($row, ['code_planner', 'kode_planner']));
+
+        // kolom "planner" di template berisi KODE (mis. MSNLOG-14) -> perlakukan sebagai code_planner
+        if ($codeExcel === null && $plannerRaw !== null && preg_match('/^[A-Za-z]+-\d+$/', $plannerRaw)) {
+            $codeExcel  = $plannerRaw;
+            $plannerRaw = null;
+        }
+        // supaya loop "sisa header" di bawah tidak menulis kode ke kolom planner
+        $row['planner'] = $plannerRaw;
 
         if ($codeExcel !== null) {
             // PRIORITAS: code_planner dari Excel + tujuan
@@ -496,12 +547,14 @@ class LogistikPasuruanImport implements ToCollection, WithHeadingRow, WithEvents
             }
 
             $planner       = $this->cleanText($plannerRow->Planner ?? null)
-                             ?: $this->cleanText($row['planner'] ?? null);
-            $picMonitoring = $this->cleanText($plannerRow->Monitoring ?? null);
+                             ?: $this->cleanText($customerData->Planner ?? null)
+                             ?: $plannerRaw;
+            $picMonitoring = $this->cleanText($plannerRow->Monitoring ?? null)
+                             ?: $this->cleanText($customerData->Monitoring ?? null);
         } else {
             // CADANGAN: code_planner kosong -> ambil dari DB berdasarkan tujuan
             $planner       = $this->cleanText($customerData->Planner ?? null)
-                             ?: $this->cleanText($row['planner'] ?? null);
+                             ?: $plannerRaw;
             $picMonitoring = $this->cleanText($customerData->Monitoring ?? null);
         }
 
@@ -561,8 +614,16 @@ class LogistikPasuruanImport implements ToCollection, WithHeadingRow, WithEvents
             'planner'             => $planner,
             'dist_channel'        => $distChannel,
             'area'                => $area,
+            'no_delivery' => $this->cleanText($row['no_delivery'] ?? null),
+            'kirim_kontribusi' => $kirimKontribusi,   // -> kirim_kontribusi_pasuruan
             'ketersediaan_unit'   => $ketersediaanUnit,
             'Div'                 => self::DIV_VALUE,
+
+            // ---- kolom template Excel ----
+            'sales_document'     => $this->cleanText($row['sales_document'] ?? null),
+            'customer_reference' => $this->cleanText($row['customer_reference'] ?? null),
+            'contract_end_date'  => $contractEndDate,
+            'no_do'              => $this->cleanText($row['no_do'] ?? null),
 
             'pulau'     => $pulau,
             'route'     => $route,
@@ -718,7 +779,7 @@ class LogistikPasuruanImport implements ToCollection, WithHeadingRow, WithEvents
 
         if (is_string($value)) {
             $s = trim($value);
-            return $s === '' || in_array($s, ['#VALUE!', '#N/A', '#REF!', '#DIV/0!'], true);
+            return $s === '' || in_array(strtolower($s), self::BLANK_TOKENS, true);
         }
 
         return false;
@@ -734,7 +795,7 @@ class LogistikPasuruanImport implements ToCollection, WithHeadingRow, WithEvents
 
         $value = trim((string) $value);
 
-        if ($value === '' || $value === '-' || in_array($value, ['#VALUE!', '#N/A', '#REF!', '#DIV/0!'], true)) {
+        if ($value === '' || $value === '-' || in_array(strtolower($value), self::BLANK_TOKENS, true)) {
             return null;
         }
         if (str_starts_with($value, '=')) return null;   // formula yang tidak terhitung
@@ -1111,7 +1172,8 @@ class LogistikPasuruanImport implements ToCollection, WithHeadingRow, WithEvents
         $ton  = $this->c('tonase');
         $hk   = $this->c('hasil_kubik');
         $ht   = $this->c('hasil_tonase');
-        $opt  = $this->c('pengiriman_optimal');
+                $opt  = $this->c('pengiriman_optimal');
+        $tj   = $this->c('tujuan');
 
         foreach (array_chunk($shipments, 500) as $chunk) {
             $in       = implode(',', array_fill(0, count($chunk), '?'));
@@ -1139,37 +1201,74 @@ class LogistikPasuruanImport implements ToCollection, WithHeadingRow, WithEvents
             }
 
             // ---- HASIL KUBIK / TONASE (per baris) + OPTIMAL (per shipment) ----
-            DB::update("
-                UPDATE " . self::TABLE . " lp
-                JOIN (
-                    SELECT $ns AS ns,
-                           SUM(COALESCE(" . $this->num($tk) . ", 0)) AS sum_kubik,
-                           SUM(COALESCE(" . $this->num($tt) . ", 0)) AS sum_tonase,
-                           MAX(" . $this->num($kub) . ") AS kubikasi,
-                           MAX(" . $this->num($ton) . ") AS tonase
-                    FROM " . self::TABLE . "
-                    WHERE $ns IN ($in)
-                    GROUP BY $ns
-                ) x ON lp.$ns = x.ns
-                SET
-                    lp.$hk = CASE
-                        WHEN x.kubikasi > 0 THEN ROUND(COALESCE(" . $this->num("lp.$tk") . ", 0) / x.kubikasi * 100, 2)
-                        ELSE NULL
-                    END,
-                    lp.$ht = CASE
-                        WHEN x.tonase > 0 THEN ROUND(COALESCE(" . $this->num("lp.$tt") . ", 0) / x.tonase * 100, 2)
-                        ELSE NULL
-                    END,
-                    lp.$opt = CASE
-                        WHEN (x.kubikasi > 0 AND (x.sum_kubik  / x.kubikasi * 100) >= 85)
-                          OR (x.tonase   > 0 AND (x.sum_tonase / x.tonase   * 100) >= 85)
-                            THEN 'OPTIMAL'
-                        WHEN x.kubikasi > 0 OR x.tonase > 0
-                            THEN 'TIDAK OPTIMAL'
-                        ELSE NULL
+           // ---- HASIL KUBIK / TONASE (per TUJUAN) + OPTIMAL (gabungan SELURUH shipment) ----
+DB::update("
+    UPDATE " . self::TABLE . " lp
+    JOIN (
+        -- total seluruh shipment: untuk status optimal + kapasitas mobil
+        SELECT $ns AS ns,
+               SUM(COALESCE(" . $this->num($tk) . ", 0)) AS sum_kubik,
+               SUM(COALESCE(" . $this->num($tt) . ", 0)) AS sum_tonase,
+               MAX(" . $this->num($kub) . ") AS kubikasi,
+               MAX(" . $this->num($ton) . ") AS tonase
+        FROM " . self::TABLE . "
+        WHERE $ns IN ($in)
+        GROUP BY $ns
+    ) s ON lp.$ns = s.ns
+    JOIN (
+        -- total per tujuan: untuk hasil kubik/tonase
+        SELECT $ns AS ns, COALESCE($tj, '') AS tj,
+               SUM(COALESCE(" . $this->num($tk) . ", 0)) AS t_kubik,
+               SUM(COALESCE(" . $this->num($tt) . ", 0)) AS t_tonase
+        FROM " . self::TABLE . "
+        WHERE $ns IN ($in)
+        GROUP BY $ns, COALESCE($tj, '')
+    ) t ON lp.$ns = t.ns AND COALESCE(lp.$tj, '') = t.tj
+    SET
+        lp.$hk = CASE
+            WHEN s.kubikasi > 0 THEN ROUND(t.t_kubik / s.kubikasi * 100, 2)
+            ELSE NULL
+        END,
+        lp.$ht = CASE
+            WHEN s.tonase > 0 THEN ROUND(t.t_tonase / s.tonase * 100, 2)
+            ELSE NULL
+        END,
+        lp.$opt = CASE
+            WHEN (s.kubikasi > 0 AND (s.sum_kubik  / s.kubikasi * 100) >= 85)
+              OR (s.tonase   > 0 AND (s.sum_tonase / s.tonase   * 100) >= 85)
+                THEN 'OPTIMAL'
+            WHEN s.kubikasi > 0 OR s.tonase > 0
+                THEN 'TIDAK OPTIMAL'
+            ELSE NULL
+        END
+    WHERE lp.$ns IN ($in)
+", array_merge($chunk, $chunk, $chunk));
+
+                        // ---- OPTIMAL PER CUSTOMER (shipment + tujuan) ----
+            if ($this->hasCol('pengiriman_optimal_customer')) {
+                $oc = $this->c('pengiriman_optimal_customer');
+
+                DB::update("
+                    UPDATE " . self::TABLE . " lp
+                    JOIN (
+                        SELECT $ns AS ns, COALESCE($tj, '') AS tj,
+                               SUM(COALESCE(" . $this->num($tk) . ", 0)) AS sum_kubik,
+                               SUM(COALESCE(" . $this->num($tt) . ", 0)) AS sum_tonase,
+                               MAX(" . $this->num($kub) . ") AS kubikasi,
+                               MAX(" . $this->num($ton) . ") AS tonase
+                        FROM " . self::TABLE . "
+                        WHERE $ns IN ($in)
+                        GROUP BY $ns, COALESCE($tj, '')
+                    ) x ON lp.$ns = x.ns AND COALESCE(lp.$tj, '') = x.tj
+                    SET lp.$oc = CASE
+                        WHEN COALESCE(x.kubikasi, 0) <= 0 AND COALESCE(x.tonase, 0) <= 0 THEN NULL
+                        WHEN (x.kubikasi > 0 AND x.sum_kubik  / x.kubikasi * 100 >= 85)
+                          OR (x.tonase   > 0 AND x.sum_tonase / x.tonase   * 100 >= 85) THEN 'OPTIMAL'
+                        ELSE 'TIDAK OPTIMAL'
                     END
-                WHERE lp.$ns IN ($in)
-            ", $bindings);
+                    WHERE lp.$ns IN ($in)
+                ", $bindings);
+            }
         }
     }
 }

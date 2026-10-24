@@ -775,17 +775,18 @@ tbody tr:last-child td{ border-bottom:none; }
 <div class="filter-box">
     <form method="GET" action="{{ url()->current() }}" class="filter-form" id="filterForm">
 <div class="field">
-    <label for="f-basis">Berdasarkan tanggal</label>
-   <select id="f-basis" name="tgl_basis">
-    <option value="rencana_kirim" {{ request('tgl_basis', 'rencana_kirim') == 'rencana_kirim' ? 'selected' : '' }}>
+ <select id="f-basis" name="tgl_basis">
+    <option value="created_at" {{ request('tgl_basis', 'created_at') == 'created_at' ? 'selected' : '' }}>
+        Tanggal import
+    </option>
+    <option value="rencana_kirim" {{ request('tgl_basis') == 'rencana_kirim' ? 'selected' : '' }}>
         Rencana kirim
     </option>
     <option value="tanggal_naik_logistik" {{ request('tgl_basis') == 'tanggal_naik_logistik' ? 'selected' : '' }}>
         Tanggal naik logistik
     </option>
-    <option value="created_at" {{ request('tgl_basis') == 'created_at' ? 'selected' : '' }}>
-        Tanggal import
-    </option>
+</select>
+ 
 </select>
 </div>
             <div class="field">
@@ -976,7 +977,8 @@ tbody tr:last-child td{ border-bottom:none; }
                 ? ($totalBiayaKirim / $totalNilaiMuatan) * 100
                 : 0;
         @endphp
-       
+        <div class="hero-value">{{ number_format($ratio, 2) }}%</div>
+
     </div>
 
 </div>

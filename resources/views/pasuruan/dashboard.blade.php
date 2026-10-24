@@ -783,7 +783,7 @@ tbody tr:last-child td{ border-bottom:none; }
             <select id="f-dist" name="dist_channel">
                 <option value="">Semua channel</option>
                 @foreach($list_dist_channel as $d)
-                    <option value="{{ $d->dist_channel_pasuruan }}" {{ request('dist_channel_pasuruan') == $d->dist_channel_pasuruan? 'selected' : '' }}>
+                   <option value="{{ $d->dist_channel_pasuruan }}" {{ request('dist_channel') == $d->dist_channel_pasuruan ? 'selected' : '' }}>
                         {{ $d->dist_channel_pasuruan }}
                     </option>
                 @endforeach
@@ -848,78 +848,19 @@ tbody tr:last-child td{ border-bottom:none; }
 <!-- KPI -->
 <div class="section-label">Ringkasan status</div>
 
-<!-- KPI -->
-<div class="section-label">Ringkasan status</div>
+
 
 <div class="kpi-row">
-<a href="{{ route('pasuruan.dataLogistik', $buildFilterQuery([
-        'date'  => request('date'),
-        'month' => request('month'),
-        'year'  => request('year'),
-    ])) }}" class="card blue">
-    <h4>Total Shipment</h4>
-    <h1>{{ $total_data }}</h1>
-</a>
-
-<a href="{{ route('pasuruan.intransit', $buildFilterQuery([
-        'date'  => request('date'),
-        'month' => request('month'),
-        'year'  => request('year'),
-    ])) }}" class="card red">
-    <h4>🚚 In Transit</h4>
-    <h1>{{ $total_in_transit ?? 0 }}</h1>
-</a>
-
-<a href="{{ route('pasuruan.gudang.ontime', $buildFilterQuery([
-        'bulan' => request('month') ? substr(request('month'), 5, 2) : null,
-        'tahun' => request('year') ?: (request('month') ? substr(request('month'), 0, 4) : null),
-    ])) }}" class="card green">
-    <h4>Sudah Tiba Di Gudang</h4>
-    <h1>{{ $gudang_ontime }}</h1>
-</a>
-
-<a href="{{ route('pasuruan.gudang.delay', $buildFilterQuery([
-        'bulan' => request('month') ? substr(request('month'), 5, 2) : null,
-        'tahun' => request('year') ?: (request('month') ? substr(request('month'), 0, 4) : null),
-    ])) }}" class="card red">
-    <h4>Belum Tiba Di Gudang</h4>
-    <h1>{{ $gudang_delay }}</h1>
-</a>
-
-<a href="{{ route('pasuruan.tujuan.ontime', $buildFilterQuery([
-        'bulan' => request('month') ? substr(request('month'), 5, 2) : null,
-        'tahun' => request('year') ?: (request('month') ? substr(request('month'), 0, 4) : null),
-    ])) }}" class="card teal">
-    <h4>Tiba Tujuan OnTime</h4>
-    <h1>{{ $customer_ontime }}</h1>
-</a>
-
-<a href="{{ route('pasuruan.tujuan.delay', $buildFilterQuery([
-        'bulan' => request('month') ? substr(request('month'), 5, 2) : null,
-        'tahun' => request('year') ?: (request('month') ? substr(request('month'), 0, 4) : null),
-    ])) }}" class="card orange">
-    <h4>Tiba Tujuan Delay</h4>
-    <h1>{{ $customer_delay }}</h1>
-</a>
-
-<a href="{{ route('pasuruan.bongkar.ontime', $buildFilterQuery([
-        'tanggal_bongkar' => request('date'),
-    ])) }}" class="card purple">
-    <h4>Bongkar OnTime</h4>
-    <h1>{{ $bongkar_ontime }}</h1>
-</a>
-
-<a href="{{ route('pasuruan.bongkar.delay', $buildFilterQuery([
-        'tanggal_bongkar' => request('date'),
-    ])) }}" class="card dark">
-    <h4>Bongkar Delay</h4>
-    <h1>{{ $bongkar_delay }}</h1>
-</a><!-- <a href="#summary-area-table" class="card blue">
-    <h4>Summary Area</h4>
-    <h1>{{ count($summary_area) }}</h1>
-</a> -->
-
+<a href="{{ $kpiLinks['total'] }}" class="card blue"><h4>Total Shipment</h4><h1>{{ $total_shipment }}</h1></a>
+<a href="{{ $kpiLinks['in_transit'] }}" class="card red"><h4>🚚 In Transit</h4><h1>{{ $total_in_transit ?? 0 }}</h1></a>
+<a href="{{ $kpiLinks['gudang_ontime'] }}" class="card green"><h4>Sudah Tiba Di Gudang</h4><h1>{{ $gudang_ontime }}</h1></a>
+<a href="{{ $kpiLinks['gudang_delay'] }}" class="card red"><h4>Belum Tiba Di Gudang</h4><h1>{{ $gudang_delay }}</h1></a>
+<a href="{{ $kpiLinks['customer_ontime'] }}" class="card teal"><h4>Tiba Tujuan OnTime</h4><h1>{{ $customer_ontime }}</h1></a>
+<a href="{{ $kpiLinks['customer_delay'] }}" class="card orange"><h4>Tiba Tujuan Delay</h4><h1>{{ $customer_delay }}</h1></a>
+<a href="{{ $kpiLinks['bongkar_ontime'] }}" class="card purple"><h4>Bongkar OnTime</h4><h1>{{ $bongkar_ontime }}</h1></a>
+<a href="{{ $kpiLinks['bongkar_delay'] }}" class="card dark"><h4>Bongkar Delay</h4><h1>{{ $bongkar_delay }}</h1></a>
 </div>
+
 
 <!-- HERO TOTALS -->
 <div class="section-label">Nilai & biaya</div>

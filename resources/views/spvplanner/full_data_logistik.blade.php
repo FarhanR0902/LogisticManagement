@@ -690,148 +690,216 @@
         </div>
 
     </div>
+<script>
+$(document).ready(function () {
 
-    <script>
-        $(document).ready(function() {
+    const $overlay = $('#dtLoadingOverlay');
+    const qs       = new URLSearchParams(window.location.search);   // filter dari dashboard
+    const totalTh  = $('#tableLogistik thead th').length;
+    const IDX_SHIPMENT = 6;   // kolom "No Shipment"
+    const IDX_TUJUAN   = 9;   // kolom "Tujuan"
 
-            const $overlay = $('#dtLoadingOverlay');
+    // ---------- isi dropdown dari URL dashboard (kalau ada) ----------
+    ['date', 'year'].forEach(function (k) {
+        if (qs.get(k)) $('#filter' + k.charAt(0).toUpperCase() + k.slice(1)).val(qs.get(k));
+    });
+    if (qs.get('area') && $('#filterArea option[value="' + qs.get('area') + '"]').length) {
+        $('#filterArea').val(qs.get('area'));
+    }
 
-            let table = $('#tableLogistik').DataTable({
-                serverSide: true,
-                processing: false, // pakai overlay sendiri, bukan bawaan DataTables
-                searching: true,
-                scrollX: true,
-                pageLength: 10,
-                lengthMenu: [10, 25, 50, 100],
-                autoWidth: false,
-                order: [],
+    // ---------- kumpulan filter: URL dashboard + dropdown halaman ----------
+    function getFilters() {
+        const areaDropdown = $('#filterArea').val();
+        const areaUrl = qs.getAll('area[]').concat(qs.getAll('area')).filter(Boolean);
 
-                // PENTING: pakai POST, bukan GET.
-                // Dengan 74 kolom, DataTables mengirim parameter
-                // columns[0][data], columns[0][searchable], dst untuk
-                // SETIAP kolom. Kalau lewat GET, itu semua masuk ke query
-                // string URL dan gampang melebihi batas panjang URL
-                // (error 414 Request-URI Too Long). Lewat POST, semua
-                // parameter itu masuk ke request body, bukan URL.
-                ajax: {
-                    url: "{{ route('full.data.logistik.ajax') }}",
-                    type: 'POST',
-                    data: function (d) {
-                        d._token         = "{{ csrf_token() }}";
-                        d.area           = $('#filterArea').val();
-                        d.date           = $('#filterDate').val();
-                        d.month          = $('#filterMonth').val();
-                        d.year           = $('#filterYear').val();
-                        d.planner = $('#filterPic').val();
-                    },
-                    beforeSend: function () { $overlay.css('display', 'flex'); },
-                    complete:  function () { $overlay.hide(); },
-                    error: function (xhr) {
-                        $overlay.hide();
-                        console.error('Gagal memuat data logistik:', xhr.status, xhr.responseText);
-                        alert('Gagal memuat data. Coba refresh halaman.');
+        return {
+            area:         areaDropdown ? [areaDropdown] : areaUrl,
+            tgl_basis:    qs.get('tgl_basis')    || '',
+            date_from:    qs.get('date_from')    || '',
+            date_to:      qs.get('date_to')      || '',
+            dist_channel: qs.get('dist_channel') || '',
+            pulau:        qs.get('pulau')        || '',
+            date:         $('#filterDate').val()  || qs.get('date')  || '',
+            month:        $('#filterMonth').val() || qs.get('month') || '',
+            year:         $('#filterYear').val()  || qs.get('year')  || '',
+            planner:      $('#filterPic').val()   || ''
+        };
+    }
+
+    // month dari dashboard bisa "2026-10"; deleteFiltered butuh month & year terpisah
+    function filtersForDelete() {
+        const f = getFilters();
+        const m = String(f.month).match(/^(\d{4})-(\d{2})$/);
+        if (m) { f.year = f.year || m[1]; f.month = String(parseInt(m[2], 10)); }
+        return f;
+    }
+
+    // ---------- DataTable ----------
+    let warned = false;
+
+    const table = $('#tableLogistik').DataTable({
+        serverSide: true,
+        processing: false,
+        searching: true,
+        scrollX: true,
+        pageLength: 10,
+        lengthMenu: [10, 25, 50, 100],
+        autoWidth: false,
+        order: [],
+
+        ajax: {
+            url: "{{ route('logistik.ajax') }}",
+            type: 'POST',
+            data: function (d) {
+                d._token = "{{ csrf_token() }}";
+                $.extend(d, getFilters());
+            },
+            dataSrc: function (json) {
+                const first = (json.data || [])[0];
+                if (first && !warned) {
+                    const n = Array.isArray(first) ? first.length : Object.keys(first).length;
+                    if (n !== totalTh) {
+                        warned = true;
+                        console.warn('Jumlah kolom server = ' + n + ', jumlah <th> = ' + totalTh +
+                                     '. Urutan/jumlah di LogistikController perlu disamakan dengan <th>.');
+                        console.log('Contoh baris:', first);
                     }
-                },
-
-                // Index kolom di sini HARUS sinkron urutannya dengan array
-                // yang dikembalikan renderFullDataRow() di SpvPlannerController.
-columns: (function () {
-    let cols = [];
-    let total = $('#tableLogistik thead th').length;
-    for (let i = 0; i < total; i++) {
-        cols.push({ data: i });
-    }
-    return cols;
-})()
-            });
-
-            // ==========================================
-            // FILTER (AREA, TANGGAL, BULAN, TAHUN, PIC)
-            // -> reload data via ajax, TIDAK reload halaman
-            // ==========================================
-            $('#filterArea, #filterDate, #filterMonth, #filterYear, #filterPic')
-                .on('change', function () {
-                    table.ajax.reload();
-                });
-
-            $('#btnResetFilter').on('click', function () {
-                $('#filterArea').val('');
-                $('#filterDate').val('');
-                $('#filterMonth').val('');
-                $('#filterYear').val('');
-                $('#filterPic').val('');
-                table.ajax.reload();
-            });
-
-            $('#btnDeleteFiltered').on('click', function () {
-    let info   = table.page.info();
-    let jumlah = info.recordsDisplay; // jumlah baris hasil filter+search saat ini
-
-    if (jumlah === 0) {
-        alert('Tidak ada data untuk dihapus.');
-        return;
-    }
-
-    let konfirmasi = prompt(
-        `Anda akan MENGHAPUS PERMANEN ${jumlah} data sesuai filter/pencarian yang sedang aktif.\n\n` +
-        `Ketik "HAPUS" (huruf besar) untuk melanjutkan:`
-    );
-
-    if (konfirmasi !== 'HAPUS') {
-        alert('Dibatalkan.');
-        return;
-    }
-
-    $.ajax({
-        url: "{{ route('spvplanner.deleteFiltered') }}",
-        type: 'POST',
-        data: {
-            _token:         "{{ csrf_token() }}",
-            area:           $('#filterArea').val(),
-            date:           $('#filterDate').val(),
-            month:          $('#filterMonth').val(),
-            year:           $('#filterYear').val(),
-            planner: $('#filterPic').val(),
-            search_value:   table.search() // ambil dari kotak search DataTables
-        },
-        success: function (res) {
-            alert(res.message);
-            if (res.success) {
-                table.ajax.reload(null, false); // false = tetap di halaman yg sama
+                }
+                return json.data || [];
+            },
+            beforeSend: function () { $overlay.css('display', 'flex'); },
+            complete:   function () { $overlay.hide(); },
+            error: function (xhr) {
+                $overlay.hide();
+                console.error('Gagal memuat data logistik:', xhr.status, xhr.responseText);
+                alert('Gagal memuat data (' + xhr.status + '). Cek Console / laravel.log.');
             }
         },
-        error: function (xhr) {
-            alert(xhr.responseJSON?.message || 'Gagal menghapus data.');
-        }
+
+        // baris boleh array maupun objek; diambil berdasarkan URUTAN
+        columns: Array.from({ length: totalTh }, function (_, i) {
+            return {
+                data: function (row) {
+                    const v = Array.isArray(row) ? row[i] : Object.values(row)[i];
+                    return (v === undefined || v === null || v === '') ? '-' : v;
+                },
+                defaultContent: '-',
+                className: i === IDX_TUJUAN ? 'col-tujuan' : ''
+            };
+        })
+    });
+
+    // ---------- filter -> reload ajax ----------
+    $('#filterArea, #filterDate, #filterMonth, #filterYear, #filterPic').on('change', function () {
+        table.ajax.reload();
+    });
+
+    $('#btnResetFilter').on('click', function () {
+        $('#filterArea, #filterDate, #filterMonth, #filterYear, #filterPic').val('');
+        table.ajax.reload();
+    });
+
+    // ---------- rincian DO (klik kolom Tujuan) ----------
+    const cellText = v => $('<div>').html(v == null ? '' : v).text().trim();
+
+    $('#tableLogistik tbody').on('click', 'td.col-tujuan', function (e) {
+        e.preventDefault();
+
+        const tr  = $(this).closest('tr');
+        const row = table.row(tr);
+        const d   = row.data();
+        if (!d) return;
+
+        if (row.child.isShown()) { row.child.hide(); tr.removeClass('shown'); return; }
+
+        const vals     = Array.isArray(d) ? d : Object.values(d);
+        const link     = tr.find('a.btn-tujuan');
+        const shipment = link.data('shipment') || cellText(vals[IDX_SHIPMENT]);
+        const tujuan   = link.data('tujuan')   ||
+                         cellText(vals[IDX_TUJUAN]).replace(/^▶\s*/, '').replace(/\s*\d+\s*DO$/, '');
+
+        row.child('<div style="padding:12px">⏳ Memuat rincian...</div>').show();
+        tr.addClass('shown');
+
+        const showError = x => row.child(
+            '<div style="padding:12px;color:#dc2626">Gagal memuat rincian (' + x.status + ')</div>').show();
+
+        const render = function (res) {
+            const items = res.data || [];
+            if (!items.length) {
+                row.child('<div style="padding:12px">Tidak ada rincian DO.</div>').show();
+                return;
+            }
+            const keys = Object.keys(items[0]);
+            const html = '<div style="padding:12px;overflow:auto"><table style="width:auto;font-size:14px">' +
+                '<thead><tr>' + keys.map(k => '<th>' + k.replace(/_/g, ' ') + '</th>').join('') + '</tr></thead>' +
+                '<tbody>' + items.map(it =>
+                    '<tr>' + keys.map(k => '<td>' + (it[k] ?? '-') + '</td>').join('') + '</tr>').join('') +
+                '</tbody></table></div>';
+            row.child(html).show();
+        };
+
+        const params = { no_shipment: shipment, tujuan: tujuan };
+
+        $.ajax({
+            url: "{{ route('logistik.detail') }}", type: 'GET', data: params, success: render,
+            error: function (xhr) {
+                if (xhr.status === 405) {   // route ternyata POST
+                    $.post("{{ route('logistik.detail') }}",
+                           Object.assign({ _token: "{{ csrf_token() }}" }, params), render).fail(showError);
+                } else {
+                    showError(xhr);
+                }
+            }
+        });
+    });
+
+    // ---------- hapus sesuai filter ----------
+    $('#btnDeleteFiltered').on('click', function (e) {
+        e.preventDefault();
+
+        const jumlah = table.page.info().recordsDisplay;
+        if (jumlah === 0) { alert('Tidak ada data untuk dihapus.'); return; }
+
+        const konfirmasi = prompt(
+            'Anda akan MENGHAPUS PERMANEN ' + jumlah + ' data sesuai filter/pencarian yang sedang aktif.\n\n' +
+            'Ketik "HAPUS" (huruf besar) untuk melanjutkan:'
+        );
+        if (konfirmasi !== 'HAPUS') { alert('Dibatalkan.'); return; }
+
+        $.ajax({
+            url: "{{ route('spvplanner.deleteFiltered') }}",
+            type: 'POST',
+            data: $.extend({ _token: "{{ csrf_token() }}", search_value: table.search() }, filtersForDelete()),
+            success: function (res) {
+                alert(res.message);
+                if (res.success) table.ajax.reload(null, false);
+            },
+            error: function (xhr) {
+                alert((xhr.responseJSON && xhr.responseJSON.message) || 'Gagal menghapus data.');
+            }
+        });
+    });
+
+    // ---------- export sesuai filter ----------
+    $('#btnExportExcel').on('click', function (e) {
+        e.preventDefault();
+
+        const params = new URLSearchParams();
+        const f = getFilters();
+
+        Object.keys(f).forEach(function (k) {
+            if (Array.isArray(f[k])) f[k].forEach(v => params.append(k + '[]', v));
+            else if (f[k]) params.append(k, f[k]);
+        });
+        const s = table.search();
+        if (s) params.append('search_value', s);
+
+        const baseUrl = "{{ route('logistik.export') }}";
+        window.location.href = params.toString() ? baseUrl + '?' + params.toString() : baseUrl;
     });
 });
-
-            // ==========================================
-            // EXPORT EXCEL SESUAI FILTER AKTIF
-            // ==========================================
-            $('#btnExportExcel').on('click', function (e) {
-                e.preventDefault();
-
-                let params = new URLSearchParams();
-
-                let filterArea  = $('#filterArea').val();
-                let filterDate  = $('#filterDate').val();
-                let filterMonth = $('#filterMonth').val();
-                let filterYear  = $('#filterYear').val();
-
-                if (filterArea)  params.append('area', filterArea);
-                if (filterDate)  params.append('date', filterDate);
-                if (filterMonth) params.append('month', filterMonth);
-                if (filterYear)  params.append('year', filterYear);
-
-                let baseUrl = "{{ route('logistik.export') }}";
-                let finalUrl = params.toString() ? (baseUrl + '?' + params.toString()) : baseUrl;
-
-                window.location.href = finalUrl;
-            });
-        });
-    </script>
-
+</script>
 </body>
 
 </html>

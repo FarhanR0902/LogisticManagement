@@ -246,6 +246,8 @@
                 border-radius: 10px;
             }
 
+            .btn-tujuan { color:#2563eb; font-weight:600; text-decoration:none; }
+.btn-tujuan:hover { text-decoration:underline; }
             /* ================= BADGE ================= */
 
             .badge {
@@ -393,6 +395,7 @@
                 .import-box button {
                     width: 100%;
                 }
+
 
                 .action-bar {
                     flex-direction: column;
@@ -758,11 +761,10 @@ font-size: 16px;
     </form>
 </div>
 
-        <a href="#" id="btnExportExcel" class="btn-export">
-            <i class="fa fa-file-excel"></i>
-            Export Excel
-        </a>
-
+      <a href="{{ route('pasuruan.export.full', array_filter($activeFilters)) }}"
+   class="btn btn-success">
+    <i class="fa-solid fa-file-excel"></i> Export Full
+</a>
         <!-- ================= ARCHIVE / HAPUS SESUAI FILTER ================= -->
         <div class="action-bar">
             <button type="button" id="btnArchiveFiltered" class="archive-btn">
@@ -781,6 +783,8 @@ font-size: 16px;
     <input type="hidden" name="month" id="archiveMonth">
     <input type="hidden" name="year" id="archiveYear">
     <input type="hidden" name="search" id="archiveSearch">
+    <input type="hidden" name="dist_channel" id="archiveDist">   <!-- BARU -->
+    <input type="hidden" name="pulau" id="archivePulau">         
 </form>
 
 <form id="deleteFilteredForm" action="{{ route('pasuruan.deleteFiltered') }}" method="POST" style="display:none;">
@@ -792,6 +796,8 @@ font-size: 16px;
     <input type="hidden" name="month" id="deleteMonth">
     <input type="hidden" name="year" id="deleteYear">
     <input type="hidden" name="search" id="deleteSearch">
+     <input type="hidden" name="dist_channel" id="deleteDist">    <!-- BARU -->
+    <input type="hidden" name="pulau" id="deletePulau">    
 </form>
         <div class="filter-box">
             <form id="filterForm">
@@ -900,6 +906,10 @@ font-size: 16px;
                         <th>Shipping Point</th>
                         <th>Pulau</th>
                         <th>Via Kirim</th>
+
+<th>Kirim Kontribusi</th>
+<th>Pengiriman Optimal Customer</th>
+<th>Reason Optimal Customer</th>
                     </tr>
                 </thead>
 
@@ -919,6 +929,17 @@ $.ajaxSetup({
         'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
     }
 });
+const initial = @json($activeFilters);
+
+if (/^\d{4}-\d{2}$/.test(initial.month || '')) {
+    initial.year  = initial.year || initial.month.substring(0, 4);
+    initial.month = String(parseInt(initial.month.substring(5, 7), 10));
+}
+
+$('#filterArea').val(initial.area || '');
+$('#filterDate').val(initial.date || '');
+$('#filterMonth').val(initial.month || '');
+$('#filterYear').val(initial.year || '');
         let table = $('#tableLogistik').DataTable({
             processing: true,
             serverSide: true,
@@ -937,6 +958,8 @@ $.ajaxSetup({
                     d.date    = $('#filterDate').val();
                     d.month   = $('#filterMonth').val();
                     d.year    = $('#filterYear').val();
+                     d.dist_channel = initial.dist_channel || '';   // BARU
+    d.pulau        = initial.pulau || '';   
                 }
             },
 
@@ -951,7 +974,7 @@ $.ajaxSetup({
                 { data: 'no_shipment' },
                 { data: 'posisi_mobil_badge' },
                 { data: 'dist_channel_badge' },
-                { data: 'tujuan' },
+               { data: 'tujuan_html' }, 
                 { data: 'area' },
                 { data: 'ketersediaan_badge' },
                 { data: 'mobil' },
@@ -1003,7 +1026,12 @@ $.ajaxSetup({
                 { data: 'route' },
                 { data: 'shipping_point' },
                 { data: 'pulau' },
-                { data: 'via_kirim' },
+            { data: 'via_kirim' },
+// HAPUS: customer_reference, sales_document, contract_end_date_fmt, no_do
+
+{ data: 'kirim_kontribusi_fmt' },
+{ data: 'pengiriman_optimal_customer_badge' },
+{ data: 'reason_optimal_customer' },
             ],
 
             language: {
@@ -1022,6 +1050,7 @@ $.ajaxSetup({
                     previous: "Sebelumnya"
                 }
             }
+            
 
             // CATATAN: drawCallback penghitung CR (2-pass parsing DOM) SUDAH
             // DIHAPUS. CR sekarang dihitung di server (kolom cr_fmt) dan
@@ -1029,125 +1058,89 @@ $.ajaxSetup({
             // di PasuruanController, jadi tidak perlu dihitung ulang di browser
             // tiap kali table di-draw / ganti halaman / filter.
         });
+// filter dari link dashboard (query string)
+
+        function esc(s) {
+    return String(s ?? '-').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function buildDetail(rows) {
+    if (!rows.length) return '<div style="padding:10px">Tidak ada rincian.</div>';
+
+    var total = 0;
+    var h = '<table style="margin:8px 0 8px 40px;width:auto;background:#fff">'
+          + '<thead><tr>'
+          + '<th>Sales Document</th><th>Customer Reference</th><th>Contract End Date</th>'
+          + '<th>No Delivery</th>'
+          + '<th>Qty</th><th>Nilai Muatan</th><th>Kirim Kontribusi</th>'
+          + '<th>Total Kubik</th><th>Total Tonase</th>'
+          + '</tr></thead><tbody>';
+
+    rows.forEach(function (r) {
+        total += Number(r.kirim_kontribusi_raw) || 0;
+        h += '<tr>'
+           + '<td>' + esc(r.sales_document) + '</td>'
+           + '<td>' + esc(r.customer_reference) + '</td>'
+           + '<td>' + esc(r.contract_end_date) + '</td>'
+          
+           + '<td>' + esc(r.no_delivery) + '</td>'
+           + '<td>' + esc(r.qty) + '</td>'
+           + '<td>' + esc(r.nilai_muatan) + '</td>'
+           + '<td>' + esc(r.kirim_kontribusi) + '</td>'
+           + '<td>' + esc(r.total_kubik) + '</td>'
+           + '<td>' + esc(r.total_tonase) + '</td>'
+           + '</tr>';
+    });
+
+    h += '<tr style="font-weight:700;background:#f1f5f9">'
+       + '<td colspan="7" style="text-align:right">Total Kirim Kontribusi</td>'
+       + '<td>Rp ' + Math.round(total).toLocaleString('id-ID') + '</td>'
+       + '<td colspan="2"></td></tr>';
+
+    return h + '</tbody></table>';
+}
+$('#tableLogistik tbody').on('click', '.btn-tujuan', function (e) {
+    e.preventDefault();
+    var $a = $(this), tr = $a.closest('tr'), row = table.row(tr);
+
+    if (row.child.isShown()) {
+        row.child.hide();
+        $a.html($a.html().replace('▼', '▶'));
+        return;
+    }
+
+    row.child('<div style="padding:10px">Memuat rincian...</div>').show();
+    $a.html($a.html().replace('▶', '▼'));
+
+    $.get("{{ route('pasuruan.detail') }}", {
+        no_shipment: $a.data('shipment'),
+        tujuan: $a.data('tujuan')
+    }).done(function (res) {
+        row.child(buildDetail(res.data)).show();
+    }).fail(function () {
+        row.child('<div style="padding:10px;color:#dc2626">Gagal memuat rincian.</div>').show();
+    });
+});
 
         // ==========================================
-        // HELPER: ambil filter aktif dari filter-box
+             // ==========================================
+        // HELPER: filter aktif
         // ==========================================
-     function getActiveFilters() {
+   function getActiveFilters() {
     return {
         planner: $('#filterPlanner').val() || '',
         area:    $('#filterArea').val()    || '',
         date:    $('#filterDate').val()    || '',
         month:   $('#filterMonth').val()   || '',
         year:    $('#filterYear').val()    || '',
-        search:  table.search() || ''   // ambil dari search box DataTables yang lagi aktif
+        dist_channel: initial.dist_channel || '',
+        pulau:        initial.pulau || '',
+        search:  table.search() || ''
     };
 }
 
-function hasActiveFilter(f) {
-    return !!(f.planner || f.area || f.date || f.month || f.year || f.search);
+      function hasActiveFilter(f) {
+    return !!(f.planner || f.area || f.date || f.month || f.year || f.dist_channel || f.pulau || f.search);
 }
-
-function describeFilter(f) {
-    let parts = [];
-    if (f.planner) parts.push('Planner: ' + f.planner);
-    if (f.area)    parts.push('Area: ' + f.area);
-    if (f.date)    parts.push('Tanggal: ' + f.date);
-    if (f.month)   parts.push('Bulan: ' + f.month);
-    if (f.year)    parts.push('Tahun: ' + f.year);
-    if (f.search)  parts.push('Pencarian: "' + f.search + '"');
-    return parts.length ? parts.join(', ') : 'Tanpa filter (SEMUA DATA)';
-}
-
-// function updateFilterInfoBadge() {
-//     let f = getActiveFilters();
-//     $('#filterInfoBadge').text(
-//         hasActiveFilter(f)
-//             // ? 'Filter aktif -> ' + describeFilter(f)
-//             // : 'Tanpa filter aktif (akan berlaku ke SEMUA data)'
-//     );
-// }
-
-// Filter dropdown/date/month/year -> reload data dari server
-$('#filterArea, #filterPlanner, #filterDate, #filterMonth, #filterYear').on('change', function() {
-    table.ajax.reload();
-    updateFilterInfoBadge();
-});
-
-// BARU: search box bawaan DataTables juga update badge info real-time
-table.on('search.dt', function() {
-    updateFilterInfoBadge();
-});
-
-$('#btnResetFilter').on('click', function(e) {
-    e.preventDefault();
-    $('#filterForm')[0].reset();
-    table.search('');       // BARU: reset juga search box DataTables
-    table.ajax.reload();
-    updateFilterInfoBadge();
-});
-
-updateFilterInfoBadge();
-
-// ==========================================
-// ARCHIVE SESUAI FILTER
-// ==========================================
-$('#btnArchiveFiltered').on('click', function() {
-    let f = getActiveFilters();
-    let msg = hasActiveFilter(f)
-        ? 'Arsipkan data dengan filter berikut ke Storage?\n\n' + describeFilter(f)
-        : 'Tidak ada filter aktif. Ini akan mengarsipkan SEMUA data ke Storage. Lanjutkan?';
-
-    if (!confirm(msg)) return;
-
-    $('#archivePlanner').val(f.planner);
-    $('#archiveArea').val(f.area);
-    $('#archiveDate').val(f.date);
-    $('#archiveMonth').val(f.month);
-    $('#archiveYear').val(f.year);
-    $('#archiveSearch').val(f.search);
-    $('#archiveFilteredForm').trigger('submit');
-});
-
-// ==========================================
-// HAPUS SESUAI FILTER (permanen)
-// ==========================================
-$('#btnDeleteFiltered').on('click', function() {
-    let f = getActiveFilters();
-
-    if (!hasActiveFilter(f)) {
-        if (!confirm('Tidak ada filter aktif. Ini akan MENGHAPUS PERMANEN SEMUA data. Lanjutkan?')) return;
-        if (!confirm('Konfirmasi sekali lagi: HAPUS SEMUA DATA tanpa filter secara permanen?')) return;
-    } else {
-        if (!confirm('HAPUS PERMANEN data dengan filter berikut?\n\n' + describeFilter(f) + '\n\nData tidak dapat dikembalikan!')) return;
-    }
-
-    $('#deletePlanner').val(f.planner);
-    $('#deleteArea').val(f.area);
-    $('#deleteDate').val(f.date);
-    $('#deleteMonth').val(f.month);
-    $('#deleteYear').val(f.year);
-    $('#deleteSearch').val(f.search);
-    $('#deleteFilteredForm').trigger('submit');
-});
-function hasActiveFilter(f) {
-    return !!(f.planner || f.area || f.date || f.month || f.year || f.search);
-}
-
-function describeFilter(f) {
-    let parts = [];
-    if (f.planner) parts.push('Planner: ' + f.planner);
-    if (f.area)    parts.push('Area: ' + f.area);
-    if (f.date)    parts.push('Tanggal: ' + f.date);
-    if (f.month)   parts.push('Bulan: ' + f.month);
-    if (f.year)    parts.push('Tahun: ' + f.year);
-    if (f.search)  parts.push('Pencarian: "' + f.search + '"');   // BARU
-    return parts.length ? parts.join(', ') : 'Tanpa filter (SEMUA DATA)';
-}
-
-        function hasActiveFilter(f) {
-            return !!(f.planner || f.area || f.date || f.month || f.year);
-        }
 
         function describeFilter(f) {
             let parts = [];
@@ -1155,7 +1148,10 @@ function describeFilter(f) {
             if (f.area)    parts.push('Area: ' + f.area);
             if (f.date)    parts.push('Tanggal: ' + f.date);
             if (f.month)   parts.push('Bulan: ' + f.month);
+            if (f.dist_channel) parts.push('Dist. channel: ' + f.dist_channel);
+if (f.pulau)        parts.push('Pulau: ' + f.pulau);
             if (f.year)    parts.push('Tahun: ' + f.year);
+            if (f.search)  parts.push('Pencarian: "' + f.search + '"');
             return parts.length ? parts.join(', ') : 'Tanpa filter (SEMUA DATA)';
         }
 
@@ -1168,64 +1164,47 @@ function describeFilter(f) {
             );
         }
 
-        // Filter dropdown/date/month/year -> reload data dari server (bukan filter client-side lagi)
-        $('#filterArea, #filterPlanner, #filterDate, #filterMonth, #filterYear').on('change', function() {
+        $('#filterArea, #filterPlanner, #filterDate, #filterMonth, #filterYear').on('change', function () {
             table.ajax.reload();
             updateFilterInfoBadge();
         });
 
-        $('#btnResetFilter').on('click', function(e) {
+        table.on('search.dt', updateFilterInfoBadge);
+
+        $('#btnResetFilter').on('click', function (e) {
             e.preventDefault();
+            
             $('#filterForm')[0].reset();
+             initial.dist_channel = '';   // BARU
+    initial.pulau = '';     
+            table.search('');
             table.ajax.reload();
             updateFilterInfoBadge();
         });
 
         updateFilterInfoBadge();
 
-        // ==========================================
         // ARCHIVE SESUAI FILTER
-        // ==========================================
-     $('#btnArchiveFiltered').on('click', function() {
-    let f = getActiveFilters();
-    let msg = hasActiveFilter(f)
-        ? 'Arsipkan data dengan filter berikut ke Storage?\n\n' + describeFilter(f)
-        : 'Tidak ada filter aktif. Ini akan mengarsipkan SEMUA data ke Storage. Lanjutkan?';
+        $('#btnArchiveFiltered').on('click', function () {
+            let f = getActiveFilters();
+            let msg = hasActiveFilter(f)
+                ? 'Arsipkan data dengan filter berikut ke Storage?\n\n' + describeFilter(f)
+                : 'Tidak ada filter aktif. Ini akan mengarsipkan SEMUA data ke Storage. Lanjutkan?';
+            if (!confirm(msg)) return;
 
-    if (!confirm(msg)) return;
+            $('#archivePlanner').val(f.planner);
+            $('#archiveArea').val(f.area);
+            $('#archiveDate').val(f.date);
+            $('#archiveMonth').val(f.month);
+            $('#archiveYear').val(f.year);
+            $('#archiveSearch').val(f.search);
+            $('#deleteDist').val(f.dist_channel);
+$('#deletePulau').val(f.pulau);
+            $('#archiveFilteredForm').trigger('submit');
+        });
 
-    $('#archivePlanner').val(f.planner);
-    $('#archiveArea').val(f.area);
-    $('#archiveDate').val(f.date);
-    $('#archiveMonth').val(f.month);
-    $('#archiveYear').val(f.year);
-    $('#archiveSearch').val(f.search);   // BARU
-    $('#archiveFilteredForm').trigger('submit');
-});
-
-$('#btnDeleteFiltered').on('click', function() {
-    let f = getActiveFilters();
-
-    if (!hasActiveFilter(f)) {
-        if (!confirm('Tidak ada filter aktif. Ini akan MENGHAPUS PERMANEN SEMUA data. Lanjutkan?')) return;
-        if (!confirm('Konfirmasi sekali lagi: HAPUS SEMUA DATA tanpa filter secara permanen?')) return;
-    } else {
-        if (!confirm('HAPUS PERMANEN data dengan filter berikut?\n\n' + describeFilter(f) + '\n\nData tidak dapat dikembalikan!')) return;
-    }
-
-    $('#deletePlanner').val(f.planner);
-    $('#deleteArea').val(f.area);
-    $('#deleteDate').val(f.date);
-    $('#deleteMonth').val(f.month);
-    $('#deleteYear').val(f.year);
-    $('#deleteSearch').val(f.search);   // BARU
-    $('#deleteFilteredForm').trigger('submit');
-});
-
-        // ==========================================
         // HAPUS SESUAI FILTER (permanen)
-        // ==========================================
-        $('#btnDeleteFiltered').on('click', function() {
+        $('#btnDeleteFiltered').on('click', function () {
             let f = getActiveFilters();
 
             if (!hasActiveFilter(f)) {
@@ -1240,10 +1219,11 @@ $('#btnDeleteFiltered').on('click', function() {
             $('#deleteDate').val(f.date);
             $('#deleteMonth').val(f.month);
             $('#deleteYear').val(f.year);
+            $('#deleteSearch').val(f.search);
             $('#deleteFilteredForm').trigger('submit');
         });
-    });
-
+    });   // <- penutup $(document).ready
+// ==========================================
     // ==========================================
     // EXPORT EXCEL SESUAI FILTER AKTIF
     // ==========================================
@@ -1263,6 +1243,8 @@ $('#btnDeleteFiltered').on('click', function() {
         if (filterDate)    params.append('date', filterDate);
         if (filterMonth)   params.append('month', filterMonth);
         if (filterYear)    params.append('year', filterYear);
+        if (initial.dist_channel) params.append('dist_channel', initial.dist_channel);
+if (initial.pulau)        params.append('pulau', initial.pulau);
 
         let baseUrl = "{{ route('pasuruan.export') }}";
         let finalUrl = params.toString() ? (baseUrl + '?' + params.toString()) : baseUrl;

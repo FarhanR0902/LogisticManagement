@@ -23,7 +23,7 @@ private const MASTER_TUJUAN_COL  = 'tujuan';
 
 // kolom_di_master => kolom_di_logistik_pengiriman
 private const MASTER_MAP = [
-    'distribution_channel' => 'dist_channel',
+   
     'pulau'                => 'pulau',
     'area'                 => 'area',
     'planner'              => 'planner',
@@ -85,7 +85,15 @@ private array $tujuanNotInMaster = [];
     private array $touchedShipments = [];
 
     // baris yang biaya_kirim-nya diisi manual di Excel ("no_shipment|tujuan") -> tidak ditimpa tarif
-    private array $manualBiaya = [];
+    // private array $manualBiaya = [];
+
+    // no_shipment => biaya 1 mobil dari Excel
+private array $groupBiaya = [];
+
+// no_shipment yang total_kubik-nya berubah di import ini
+private array $kubikChanged = [];
+
+private bool $hasKirimKontribusi = false;
 
     // ================= GETTERS =================
     public function getQtyUpdated(): int { return $this->qtyUpdated; }
@@ -115,7 +123,7 @@ private array $tujuanNotInMaster = [];
     {
         $this->hasOptimalCustomer       = Schema::hasColumn(self::TABLE, 'pengiriman_optimal_customer');
         $this->hasReasonOptimalCustomer = Schema::hasColumn(self::TABLE, 'reason_optimal_customer');
-
+$this->hasKirimKontribusi = Schema::hasColumn(self::TABLE, 'kirim_kontribusi');
         if (self::$tarifByRoute === null) {
             self::$tarifByRoute = DB::table(self::TARIF_TABLE)
                 ->select('ekpedisi', 'route', 'mobil', 'biaya_kirim', 'kubikasi', 'tonase')
@@ -168,10 +176,13 @@ private function masterAttributes(string $tujuan): array
         return [
             AfterImport::class => function () {
                 try {
-                    $shipments = array_map('strval', array_keys($this->touchedShipments));
+               $shipments = array_map('strval', array_keys($this->touchedShipments));
 
-                    $this->recalcBiayaKirim($shipments);   // biaya_kirim + kubikasi + tonase dari tarif
-                    $this->recalcShipments($shipments);    // cr, hasil_kubik, hasil_tonase, optimal
+$this->recalcTarifCapacity($shipments);    // ekpedisi, mobil, kubikasi, tonase dari tarif
+$this->recalcBiayaKontribusi($shipments);  // kirim_kontribusi + biaya_kirim
+$this->recalcShipments($shipments);        // cr, hasil_kubik, hasil_tonase, optimal
+
+                 // cr, hasil_kubik, hasil_tonase, optimal
                 } catch (\Throwable $e) {
                     logger()->error('UPDATE IMPORT AFTER-IMPORT GAGAL', [
                         'error' => $e->getMessage(),
@@ -199,6 +210,11 @@ private function masterAttributes(string $tujuan): array
             }
 
             $this->touchedShipments[(string) $noShipment] = true;
+            // biaya 1 mobil per no_shipment (sama dengan LogistikImport)
+$biayaPool = $this->parseNumber($this->pick($row, ['biaya_kirim', 'biaya_kirim_rp', 'kirim_kontribusi']));
+if ($biayaPool !== null && $biayaPool > 0) {
+    $this->groupBiaya[(string) $noShipment] = $biayaPool;
+}
 
             $tujuan = $this->cleanText($row['tujuan'] ?? null);
 
@@ -271,9 +287,12 @@ private function masterAttributes(string $tujuan): array
 
                 if ($affected === 0) {
                     $this->kubikTonaseNotFound[] = "{$noShipment} - {$tujuan}";
-                } else {
-                    $this->kubikTonaseUpdated += $affected;
-                }
+              } else {
+    $this->kubikTonaseUpdated += $affected;
+    if ($totalKubikNew !== null) {
+        $this->kubikChanged[(string) $noShipment] = true;
+    }
+}
             }
         }
     }
@@ -300,17 +319,16 @@ private function masterAttributes(string $tujuan): array
         );
 
         // biaya_kirim diisi manual di Excel -> dipakai apa adanya, tidak dihitung ulang dari tarif
-        $biayaExcel = $this->parseNumber($row['biaya_kirim'] ?? $row['biaya_kirim_rp'] ?? null);
-        $biayaExcel = ($biayaExcel !== null && $biayaExcel > 0) ? $biayaExcel : null;
+       
 
         if ($matches->count() > 1) {
             $this->generalAmbiguous[] = "{$noShipment} - {$tujuan} ({$matches->count()} baris)";
             return;
         }
 
-        if ($biayaExcel !== null) {
-            $this->manualBiaya[$noShipment . '|' . $tujuan] = true;
-        }
+        // if ($biayaExcel !== null) {
+        //     $this->manualBiaya[$noShipment . '|' . $tujuan] = true;
+        // }
 
         if ($matches->isEmpty()) {
             // ===== INSERT BARU =====
@@ -328,7 +346,6 @@ private function masterAttributes(string $tujuan): array
     'nama_driver'        => $namaDriverNew,
     'no_pol'             => $noPolNew,
     'nilai_muatan'       => $nilaiMuatanNew,
-    'biaya_kirim'        => $biayaExcel,
     'create_tgl'         => Carbon::now(),
 ], fn($v) => $v !== null);
 
@@ -353,7 +370,7 @@ LogistikPengiriman::create($fromExcel + $this->masterAttributes($tujuan));
             'nama_driver'        => $namaDriverNew,
             'no_pol'             => $noPolNew,
             'nilai_muatan'       => $nilaiMuatanNew,
-            'biaya_kirim'        => $biayaExcel,
+        
         ];
 
         $payload = [];
@@ -385,54 +402,118 @@ LogistikPengiriman::create($fromExcel + $this->masterAttributes($tujuan));
      * Dijalankan untuk SEMUA baris di shipment yang ada di file ini, jadi
      * biaya lama yang sama semua per shipment ikut terkoreksi.
      */
-    private function recalcBiayaKirim(array $shipments): void
-    {
-        foreach (array_chunk($shipments, 500) as $chunk) {
-            $rows = DB::table(self::TABLE)
-                ->select('id', 'no_shipment', 'tujuan', 'ekpedisi', 'route', 'mobil',
-                         'total_kubik', 'biaya_kirim', 'kubikasi', 'tonase')
-                ->whereIn('no_shipment', $chunk)
-                ->get();
+   /** Kapasitas dari tarif saja (biaya tidak lagi dari tarif). */
+private function recalcTarifCapacity(array $shipments): void
+{
+    foreach (array_chunk($shipments, 500) as $chunk) {
+        $rows = DB::table(self::TABLE)
+            ->select('id', 'ekpedisi', 'route', 'mobil')
+            ->whereIn('no_shipment', $chunk)
+            ->get();
 
-            foreach ($rows as $r) {
-                if (isset($this->manualBiaya[$r->no_shipment . '|' . $r->tujuan])) {
-                    continue;
-                }
+        foreach ($rows as $r) {
+            $tarif = $this->findTarif($this->applyRouteAlias($r->route), $r->ekpedisi, $r->mobil);
+            if (!$tarif) continue;
 
-                $route = $this->applyRouteAlias($r->route);
-                $tarif = $this->findTarif($route, $r->ekpedisi, $r->mobil);
+            $payload = array_filter([
+                'ekpedisi' => $tarif->ekpedisi,
+                'mobil'    => $tarif->mobil,
+                'kubikasi' => $this->parseNumber($tarif->kubikasi ?? null),
+                'tonase'   => $this->parseNumber($tarif->tonase ?? null),
+            ], fn($v) => $v !== null);
 
-                if (!$tarif) {
-                    continue;   // tarif tidak ketemu -> data lama tidak disentuh
-                }
+            DB::table(self::TABLE)->where('id', $r->id)->update($payload);
+        }
+    }
+}
 
-                $kubikasi   = $this->parseNumber($tarif->kubikasi ?? null);
-                $tonase     = $this->parseNumber($tarif->tonase ?? null);
-                $biayaTarif = $this->parseNumber($tarif->biaya_kirim);
-                $totalKubik = $this->parseNumber($r->total_kubik);
+/**
+ * kirim_kontribusi per DO = biaya 1 mobil x total_kubik DO / SUM total_kubik shipment
+ * biaya_kirim per tujuan  = SUM kirim_kontribusi DO di tujuan itu
+ * (sama dengan LogistikImport)
+ */
+private function recalcBiayaKontribusi(array $shipments): void
+{
+    if (!$this->hasKirimKontribusi) {
+        logger()->warning('UPDATE IMPORT: kolom kirim_kontribusi tidak ada, biaya_kirim tidak dihitung');
+        return;
+    }
 
-                if ($biayaTarif !== null && $kubikasi > 0 && $totalKubik > 0) {
-                    $biayaKirim = round(($totalKubik / $kubikasi) * $biayaTarif, 2);
-                } else {
-                    $biayaKirim = $biayaTarif;
-                }
+    // biaya 1 mobil dari Excel
+    $pools = [];
+    foreach ($this->groupBiaya as $sh => $pool) {
+        $pools[(string) $sh] = $pool;
+    }
 
-                $payload = array_filter([
-                    'ekpedisi'    => $tarif->ekpedisi,
-                    'mobil'       => $tarif->mobil,
-                    'kubikasi'    => $kubikasi,
-                    'tonase'      => $tonase,
-                    'biaya_kirim' => $biayaKirim,
-                ], fn($v) => $v !== null);
+    // total_kubik berubah tapi Excel tidak bawa biaya -> bagi ulang biaya yang sudah ada
+    $need = array_diff(
+        array_map('strval', array_keys($this->kubikChanged)),
+        array_keys($pools)
+    );
+    foreach (array_chunk($need, 500) as $c) {
+        $rows = DB::table(self::TABLE)
+            ->select('no_shipment', DB::raw('SUM(COALESCE(kirim_kontribusi,0)) AS pool'))
+            ->whereIn('no_shipment', $c)
+            ->groupBy('no_shipment')
+            ->get();
 
-                if (!$this->valuesEqual($r->biaya_kirim, $biayaKirim)) {
-                    $this->biayaKirimUpdated++;
-                }
-
-                DB::table(self::TABLE)->where('id', $r->id)->update($payload);
+        foreach ($rows as $r) {
+            if ((float) $r->pool > 0) {
+                $pools[(string) $r->no_shipment] = (float) $r->pool;
             }
         }
     }
+
+    // 1) kirim_kontribusi per DO
+    foreach ($pools as $sh => $pool) {
+    $sh = (string) $sh;
+    DB::update("
+            UPDATE logistik_pengiriman lp
+            JOIN (
+                SELECT SUM(COALESCE(total_kubik,0)) AS sum_kubik, COUNT(*) AS cnt
+                FROM logistik_pengiriman
+                WHERE no_shipment = ?
+            ) g
+            SET lp.kirim_kontribusi = CASE
+                WHEN g.sum_kubik > 0 THEN ROUND(? * COALESCE(lp.total_kubik,0) / g.sum_kubik, 2)
+                ELSE ROUND(? / g.cnt, 2)
+            END
+            WHERE lp.no_shipment = ?
+        ", [$sh, $pool, $pool, $sh]);
+    }
+
+    // 2) biaya_kirim per tujuan = SUM kirim_kontribusi
+    foreach (array_chunk(array_map('strval', array_keys($pools)), 500) as $chunk) {
+        $in = implode(',', array_fill(0, count($chunk), '?'));
+
+        DB::update("
+            UPDATE logistik_pengiriman lp
+            JOIN (
+                SELECT no_shipment, COALESCE(tujuan,'') AS tj,
+                       SUM(COALESCE(kirim_kontribusi,0)) AS total
+                FROM logistik_pengiriman
+                WHERE no_shipment IN ($in)
+                GROUP BY no_shipment, COALESCE(tujuan,'')
+            ) g ON lp.no_shipment = g.no_shipment AND COALESCE(lp.tujuan,'') = g.tj
+            SET lp.biaya_kirim = g.total
+            WHERE lp.no_shipment IN ($in)
+              AND g.total > 0
+        ", array_merge($chunk, $chunk));
+    }
+
+    $this->biayaKirimUpdated = count($pools);
+}
+
+/** ambil nilai pertama yang terisi dari beberapa kemungkinan header */
+private function pick($row, array $keys)
+{
+    foreach ($keys as $k) {
+        if (isset($row[$k]) && $row[$k] !== '' && $row[$k] !== '-') {
+            return $row[$k];
+        }
+    }
+    return null;
+}
 
     /**
      * CR            : per baris = biaya_kirim baris / nilai_muatan baris x 100.
@@ -447,16 +528,20 @@ LogistikPengiriman::create($fromExcel + $this->masterAttributes($tujuan));
             $in       = implode(',', array_fill(0, count($chunk), '?'));
             $bindings = array_merge($chunk, $chunk);
 
-            // ---- CR = biaya_kirim / nilai_muatan x 100 (per baris) ----
-            DB::update("
-                UPDATE logistik_pengiriman lp
-                SET lp.cr = IF(
-                    COALESCE(lp.nilai_muatan, 0) <= 0,
-                    0,
-                    ROUND(COALESCE(lp.biaya_kirim, 0) / lp.nilai_muatan * 100, 4)
-                )
-                WHERE lp.no_shipment IN ($in)
-            ", $chunk);
+         // ---- CR per shipment + tujuan = biaya_kirim / SUM nilai_muatan tujuan x 100 ----
+DB::update("
+    UPDATE logistik_pengiriman lp
+    JOIN (
+        SELECT no_shipment, COALESCE(tujuan,'') AS tj,
+               SUM(COALESCE(nilai_muatan,0)) AS sum_nilai
+        FROM logistik_pengiriman
+        WHERE no_shipment IN ($in)
+        GROUP BY no_shipment, COALESCE(tujuan,'')
+    ) g ON lp.no_shipment = g.no_shipment AND COALESCE(lp.tujuan,'') = g.tj
+    SET lp.cr = IF(g.sum_nilai <= 0, 0,
+                   ROUND(COALESCE(lp.biaya_kirim,0) / g.sum_nilai * 100, 4))
+    WHERE lp.no_shipment IN ($in)
+", $bindings);
 
             // ---- HASIL KUBIK / TONASE (per baris) + OPTIMAL (per shipment) ----
             DB::update("

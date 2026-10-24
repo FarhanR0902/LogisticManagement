@@ -63,6 +63,9 @@
             transition: all .25s ease;
             box-shadow: 0 3px 10px rgba(25,135,84,.25);
         }
+
+        .btn-tujuan { color:#2563eb; font-weight:600; text-decoration:none; }
+.btn-tujuan:hover { text-decoration:underline; }
         .btn-export:hover { background: #157347; color:#fff !important; transform: translateY(-2px); }
         @media(max-width:768px){ .container{margin-left:0;padding:15px;} }
     </style>
@@ -218,7 +221,7 @@
                 { data: 'no_shipment' },
                 { data: 'status_pengiriman_badge' },
                 { data: 'dist_channel_badge' },
-                { data: 'tujuan' },
+               { data: 'tujuan_html' },
                 { data: 'area' },
                 { data: 'ketersediaan_unit_badge' },
                 { data: 'mobil' },
@@ -267,7 +270,66 @@
                 { data: 'total_biaya_kuli' },
             ]
         });
+function esc(s) {
+    return String(s ?? '-').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
 
+function buildDetail(rows) {
+    if (!rows.length) return '<div style="padding:10px">Tidak ada rincian.</div>';
+
+    var total = 0;
+    var h = '<table style="margin:8px 0 8px 40px;width:auto;background:#fff">'
+          + '<thead><tr>'
+          + '<th>Sales Document</th><th>Customer Reference</th><th>Contract End Date</th>'
+          + '<th>No Delivery</th><th>Qty</th><th>Nilai Muatan</th><th>Kirim Kontribusi</th>'
+          + '<th>Total Kubik</th><th>Total Tonase</th>'
+          + '</tr></thead><tbody>';
+
+    rows.forEach(function (r) {
+        total += Number(r.kirim_kontribusi_raw) || 0;
+        h += '<tr>'
+           + '<td>' + esc(r.sales_document) + '</td>'
+           + '<td>' + esc(r.customer_reference) + '</td>'
+           + '<td>' + esc(r.contract_end_date) + '</td>'
+           + '<td>' + esc(r.no_delivery) + '</td>'
+           + '<td>' + esc(r.qty) + '</td>'
+           + '<td>' + esc(r.nilai_muatan) + '</td>'
+           + '<td>' + esc(r.kirim_kontribusi) + '</td>'
+           + '<td>' + esc(r.total_kubik) + '</td>'
+           + '<td>' + esc(r.total_tonase) + '</td>'
+           + '</tr>';
+    });
+
+    h += '<tr style="font-weight:700;background:#f1f5f9">'
+       + '<td colspan="6" style="text-align:right">Total Kirim Kontribusi</td>'
+       + '<td>Rp ' + Math.round(total).toLocaleString('id-ID') + '</td>'
+       + '<td colspan="2"></td></tr>';
+
+    return h + '</tbody></table>';
+}
+
+$('#tableLogistik tbody').on('click', '.btn-tujuan', function (e) {
+    e.preventDefault();
+    var $a = $(this), tr = $a.closest('tr'), row = table.row(tr);
+
+    if (row.child.isShown()) {
+        row.child.hide();
+        $a.html($a.html().replace('▼', '▶'));
+        return;
+    }
+
+    row.child('<div style="padding:10px">Memuat rincian...</div>').show();
+    $a.html($a.html().replace('▶', '▼'));
+
+    $.get("{{ route('manager.pasuruan.detail') }}", {
+        no_shipment: $a.data('shipment'),
+        tujuan: $a.data('tujuan')
+    }).done(function (res) {
+        row.child(buildDetail(res.data)).show();
+    }).fail(function () {
+        row.child('<div style="padding:10px;color:#dc2626">Gagal memuat rincian.</div>').show();
+    });
+});
         // Filter dropdown custom -> tinggal redraw, DataTables kirim ulang
         // request AJAX dengan parameter baru (lihat `data: function(d){...}`)
         $('#filterArea, #filterPlanner, #filterDate, #filterMonth, #filterYear')
