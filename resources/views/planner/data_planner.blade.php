@@ -800,6 +800,18 @@
             let raw = ambilAngkaPersen($(this).val());
             $(this).val(raw === 0 ? '' : String(raw).replace('.', ','));
         });
+        $('#btnExport').on('click', function (e) {
+    e.preventDefault();
+
+    const params = $.param({
+        planner_filter:      plannerFilter,
+        area_filter:         areaFilter,
+        dist_channel_filter: distChannelFilter,
+        create_tgl_filter:   createTglFilter
+    });
+
+    window.location.href = "{{ route('planner.export') }}?" + params;
+});
 
         $(document).on('input', '.row-kubikasi', function() {
             let val = $(this).val().replace(/[^0-9,]/g, '');

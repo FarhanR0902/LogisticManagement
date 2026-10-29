@@ -626,14 +626,17 @@ tbody tr:last-child td{ border-bottom:none; }
 
       <div class="field">
     <label for="f-basis">Berdasarkan tanggal</label>
-    <select id="f-basis" name="tgl_basis">
-        <option value="rencana_kirim" {{ request('tgl_basis', 'rencana_kirim') == 'rencana_kirim' ? 'selected' : '' }}>
-            Rencana kirim
-        </option>
-        <option value="tanggal_naik_logistik" {{ request('tgl_basis') == 'tanggal_naik_logistik' ? 'selected' : '' }}>
-            Tanggal naik logistik
-        </option>
-    </select>
+   <select id="f-basis" name="tgl_basis">
+    <option value="create_tgl" {{ request('tgl_basis', 'create_tgl') == 'create_tgl' ? 'selected' : '' }}>
+        Tanggal import (create_tgl)
+    </option>
+    <option value="rencana_kirim" {{ request('tgl_basis') == 'rencana_kirim' ? 'selected' : '' }}>
+        Rencana kirim
+    </option>
+    <option value="tanggal_naik_logistik" {{ request('tgl_basis') == 'tanggal_naik_logistik' ? 'selected' : '' }}>
+        Tanggal naik logistik
+    </option>
+</select>
 </div>
 
 <div class="field">

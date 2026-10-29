@@ -111,6 +111,15 @@ class MonitoringExport implements
             'ATD',                   // AH
             'ATA',                   // AI
             'Kelengkapan Data',      // AJ
+               'Sales Document',        // AK
+            'Customer Reference',    // AL
+            'No DO',                 // AM
+            'Contract End Date',     // AN
+            'Qty Total DO Car',      // AO
+            'Nilai Muatan',          // AP
+            'Kirim Kontribusi',      // AQ
+            'Total Kubik',           // AR
+            'Total Tonase',          // AS
         ];
     }
 
@@ -128,6 +137,15 @@ class MonitoringExport implements
             'AG' => self::FMT_DATE,
             'AH' => self::FMT_DATE,
             'AI' => self::FMT_DATE,
+                        'AK' => NumberFormat::FORMAT_TEXT,   // biar nggak jadi 4.2E+09
+            'AL' => NumberFormat::FORMAT_TEXT,
+            'AM' => NumberFormat::FORMAT_TEXT,
+            'AN' => self::FMT_DATE,
+            'AO' => '#,##0',
+            'AP' => '"Rp" #,##0',
+            'AQ' => '"Rp" #,##0',
+            'AR' => '#,##0.00',
+            'AS' => '#,##0.00',
         ];
     }
 
@@ -235,9 +253,21 @@ class MonitoringExport implements
             $this->xl($r->atd),                                          // AH
             $this->xl($r->ata),                                          // AI
             $kelengkapan,                                                // AJ
+              (string) ($r->sales_document ?? ''),                         // AK
+            (string) ($r->customer_reference ?? ''),                     // AL
+            (string) ($r->no_do ?? ''),                                  // AM
+            $this->xl($r->contract_end_date),                            // AN
+            $r->qty_total_do_car,                                        // AO
+            $r->nilai_muatan,                                            // AP
+            $r->kirim_kontribusi,                                        // AQ
+            $this->num($r->total_kubik),                                 // AR
+            $this->num($r->total_tonase),                                // AS
         ];
     }
-
+    private function num($v)
+    {
+        return is_numeric($v) ? (float) $v : '';
+    }
     /**
      * Ubah timestamp / string tanggal jadi serial tanggal Excel
      * (ditampilkan dd-mm-yyyy lewat columnFormats). Kosong -> ''.

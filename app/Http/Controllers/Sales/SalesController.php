@@ -100,13 +100,14 @@ class SalesController extends Controller
     /* =====================================================================
      |  FILTER
      * ===================================================================== */
-    private function dateFilterColumn($request): string
-    {
-        return $request->input('tgl_basis') === 'tanggal_naik_logistik'
-            ? 'tanggal_naik_logistik'
-            : 'rencana_kirim';
-    }
-
+   private function dateFilterColumn($request): string
+{
+    return match ($request->input('tgl_basis')) {
+        'rencana_kirim'         => 'rencana_kirim',
+        'tanggal_naik_logistik' => 'tanggal_naik_logistik',
+        default                 => 'create_tgl',      // DEFAULT BARU
+    };
+}
     public function applyFilter($query, $request)
     {
         $areas = array_values(array_filter((array) $request->input('area', []), 'strlen'));
@@ -1084,6 +1085,8 @@ class SalesController extends Controller
                 'no_shipment_pasuruan',
                 DB::raw("COALESCE(tujuan_pasuruan,'') as tujuan_key"),
                 DB::raw('COUNT(*) as jml_do'),
+                DB::raw('SUM(' . $n('total_kubik_pasuruan') . ') as sum_kubik'),
+DB::raw('SUM(' . $n('total_tonase_pasuruan') . ') as sum_tonase'),
                 DB::raw('SUM(' . $n('nilai_muatan_pasuruan') . ') as sum_nilai'),
                 DB::raw('SUM(' . $n('total_do_pasuruan') . ') as sum_qty'),
                 DB::raw('SUM(' . $n('kirim_kontribusi_pasuruan') . ') as sum_kontribusi'),
@@ -1132,13 +1135,17 @@ class SalesController extends Controller
 
         $recordsFiltered = $this->countGroupsPasuruan($query);
 
-        $rows = LogistikPengirimanPasuruan::query()
-            ->whereIn('id', $this->groupIdsQueryPasuruan($query))
-            ->orderByDesc('id')
-            ->skip($start)
-            ->take($length > 0 ? min($length, 200) : max(1, $recordsFiltered))
-            ->get();
-
+     $rows = LogistikPengirimanPasuruan::query()
+    ->whereIn('id', $this->groupIdsQueryPasuruan($query))
+    // baris tanpa no_shipment taruh paling bawah
+    ->orderByRaw("(no_shipment_pasuruan IS NULL OR TRIM(no_shipment_pasuruan) = '') ASC")
+    ->orderByRaw('CAST(no_shipment_pasuruan AS UNSIGNED) ASC')
+    ->orderBy('no_shipment_pasuruan')   // tie-breaker kalau ada huruf
+    ->orderBy('tujuan_pasuruan')        // tujuan dalam 1 shipment berdekatan
+    ->orderBy('id')                     // urutan stabil antar halaman
+    ->skip($start)
+    ->take($length > 0 ? min($length, 200) : max(1, $recordsFiltered))
+    ->get();
         $groupAgg = $this->groupAggPasuruan($rows);
 
         $data = [];
@@ -1150,6 +1157,9 @@ class SalesController extends Controller
                 $r->biaya_kirim_pasuruan  = (float) $g->sum_kontribusi > 0 ? $g->sum_kontribusi : $g->sum_biaya;
 
                 $q = (float) $g->sum_qty;
+                $r->total_kubik_pasuruan      = $g->sum_kubik;
+$r->total_tonase_pasuruan     = $g->sum_tonase;
+$r->kirim_kontribusi_pasuruan = $g->sum_kontribusi;
                 $r->total_do_pasuruan = floor($q) == $q ? (int) $q : $q;
 
                 // actual = total semua DO - total selisih (per shipment + tujuan)
@@ -1262,6 +1272,18 @@ class SalesController extends Controller
         $crHtml = $cr > 0
             ? '<span class="cr-value">' . number_format($cr, 4, ',', '.') . '%</span>'
             : '<span class="text-muted">-</span>';
+            $fmtDes    = fn ($v) => ($v === null || $v === '' || !is_numeric($v)) ? '-' : number_format((float) $v, 2, ',', '.');
+$fmtPersen = fn ($v) => ($v === null || $v === '') ? '-' : number_format((float) $v, 2, ',', '.') . '%';
+
+$badgeOptimal = function ($v, $labelTidak) {
+    $v = strtoupper(trim((string) $v));
+    if ($v === '') return '<span class="badge gray">-</span>';
+    return $v === 'OPTIMAL'
+        ? '<span class="badge green">✅ Optimal</span>'
+        : '<span class="badge orange">⚠️ ' . $labelTidak . '</span>';
+};
+$optimalHtml     = $badgeOptimal($r->pengiriman_optimal_pasuruan, 'Belum Optimal');
+$optimalCustHtml = $badgeOptimal($r->pengiriman_optimal_customer_pasuruan, 'Tidak Optimal');
 
         // ===== tujuan (klik untuk lihat rincian DO) =====
         $tujuanHtml = trim((string) $r->no_shipment_pasuruan) !== ''
@@ -1416,6 +1438,14 @@ class SalesController extends Controller
             $fmtRupiah($r->nilai_muatan_pasuruan),
             $fmtRupiah($r->biaya_kirim_pasuruan),
             $crHtml,
+            $fmtDes($r->kubikasi_pasuruan),
+$fmtDes($r->tonase_pasuruan),
+$fmtDes($r->total_kubik_pasuruan),
+$fmtDes($r->total_tonase_pasuruan),
+$fmtPersen($r->hasil_kubik_pasuruan),
+$fmtPersen($r->hasil_tonase_pasuruan),
+$optimalHtml,
+$r->reason_pengiriman_optimal_pasuruan ?: '-',
             $kategoriHtml,
             $r->ekspedisi_pasuruan,
             $fmtDate($r->tanggal_dpt_unit_pasuruan),
@@ -1453,6 +1483,9 @@ class SalesController extends Controller
             $r->route_pasuruan ? explode('-', trim($r->route_pasuruan))[0] : '-',
             $r->pulau_pasuruan,
             $r->via_kirim_pasuruan,
+            $r->kirim_kontribusi_pasuruan !== null ? $fmtRupiah($r->kirim_kontribusi_pasuruan) : '-',
+$optimalCustHtml,
+$r->reason_pengiriman_optimal_customer_pasuruan ?: '-',
         ];
     }
 

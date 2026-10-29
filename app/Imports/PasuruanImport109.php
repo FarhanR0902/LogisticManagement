@@ -131,7 +131,16 @@ private array $kkAlloc       = [];   // no_shipment => total yang sudah dialokas
 
             try {
                 $attributes = $this->buildAttributes($row, $noShipment, $tujuan);
+  $salesDoc = $this->cleanText($row['sales_document_pasuruan'] ?? null);
 
+    $model = LogistikPengirimanPasuruan::updateOrCreate(
+        [
+            'no_shipment_pasuruan'    => $noShipment,
+            'tujuan_pasuruan'         => $tujuan,
+            'sales_document_pasuruan' => $salesDoc,   // BARU
+        ],
+        $attributes
+    );
                 $model = LogistikPengirimanPasuruan::updateOrCreate(
                     [
                         'no_shipment_pasuruan' => $noShipment,
@@ -480,7 +489,16 @@ if ($kirimKontribusi !== null) {
             'selisih_qty_pasuruan'          => $selisihQty,
 
             // ================= OTHER =================
-            'act_pgi_date_pasuruan'       => $actPgiDate,
+          // ================= OTHER =================
+'act_pgi_date_pasuruan'       => $actPgiDate,
+...
+// BARU: kolom per-DO
+'sales_document_pasuruan'     => $this->cleanText($row['sales_document_pasuruan'] ?? null),
+'customer_reference_pasuruan' => $this->cleanText($row['customer_reference_pasuruan'] ?? null),
+'contract_end_date_pasuruan'  => $this->convertDate($row['contract_end_date_pasuruan'] ?? null),
+'no_delivery_pasuruan'        => $this->cleanText($row['no_delivery_pasuruan'] ?? null),
+'no_do_pasuruan'              => $this->cleanText($row['no_do_pasuruan'] ?? null),
+'kirim_kontribusi_pasuruan'   => $kirimKontribusi,
             'act_urutan_bongkar_pasuruan' => $actUrutanBongkar,
             'shipping_point_pasuruan'     => $shippingPoint,
             'qty_monitoring_pasuruan'     => $qtyMonitoring,

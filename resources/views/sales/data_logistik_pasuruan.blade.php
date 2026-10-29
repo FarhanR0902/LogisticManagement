@@ -5,6 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>DATA LOGISTIK PASURUAN</title>
+    <meta name="csrf-token" content="{{ csrf_token() }}">
 
     <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
     <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
@@ -133,6 +134,16 @@
             box-shadow: 0 6px 15px rgba(25, 135, 84, .35);
         }
 
+        /* tujuan yang bisa diklik untuk membuka rincian DO */
+        .btn-tujuan { color: #2563eb; font-weight: 600; text-decoration: none; }
+        .btn-tujuan:hover { text-decoration: underline; }
+
+        /* tabel rincian DO di dalam baris yang dibuka */
+        .detail-do { margin: 8px 0 8px 40px; width: auto; background: #fff; }
+        .detail-do th { font-size: 13px; padding: 10px; }
+        .detail-do td { font-size: 13px; padding: 8px 10px; }
+        .detail-do tr.total-row { font-weight: 700; background: #f1f5f9; }
+
         /* ===== BADGE ===== */
         .badge {
             display: inline-flex;
@@ -236,6 +247,16 @@
             border-radius: 8px !important;
         }
 
+        #tableLogistik_processing {
+            background: rgba(255, 255, 255, .85) !important;
+            color: #2563eb !important;
+            font-weight: 700 !important;
+            font-size: 16px !important;
+            border-radius: 12px;
+            padding: 14px 20px !important;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, .12);
+        }
+
         @media(max-width:768px) {
             .container { margin-left: 0; padding: 15px; }
             h2 { font-size: 24px; }
@@ -319,6 +340,14 @@
                         <th>Nilai Muatan</th>
                         <th>Biaya Kirim</th>
                         <th>CR</th>
+                        <th>Kubikasi</th>
+                        <th>Tonase</th>
+                        <th>Total Kubik</th>
+                        <th>Total Tonase</th>
+                        <th>Hasil Kubik</th>
+                        <th>Hasil Tonase</th>
+                        <th>Pengiriman Optimal</th>
+                        <th>Reason Pengiriman Optimal</th>
                         <th>Kategori Ekspedisi</th>
                         <th>Ekspedisi</th>
                         <th>Tanggal Dapat Unit</th>
@@ -356,6 +385,9 @@
                         <th>Shipping Point</th>
                         <th>Pulau</th>
                         <th>Via Kirim</th>
+                        <th>Kirim Kontribusi</th>
+                        <th>Pengiriman Optimal Customer</th>
+                        <th>Reason Optimal Customer</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -369,14 +401,21 @@
     <script>
     $(document).ready(function () {
 
-        // Sorting per kolom dimatikan: backend hanya support urutan tetap
-        // (orderByDesc('id')). Kalau butuh sorting per kolom, tambah handling
-        // order[0][column] / order[0][dir] di dataLogistikPasuruanAjax().
+        $.ajaxSetup({
+            headers: { 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') }
+        });
+
+        // Jumlah kolom HARUS sama dengan jumlah <th> di atas (63) dan dengan
+        // jumlah item array di SalesController::renderSalesPasuruanRow().
+        const TOTAL_COLUMNS = 63;
+
+        // Sorting per kolom dimatikan: backend memakai urutan tetap (orderByDesc('id')).
         let table = $('#tableLogistik').DataTable({
             processing: true,
             serverSide: true,
             scrollX: true,
             pageLength: 10,
+            lengthMenu: [10, 25, 50, 100],
             autoWidth: false,
             ordering: false,
             ajax: {
@@ -391,19 +430,18 @@
                     d.year    = $('#filterYear').val();
                 }
             },
-            columns: [
-                { data: 0 },  { data: 1 },  { data: 2 },  { data: 3 },  { data: 4 },
-                { data: 5 },  { data: 6 },  { data: 7 },  { data: 8 },  { data: 9 },
-                { data: 10 }, { data: 11 }, { data: 12 }, { data: 13 }, { data: 14 },
-                { data: 15 }, { data: 16 }, { data: 17 }, { data: 18 }, { data: 19 },
-                { data: 20 }, { data: 21 }, { data: 22 }, { data: 23 }, { data: 24 },
-                { data: 25 }, { data: 26 }, { data: 27 }, { data: 28 }, { data: 29 },
-                { data: 30 }, { data: 31 }, { data: 32 }, { data: 33 }, { data: 34 },
-                { data: 35 }, { data: 36 }, { data: 37 }, { data: 38 }, { data: 39 },
-                { data: 40 }, { data: 41 }, { data: 42 }, { data: 43 }, { data: 44 },
-                { data: 45 }, { data: 46 }, { data: 47 }, { data: 48 }, { data: 49 },
-                { data: 50 }, { data: 51 }
-            ]
+            columns: Array.from({ length: TOTAL_COLUMNS }, function (_, i) { return { data: i }; }),
+            language: {
+                processing: "Memuat data...",
+                emptyTable: "Tidak ada data",
+                zeroRecords: "Data tidak ditemukan",
+                search: "Cari:",
+                lengthMenu: "Tampilkan _MENU_ baris",
+                info: "Menampilkan _START_ - _END_ dari _TOTAL_ baris",
+                infoEmpty: "Menampilkan 0 baris",
+                infoFiltered: "(disaring dari _MAX_ total baris)",
+                paginate: { first: "Awal", last: "Akhir", next: "Berikutnya", previous: "Sebelumnya" }
+            }
         });
 
         $('#filterPlanner, #filterArea, #filterDate, #filterMonth, #filterYear').on('change', function () {
@@ -413,6 +451,71 @@
         $('#btnResetFilter').on('click', function () {
             $('#filterForm')[0].reset();
             table.ajax.reload();
+        });
+
+        // ==========================================
+        // RINCIAN DO (klik tujuan)
+        // ==========================================
+        function esc(s) {
+            return String(s ?? '-').replace(/[&<>"']/g, function (c) {
+                return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+            });
+        }
+
+        function buildDetail(rows) {
+            if (!rows.length) return '<div style="padding:10px">Tidak ada rincian.</div>';
+
+            var total = 0;
+            var h = '<table class="detail-do"><thead><tr>'
+                  + '<th>Sales Document</th><th>Customer Reference</th><th>Contract End Date</th>'
+                  + '<th>No Delivery</th><th>Qty</th><th>Nilai Muatan</th><th>Kirim Kontribusi</th>'
+                  + '<th>Total Kubik</th><th>Total Tonase</th>'
+                  + '</tr></thead><tbody>';
+
+            rows.forEach(function (r) {
+                total += Number(r.kirim_kontribusi_raw) || 0;
+                h += '<tr>'
+                   + '<td>' + esc(r.sales_document) + '</td>'
+                   + '<td>' + esc(r.customer_reference) + '</td>'
+                   + '<td>' + esc(r.contract_end_date) + '</td>'
+                   + '<td>' + esc(r.no_delivery) + '</td>'
+                   + '<td>' + esc(r.qty) + '</td>'
+                   + '<td>' + esc(r.nilai_muatan) + '</td>'
+                   + '<td>' + esc(r.kirim_kontribusi) + '</td>'
+                   + '<td>' + esc(r.total_kubik) + '</td>'
+                   + '<td>' + esc(r.total_tonase) + '</td>'
+                   + '</tr>';
+            });
+
+            h += '<tr class="total-row">'
+               + '<td colspan="6" style="text-align:right">Total Kirim Kontribusi</td>'
+               + '<td>Rp ' + Math.round(total).toLocaleString('id-ID') + '</td>'
+               + '<td colspan="2"></td></tr>';
+
+            return h + '</tbody></table>';
+        }
+
+        $('#tableLogistik tbody').on('click', '.btn-tujuan', function (e) {
+            e.preventDefault();
+            var $a = $(this), tr = $a.closest('tr'), row = table.row(tr);
+
+            if (row.child.isShown()) {
+                row.child.hide();
+                $a.html($a.html().replace('▼', '▶'));
+                return;
+            }
+
+            row.child('<div style="padding:10px">Memuat rincian...</div>').show();
+            $a.html($a.html().replace('▶', '▼'));
+
+            $.get("{{ route('sales.data.pasuruan.detail') }}", {
+                no_shipment: $a.data('shipment'),
+                tujuan: $a.data('tujuan')
+            }).done(function (res) {
+                row.child(buildDetail(res.data)).show();
+            }).fail(function () {
+                row.child('<div style="padding:10px;color:#dc2626">Gagal memuat rincian.</div>').show();
+            });
         });
 
         // ==========================================

@@ -190,15 +190,14 @@ class PasuruanController extends Controller
         }
 
         // ---- Overstay (bandingkan per tanggal kalender) ----
-        if ($tiba && $bongkar) {
-            $tibaDate    = strtotime(date('Y-m-d', $tiba));
-            $bongkarDate = strtotime(date('Y-m-d', $bongkar));
+      // ---- Overstay: baru Delay kalau tiba -> bongkar lebih dari 24 jam ----
+if ($tiba && $bongkar) {
+    $jam      = max(0, ($bongkar - $tiba) / 3600);
+    $overstay = $jam <= 24 ? 0 : (int) ceil(($jam - 24) / 24);
 
-            $overstay = ($bongkarDate - $tibaDate) / 86400;
-
-            $data['overstay_days_pasuruan'] = max(0, $overstay);
-            $data['sla_bongkar_pasuruan']   = $overstay <= 0 ? 'On Time' : 'Delay';
-        }
+    $data['overstay_days_pasuruan'] = $overstay;
+    $data['sla_bongkar_pasuruan']   = $overstay <= 0 ? 'On Time' : 'Delay';
+}
 
         // ---- Alert Monitoring ----
         if ($bongkar) {
@@ -248,7 +247,17 @@ class PasuruanController extends Controller
             INTERVAL CAST(COALESCE(NULLIF(TRIM(transport_lead_time_pasuruan),''),0) AS UNSIGNED) DAY
         ))";
     }
+/** Selisih jam tiba -> bongkar; null kalau salah satu kosong. */
+private function jamTibaKeBongkarPasuruan($tiba, $bongkar): ?float
+{
+    if (empty($tiba) || empty($bongkar)) return null;
 
+    $t = strtotime($tiba);
+    $b = strtotime($bongkar);
+    if (!$t || !$b) return null;
+
+    return max(0, ($b - $t) / 3600);
+}
     public function inTransit(Request $request)
     {
         $today   = date('Y-m-d');
@@ -361,14 +370,14 @@ class PasuruanController extends Controller
         return view('monitoring.in_transit', compact('list', 'summary', 'areaList', 'picList', 'formRoute'));
     }
 
-    public function exportFull(Request $request)
+ public function exportFull(Request $request)
 {
     set_time_limit(0);
     ini_set('memory_limit', '1G');
 
-    // JANGAN di-get(), kirim builder-nya saja
     $query = DB::table('logistik_pengiriman_pasuruan');
-    $this->applyFilter($query, $request);   // planner, area, pulau, dist_channel, tanggal, bulan, tahun, search
+    $this->applyFilter($query, $request);
+    $this->limitToUserChannel($query);
 
     return Excel::download(
         new PasuruanExportFull($query),
@@ -376,36 +385,58 @@ class PasuruanController extends Controller
     );
 }
 
+/** dist_channel dari session login; selalu dipaksa, tidak bisa dilewati lewat request */
+private function limitToUserChannel($query)
+{
+    $channel = session('dist_channel');
+
+    if ($channel) {
+        $query->whereRaw('LOWER(TRIM(dist_channel_pasuruan)) = LOWER(TRIM(?))', [$channel]);
+    }
+
+    return $query;
+}
     // =====================================================
     // IMPORT
     // =====================================================
-    public function updateQtyPgi(Request $request)
-    {
-        $request->validate([
-            'file' => 'required|mimes:xlsx,xls,csv',
-        ]);
+   public function updateQtyPgi(Request $request)
+{
+    set_time_limit(0);
+    ini_set('memory_limit', '2G');
+    DB::disableQueryLog();
 
-        $import = new UpdateQtyPgiPasuruanImport();
-        Excel::import($import, $request->file('file'));
+    $request->validate([
+        'file' => 'required|mimes:xlsx,xls,csv',
+    ]);
 
-        Cache::forget('pasuruan_shipment_agg');
+    $import = new UpdateQtyPgiPasuruanImport();
+    Excel::import($import, $request->file('file'));
 
-        $message = "Update selesai. "
-            . "Total DO: {$import->getQtyUpdated()} baris diupdate. "
-            . "Act PGI Date: {$import->getPgiUpdated()} baris diupdate. "
-            . "Kubikasi/Tonase: {$import->getKubikTonaseUpdated()} baris diupdate.";
+    Cache::forget('pasuruan_shipment_agg');
 
-        $notFound = array_merge(
-            array_map(fn($x) => "Total DO tidak ketemu: {$x}", $import->getQtyNotFound()),
-            array_map(fn($x) => "Total DO ambigu (lebih dari 1 baris): {$x}", $import->getQtyAmbiguous()),
-            array_map(fn($x) => "PGI tidak ketemu: {$x}", $import->getPgiNotFound()),
-            array_map(fn($x) => "Kubik/Tonase tidak ketemu: {$x}", $import->getKubikTonaseNotFound())
-        );
+    $message = "Update selesai. "
+        . "Baru ditambahkan: {$import->getGeneralCreated()} baris. "
+        . "Diupdate: {$import->getGeneralUpdated()} baris "
+        . "(tidak berubah: {$import->getGeneralUnchanged()}, dilewati: {$import->getGeneralSkipped()}). "
+        . "Total DO: {$import->getQtyUpdated()} baris diupdate. "
+        . "Act PGI Date: {$import->getPgiUpdated()} baris diupdate. "
+        . "Kubikasi/Tonase: {$import->getKubikTonaseUpdated()} baris diupdate. "
+        . "Biaya kirim dihitung ulang: {$import->getBiayaKirimUpdated()} shipment.";
 
-        return redirect()->back()
-            ->with('success', $message)
-            ->with('not_found_list', $notFound);
-    }
+    $notFound = array_merge(
+        array_map(fn($x) => "Baru ditambahkan: {$x}", array_slice($import->getInsertedList(), 0, 50)),
+        array_map(fn($x) => "Dilewati / ambigu / error: {$x}", $import->getGeneralAmbiguous()),
+        array_map(fn($x) => "PGI tidak ketemu: {$x}", $import->getPgiNotFound()),
+        array_map(fn($x) => "Biaya kirim dilewati: {$x}", $import->getBiayaSkipped()),
+        array_map(fn($x) => "Tarif tidak ketemu: {$x}", $import->getTarifNotFound()),
+        array_map(fn($x) => "Tujuan tidak ada di master: {$x}", $import->getTujuanNotInMaster()),
+        array_map(fn($x) => "Kolom tidak ada di tabel (tidak ke-insert): {$x}", $import->getDroppedCols())
+    );
+
+    return redirect()->back()
+        ->with('success', $message)
+        ->with('not_found_list', $notFound);
+}
 
     public function import(Request $request)
     {
@@ -1008,19 +1039,20 @@ private function kpiList(Request $request, string $kpi, string $view)
         return back()->with('success', 'Transport Laut berhasil diupdate.');
     }
 
-    public function export(Request $request)
-    {
-        return Excel::download(
-            new PasuruanExport(null, [
-                'planner' => $request->planner,
-                'area'    => $request->area,
-                'date'    => $request->date,
-                'month'   => $request->month,
-                'year'    => $request->year,
-            ]),
-            'Data_Logistik_Pasuruan.xlsx'
-        );
-    }
+ public function export(Request $request)
+{
+    set_time_limit(0);
+    ini_set('memory_limit', '1G');
+
+    $q = DB::table('logistik_pengiriman_pasuruan');
+    $this->applyFilter($q, $request);        // planner, area, pulau, tanggal, bulan, tahun
+    $this->limitToUserChannel($q);           // batasi sesuai login
+
+    return Excel::download(
+        new PasuruanExportFull($q),
+        'Data_Logistik_Pasuruan_' . date('Ymd_His') . '.xlsx'
+    );
+}
 
     // =====================================================
     // DASHBOARD
@@ -1707,53 +1739,46 @@ private function formatDesimalPasuruan($value): string
         return '<span class="badge badge-warning">Lebih ' . number_format(abs($selisih), 0, ',', '.') . '</span>';
     }
 
-    private function badgeStatusBongkarPasuruan($r): string
-    {
-        if (!empty($r->tanggal_bongkar_pasuruan)) {
-            return '<span class="badge status-bongkar green">Telah Bongkar</span>';
-        }
 
-        if (!empty($r->tanggal_tiba_pasuruan)) {
-            $tiba    = strtotime(date('Y-m-d', strtotime($r->tanggal_tiba_pasuruan)));
-            $today   = strtotime(date('Y-m-d'));
-            $selisih = max(0, floor(($today - $tiba) / 86400));
-            $class   = $selisih == 0 ? 'orange' : 'red';
+  private function badgeOverstayPasuruan($r): string
+{
+    $jam = $this->jamTibaKeBongkarPasuruan($r->tanggal_tiba_pasuruan, $r->tanggal_bongkar_pasuruan);
+    if ($jam === null) return '<span class="badge gray">-</span>';
 
-            return '<span class="badge status-bongkar ' . $class . '">H+' . $selisih . '</span>';
-        }
+    $overstay = $jam <= 24 ? 0 : (int) ceil(($jam - 24) / 24);
+    $text     = $overstay == 0 ? '0 Hari' : 'H+' . $overstay . ' Hari';
 
-        return '<span class="badge status-bongkar gray">-</span>';
+    return '<span class="badge ' . ($overstay == 0 ? 'green' : 'red') . '">' . $text . '</span>';
+}
+
+private function badgeSlaBongkarPasuruan($r): string
+{
+    $jam = $this->jamTibaKeBongkarPasuruan($r->tanggal_tiba_pasuruan, $r->tanggal_bongkar_pasuruan);
+    if ($jam === null) return '<span class="badge gray">-</span>';
+
+    return $jam <= 24
+        ? '<span class="badge green">On Time</span>'
+        : '<span class="badge red">Delay</span>';
+}
+
+private function badgeStatusBongkarPasuruan($r): string
+{
+    if (!empty($r->tanggal_bongkar_pasuruan)) {
+        return '<span class="badge status-bongkar green">Telah Bongkar</span>';
     }
 
-    private function badgeOverstayPasuruan($r): string
-    {
-        if (empty($r->tanggal_tiba_pasuruan) || empty($r->tanggal_bongkar_pasuruan)) {
-            return '<span class="badge gray">-</span>';
-        }
+    if (!empty($r->tanggal_tiba_pasuruan)) {
+        // sudah tiba tapi belum bongkar: masih wajar sampai 24 jam
+        $jam   = max(0, (time() - strtotime($r->tanggal_tiba_pasuruan)) / 3600);
+        $hari  = $jam <= 24 ? 0 : (int) ceil(($jam - 24) / 24);
+        $class = $hari == 0 ? 'orange' : 'red';
 
-        $tiba     = strtotime(date('Y-m-d', strtotime($r->tanggal_tiba_pasuruan)));
-        $bongkar  = strtotime(date('Y-m-d', strtotime($r->tanggal_bongkar_pasuruan)));
-        $overstay = max(0, floor(($bongkar - $tiba) / 86400));
-        $text     = $overstay == 0 ? '0 Hari' : 'H+' . $overstay . ' Hari';
-        $class    = $overstay == 0 ? 'green' : 'red';
-
-        return '<span class="badge ' . $class . '">' . $text . '</span>';
+        return '<span class="badge status-bongkar ' . $class . '">H+' . $hari . '</span>';
     }
 
-    private function badgeSlaBongkarPasuruan($r): string
-    {
-        if (empty($r->tanggal_tiba_pasuruan) || empty($r->tanggal_bongkar_pasuruan)) {
-            return '<span class="badge gray">-</span>';
-        }
+    return '<span class="badge status-bongkar gray">-</span>';
+}
 
-        $tiba    = strtotime(date('Y-m-d', strtotime($r->tanggal_tiba_pasuruan)));
-        $bongkar = strtotime(date('Y-m-d', strtotime($r->tanggal_bongkar_pasuruan)));
-        $selisih = floor(($bongkar - $tiba) / 86400);
-
-        return $selisih <= 0
-            ? '<span class="badge green">On Time</span>'
-            : '<span class="badge red">Delay</span>';
-    }
 
     private function badgeSlaGeneric($value): string
     {
@@ -2441,16 +2466,30 @@ foreach ($rows as $r) {
             return '<input type="text" ' . $formAttr . ' name="' . $name . '" class="' . $extraClass . '" value="' . e($value) . '" ' . $ro . '>';
         };
 
-        $buildSelect = function ($name, $selected, $options, $extraClass = '') use ($formAttr) {
-            $html  = '<select ' . $formAttr . ' name="' . $name . '" class="' . $extraClass . '">';
-            $html .= '<option value="">-- Pilih --</option>';
-            foreach ($options as $opt) {
-                $sel   = ((string) $selected === (string) $opt) ? 'selected' : '';
-                $html .= '<option value="' . e($opt) . '" ' . $sel . '>' . e($opt) . '</option>';
-            }
-            $html .= '</select>';
-            return $html;
-        };
+     $buildSelect = function ($name, $selected, $options, $extraClass = '') use ($formAttr) {
+    $selectedStr = trim((string) $selected);
+    $found = false;
+
+    $html  = '<select ' . $formAttr . ' name="' . $name . '" class="' . $extraClass . '">';
+    $html .= '<option value="">-- Pilih --</option>';
+
+    foreach ($options as $opt) {
+        // cocokkan tanpa peduli spasi di ujung dan huruf besar/kecil
+        $isSel = $selectedStr !== ''
+            && mb_strtolower(trim((string) $opt)) === mb_strtolower($selectedStr);
+
+        if ($isSel) $found = true;
+
+        $html .= '<option value="' . e($opt) . '" ' . ($isSel ? 'selected' : '') . '>' . e($opt) . '</option>';
+    }
+
+    // nilai di DB belum ada di daftar master: tetap tampil dan terpilih, supaya tidak ikut terhapus saat disimpan
+    if ($selectedStr !== '' && !$found) {
+        $html .= '<option value="' . e($selectedStr) . '" selected>' . e($selectedStr) . '</option>';
+    }
+
+    return $html . '</select>';
+};
 
         $formattedRupiah = function ($angka) {
             if (!$angka) return '';
@@ -2482,15 +2521,7 @@ foreach ($rows as $r) {
             $slaMobilHtml = '<span class="badge-status ' . (str_contains($text, 'H+') ? 'bg-danger text-white' : 'bg-success text-white') . '">' . $text . '</span>';
         }
 
-        if (!empty($r->tanggal_bongkar_pasuruan)) {
-            $statusBongkarHtml = '<span class="badge green">Telah Bongkar</span>';
-        } elseif (!empty($r->tanggal_tiba_pasuruan)) {
-            $selisih = max(0, floor((strtotime(date('Y-m-d')) - strtotime(date('Y-m-d', strtotime($r->tanggal_tiba_pasuruan)))) / 86400));
-            $cls     = $selisih == 0 ? 'orange' : 'red';
-            $statusBongkarHtml = '<span class="badge ' . $cls . '">H+' . $selisih . '</span>';
-        } else {
-            $statusBongkarHtml = '<span class="badge gray">-</span>';
-        }
+       $statusBongkarHtml = $this->badgeStatusBongkarPasuruan($r);
 
         $estimasiAdmin = null;
         if (!empty($r->rencana_kirim_pasuruan) && !empty($r->transport_lead_time_pasuruan)) {

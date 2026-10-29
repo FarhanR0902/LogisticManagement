@@ -63,6 +63,12 @@ class LogistikPengirimanPasuruan extends Model
     'tonase_pasuruan',
     'total_kubik_pasuruan',
     'total_tonase_pasuruan',
+     'sales_document_pasuruan',
+    'customer_reference_pasuruan',
+    'contract_end_date_pasuruan',
+    'no_do_pasuruan',
+    'no_delivery_pasuruan',
+    'kirim_kontribusi_pasuruan',
     'hasil_kubik_pasuruan',
     'tonase_pasuruan',              // ⬅️ TAMBAHAN (sebelumnya belum ada)
     'total_kubik_pasuruan',         // ⬅️ TAMBAHAN

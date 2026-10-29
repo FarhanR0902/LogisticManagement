@@ -46,9 +46,11 @@ private function applyDashboardFilter($query, array $f)
     }
 
     // dasar tanggal: rencana_kirim (default) atau tanggal_naik_logistik
-    $col = (($f['tgl_basis'] ?? '') === 'tanggal_naik_logistik')
-        ? 'tanggal_naik_logistik'
-        : 'rencana_kirim';
+ $col = match ($f['tgl_basis'] ?? '') {
+    'rencana_kirim'         => 'rencana_kirim',
+    'tanggal_naik_logistik' => 'tanggal_naik_logistik',
+    default                 => 'create_tgl',
+};
 
     $from = $f['date_from'] ?? null;
     $to   = $f['date_to'] ?? null;
@@ -301,9 +303,11 @@ private function applyDashboardFilter($query, array $f)
  */
 private function applyTanggalFilter($query, Request $request)
 {
-    $col = $request->input('tgl_basis') === 'rencana_kirim'
-        ? 'rencana_kirim'
-        : 'tanggal_naik_logistik';
+   $col = match ($request->input('tgl_basis')) {
+    'rencana_kirim'         => 'rencana_kirim',
+    'tanggal_naik_logistik' => 'tanggal_naik_logistik',
+    default                 => 'create_tgl',
+};
 
     $from = $request->input('date_from');
     $to   = $request->input('date_to');

@@ -15,13 +15,20 @@ use PhpOffice\PhpSpreadsheet\Style\NumberFormat;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
 /**
- * Export Data Logistik.
- * - Kolom & urutan sama dengan tabel di halaman data_logistik
- * - Ditambah kolom detail DO (Sales Document, Customer Reference, dst.)
- * - 1 baris Excel = 1 DO (tidak digabung per shipment + tujuan)
+ * Export Data Logistik (FULL).
+ *
+ * 1 baris Excel = 1 DO (tidak digabung per shipment + tujuan).
+ *
+ * Isi kolom, berurutan:
+ *   1) Kolom yang sama dengan tabel di halaman data_logistik (versi hasil hitungan)
+ *   2) Rincian DO: Sales Document, Customer Reference, Contract End Date, No DO, Kirim Kontribusi
+ *   3) SEMUA kolom lain di tabel logistik_pengiriman yang belum tampil di atas
+ *      (hasil input otomatis/import, mis. code_planner, cust_*, ship_no, service_agent, created_at, dst).
+ *      Dibaca otomatis dari struktur tabel, jadi kolom baru ikut ter-export tanpa ubah kode.
+ *      Heading kolom tambahan memakai nama kolom DB apa adanya.
  *
  * Pemakaian di controller:
- *   return Excel::download(new LogistikExport($query), 'data_logistik.xlsx');
+ *   return Excel::download(new LogistikExportFull($query), 'data_logistik_full.xlsx');
  *   ($query = Eloquent/Query Builder yang sudah difilter, JANGAN di-get())
  */
 class LogistikExport implements
@@ -30,6 +37,7 @@ class LogistikExport implements
     protected $builder;
     private ?array $cols = null;
     private ?array $agg = null;
+    private ?array $dbCols = null;
 
     public function __construct($builder)
     {
@@ -49,8 +57,60 @@ class LogistikExport implements
     }
 
     // ============================================================
+    // KOLOM DB YANG SUDAH TAMPIL DI DAFTAR KOLOM UTAMA (tidak diulang di bagian "sisa")
+    // ============================================================
+    private function covered(): array
+    {
+        $list = [
+            'id',
+            'tanggal_naik_logistik', 'rencana_kirim', 'transport_lead_time', 'planner', 'no_shipment',
+            'dist_channel', 'tujuan', 'area', 'ketersediaan_unit', 'mobil', 'total_do_qty_car',
+            'nilai_muatan', 'biaya_kirim', 'cr', 'kubikasi', 'tonase', 'total_kubik', 'total_tonase',
+            'hasil_kubik', 'hasil_tonase', 'pengiriman_optimal', 'reason_optimal',
+            'pengiriman_optimal_customer', 'reason_optimal_customer',
+            'kategori_ekspedisi', 'ekpedisi', 'tanggal_dpt_unit', 'lama_waktu_pencarian', 'sla_dapat_mobil',
+            'pic_monitoring', 'nama_kapal', 'etd', 'eta', 'status_kendaraan', 'estimasi_tiba',
+            'act_urutan_bongkar', 'qty_monitoring', 'biaya_kuli', 'total_biaya_kuli', 'selisih_qty',
+            'remarks_qty', 'act_pgi_date', 'atd', 'ata', 'tanggal_tiba', 'waktu_tiba', 'sla_tiba',
+            'tanggal_bongkar', 'waktu_bongkar', 'overstay_days', 'sla_bongkar', 'reason_tiba',
+            'reason_bongkar', 'status_akhir', 'lama_perjalanan', 'remarks', 'nama_driver', 'no_pol',
+            'route', 'pulau', 'via_kirim', 'create_on', 'no_delivery',
+            'sales_document', 'customer_reference', 'contract_end_date', 'no_do', 'kirim_kontribusi',
+        ];
+
+        // 3 gudang: KACS (tanpa akhiran), Sentul (_2), CCIE (_3)
+        foreach (['', '_2', '_3'] as $s) {
+            foreach ([
+                'planning_loading', 'tanggal_tiba_gudang', 'waktu_tiba_gudang',
+                'tanggal_keluar_gudang', 'waktu_keluar_gudang', 'reason_gudang',
+                'lama_digudang', 'sla_loading',
+            ] as $base) {
+                // sla_loading memakai pola sla_loading, sla_loading_2, sla_loading_3
+                $list[] = $base . $s;
+            }
+        }
+
+        return $list;
+    }
+
+    /** [nama_kolom => tipe_db] dari struktur tabel */
+    private function dbColumns(): array
+    {
+        if ($this->dbCols !== null) {
+            return $this->dbCols;
+        }
+
+        $out = [];
+        foreach (DB::select('SHOW COLUMNS FROM `logistik_pengiriman`') as $c) {
+            $out[$c->Field] = strtolower($c->Type);
+        }
+
+        return $this->dbCols = $out;
+    }
+
+    // ============================================================
     // DEFINISI KOLOM [heading, tipe, closure]
-    // tipe: text | date | time | money | pct | pct4 | num
+    // tipe: text | xtext | date | datetime | time | money | pct | pct4 | num | raw
     // ============================================================
     private function columns(): array
     {
@@ -77,8 +137,8 @@ class LogistikExport implements
         $c[] = ['CR (%)',                'pct4',  fn($r) => $this->computeCR($r)];
         $c[] = ['Kubikasi',              'num',   fn($r) => $this->num($r->kubikasi)];
         $c[] = ['Tonase',                'num',   fn($r) => $this->num($r->tonase)];
-        $c[] = ['Total Kubik',           'num',   fn($r) => $this->num($r->total_kubik)];
-        $c[] = ['Total Tonase',          'num',   fn($r) => $this->num($r->total_tonase)];
+        $c[] = ['Total Kubik',           'raw',   fn($r) => $this->num($r->total_kubik)];
+        $c[] = ['Total Tonase',          'raw',   fn($r) => $this->num($r->total_tonase)];
         $c[] = ['Hasil Kubik (%)',       'pct',   fn($r) => $this->hasil($r->total_kubik, $r->kubikasi)];
         $c[] = ['Hasil Tonase (%)',      'pct',   fn($r) => $this->hasil($r->total_tonase, $r->tonase)];
         $c[] = ['Pengiriman Optimal Shipment',       'text', fn($r) => $this->optimalShipment($r)];
@@ -145,12 +205,31 @@ class LogistikExport implements
         $c[] = ['Create On',               'date',  fn($r) => $this->xl($r->create_on)];
         $c[] = ['No Delivery',             'text',  fn($r) => $r->no_delivery ?: '-'];
 
-        // ---- detail per DO (di tabel hanya muncul saat baris di-expand) ----
+        // ---- rincian per DO (PO / sales document / DO) ----
         $c[] = ['Sales Document',          'text',  fn($r) => $r->sales_document ?: '-'];
         $c[] = ['Customer Reference',      'text',  fn($r) => $r->customer_reference ?: '-'];
         $c[] = ['Contract End Date',       'date',  fn($r) => $this->xl($r->contract_end_date)];
         $c[] = ['No DO',                   'text',  fn($r) => $r->no_do ?: '-'];
         $c[] = ['Kirim Kontribusi',        'money', fn($r) => $this->num($r->kirim_kontribusi)];
+
+        // ---- SEMUA kolom DB lain yang belum tampil di atas (hasil input otomatis/import) ----
+        $covered = $this->covered();
+
+        foreach ($this->dbColumns() as $name => $type) {
+            if (in_array($name, $covered, true)) {
+                continue;
+            }
+
+            if (preg_match('/^(datetime|timestamp)/', $type)) {
+                $c[] = [$name, 'datetime', fn($r) => $this->xlDateTime($r->{$name} ?? null)];
+            } elseif (str_starts_with($type, 'date')) {
+                $c[] = [$name, 'date', fn($r) => $this->xl($r->{$name} ?? null)];
+            } elseif (preg_match('/^(tinyint|smallint|mediumint|int|bigint|decimal|numeric|float|double)/', $type)) {
+                $c[] = [$name, 'raw', fn($r) => $this->num($r->{$name} ?? null)];
+            } else {
+                $c[] = [$name, 'xtext', fn($r) => $r->{$name} ?? null];
+            }
+        }
 
         return $this->cols = $c;
     }
@@ -176,11 +255,14 @@ class LogistikExport implements
             $letter = Coordinate::stringFromColumnIndex($i + 1);
 
             switch ($type) {
-                case 'date':  $formats[$letter] = 'dd-mm-yyyy'; break;
-                case 'money': $formats[$letter] = '"Rp" #,##0'; break;
-                case 'pct':   $formats[$letter] = '0.00"%"'; break;
-                case 'pct4':  $formats[$letter] = '0.0000"%"'; break;
-                case 'num':   $formats[$letter] = '#,##0.##'; break;
+                case 'date':     $formats[$letter] = 'dd-mm-yyyy'; break;
+                case 'datetime': $formats[$letter] = 'dd-mm-yyyy hh:mm'; break;
+                case 'money':    $formats[$letter] = '"Rp" #,##0'; break;
+                case 'pct':      $formats[$letter] = '0.00"%"'; break;
+                case 'pct4':     $formats[$letter] = '0.0000"%"'; break;
+                case 'num':      $formats[$letter] = '#,##0.##'; break;
+                case 'xtext':    $formats[$letter] = NumberFormat::FORMAT_TEXT; break;
+                // 'raw' = angka apa adanya (kubik/tonase tidak dibulatkan), tanpa format
             }
 
             // kolom yang harus tetap teks (angka panjang / jam)
@@ -217,6 +299,15 @@ class LogistikExport implements
         $ts = is_int($v) ? $v : strtotime((string) $v);
         if (!$ts || $ts <= 0) return '';
         return XlDate::PHPToExcel(new \DateTime(date('Y-m-d', $ts)));
+    }
+
+    /** tanggal + jam (untuk kolom DATETIME / TIMESTAMP) */
+    private function xlDateTime($v)
+    {
+        if ($v === null || $v === '' || $v === false) return '';
+        $ts = is_int($v) ? $v : strtotime((string) $v);
+        if (!$ts || $ts <= 0) return '';
+        return XlDate::PHPToExcel(new \DateTime(date('Y-m-d H:i:s', $ts)));
     }
 
     private function jam($v): string

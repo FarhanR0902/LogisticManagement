@@ -407,6 +407,9 @@ Route::prefix('sales')->name('sales.')->group(function () {
     Route::get('/gudang/ontime', [SalesController::class, 'gudangOntime'])
         ->name('gudang.ontime');
 
+      Route::get('/data-logistik-pasuruan/detail', [SalesController::class, 'dataLogistikDetailPasuruan'])
+    ->name('data.pasuruan.detail');
+
     Route::get('/gudang/delay', [SalesController::class, 'gudangDelay'])
         ->name('gudang.delay');
 

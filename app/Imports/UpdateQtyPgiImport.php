@@ -14,28 +14,43 @@ use Illuminate\Support\Facades\Schema;
 use Carbon\Carbon;
 use Maatwebsite\Excel\Concerns\WithCalculatedFormulas;
 
+/**
+ * Import update rincian DO.
+ *
+ * 1 baris Excel = 1 DO = 1 baris di logistik_pengiriman.
+ * Kunci: no_shipment + tujuan + no_do.
+ *   - Baris lama yang no_do-nya masih kosong dipakai untuk DO pertama di tujuan itu.
+ *   - DO berikutnya jadi baris baru (data shipment disalin dari baris saudaranya).
+ *   - Tujuan yang belum ada di DB dibuat baris baru, seperti import biasa.
+ * Tampilan (grup per shipment + tujuan) dan rincian DO sudah ditangani LogistikController.
+ *
+ * Nilai kosong di Excel tidak menimpa data lama. Tanggal, gudang, reason tidak disentuh.
+ * ekpedisi, route, mobil : Excel menang (diupdate ke semua baris di shipment itu).
+ * kubik / tonase         : apa adanya dari Excel, tidak dibulatkan.
+ *
+ * kirim_kontribusi per DO = biaya 1 mobil x total_kubik DO / SUM total_kubik shipment
+ * biaya_kirim per tujuan  = SUM kirim_kontribusi DO di tujuan itu (ditulis ke semua baris DO tujuan tsb)
+ */
 class UpdateQtyPgiImport implements ToCollection, WithHeadingRow, WithEvents, WithCalculatedFormulas
 {
-    private const TABLE       = 'logistik_pengiriman';
-    // GANTI sesuai nama tabel master tujuan kamu
-private const MASTER_TABLE       = 'tujuanfillterr';
-private const MASTER_TUJUAN_COL  = 'tujuan';
+    private const TABLE = 'logistik_pengiriman';
 
-// kolom_di_master => kolom_di_logistik_pengiriman
-private const MASTER_MAP = [
-   
-    'pulau'                => 'pulau',
-    'area'                 => 'area',
-    'planner'              => 'planner',
-    'monitoring'           => 'pic_monitoring',
-    'transport_lead_time'  => 'transport_lead_time',
-];
+    // tabel master tujuan
+    private const MASTER_TABLE      = 'tujuanfillterr';
+    private const MASTER_TUJUAN_COL = 'tujuan';
 
-private static $masterByTujuan = null;   // tujuan ternormalisasi => rows master
-private array $tujuanNotInMaster = [];
+    // kolom_di_master => kolom_di_logistik_pengiriman (hanya mengisi yang kosong pada baris BARU)
+    private const MASTER_MAP = [
+        'pulau'               => 'pulau',
+        'area'                => 'area',
+        'planner'             => 'planner',
+        'monitoring'          => 'pic_monitoring',
+        'transport_lead_time' => 'transport_lead_time',
+        'dist_channel'        => 'dist_channel',
+    ];
+
     private const TARIF_TABLE = 'tarif_pengiriman';
 
-    // sama seperti LogistikImport
     private const ROUTE_ALIASES = [
         'jabodetabek' => 'Sentul-Jabodetabek',
     ];
@@ -43,14 +58,37 @@ private array $tujuanNotInMaster = [];
         // 'namadiexcel' => 'PT Nama Di Master',
     ];
 
-    private static $tarifByRoute = null;   // route => rows tarif
+    // Excel menang kalau beda dengan DB (berlaku ke semua baris di shipment itu)
+    private const OVERWRITE_SHIPMENT = ['ekpedisi', 'route', 'mobil'];
 
-    private bool $hasOptimalCustomer = false;
+    // hanya diisi kalau di DB masih kosong
+    private const FILL_IF_EMPTY = [
+        'pulau', 'area', 'dist_channel', 'via_kirim',
+        'kategori_ekspedisi', 'nama_driver', 'no_pol',
+    ];
+
+    // header Excel alternatif (file pivot)
+    private const SOURCE_ALIASES = [
+        'ekpedisi'  => ['ekpedisi', 'vendor'],
+        'route'     => ['route', 'route_name'],
+        'mobil'     => ['mobil', 'shipping_type'],
+        'via_kirim' => ['via_kirim', 'via'],
+        'no_pol'    => ['no_pol', 'nopol'],
+    ];
+
+    private static $masterByTujuan = null;   // tujuan ternormalisasi => rows master
+    private static $tarifByRoute   = null;   // route => rows tarif
+
+    private array $tujuanNotInMaster = [];
+    private array $ekspedisiResolved = [];   // cache "route|ekspedisi" => nama di master
+
+    private bool $hasOptimalCustomer       = false;
     private bool $hasReasonOptimalCustomer = false;
+    private bool $hasKirimKontribusi       = false;
+    private bool $hasCreatedAt             = false;
+    private bool $hasUpdatedAt             = false;
 
-    private array $ekspedisiResolved = []; // cache: "route|ekspedisi" => nama di master
-
-    // ===== hasil proses total_do_qty_car (kunci: no_shipment + tujuan) =====
+    // ===== hasil proses qty / kubik-tonase (per DO) =====
     private int $qtyUpdated = 0;
     private array $qtyNotFound = [];
     private array $qtyAmbiguous = [];
@@ -61,39 +99,42 @@ private array $tujuanNotInMaster = [];
     private array $pgiNotFound = [];
     private int $pgiSkipped = 0;
 
-    // ===== hasil proses total_kubik/total_tonase (kunci: no_shipment + tujuan) =====
     private int $kubikTonaseUpdated = 0;
     private array $kubikTonaseNotFound = [];
     private int $kubikTonaseSkipped = 0;
 
-    // ===== hasil proses GENERAL (kunci: no_shipment + tujuan) =====
+    // ===== hasil proses GENERAL (per DO) =====
     private int $generalCreated = 0;
     private int $generalUpdated = 0;
     private int $generalUnchanged = 0;
     private array $generalAmbiguous = [];
     private int $generalSkipped = 0;
 
-    // ===== hasil recalc biaya_kirim dari tarif_pengiriman =====
+    // ===== hasil recalc biaya =====
     private int $biayaKirimUpdated = 0;
+    private array $biayaSkipped = [];
     private array $tarifNotFound = [];
-    private array $tarifAmbiguous = [];   // dipertahankan supaya controller lama tidak error
+    private array $tarifAmbiguous = [];
 
-    // dedup supaya field level-shipment tidak diproses berkali-kali
     private array $pgiProcessed = [];
 
-    // no_shipment yang tersentuh import ini -> dipakai buat recalc di AfterImport
+    // no_shipment yang tersentuh import ini
     private array $touchedShipments = [];
 
-    // baris yang biaya_kirim-nya diisi manual di Excel ("no_shipment|tujuan") -> tidak ditimpa tarif
-    // private array $manualBiaya = [];
-
     // no_shipment => biaya 1 mobil dari Excel
-private array $groupBiaya = [];
+    private array $groupBiaya = [];
 
-// no_shipment yang total_kubik-nya berubah di import ini
-private array $kubikChanged = [];
+    // no_shipment yang total_kubik-nya berubah
+    private array $kubikChanged = [];
 
-private bool $hasKirimKontribusi = false;
+    // no_shipment => [tujuan (huruf kecil) => true] yang ada di Excel
+    private array $shipmentTujuan = [];
+
+    // no_shipment => [ekpedisi/route/mobil] dari Excel
+    private array $shipmentShared = [];
+
+    // no_shipment yang kapasitasnya perlu diambil ulang dari tarif
+    private array $capacityRefresh = [];
 
     // ================= GETTERS =================
     public function getQtyUpdated(): int { return $this->qtyUpdated; }
@@ -116,58 +157,62 @@ private bool $hasKirimKontribusi = false;
     public function getGeneralSkipped(): int { return $this->generalSkipped; }
 
     public function getBiayaKirimUpdated(): int { return $this->biayaKirimUpdated; }
+    public function getBiayaSkipped(): array { return $this->biayaSkipped; }
     public function getTarifNotFound(): array { return $this->tarifNotFound; }
     public function getTarifAmbiguous(): array { return $this->tarifAmbiguous; }
+    public function getTujuanNotInMaster(): array { return $this->tujuanNotInMaster; }
 
     public function __construct()
     {
         $this->hasOptimalCustomer       = Schema::hasColumn(self::TABLE, 'pengiriman_optimal_customer');
         $this->hasReasonOptimalCustomer = Schema::hasColumn(self::TABLE, 'reason_optimal_customer');
-$this->hasKirimKontribusi = Schema::hasColumn(self::TABLE, 'kirim_kontribusi');
+        $this->hasKirimKontribusi       = Schema::hasColumn(self::TABLE, 'kirim_kontribusi');
+        $this->hasCreatedAt             = Schema::hasColumn(self::TABLE, 'created_at');
+        $this->hasUpdatedAt             = Schema::hasColumn(self::TABLE, 'updated_at');
+
         if (self::$tarifByRoute === null) {
             self::$tarifByRoute = DB::table(self::TARIF_TABLE)
                 ->select('ekpedisi', 'route', 'mobil', 'biaya_kirim', 'kubikasi', 'tonase')
                 ->get()
                 ->groupBy(fn($row) => $this->normalize($row->route));
         }
+
         if (self::$masterByTujuan === null) {
-    self::$masterByTujuan = Schema::hasTable(self::MASTER_TABLE)
-        ? DB::table(self::MASTER_TABLE)->get()
-            ->groupBy(fn($r) => $this->normalizeTujuan($r->{self::MASTER_TUJUAN_COL}))
-        : collect();
-}
-    }
-
-    public function getTujuanNotInMaster(): array { return $this->tujuanNotInMaster; }
-
-/** huruf kecil, tanda baca dan spasi ganda dibuang, supaya "Ada Swalayan - Bogor" = "ADA SWALAYAN BOGOR" */
-private function normalizeTujuan(?string $v): string
-{
-    $v = strtolower((string) $v);
-    return trim(preg_replace('/[^a-z0-9]+/', ' ', $v));
-}
-
-private function masterAttributes(string $tujuan): array
-{
-    $rows = self::$masterByTujuan[$this->normalizeTujuan($tujuan)] ?? null;
-
-    if (!$rows) {
-        if (!in_array($tujuan, $this->tujuanNotInMaster, true)) {
-            $this->tujuanNotInMaster[] = $tujuan;
-        }
-        return [];
-    }
-
-    $master = $rows->first();
-    $out = [];
-    foreach (self::MASTER_MAP as $src => $dst) {
-        $v = $this->cleanText($master->{$src} ?? null);
-        if ($v !== null) {
-            $out[$dst] = $v;
+            self::$masterByTujuan = Schema::hasTable(self::MASTER_TABLE)
+                ? DB::table(self::MASTER_TABLE)->get()
+                    ->groupBy(fn($r) => $this->normalizeTujuan($r->{self::MASTER_TUJUAN_COL}))
+                : collect();
         }
     }
-    return $out;
-}
+
+    /** huruf kecil, tanda baca dan spasi ganda dibuang, supaya "Ada Swalayan - Bogor" = "ADA SWALAYAN BOGOR" */
+    private function normalizeTujuan(?string $v): string
+    {
+        $v = strtolower((string) $v);
+        return trim(preg_replace('/[^a-z0-9]+/', ' ', $v));
+    }
+
+    private function masterAttributes(string $tujuan): array
+    {
+        $rows = self::$masterByTujuan[$this->normalizeTujuan($tujuan)] ?? null;
+
+        if (!$rows) {
+            if (!in_array($tujuan, $this->tujuanNotInMaster, true)) {
+                $this->tujuanNotInMaster[] = $tujuan;
+            }
+            return [];
+        }
+
+        $master = $rows->first();
+        $out = [];
+        foreach (self::MASTER_MAP as $src => $dst) {
+            $v = $this->cleanText($master->{$src} ?? null);
+            if ($v !== null) {
+                $out[$dst] = $v;
+            }
+        }
+        return $out;
+    }
 
     // ================= EVENTS =================
 
@@ -176,13 +221,12 @@ private function masterAttributes(string $tujuan): array
         return [
             AfterImport::class => function () {
                 try {
-               $shipments = array_map('strval', array_keys($this->touchedShipments));
+                    $shipments = array_map('strval', array_keys($this->touchedShipments));
 
-$this->recalcTarifCapacity($shipments);    // ekpedisi, mobil, kubikasi, tonase dari tarif
-$this->recalcBiayaKontribusi($shipments);  // kirim_kontribusi + biaya_kirim
-$this->recalcShipments($shipments);        // cr, hasil_kubik, hasil_tonase, optimal
-
-                 // cr, hasil_kubik, hasil_tonase, optimal
+                    $this->processShipmentFields();            // ekpedisi/route/mobil: Excel menang
+                    $this->recalcTarifCapacity($shipments);    // kubikasi & tonase dari tarif
+                    $this->recalcBiayaKontribusi();            // kirim_kontribusi per DO + biaya_kirim per tujuan
+                    $this->recalcShipments($shipments);        // cr, hasil_kubik, hasil_tonase, optimal
                 } catch (\Throwable $e) {
                     logger()->error('UPDATE IMPORT AFTER-IMPORT GAGAL', [
                         'error' => $e->getMessage(),
@@ -199,58 +243,50 @@ $this->recalcShipments($shipments);        // cr, hasil_kubik, hasil_tonase, opt
     {
         foreach ($rows as $row) {
 
-            $noShipment = $this->cleanText($row['no_shipment'] ?? null);
+            $noShipment = $this->cleanText($this->pick($row, ['no_shipment', 'nomer_shipment']));
 
             if (empty($noShipment)) {
-                $this->qtySkipped++;
-                $this->pgiSkipped++;
-                $this->kubikTonaseSkipped++;
                 $this->generalSkipped++;
+                $this->pgiSkipped++;
+                $this->qtySkipped++;
+                $this->kubikTonaseSkipped++;
                 continue;
             }
 
-            $this->touchedShipments[(string) $noShipment] = true;
-            // biaya 1 mobil per no_shipment (sama dengan LogistikImport)
-$biayaPool = $this->parseNumber($this->pick($row, ['biaya_kirim', 'biaya_kirim_rp', 'kirim_kontribusi']));
-if ($biayaPool !== null && $biayaPool > 0) {
-    $this->groupBiaya[(string) $noShipment] = $biayaPool;
-}
+            $noShipment = (string) $noShipment;
+            $this->touchedShipments[$noShipment] = true;
 
-            $tujuan = $this->cleanText($row['tujuan'] ?? null);
+            // biaya 1 mobil (diisi satu baris saja per shipment)
+            $pool = $this->parseNumber($this->pick($row, ['biaya_kirim', 'biaya_kirim_rp', 'kirim_kontribusi']));
+            if ($pool !== null && $pool > 0) {
+                $this->groupBiaya[$noShipment] = $pool;
+            }
 
-            // 0) GENERAL UPSERT (kunci: no_shipment + tujuan)
+            $tujuan = $this->cleanText($this->pick($row, ['tujuan', 'sold_to_party_name']));
+
             if (empty($tujuan)) {
                 $this->generalSkipped++;
             } else {
-                $this->processGeneral($row, $noShipment, $tujuan);
-            }
+                $this->shipmentTujuan[$noShipment][strtolower($tujuan)] = true;
+                $this->collectShared($row, $noShipment);
 
-            // 1) TOTAL DO QTY CAR (kunci: no_shipment + tujuan)
-            $qty = $this->cleanNumber($row['total_do_qty_car'] ?? null);
-
-            if (!empty($tujuan) && $qty !== null) {
-
-                $matches = LogistikPengiriman::where('no_shipment', $noShipment)
-                    ->where('tujuan', $tujuan)
-                    ->get();
-
-                if ($matches->isEmpty()) {
-                    $this->qtyNotFound[] = "{$noShipment} - {$tujuan}";
-                } elseif ($matches->count() > 1) {
-                    $this->qtyAmbiguous[] = "{$noShipment} - {$tujuan} ({$matches->count()} baris)";
-                } else {
-                    $matches->first()->update(['total_do_qty_car' => $qty]);
-                    $this->qtyUpdated++;
+                try {
+                    $this->processGeneral($row, $noShipment, $tujuan);
+                } catch (\Throwable $e) {
+                    $this->generalAmbiguous[] = "{$noShipment} - {$tujuan} (ERROR: " . mb_substr($e->getMessage(), 0, 120) . ')';
+                    logger()->error('UPDATE IMPORT GAGAL PER BARIS', [
+                        'no_shipment' => $noShipment,
+                        'tujuan'      => $tujuan,
+                        'error'       => $e->getMessage(),
+                        'line'        => $e->getLine(),
+                    ]);
                 }
-            } else {
-                $this->qtySkipped++;
             }
 
-            // 2) ACT PGI DATE (kunci: no_shipment saja)
+            // ACT PGI DATE (kunci: no_shipment)
             $pgiDate = $this->convertDate($row['act_pgi_date'] ?? null);
 
             if ($pgiDate !== null && !isset($this->pgiProcessed[$noShipment])) {
-
                 $affected = LogistikPengiriman::where('no_shipment', $noShipment)
                     ->update(['act_pgi_date' => $pgiDate]);
 
@@ -259,268 +295,323 @@ if ($biayaPool !== null && $biayaPool > 0) {
                 } else {
                     $this->pgiUpdated += $affected;
                 }
-
                 $this->pgiProcessed[$noShipment] = true;
-
             } elseif ($pgiDate === null) {
                 $this->pgiSkipped++;
             }
-
-            // 3) TOTAL KUBIK / TOTAL TONASE (kunci: no_shipment + tujuan), per baris.
-            //    Kapasitas (kubikasi/tonase) selalu dari tarif_pengiriman.
-            $totalKubikNew  = $this->cleanDecimal($row['total_kubik'] ?? null);
-            $totalTonaseNew = $this->cleanDecimal($row['total_tonase'] ?? null);
-
-            if ($totalKubikNew === null && $totalTonaseNew === null) {
-                $this->kubikTonaseSkipped++;
-            } elseif (empty($tujuan)) {
-                $this->kubikTonaseNotFound[] = "{$noShipment} (tujuan kosong, total kubik/tonase dilewati)";
-            } else {
-                $payload = array_filter([
-                    'total_kubik'  => $totalKubikNew,
-                    'total_tonase' => $totalTonaseNew,
-                ], fn($v) => $v !== null);
-
-                $affected = LogistikPengiriman::where('no_shipment', $noShipment)
-                    ->where('tujuan', $tujuan)
-                    ->update($payload);
-
-                if ($affected === 0) {
-                    $this->kubikTonaseNotFound[] = "{$noShipment} - {$tujuan}";
-              } else {
-    $this->kubikTonaseUpdated += $affected;
-    if ($totalKubikNew !== null) {
-        $this->kubikChanged[(string) $noShipment] = true;
+        }
     }
-}
+
+    /** sumber nilai Excel untuk sebuah kolom (dengan alias header) */
+    private function src($row, string $col)
+    {
+        $v = $this->cleanText($this->pick($row, self::SOURCE_ALIASES[$col] ?? [$col]));
+
+        return $col === 'route' ? $this->applyRouteAlias($v) : $v;
+    }
+
+    /** ekpedisi/route/mobil dari Excel per shipment (nilai pertama yang terisi) */
+    private function collectShared($row, string $sh): void
+    {
+        foreach (self::OVERWRITE_SHIPMENT as $col) {
+            $v = $this->src($row, $col);
+            if ($v !== null) {
+                $this->shipmentShared[$sh][$col] ??= $v;
             }
         }
     }
 
-    // ================= GENERAL UPSERT =================
+    private function isBlank($v): bool
+    {
+        return $v === null || trim((string) $v) === '';
+    }
+
+    // ================= EKSPEDISI / ROUTE / MOBIL: Excel menang, per shipment =================
+
+    private function processShipmentFields(): void
+    {
+        foreach ($this->shipmentShared as $sh => $vals) {
+            $vals = array_filter($vals, fn($v) => $v !== null);
+            if (!$vals) continue;
+
+            $payload = $vals;
+            if ($this->hasUpdatedAt) $payload['updated_at'] = now();
+
+            $affected = DB::table(self::TABLE)
+                ->where('no_shipment', (string) $sh)
+                ->where(function ($q) use ($vals) {
+                    foreach ($vals as $col => $v) {
+                        $q->orWhereNull($col)->orWhere($col, '!=', $v);
+                    }
+                })
+                ->update($payload);
+
+            if ($affected > 0) {
+                $this->capacityRefresh[(string) $sh] = true;
+            }
+        }
+    }
+
+    // ================= UPSERT PER DO =================
 
     private function processGeneral($row, string $noShipment, string $tujuan): void
     {
-        $matches = LogistikPengiriman::where('no_shipment', $noShipment)
-            ->where('tujuan', $tujuan)
-            ->get();
+        $noDo = $this->cleanText($row['no_do'] ?? null);
+        $qty  = $this->parseNumber($this->pick($row, ['total_do_qty_car', 'sum_of_qty_do']));
 
-        $ekpedisiNew          = $this->cleanText($row['ekpedisi'] ?? null);
-        $routeNew             = $this->applyRouteAlias($this->cleanText($row['route'] ?? null));
-        $mobilNew             = $this->cleanText($row['mobil'] ?? null);
-        $pulauNew             = $this->cleanText($row['pulau'] ?? null);
-        $areaNew              = $this->cleanText($row['area'] ?? null);
-        $viaKirimNew          = $this->cleanText($row['via_kirim'] ?? $row['via'] ?? null);
-        $kategoriEkspedisiNew = $this->cleanText($row['kategori_ekspedisi'] ?? null);
-        $namaDriverNew        = $this->cleanText($row['nama_driver'] ?? null);
-        $noPolNew             = $this->cleanText($row['no_pol'] ?? $row['nopol'] ?? null);
-        $nilaiMuatanNew       = $this->cleanDecimal(
-            $row['nilai_muatan_rp'] ?? $row['nilai_muatan'] ?? null
-        );
-
-        // biaya_kirim diisi manual di Excel -> dipakai apa adanya, tidak dihitung ulang dari tarif
-       
-
-        if ($matches->count() > 1) {
-            $this->generalAmbiguous[] = "{$noShipment} - {$tujuan} ({$matches->count()} baris)";
-            return;
-        }
-
-        // if ($biayaExcel !== null) {
-        //     $this->manualBiaya[$noShipment . '|' . $tujuan] = true;
-        // }
-
-        if ($matches->isEmpty()) {
-            // ===== INSERT BARU =====
-            // biaya_kirim / kubikasi / tonase diisi di AfterImport (recalcBiayaKirim)
-           $fromExcel = array_filter([
-    'no_shipment'        => $noShipment,
-    'tujuan'             => $tujuan,
-    'ekpedisi'           => $ekpedisiNew,
-    'route'              => $routeNew,
-    'mobil'              => $mobilNew,
-    'pulau'              => $pulauNew,
-    'area'               => $areaNew,
-    'via_kirim'          => $viaKirimNew,
-    'kategori_ekspedisi' => $kategoriEkspedisiNew,
-    'nama_driver'        => $namaDriverNew,
-    'no_pol'             => $noPolNew,
-    'nilai_muatan'       => $nilaiMuatanNew,
-    'create_tgl'         => Carbon::now(),
-], fn($v) => $v !== null);
-
-// isi Excel menang; master hanya mengisi kolom yang kosong
-LogistikPengiriman::create($fromExcel + $this->masterAttributes($tujuan));
-
-            $this->generalCreated++;
-            return;
-        }
-
-        // ===== SUDAH ADA -> UPDATE HANYA YANG BEDA =====
-        $existing = $matches->first();
-
-        $candidates = [
-            'ekpedisi'           => $ekpedisiNew,
-            'route'              => $routeNew,
-            'mobil'              => $mobilNew,
-            'pulau'              => $pulauNew,
-            'area'               => $areaNew,
-            'via_kirim'          => $viaKirimNew,
-            'kategori_ekspedisi' => $kategoriEkspedisiNew,
-            'nama_driver'        => $namaDriverNew,
-            'no_pol'             => $noPolNew,
-            'nilai_muatan'       => $nilaiMuatanNew,
-        
+        // field per DO (kubik & tonase apa adanya)
+        $perDo = [
+            'sales_document'     => $this->cleanText($row['sales_document'] ?? null),
+            'customer_reference' => $this->cleanText($row['customer_reference'] ?? null),
+            'contract_end_date'  => $this->convertDateUs($row['contract_end_date'] ?? null),
+            'no_do'              => $noDo,
+            'nilai_muatan'       => $this->parseNumber($this->pick($row, ['nilai_muatan_rp', 'nilai_muatan', 'sum_of_nilai_do'])),
+            'total_do_qty_car'   => $qty !== null ? (int) round($qty) : null,
+            'total_kubik'        => $this->parseNumber($this->pick($row, ['total_kubik', 'sum_of_kubikasi2'])),
+            'total_tonase'       => $this->parseNumber($this->pick($row, ['total_tonase', 'sum_of_tonase3'])),
         ];
 
-        $payload = [];
-        foreach ($candidates as $column => $newValue) {
-            if ($newValue === null) {
-                continue;
-            }
-            if (!$this->valuesEqual($existing->{$column}, $newValue)) {
-                $payload[$column] = $newValue;
-            }
+        // field milik shipment / tujuan
+        $shared = [];
+        foreach (array_merge(self::OVERWRITE_SHIPMENT, self::FILL_IF_EMPTY) as $col) {
+            $shared[$col] = $this->src($row, $col);
         }
 
-        if (!empty($payload)) {
-            $existing->update($payload);
-            $this->generalUpdated++;
+        $base = DB::table(self::TABLE)
+            ->where('no_shipment', $noShipment)
+            ->where('tujuan', $tujuan);
+
+        // cari baris DO ini
+        if ($noDo !== null) {
+            $existing = (clone $base)->where('no_do', $noDo)->first()
+                // baris lama yang no_do-nya masih kosong dipakai untuk DO pertama
+                ?? (clone $base)->where(fn($q) => $q->whereNull('no_do')->orWhere('no_do', ''))
+                                ->orderBy('id')->first();
         } else {
-            $this->generalUnchanged++;
+            if ((clone $base)->count() > 1) {
+                $this->generalAmbiguous[] = "{$noShipment} - {$tujuan} (no_do kosong, banyak baris)";
+                return;
+            }
+            $existing = (clone $base)->first();
         }
+
+        // ===== UPDATE =====
+        if ($existing) {
+            $payload = [];
+
+            foreach ($perDo as $col => $new) {
+                if ($new === null) continue;
+                if (!$this->valuesEqual($existing->{$col} ?? null, $new)) {
+                    $payload[$col] = $new;
+                }
+            }
+
+            // field lain: hanya isi kalau di DB masih kosong (ekpedisi/route/mobil ditangani processShipmentFields)
+            foreach (self::FILL_IF_EMPTY as $col) {
+                $new = $shared[$col] ?? null;
+                if ($new !== null && $this->isBlank($existing->{$col} ?? null)) {
+                    $payload[$col] = $new;
+                }
+            }
+
+            if (isset($payload['total_kubik'])) $this->kubikChanged[$noShipment] = true;
+            if (isset($payload['total_do_qty_car'])) $this->qtyUpdated++;
+            if (isset($payload['total_kubik']) || isset($payload['total_tonase'])) $this->kubikTonaseUpdated++;
+
+            if (!empty($payload)) {
+                if ($this->hasUpdatedAt) $payload['updated_at'] = now();
+                DB::table(self::TABLE)->where('id', $existing->id)->update($payload);
+                $this->generalUpdated++;
+            } else {
+                $this->generalUnchanged++;
+            }
+            return;
+        }
+
+        // ===== INSERT DO BARU =====
+        $sibling = (clone $base)->orderBy('id')->first();
+        $now     = now();
+
+        if ($sibling) {
+            // tujuan sudah ada -> salin data shipment (tanggal, gudang, driver, dst) dari baris saudara,
+            // supaya grup shipment + tujuan tetap seragam, lalu timpa field per DO
+            $new = (array) $sibling;
+            foreach ([
+                'id', 'created_at', 'updated_at',
+                'sales_document', 'customer_reference', 'contract_end_date', 'no_do',
+                'nilai_muatan', 'total_do_qty_car', 'total_kubik', 'total_tonase',
+                'kirim_kontribusi', 'hasil_kubik', 'hasil_tonase', 'cr',
+            ] as $k) {
+                unset($new[$k]);
+            }
+
+            $new = array_merge($new, array_filter($shared + $perDo, fn($v) => $v !== null));
+
+            if ($this->hasCreatedAt) $new['created_at'] = $now;
+            if ($this->hasUpdatedAt) $new['updated_at'] = $now;
+
+            DB::table(self::TABLE)->insert($new);
+        } else {
+            $fromExcel = array_filter(
+                ['no_shipment' => $noShipment, 'tujuan' => $tujuan, 'create_tgl' => Carbon::now()]
+                    + $shared + $perDo,
+                fn($v) => $v !== null
+            );
+
+            // isi Excel menang; master hanya mengisi yang kosong
+            LogistikPengiriman::create($fromExcel + $this->masterAttributes($tujuan));
+        }
+
+        $this->capacityRefresh[$noShipment] = true;
+        if ($perDo['total_kubik'] !== null) $this->kubikChanged[$noShipment] = true;
+        if ($perDo['total_do_qty_car'] !== null) $this->qtyUpdated++;
+        if ($perDo['total_kubik'] !== null || $perDo['total_tonase'] !== null) $this->kubikTonaseUpdated++;
+
+        $this->generalCreated++;
     }
 
     // ================= RECALC SETELAH IMPORT =================
 
-    /**
-     * Biaya kirim per BARIS (sama dengan LogistikImport):
-     *   total_kubik / kubikasi x biaya tarif (biaya 1 mobil penuh),
-     *   kalau total_kubik / kubikasi belum ada -> biaya tarif penuh.
-     * Kubikasi & tonase juga diisi dari tarif. Ekpedisi/mobil yang kepotong
-     * disamakan dengan nama di master tarif.
-     * Dijalankan untuk SEMUA baris di shipment yang ada di file ini, jadi
-     * biaya lama yang sama semua per shipment ikut terkoreksi.
-     */
-   /** Kapasitas dari tarif saja (biaya tidak lagi dari tarif). */
-private function recalcTarifCapacity(array $shipments): void
-{
-    foreach (array_chunk($shipments, 500) as $chunk) {
-        $rows = DB::table(self::TABLE)
-            ->select('id', 'ekpedisi', 'route', 'mobil')
-            ->whereIn('no_shipment', $chunk)
-            ->get();
+    /** kubikasi & tonase dari tarif (nama ekspedisi/mobil TIDAK diubah ke master) */
+    private function recalcTarifCapacity(array $shipments): void
+    {
+        foreach (array_chunk($shipments, 500) as $chunk) {
+            $rows = DB::table(self::TABLE)
+                ->select('id', 'no_shipment', 'ekpedisi', 'route', 'mobil', 'kubikasi', 'tonase')
+                ->whereIn('no_shipment', $chunk)
+                ->get();
 
-        foreach ($rows as $r) {
-            $tarif = $this->findTarif($this->applyRouteAlias($r->route), $r->ekpedisi, $r->mobil);
-            if (!$tarif) continue;
+            foreach ($rows as $r) {
+                $refresh = isset($this->capacityRefresh[(string) $r->no_shipment])
+                    || $this->isBlank($r->kubikasi)
+                    || $this->isBlank($r->tonase);
+                if (!$refresh) continue;
 
-            $payload = array_filter([
-                'ekpedisi' => $tarif->ekpedisi,
-                'mobil'    => $tarif->mobil,
-                'kubikasi' => $this->parseNumber($tarif->kubikasi ?? null),
-                'tonase'   => $this->parseNumber($tarif->tonase ?? null),
-            ], fn($v) => $v !== null);
+                $tarif = $this->findTarif($this->applyRouteAlias($r->route), $r->ekpedisi, $r->mobil);
+                if (!$tarif) continue;
 
-            DB::table(self::TABLE)->where('id', $r->id)->update($payload);
-        }
-    }
-}
+                $payload = array_filter([
+                    'kubikasi' => $this->parseNumber($tarif->kubikasi ?? null),
+                    'tonase'   => $this->parseNumber($tarif->tonase ?? null),
+                ], fn($v) => $v !== null);
 
-/**
- * kirim_kontribusi per DO = biaya 1 mobil x total_kubik DO / SUM total_kubik shipment
- * biaya_kirim per tujuan  = SUM kirim_kontribusi DO di tujuan itu
- * (sama dengan LogistikImport)
- */
-private function recalcBiayaKontribusi(array $shipments): void
-{
-    if (!$this->hasKirimKontribusi) {
-        logger()->warning('UPDATE IMPORT: kolom kirim_kontribusi tidak ada, biaya_kirim tidak dihitung');
-        return;
-    }
-
-    // biaya 1 mobil dari Excel
-    $pools = [];
-    foreach ($this->groupBiaya as $sh => $pool) {
-        $pools[(string) $sh] = $pool;
-    }
-
-    // total_kubik berubah tapi Excel tidak bawa biaya -> bagi ulang biaya yang sudah ada
-    $need = array_diff(
-        array_map('strval', array_keys($this->kubikChanged)),
-        array_keys($pools)
-    );
-    foreach (array_chunk($need, 500) as $c) {
-        $rows = DB::table(self::TABLE)
-            ->select('no_shipment', DB::raw('SUM(COALESCE(kirim_kontribusi,0)) AS pool'))
-            ->whereIn('no_shipment', $c)
-            ->groupBy('no_shipment')
-            ->get();
-
-        foreach ($rows as $r) {
-            if ((float) $r->pool > 0) {
-                $pools[(string) $r->no_shipment] = (float) $r->pool;
+                if ($payload) {
+                    DB::table(self::TABLE)->where('id', $r->id)->update($payload);
+                }
             }
         }
     }
 
-    // 1) kirim_kontribusi per DO
-    foreach ($pools as $sh => $pool) {
-    $sh = (string) $sh;
-    DB::update("
-            UPDATE logistik_pengiriman lp
-            JOIN (
-                SELECT SUM(COALESCE(total_kubik,0)) AS sum_kubik, COUNT(*) AS cnt
-                FROM logistik_pengiriman
-                WHERE no_shipment = ?
-            ) g
-            SET lp.kirim_kontribusi = CASE
-                WHEN g.sum_kubik > 0 THEN ROUND(? * COALESCE(lp.total_kubik,0) / g.sum_kubik, 2)
-                ELSE ROUND(? / g.cnt, 2)
-            END
-            WHERE lp.no_shipment = ?
-        ", [$sh, $pool, $pool, $sh]);
-    }
+    /**
+     * kirim_kontribusi per DO = biaya 1 mobil x total_kubik DO / SUM total_kubik shipment
+     * biaya_kirim per tujuan  = SUM kirim_kontribusi DO di tujuan itu
+     */
+    private function recalcBiayaKontribusi(): void
+    {
+        // A) Excel membawa biaya 1 mobil
+        foreach ($this->groupBiaya as $sh => $pool) {
+            $this->distributeBiaya((string) $sh, (float) $pool);
+        }
 
-    // 2) biaya_kirim per tujuan = SUM kirim_kontribusi
-    foreach (array_chunk(array_map('strval', array_keys($pools)), 500) as $chunk) {
-        $in = implode(',', array_fill(0, count($chunk), '?'));
+        // B) Excel tanpa biaya tapi kubik berubah -> bagi ulang biaya yang sudah ada di DB
+        $need = array_diff(
+            array_map('strval', array_keys($this->kubikChanged)),
+            array_map('strval', array_keys($this->groupBiaya))
+        );
 
-        DB::update("
-            UPDATE logistik_pengiriman lp
-            JOIN (
-                SELECT no_shipment, COALESCE(tujuan,'') AS tj,
-                       SUM(COALESCE(kirim_kontribusi,0)) AS total
-                FROM logistik_pengiriman
-                WHERE no_shipment IN ($in)
-                GROUP BY no_shipment, COALESCE(tujuan,'')
-            ) g ON lp.no_shipment = g.no_shipment AND COALESCE(lp.tujuan,'') = g.tj
-            SET lp.biaya_kirim = g.total
-            WHERE lp.no_shipment IN ($in)
-              AND g.total > 0
-        ", array_merge($chunk, $chunk));
-    }
+        foreach ($need as $sh) {
+            // biaya_kirim sama di semua DO satu tujuan, jadi ambil 1 nilai per tujuan
+            $pool = (float) DB::table(self::TABLE)
+                ->where('no_shipment', $sh)
+                ->select('tujuan', DB::raw('MAX(COALESCE(biaya_kirim,0)) AS b'))
+                ->groupBy('tujuan')
+                ->get()
+                ->sum('b');
 
-    $this->biayaKirimUpdated = count($pools);
-}
-
-/** ambil nilai pertama yang terisi dari beberapa kemungkinan header */
-private function pick($row, array $keys)
-{
-    foreach ($keys as $k) {
-        if (isset($row[$k]) && $row[$k] !== '' && $row[$k] !== '-') {
-            return $row[$k];
+            if ($pool > 0) {
+                $this->distributeBiaya($sh, $pool);
+            }
         }
     }
-    return null;
-}
+
+    private function distributeBiaya(string $sh, float $pool): void
+    {
+        $rows = DB::table(self::TABLE)
+            ->select('id', 'tujuan', 'total_kubik')
+            ->where('no_shipment', $sh)
+            ->orderBy('id')
+            ->get()
+            ->values();
+
+        if ($rows->isEmpty()) {
+            $this->biayaSkipped[] = $sh;
+            return;
+        }
+
+        // pengaman: semua tujuan di DB harus ada di Excel. Kalau tidak, total_kubik lama
+        // (total shipment yang diulang per baris) ikut terhitung dan pembagiannya salah.
+        $excel   = $this->shipmentTujuan[$sh] ?? [];
+        $missing = $rows->pluck('tujuan')->unique()
+            ->filter(fn($t) => !isset($excel[strtolower((string) $t)]))
+            ->values()->all();
+
+        if ($missing) {
+            $this->biayaSkipped[] = $sh . ' (tujuan tidak ada di Excel: ' . implode('; ', array_map('strval', $missing)) . ')';
+            return;
+        }
+
+        $totalKubik = (float) $rows->sum('total_kubik');
+        $n          = $rows->count();
+
+        // sisa pembulatan masuk ke DO terakhir yang punya kubik
+        $lastIdx = $n - 1;
+        if ($totalKubik > 0) {
+            foreach ($rows as $i => $r) {
+                if ((float) ($r->total_kubik ?? 0) > 0) $lastIdx = $i;
+            }
+        }
+
+        $remaining = $pool;
+        $perTujuan = [];   // tujuan => ['sum' => ..., 'ids' => [...]]
+
+        foreach ($rows as $i => $r) {
+            $share = $totalKubik > 0 ? ((float) ($r->total_kubik ?? 0)) / $totalKubik : 1 / $n;
+            $val   = ($i === $lastIdx) ? round($remaining, 2) : round($pool * $share, 2);
+            $remaining -= $val;
+
+            if ($this->hasKirimKontribusi) {
+                DB::table(self::TABLE)->where('id', $r->id)->update(['kirim_kontribusi' => $val]);
+            }
+
+            $t = (string) $r->tujuan;
+            $perTujuan[$t]['sum']   = ($perTujuan[$t]['sum'] ?? 0) + $val;
+            $perTujuan[$t]['ids'][] = $r->id;
+        }
+
+        // biaya_kirim tujuan = jumlah kontribusi DO-nya, ditulis ke semua DO di tujuan itu
+        foreach ($perTujuan as $t) {
+            DB::table(self::TABLE)->whereIn('id', $t['ids'])->update(['biaya_kirim' => round($t['sum'], 2)]);
+        }
+
+        $this->biayaKirimUpdated++;
+    }
+
+    /** ambil nilai pertama yang terisi dari beberapa kemungkinan header */
+    private function pick($row, array $keys)
+    {
+        foreach ($keys as $k) {
+            if (isset($row[$k]) && $row[$k] !== '' && $row[$k] !== '-') {
+                return $row[$k];
+            }
+        }
+        return null;
+    }
 
     /**
-     * CR            : per baris = biaya_kirim baris / nilai_muatan baris x 100.
+     * CR            : biaya_kirim tujuan / SUM nilai_muatan tujuan x 100.
      * Hasil kubik   : per baris = total_kubik / kubikasi x 100.
      * Hasil tonase  : per baris = total_tonase / tonase x 100.
      * Pengiriman optimal: per shipment (SUM total / kapasitas >= 85%).
-     * (sama persis dengan LogistikImport)
      */
     private function recalcShipments(array $shipments): void
     {
@@ -528,20 +619,20 @@ private function pick($row, array $keys)
             $in       = implode(',', array_fill(0, count($chunk), '?'));
             $bindings = array_merge($chunk, $chunk);
 
-         // ---- CR per shipment + tujuan = biaya_kirim / SUM nilai_muatan tujuan x 100 ----
-DB::update("
-    UPDATE logistik_pengiriman lp
-    JOIN (
-        SELECT no_shipment, COALESCE(tujuan,'') AS tj,
-               SUM(COALESCE(nilai_muatan,0)) AS sum_nilai
-        FROM logistik_pengiriman
-        WHERE no_shipment IN ($in)
-        GROUP BY no_shipment, COALESCE(tujuan,'')
-    ) g ON lp.no_shipment = g.no_shipment AND COALESCE(lp.tujuan,'') = g.tj
-    SET lp.cr = IF(g.sum_nilai <= 0, 0,
-                   ROUND(COALESCE(lp.biaya_kirim,0) / g.sum_nilai * 100, 4))
-    WHERE lp.no_shipment IN ($in)
-", $bindings);
+            // ---- CR per shipment + tujuan ----
+            DB::update("
+                UPDATE logistik_pengiriman lp
+                JOIN (
+                    SELECT no_shipment, COALESCE(tujuan,'') AS tj,
+                           SUM(COALESCE(nilai_muatan,0)) AS sum_nilai
+                    FROM logistik_pengiriman
+                    WHERE no_shipment IN ($in)
+                    GROUP BY no_shipment, COALESCE(tujuan,'')
+                ) g ON lp.no_shipment = g.no_shipment AND COALESCE(lp.tujuan,'') = g.tj
+                SET lp.cr = IF(g.sum_nilai <= 0, 0,
+                               ROUND(COALESCE(lp.biaya_kirim,0) / g.sum_nilai * 100, 4))
+                WHERE lp.no_shipment IN ($in)
+            ", $bindings);
 
             // ---- HASIL KUBIK / TONASE (per baris) + OPTIMAL (per shipment) ----
             DB::update("
@@ -708,9 +799,7 @@ DB::update("
         return $found;
     }
 
-    /**
-     * Bandingkan nilai lama vs baru, toleran terhadap tipe data.
-     */
+    /** Bandingkan nilai lama vs baru, toleran terhadap tipe data. */
     private function valuesEqual($old, $new): bool
     {
         if ($old === null && $new === null) {
@@ -727,7 +816,7 @@ DB::update("
 
     // ================= HELPERS =================
 
-    /** parser angka yang sama dengan LogistikImport (Rp, 76,559,246 / 76.559.246,5 / 12,5) */
+    /** parser angka: Rp, 76,559,246 / 76.559.246,5 / 12,5 */
     private function parseNumber($value): ?float
     {
         if ($value === null) return null;
@@ -752,34 +841,21 @@ DB::update("
     private function cleanText($value)
     {
         if ($value === null || $value === '' || $value == '-') return null;
-        $value = (string) $value;
-        $value = str_replace("\xC2\xA0", ' ', $value);
-        return preg_replace('/\s+/', ' ', trim($value));
-    }
 
-    private function cleanNumber($value)
-    {
-        if ($value === null || $value === '' || $value == '-') return null;
-        $value = preg_replace('/[^0-9]/', '', (string) $value);
-        return $value === '' ? null : (int) $value;
-    }
-
-    private function cleanDecimal($value): ?float
-    {
-        if ($value === null || $value === '' || $value === '-') return null;
-        if (is_numeric($value)) return (float) $value;
-
-        $value = trim((string) $value);
-
-        if (preg_match('/^\d+,\d+$/', $value)) {
-            $value = str_replace(',', '.', $value);
-        } else {
-            $value = str_replace(',', '', $value);
+        if (is_float($value) && floor($value) == $value && abs($value) < 1e15) {
+            return (string) (int) $value;   // 4200067817.0 -> "4200067817"
         }
 
-        return is_numeric($value) ? (float) $value : null;
+        $value = (string) $value;
+        $value = str_replace("\xC2\xA0", ' ', $value);
+        $value = preg_replace('/\s+/', ' ', trim($value));
+
+        if ($value === '' || stripos($value, '(blank)') !== false) return null;
+
+        return $value;
     }
 
+    /** tanggal format d-m-Y / Y-m-d / serial Excel (untuk act_pgi_date) */
     private function convertDate($value)
     {
         if (!$value || $value == '-') return null;
@@ -790,5 +866,23 @@ DB::update("
 
         $timestamp = strtotime(str_replace('/', '-', trim($value)));
         return $timestamp ? date('Y-m-d', $timestamp) : null;
+    }
+
+    /** tanggal format US m/d/Y (Contract End Date), "(blank)" -> null */
+    private function convertDateUs($value)
+    {
+        if (!$value || $value == '-' || stripos((string) $value, 'blank') !== false) return null;
+
+        if (is_numeric($value)) {
+            return Date::excelToDateTimeObject($value)->format('Y-m-d');
+        }
+
+        $v = trim((string) $value);
+        if (preg_match('#^(\d{1,2})/(\d{1,2})/(\d{4})$#', $v, $m)) {
+            return sprintf('%04d-%02d-%02d', $m[3], $m[1], $m[2]);   // m/d/Y
+        }
+
+        $ts = strtotime($v);
+        return $ts ? date('Y-m-d', $ts) : null;
     }
 }

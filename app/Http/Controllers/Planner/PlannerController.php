@@ -21,6 +21,10 @@ private const PULAU_MAP = [
         'MALUKU'     => ['PROV._MALUKU', 'PROV._MALUKU_UTARA'],
         'PAPUA'      => ['PROV._PAPUA', 'PAPUA_BARAT', 'PAPUA_BARAT_DAYA', 'PAPUA_SELATAN', 'PAPUA_TENGAH'],
     ];
+
+    // BARU: kunci grup = no_shipment + tujuan (baris tanpa no_shipment dianggap grup sendiri)
+    private const GROUP_KEY = "COALESCE(NULLIF(TRIM(no_shipment),''), CONCAT('id', id)), COALESCE(tujuan,'')";
+
     public function store(Request $request)
     {
         $data['total_kubik']  = $this->cleanDecimalPlanner($request->total_kubik);
@@ -85,6 +89,8 @@ $data['total_tonase'] = $this->cleanDecimalPlanner($request->total_tonase);
 {
         // =====================================================
         // AMBIL DATA UNIQUE PER NO_SHIPMENT (ANTI DUPLICATE)
+        // Dashboard dihitung per no_shipment: kalau no_shipment
+        // duplikat (beda tujuan / beda DO) tetap dihitung 1.
         // =====================================================
         $shipments = DB::table('logistik_pengiriman')
         ->orderBy('no_shipment')
@@ -127,9 +133,10 @@ $data['total_tonase'] = $this->cleanDecimalPlanner($request->total_tonase);
         ->sortDesc()
         ->take(10);
 
-    $total_in_transit = $this->applyFilter($this->inTransitQuery(), $request)->count();
-    $total_in_transit = $this->applyFilter($this->inTransitQuery(), $request)->count();
-$total_in_gudang  = $this->applyFilter($this->inGudangQuery(), $request)->count();
+    // per no_shipment (duplikat tetap dihitung 1)
+    $total_in_transit = $this->applyFilter($this->inTransitQuery(), $request)->distinct()->count('no_shipment');
+    $total_in_transit = $this->applyFilter($this->inTransitQuery(), $request)->distinct()->count('no_shipment');
+$total_in_gudang  = $this->applyFilter($this->inGudangQuery(), $request)->distinct()->count('no_shipment');
 
     return view('planner.dashboard', compact(
         'total_data',
@@ -150,7 +157,8 @@ $total_in_gudang  = $this->applyFilter($this->inGudangQuery(), $request)->count(
     $filled = fn($c) => "NULLIF(TRIM({$c}), '') IS NOT NULL";
     $empty  = fn($c) => "NULLIF(TRIM({$c}), '') IS NULL";
 
-    $q = DB::table('logistik_pengiriman')
+    // GANTI: dari tabel mentah -> 1 baris wakil per no_shipment + tujuan
+    $q = $this->repQuery()
         ->whereRaw($empty('tanggal_tiba'));
 
     // minimal 1 gudang sudah keluar
@@ -274,6 +282,9 @@ public function inTransit(Request $request)
 
         return $r;
     });
+
+    // BARU: angka (qty, nilai muatan, kubik, tonase, CR, hasil) = totalan per no_shipment + tujuan
+    $this->withGroupTotals($list->getCollection());
 
     $areaList = DB::table('logistik_pengiriman')
         ->whereNotNull('area')->distinct()->orderBy('area')->pluck('area');
@@ -458,12 +469,76 @@ private function groupIdsQuery($query)
 {
     return (clone $query)
         ->select(DB::raw('MIN(id) as id'))
-        ->groupByRaw("COALESCE(NULLIF(TRIM(no_shipment),''), CONCAT('id', id)), COALESCE(tujuan,'')");
+        ->groupByRaw(self::GROUP_KEY);   // GANTI: pakai konstanta kunci grup bersama
 }
 
 private function countGroups($query): int
 {
     return DB::query()->fromSub($this->groupIdsQuery($query), 'g')->count();
+}
+
+/**
+ * BARU: query dasar 1 baris wakil (MIN id) per no_shipment + tujuan.
+ * Dipakai semua halaman supaya hitungannya per grup, bukan per rincian DO.
+ */
+private function repQuery()
+{
+    return DB::table('logistik_pengiriman')->whereIn('id', function ($sub) {
+        $sub->from('logistik_pengiriman')
+            ->selectRaw('MIN(id)')
+            ->groupByRaw(self::GROUP_KEY);
+    });
+}
+
+/**
+ * BARU: isi totalan grup (no_shipment + tujuan) ke 1 baris wakil.
+ * Dipakai dataAjax, in transit, in gudang.
+ */
+private function applyGroupTotals($r, $g, array $shipOpt = []): void
+{
+    $r->jml_do       = (int) $g->jml_do;
+    $r->nilai_muatan = $g->sum_nilai;
+    $r->biaya_kirim  = $g->sum_biaya;
+    $r->total_kubik  = $g->sum_kubik;
+    $r->total_tonase = $g->sum_tonase;
+
+    // kapasitas ikut grup (bukan baris wakil)
+    $r->kubikasi = $g->kap_kubik;
+    $r->tonase   = $g->kap_tonase;
+
+    $q = (float) $g->sum_qty;
+    $r->total_do_qty_car = floor($q) == $q ? (int) $q : $q;
+
+    $r->cr = (float) $g->sum_nilai > 0
+        ? ((float) $g->sum_biaya / (float) $g->sum_nilai) * 100
+        : 0;
+
+    $h = $this->hitungHasilOptimal($g->sum_kubik, $g->kap_kubik, $g->sum_tonase, $g->kap_tonase);
+    $r->hasil_kubik  = $h['hasil_kubik'];
+    $r->hasil_tonase = $h['hasil_tonase'];
+
+    // customer: satu per satu (hasil grup ini saja)
+    $r->pengiriman_optimal_customer = $h['pengiriman_optimal'];
+
+    // internal: gabungan seluruh shipment
+    $r->pengiriman_optimal = $shipOpt[$r->no_shipment] ?? $h['pengiriman_optimal'];
+}
+
+/** BARU: terapkan totalan grup ke sekumpulan baris (collection) */
+private function withGroupTotals($rows)
+{
+    $agg = $this->plannerGroupAgg($rows);
+    $opt = $this->optimalPerShipment($agg);
+
+    foreach ($rows as $r) {
+        $g = $agg[$r->no_shipment . '|' . ($r->tujuan ?? '')] ?? null;
+
+        if ($g && trim((string) $r->no_shipment) !== '') {
+            $this->applyGroupTotals($r, $g, $opt);
+        }
+    }
+
+    return $rows;
 }
 
 /** Total per shipment+tujuan untuk baris yang tampil di halaman ini */
@@ -869,28 +944,8 @@ $shipOpt  = $this->optimalPerShipment($groupAgg);   // BARU
         $g = $groupAgg[$r->no_shipment . '|' . ($r->tujuan ?? '')] ?? null;
 
         if ($g && trim((string) $r->no_shipment) !== '') {
-            $r->jml_do       = (int) $g->jml_do;
-            $r->nilai_muatan = $g->sum_nilai;
-            $r->biaya_kirim  = $g->sum_biaya;
-            $r->total_kubik  = $g->sum_kubik;
-            $r->total_tonase = $g->sum_tonase;
-
-            $q = (float) $g->sum_qty;
-            $r->total_do_qty_car = floor($q) == $q ? (int) $q : $q;
-
-            $r->cr = (float) $g->sum_nilai > 0
-                ? ((float) $g->sum_biaya / (float) $g->sum_nilai) * 100
-                : 0;
-
-           $h = $this->hitungHasilOptimal($r->total_kubik, $r->kubikasi, $r->total_tonase, $r->tonase);
-$r->hasil_kubik  = $h['hasil_kubik'];
-$r->hasil_tonase = $h['hasil_tonase'];
-
-// customer: satu per satu (hasil grup ini saja)
-$r->pengiriman_optimal_customer = $h['pengiriman_optimal'];
-
-// internal: gabungan seluruh shipment
-$r->pengiriman_optimal = $shipOpt[$r->no_shipment] ?? $h['pengiriman_optimal']; 
+            // GANTI: seluruh perhitungan totalan grup dipindah ke applyGroupTotals()
+            $this->applyGroupTotals($r, $g, $shipOpt);
         }
 
         $data[] = $this->renderRowColumns($r, $lists);
@@ -1372,7 +1427,8 @@ public function alerts(Request $request)
         'no_pol'      => 'No Pol',
     ];
 
-    $query = DB::table('logistik_pengiriman')
+    // GANTI: 1 alert per no_shipment + tujuan (bukan per rincian DO)
+    $query = $this->repQuery()
         ->select('id', 'no_shipment', 'mobil', 'ekpedisi', 'route', 'kubikasi', 'nama_driver', 'no_pol');
 
     // ===== FILTER ikut sama seperti dataAjax() =====
@@ -1647,7 +1703,8 @@ private function hitungBiayaKirimRow($totalKubik, $kubikasi, $biayaTarif): float
 
     public function slaOntime(Request $request)
     {
-        $query = DB::table('logistik_pengiriman')
+        // GANTI: DB::table('logistik_pengiriman') -> 1 baris per no_shipment + tujuan
+        $query = $this->repQuery()
             ->where(function ($q) {
                 $q->whereNotNull('tanggal_tiba_gudang')
                   ->orWhereNotNull('tanggal_tiba_gudang_2')
@@ -1743,7 +1800,8 @@ private function hitungBiayaKirimRow($totalKubik, $kubikasi, $biayaTarif): float
 
     public function slaDelay(Request $request)
     {
-        $query = DB::table('logistik_pengiriman')
+        // GANTI: DB::table('logistik_pengiriman') -> 1 baris per no_shipment + tujuan
+        $query = $this->repQuery()
             ->whereNotNull('rencana_kirim')
             ->whereRaw("TRIM(rencana_kirim) <> ''")
             ->whereNotNull('tanggal_dpt_unit')
@@ -1832,11 +1890,10 @@ private function hitungBiayaKirimRow($totalKubik, $kubikasi, $biayaTarif): float
 
     public function summaryArea()
     {
-        $shipments = DB::table('logistik_pengiriman')
+        // GANTI: 1 baris per no_shipment + tujuan
+        $shipments = $this->repQuery()
             ->orderBy('no_shipment')
-            ->get()
-            ->groupBy('no_shipment')
-            ->map(fn($group) => $group->first());
+            ->get();
 
         $summary_area = $shipments
             ->groupBy('area')
@@ -1867,7 +1924,8 @@ private function hitungBiayaKirimRow($totalKubik, $kubikasi, $biayaTarif): float
 
     public function armada(Request $request)
     {
-        $query = DB::table('logistik_pengiriman')
+        // GANTI: DB::table('logistik_pengiriman') -> 1 baris per no_shipment + tujuan
+        $query = $this->repQuery()
             ->whereNotNull('rencana_kirim')
             ->whereRaw("TRIM(rencana_kirim) <> ''")
             ->whereNotNull('tanggal_dpt_unit')
@@ -1927,14 +1985,9 @@ private function hitungBiayaKirimRow($totalKubik, $kubikasi, $biayaTarif): float
 
     private function inGudangQuery()
 {
-    return DB::table('logistik_pengiriman')
-        ->whereRaw($this->selesaiGudangSql() . ' = 0')
-        // 1 shipment = 1 baris (data gudang shared per no_shipment)
-        ->whereIn('id', function ($sub) {
-            $sub->from('logistik_pengiriman')
-                ->selectRaw('MIN(id)')
-                ->groupBy('no_shipment');
-        });
+    // GANTI: subquery MIN(id) per no_shipment -> repQuery() (per no_shipment + tujuan)
+    return $this->repQuery()
+        ->whereRaw($this->selesaiGudangSql() . ' = 0');
 }
 
 public function inGudang(Request $request)
@@ -2054,6 +2107,9 @@ $list = $q->orderBy('tanggal_naik_logistik', 'ASC')
     return $r;
 });
 
+    // BARU: angka (qty, nilai muatan, kubik, tonase, CR, hasil) = totalan per no_shipment + tujuan
+    $this->withGroupTotals($list->getCollection());
+
     $areaList    = DB::table('logistik_pengiriman')->whereNotNull('area')->distinct()->orderBy('area')->pluck('area');
     $plannerList = DB::table('logistik_pengiriman')->whereNotNull('planner')->where('planner', '!=', '')->distinct()->orderBy('planner')->pluck('planner');
     $channelList = DB::table('logistik_pengiriman')
@@ -2092,7 +2148,8 @@ public function exportPlanner(Request $request)
 }
     public function armadaDelay(Request $request)
     {
-        $query = DB::table('logistik_pengiriman')
+        // GANTI: DB::table('logistik_pengiriman') -> 1 baris per no_shipment + tujuan
+        $query = $this->repQuery()
             ->whereNotNull('tanggal_dpt_unit')
             ->where(function ($q) {
                 $q->whereNotNull('tanggal_tiba_gudang')
@@ -2157,7 +2214,8 @@ public function exportPlanner(Request $request)
 
     public function belumArmada(Request $request)
     {
-        $query = DB::table('logistik_pengiriman')
+        // GANTI: DB::table('logistik_pengiriman') -> 1 baris per no_shipment + tujuan
+        $query = $this->repQuery()
             ->where(function ($q) {
                 $q->whereNull('rencana_kirim')
                   ->orWhere('rencana_kirim', '')

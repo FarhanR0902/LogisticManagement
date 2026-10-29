@@ -155,6 +155,16 @@ class PlannerExport implements
 
         $c[] = ['Shipping Point', 'text', fn($r) => $r->route ? explode('-', trim($r->route))[0] : '-'];
         $c[] = ['Kelengkapan Data', 'text', fn($r) => $this->kelengkapan($r)];
+        // ---- rincian per DO ----
+        $c[] = ['Sales Document',     'ptext', fn($r) => (string) ($r->sales_document ?? '')];
+        $c[] = ['Customer Reference', 'ptext', fn($r) => (string) ($r->customer_reference ?? '')];
+        $c[] = ['Contract End Date',  'date',  fn($r) => $this->xl($r->contract_end_date) ?: '-'];
+        $c[] = ['No DO',              'ptext', fn($r) => (string) ($r->no_do ?? '')];
+        $c[] = ['Qty',                'int',   fn($r) => $this->num($r->qty_total_do_car ?? $r->total_do_qty_car)];
+        $c[] = ['Nilai Muatan',       'money', fn($r) => $this->num($r->nilai_muatan)];
+        $c[] = ['Kirim Kontribusi',   'money', fn($r) => $this->num($r->kirim_kontribusi) ?: '-'];
+        $c[] = ['Total Kubik',        'num2',  fn($r) => $this->num($r->total_kubik)];
+        $c[] = ['Total Tonase',       'num2',  fn($r) => $this->num($r->total_tonase)];
 
         return $this->cols = $c;
     }
@@ -183,6 +193,9 @@ class PlannerExport implements
                 case 'date':  $formats[$letter] = 'dd-mm-yyyy'; break;
                 case 'money': $formats[$letter] = '"Rp" #,##0'; break;
                 case 'pct':   $formats[$letter] = '0.00"%"'; break;
+                                case 'ptext': $formats[$letter] = NumberFormat::FORMAT_TEXT; break; // sales doc / no DO panjang, jangan jadi 1.2E+09
+                case 'int':   $formats[$letter] = '#,##0'; break;
+                case 'num2':  $formats[$letter] = '#,##0.00'; break;               // 0,06 / 10,72 sesuai contoh
                 case 'pct4':  $formats[$letter] = '0.0000"%"'; break;
                 case 'num':   $formats[$letter] = '#,##0.##'; break;
                 case 'time':  $formats[$letter] = NumberFormat::FORMAT_TEXT; break;
