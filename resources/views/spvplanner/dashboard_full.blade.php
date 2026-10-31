@@ -730,16 +730,21 @@ tbody tr:last-child td{ border-bottom:none; }
     <form method="GET" action="{{ url()->current() }}" class="filter-form" id="filterForm">
 <div class="field">
     <label for="f-basis">Dasar tanggal</label>
-    <select id="f-basis" name="tgl_basis">
-        <option value="create_tgl" {{ request('tgl_basis', 'create_tgl') == 'create_tgl' ? 'selected' : '' }}>Create Tgl</option>
-        <option value="rencana_kirim" {{ request('tgl_basis') == 'rencana_kirim' ? 'selected' : '' }}>Rencana Kirim</option>
-        <option value="tanggal_naik_logistik" {{ request('tgl_basis') == 'tanggal_naik_logistik' ? 'selected' : '' }}>Tanggal Naik Logistik</option>
-    </select>
+   <select id="f-basis" name="tgl_basis">
+    <option value="periode_shipment" {{ request('tgl_basis', 'periode_shipment') == 'periode_shipment' ? 'selected' : '' }}>Periode Shipment</option>
+    <option value="rencana_kirim" {{ request('tgl_basis') == 'rencana_kirim' ? 'selected' : '' }}>Rencana Kirim</option>
+    <option value="tanggal_naik_logistik" {{ request('tgl_basis') == 'tanggal_naik_logistik' ? 'selected' : '' }}>Tanggal Naik Logistik</option>
+</select>
 </div>
-        <div class="field">
-            <label for="f-date">Tanggal</label>
-            <input id="f-date" type="date" name="date" value="{{ request('date') }}">
-        </div>
+   <div class="field">
+    <label for="f-from">Dari tanggal</label>
+    <input id="f-from" type="date" name="date_from" value="{{ request('date_from') }}">
+</div>
+
+<div class="field">
+    <label for="f-to">Sampai tanggal</label>
+    <input id="f-to" type="date" name="date_to" value="{{ request('date_to') }}">
+</div>
 
         <div class="field">
             <label for="f-month">Bulan</label>

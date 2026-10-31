@@ -4,7 +4,7 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Foundation\Auth\EmailVerificationRequest;
 use Illuminate\Http\Request;
-
+use App\Http\Controllers\CocoklogiController;
 
 /*
 |--------------------------------------------------------------------------
@@ -1060,6 +1060,11 @@ Route::prefix('kota-import')->name('kota.import.')->group(function () {
     Route::get('/data-ajax', [KotaImportController::class, 'dataAjax'])->name('data.ajax');
     Route::post('/update-alasan-pending', [KotaImportController::class, 'importAlasanPending'])->name('update.alasan.pending');
 });
+
+
+Route::get('/logistik/cocoklogi/status', [CocoklogiController::class, 'status'])->name('cocoklogi.status');
+Route::post('/logistik/cocoklogi/preview', [CocoklogiController::class, 'preview'])->name('cocoklogi.preview');
+Route::post('/logistik/cocoklogi/hapus', [CocoklogiController::class, 'hapus'])->name('cocoklogi.hapus');
 /*
 |--------------------------------------------------------------------------
 | Dipakai di logic redirect role, contoh:

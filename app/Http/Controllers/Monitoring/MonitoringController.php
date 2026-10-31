@@ -1065,14 +1065,12 @@ if (!empty($data['ata'])) {
   public function alerts(Request $request)
 {
     $today = date('Y-m-d');
-
-    $filter = DB::table('logistik_pengiriman')
+   $filter = DB::table('logistik_pengiriman')
         ->whereNotNull('estimasi_tiba')
-        ->where('estimasi_tiba', '<', $today)
+        ->whereDate('estimasi_tiba', '<=', $today)   // BERUBAH: H-0 ikut + yang sudah lewat
         ->where(function ($q) {
             $q->whereNull('tanggal_tiba')->orWhereNull('tanggal_bongkar');
         });
-
     $this->applyCommonFilters($filter, $request);
 
     $groupIds = $this->groupIdsQuery($filter);

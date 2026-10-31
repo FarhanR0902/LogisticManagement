@@ -730,10 +730,11 @@ tbody tr:last-child td{ border-bottom:none; }
     <form method="GET" action="{{ url()->current() }}" class="filter-form" id="filterForm">
 <div class="field">
     <label for="f-basis">Dasar tanggal</label>
-   <select id="f-basis" name="tgl_basis">
-    <option value="tanggal_terima_po_pasuruan" {{ request('tgl_basis', 'tanggal_terima_po_pasuruan') == 'tanggal_terima_po_pasuruan' ? 'selected' : '' }}>Tanggal Terima PO</option>
+  <select id="f-basis" name="tgl_basis">
+    <option value="periode_shipment_pasuruan" {{ request('tgl_basis', 'periode_shipment_pasuruan') == 'periode_shipment_pasuruan' ? 'selected' : '' }}>Periode Shipment</option>
+    <option value="tanggal_terima_po_pasuruan" {{ request('tgl_basis') == 'tanggal_terima_po_pasuruan' ? 'selected' : '' }}>Tanggal Terima PO</option>
     <option value="rencana_kirim_pasuruan" {{ request('tgl_basis') == 'rencana_kirim_pasuruan' ? 'selected' : '' }}>Rencana Kirim</option>
-  <option value="create_tgl_pasuruan" {{ request('tgl_basis') == 'create_tgl_pasuruan' ? 'selected' : '' }}>Create Tgl</option>
+    <option value="create_tgl_pasuruan" {{ request('tgl_basis') == 'create_tgl_pasuruan' ? 'selected' : '' }}>Create Tgl</option>
 </select>
 </div>
 

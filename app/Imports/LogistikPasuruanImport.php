@@ -31,11 +31,17 @@ use PhpOffice\PhpSpreadsheet\Shared\Date;
  *   salah ketik kecil). Kalau tidak yakin, nama dari Excel dipakai apa adanya.
  *
  * BIAYA KIRIM:
- *   hanya dari kirim_kontribusi (dibagi per porsi total_kubik). Kalau kontribusi
- *   kosong, biaya_kirim = 0. Tabel tarif_pengiriman dipakai hanya untuk
- *   kubikasi dan tonase.
+ *   kirim_kontribusi di Excel = biaya 1 mobil per no_shipment (diulang di banyak
+ *   baris tidak masalah, dihitung 1x dari baris pertama yang terisi). Dibagi ke
+ *   tiap DO sesuai total_kubik. biaya_kirim per baris = kirim_kontribusi baris itu
+ *   (controller menjumlahkannya per shipment + tujuan). Dihitung di recalcShipments().
+ *   Tabel tarif_pengiriman dipakai hanya untuk kubikasi dan tonase.
+ *
+ * PERIODE:
+ *   tanggal_shipment_pasuruan (date) dan periode_shipment_pasuruan (teks "MM-YYYY").
  *
  * Aturan hitung (di AfterImport, bukan per baris):
+ *  - kirim_kontribusi  : pool 1 mobil x total_kubik DO / SUM total_kubik shipment
  *  - CR                : per baris sesuai kontribusi nilai_muatan dalam satu no_shipment
  *  - hasil_kubik/tonase: SUM(total per shipment + tujuan) / kapasitas * 100
  *  - pengiriman_optimal: per shipment, OPTIMAL jika salah satu hasil >= 85
@@ -90,12 +96,10 @@ class LogistikPasuruanImport implements ToCollection, WithHeadingRow, WithCalcul
     // no_shipment yang ada di file ini -> dipakai buat recalc di AfterImport
     private array $touchedShipments = [];
 
-    // agregat dari file (dihitung sebelum baris diproses)
-    private array $shipmentKubik = [];   // no_shipment            => total kubik
-    private array $shipmentKK    = [];   // no_shipment            => total kirim kontribusi
-    private array $shipmentRows  = [];   // no_shipment            => jumlah baris
-    private array $kkSeen        = [];   // no_shipment            => baris yang sudah diproses
-    private array $kkAlloc       = [];   // no_shipment            => total yang sudah dialokasikan
+    // no_shipment => [no_shipment, biaya 1 mobil]  (baris PERTAMA yang terisi)
+    private array $groupBiaya    = [];
+    // no_shipment => true kalau angka biaya di Excel beda-beda dalam 1 shipment
+    private array $biayaConflict = [];
 
     // urutan kemunculan baris tanpa ID DO: "no_shipment|tujuan" => jumlah baris yang sudah diproses
     private array $nullDoSeen = [];
@@ -108,6 +112,7 @@ class LogistikPasuruanImport implements ToCollection, WithHeadingRow, WithCalcul
     public function getFailedList(): array { return $this->failedList; }
     public function getNoLeadTime(): array { return $this->noLeadTime; }
     public function getUnmatchedTujuan(): array { return $this->unmatchedTujuan; }
+    public function getBiayaConflict(): array { return array_map('strval', array_keys($this->biayaConflict)); }
 
     public function __construct()
     {
@@ -151,21 +156,17 @@ class LogistikPasuruanImport implements ToCollection, WithHeadingRow, WithCalcul
         }
         unset($rows);
 
-        // ---- PASS 1: agregat dari file (jumlah baris, total kubik, kirim kontribusi) ----
+        // ---- PASS 1: biaya 1 mobil per no_shipment (baris pertama yang terisi) ----
         foreach ($prepared as $r) {
             $no = $this->cleanText($r['no_shipment_pasuruan'] ?? null);
             if (empty($no)) continue;
 
-            $this->shipmentRows[$no] = ($this->shipmentRows[$no] ?? 0) + 1;
-
-            $k = $this->cleanDecimal($r['total_kubik_pasuruan'] ?? null);
-            if ($k !== null && $k > 0) {
-                $this->shipmentKubik[$no] = ($this->shipmentKubik[$no] ?? 0) + $k;
-            }
-
             $kk = $this->cleanDecimal($r['kirim_kontribusi_pasuruan'] ?? null);
             if ($kk !== null && $kk > 0) {
-                $this->shipmentKK[$no] = ($this->shipmentKK[$no] ?? 0) + $kk;
+                if (isset($this->groupBiaya[$no]) && abs($this->groupBiaya[$no][1] - $kk) > 0.01) {
+                    $this->biayaConflict[$no] = true;
+                }
+                $this->groupBiaya[$no] ??= [$no, $kk];
             }
         }
 
@@ -204,14 +205,18 @@ class LogistikPasuruanImport implements ToCollection, WithHeadingRow, WithCalcul
             $attributes['sales_document_pasuruan'] = $doKey;   // harus sama dengan kunci
 
             if ($doKey !== null) {
-                $model = LogistikPengirimanPasuruan::updateOrCreate(
-                    [
-                        'no_shipment_pasuruan'    => $noShipment,
-                        'tujuan_pasuruan'         => $tujuan,
-                        'sales_document_pasuruan' => $doKey,
-                    ],
-                    $attributes
-                );
+                $model = LogistikPengirimanPasuruan::firstOrNew([
+                    'no_shipment_pasuruan'    => $noShipment,
+                    'tujuan_pasuruan'         => $tujuan,
+                    'sales_document_pasuruan' => $doKey,
+                ]);
+
+                // baris baru: biaya_kirim mulai 0 (diisi di recalcShipments)
+                if (!$model->exists) {
+                    $attributes['biaya_kirim_pasuruan'] = 0;
+                }
+
+                $model->fill($attributes)->save();
             } else {
                 $model = $this->saveWithoutDoKey($noShipment, $tujuan, $attributes);
             }
@@ -269,6 +274,7 @@ class LogistikPasuruanImport implements ToCollection, WithHeadingRow, WithCalcul
         return LogistikPengirimanPasuruan::create(array_merge([
             'no_shipment_pasuruan' => $noShipment,
             'tujuan_pasuruan'      => $tujuan,
+            'biaya_kirim_pasuruan' => 0,
         ], $attributes));
     }
 
@@ -298,6 +304,8 @@ class LogistikPasuruanImport implements ToCollection, WithHeadingRow, WithCalcul
     {
         // ================= DATE =================
         $tanggalTerimaPo     = $this->convertDate($row['tanggal_terima_po_pasuruan'] ?? null);
+        $tanggalShipment     = $this->convertDate($row['tanggal_shipment_pasuruan'] ?? null);
+        $periodeShipment     = $this->convertPeriode($row['periode_shipment_pasuruan'] ?? null);
         $rencanaKirim        = $this->convertDate($row['rencana_kirim_pasuruan'] ?? null);
         $tanggalDptUnit      = $this->convertDate($row['tanggal_dpt_unit_pasuruan'] ?? null);
         $planningLoading     = $this->convertDate($row['planning_loading_pasuruan'] ?? null);
@@ -389,30 +397,8 @@ class LogistikPasuruanImport implements ToCollection, WithHeadingRow, WithCalcul
         $kubikasi = $tarifRow ? $this->cleanDecimal($tarifRow->kubikasi ?? null) : null;
         $tonase   = $tarifRow ? $this->cleanDecimal($tarifRow->tonase ?? null)   : null;
 
-        // ---- kirim kontribusi: total per shipment dibagi sesuai porsi total_kubik ----
-        $kirimKontribusi = null;
-        $totKK = $this->shipmentKK[$noShipment] ?? 0;
-
-        if ($totKK > 0) {
-            $sumKubik = $this->shipmentKubik[$noShipment] ?? 0;
-            $nRows    = $this->shipmentRows[$noShipment] ?? 1;
-
-            $this->kkSeen[$noShipment] = ($this->kkSeen[$noShipment] ?? 0) + 1;
-
-            if ($this->kkSeen[$noShipment] >= $nRows) {
-                // baris terakhir ambil sisa, supaya total pas tanpa selisih pembulatan
-                $kirimKontribusi = round($totKK - ($this->kkAlloc[$noShipment] ?? 0), 2);
-            } else {
-                $share = $sumKubik > 0 ? (($totalKubik ?? 0) / $sumKubik) : (1 / $nRows);
-                $kirimKontribusi = round($totKK * $share, 2);
-            }
-
-            $this->kkAlloc[$noShipment] = ($this->kkAlloc[$noShipment] ?? 0) + $kirimKontribusi;
-        }
-
-        // biaya_kirim HANYA dari kirim_kontribusi. Kosong kalau kontribusi kosong (disimpan 0,
-        // supaya aman kalau kolomnya NOT NULL; tampilan dan CR tetap 0).
-        $biayaKirim = $kirimKontribusi ?? 0;
+        // kirim_kontribusi & biaya_kirim TIDAK diisi di sini:
+        // dihitung di recalcShipments() dari biaya 1 mobil per shipment ($this->groupBiaya)
 
         // ================= LOOKUP MASTER (Div = Pasuruan) =================
         $tujuanKey    = preg_replace('/\s+/', ' ', trim(strtolower((string) $tujuan)));
@@ -563,7 +549,6 @@ class LogistikPasuruanImport implements ToCollection, WithHeadingRow, WithCalcul
             'tonase_pasuruan'       => $tonase,
             'total_kubik_pasuruan'  => $totalKubik,
             'total_tonase_pasuruan' => $totalTonase,
-            'biaya_kirim_pasuruan'  => $biayaKirim,
             'biaya_kuli_pasuruan'   => $biayaKuli,
 
             'kategori_ekspedisi_pasuruan' => $kategoriEkspedisi,
@@ -574,6 +559,8 @@ class LogistikPasuruanImport implements ToCollection, WithHeadingRow, WithCalcul
 
             // ================= DATE =================
             'tanggal_terima_po_pasuruan'     => $tanggalTerimaPo,
+            'tanggal_shipment_pasuruan'      => $tanggalShipment,
+            'periode_shipment_pasuruan'      => $periodeShipment,
             'rencana_kirim_pasuruan'         => $rencanaKirim,
             'tanggal_dpt_unit_pasuruan'      => $tanggalDptUnit,
             'planning_loading_pasuruan'      => $planningLoading,
@@ -630,7 +617,6 @@ class LogistikPasuruanImport implements ToCollection, WithHeadingRow, WithCalcul
             'contract_end_date_pasuruan'  => $contractEndDate,
             'no_delivery_pasuruan'        => $noDelivery,
             'no_do_pasuruan'              => $noDo,
-            'kirim_kontribusi_pasuruan'   => $kirimKontribusi,
 
             // ================= OTHER =================
             'act_pgi_date_pasuruan'       => $actPgiDate,
@@ -689,6 +675,31 @@ class LogistikPasuruanImport implements ToCollection, WithHeadingRow, WithCalcul
                     WHERE (lp.$col IS NULL OR lp.$col = '')
                       AND lp.no_shipment_pasuruan IN ($in)
                 ", $b2);
+            }
+
+            // ---- KIRIM KONTRIBUSI per DO + BIAYA KIRIM per baris ----
+            // pool (biaya 1 mobil) dibagi sesuai porsi total_kubik DO di shipment itu.
+            // biaya_kirim per baris = kirim_kontribusi baris itu, karena controller
+            // menjumlahkan per shipment + tujuan (SUM biaya_kirim kalau ada kontribusi).
+            $tkLp  = $n('lp.total_kubik_pasuruan');
+            $share = "CASE WHEN g.sum_kubik > 0
+                           THEN ROUND(? * {$tkLp} / g.sum_kubik, 2)
+                           ELSE ROUND(? / g.cnt, 2) END";
+
+            foreach ($this->groupBiaya as [$sh, $pool]) {
+                if (!in_array((string) $sh, $chunk, true)) continue;
+
+                DB::update("
+                    UPDATE {$table} lp
+                    CROSS JOIN (
+                        SELECT SUM({$tk}) AS sum_kubik, COUNT(*) AS cnt
+                        FROM {$table}
+                        WHERE no_shipment_pasuruan = ?
+                    ) g
+                    SET lp.kirim_kontribusi_pasuruan = {$share},
+                        lp.biaya_kirim_pasuruan      = {$share}
+                    WHERE lp.no_shipment_pasuruan = ?
+                ", [$sh, $pool, $pool, $pool, $pool, $sh]);
             }
 
             // ---- CR: per baris sesuai kontribusi nilai_muatan ----
@@ -973,7 +984,7 @@ class LogistikPasuruanImport implements ToCollection, WithHeadingRow, WithCalcul
 
     /**
      * Angka desimal polos (bukan persen, bukan Rupiah).
-     * Dipakai untuk total kubik/tonase dan kapasitas kubikasi/tonase.
+     * Dipakai untuk total kubik/tonase, kirim kontribusi, dan kapasitas kubikasi/tonase.
      */
     private function cleanDecimal($value): ?float
     {
@@ -1023,6 +1034,33 @@ class LogistikPasuruanImport implements ToCollection, WithHeadingRow, WithCalcul
         $timestamp = strtotime(str_replace('/', '-', $value));
 
         return $timestamp ? date('Y-m-d', $timestamp) : null;
+    }
+
+    /** Periode selalu disimpan sebagai teks "MM-YYYY" */
+    private function convertPeriode($value): ?string
+    {
+        if ($value === null || $value === '' || $value === '-') return null;
+
+        if ($value instanceof \DateTimeInterface) {
+            return $value->format('m-Y');
+        }
+
+        // Excel kadang mengubah "10-2026" jadi serial tanggal
+        if (is_numeric($value)) {
+            return Date::excelToDateTimeObject($value)->format('m-Y');
+        }
+
+        $value = trim((string) $value);
+
+        if (preg_match('/^(\d{1,2})[-\/](\d{4})$/', $value, $m)) {      // 10-2026 / 10/2026
+            return sprintf('%02d-%s', $m[1], $m[2]);
+        }
+        if (preg_match('/^(\d{4})[-\/](\d{1,2})$/', $value, $m)) {      // 2026-10
+            return sprintf('%02d-%s', $m[2], $m[1]);
+        }
+
+        $ts = strtotime($value);
+        return $ts ? date('m-Y', $ts) : null;
     }
 
     /**

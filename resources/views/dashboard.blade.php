@@ -775,16 +775,10 @@ tbody tr:last-child td{ border-bottom:none; }
 <div class="filter-box">
     <form method="GET" action="{{ url()->current() }}" class="filter-form" id="filterForm">
 <div class="field">
- <select id="f-basis" name="tgl_basis">
-    <option value="created_at" {{ request('tgl_basis', 'created_at') == 'created_at' ? 'selected' : '' }}>
-        Tanggal import
-    </option>
-    <option value="rencana_kirim" {{ request('tgl_basis') == 'rencana_kirim' ? 'selected' : '' }}>
-        Rencana kirim
-    </option>
-    <option value="tanggal_naik_logistik" {{ request('tgl_basis') == 'tanggal_naik_logistik' ? 'selected' : '' }}>
-        Tanggal naik logistik
-    </option>
+<select id="f-basis" name="tgl_basis">
+    <option value="periode_shipment" {{ request('tgl_basis', 'periode_shipment') == 'periode_shipment' ? 'selected' : '' }}>Periode Shipment</option>
+    <option value="rencana_kirim" {{ request('tgl_basis') == 'rencana_kirim' ? 'selected' : '' }}>Rencana Kirim</option>
+    <option value="tanggal_naik_logistik" {{ request('tgl_basis') == 'tanggal_naik_logistik' ? 'selected' : '' }}>Tanggal Naik Logistik</option>
 </select>
  
 </select>

@@ -305,44 +305,69 @@ class SpvPlannerController extends Controller
      * ===================================================== */
 
     /** SAMA dengan SpvMonitoringController: default tanggal_naik_logistik */
-    private function dateFilterColumn($request): string
-    {
-        return match ($request->input('tgl_basis')) {
-            'create_tgl'    => 'create_tgl',
-            'rencana_kirim' => 'rencana_kirim',
-            default         => 'tanggal_naik_logistik',
-        };
+private function dateFilterColumn($request): string
+{
+    return match ($request->input('tgl_basis')) {
+        'rencana_kirim'         => 'rencana_kirim',
+        'tanggal_naik_logistik' => 'tanggal_naik_logistik',
+        default                 => 'periode_shipment',
+    };
+}
+
+  private function applyFilter($query, $request)
+{
+    if ($request->area) {
+        $query->where('area', $request->area);
     }
 
-    private function applyFilter($query, $request)
-    {
-        if ($request->area) {
-            $query->where('area', $request->area);
-        }
-
-        if ($request->dist_channel) {
-            $query->where('dist_channel', $request->dist_channel);
-        }
-
-        if ($request->filled('pulau') && isset(self::PULAU_MAP[$request->pulau])) {
-            $query->whereIn('area', self::PULAU_MAP[$request->pulau]);
-        }
-
-        $col = $this->dateFilterColumn($request);
-
-        if ($request->date) {
-            $query->whereDate($col, $request->date);
-        }
-        if ($request->month) {
-            $query->whereMonth($col, substr($request->month, 5, 2));
-            $query->whereYear($col, substr($request->month, 0, 4));
-        }
-        if ($request->year) {
-            $query->whereYear($col, $request->year);
-        }
-
-        return $query;
+    if ($request->dist_channel) {
+        $query->where('dist_channel', $request->dist_channel);
     }
+
+    if ($request->filled('pulau') && isset(self::PULAU_MAP[$request->pulau])) {
+        $query->whereIn('area', self::PULAU_MAP[$request->pulau]);
+    }
+
+    $col = $this->dateFilterColumn($request);
+
+    // periode_shipment = teks "MM-YYYY"
+  if ($col === 'periode_shipment') {
+    // Bulan / tahun -> periode_shipment (teks "MM-YYYY")
+    if ($request->month) {
+        $query->where('periode_shipment', substr($request->month, 5, 2) . '-' . substr($request->month, 0, 4));
+    }
+    if ($request->year) {
+        $query->where('periode_shipment', 'like', '%-' . $request->year);
+    }
+
+    // Tanggal -> tanggal_shipment (tanggal asli)
+    if ($request->date) {
+        $query->whereDate('tanggal_shipment', $request->date);
+    }
+
+    $from = $request->input('date_from');
+    $to   = $request->input('date_to');
+    if ($from && $to && $from > $to) {
+        [$from, $to] = [$to, $from];
+    }
+    if ($from) $query->whereDate('tanggal_shipment', '>=', $from);
+    if ($to)   $query->whereDate('tanggal_shipment', '<=', $to);
+
+    return $query;
+}
+    if ($request->date) {
+        $query->whereDate($col, $request->date);
+    }
+    if ($request->month) {
+        $query->whereMonth($col, substr($request->month, 5, 2));
+        $query->whereYear($col, substr($request->month, 0, 4));
+    }
+    if ($request->year) {
+        $query->whereYear($col, $request->year);
+    }
+
+    return $query;
+}
 
     private function applyFilterPasuruan($query, $request)
     {
@@ -894,7 +919,7 @@ private function firstRoute(array $names, array $params = []): string
 private function kpiLinks(Request $request): array
 {
     $filter = array_filter(
-        $request->only(['tgl_basis', 'date', 'month', 'year', 'area', 'dist_channel', 'pulau']),
+      $request->only(['tgl_basis', 'date', 'date_from', 'date_to', 'month', 'year', 'area', 'dist_channel', 'pulau']),
         fn($v) => $v !== null && $v !== ''
     );
 

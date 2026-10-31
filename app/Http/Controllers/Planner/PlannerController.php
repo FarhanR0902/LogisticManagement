@@ -24,6 +24,47 @@ private const PULAU_MAP = [
 
     // BARU: kunci grup = no_shipment + tujuan (baris tanpa no_shipment dianggap grup sendiri)
     private const GROUP_KEY = "COALESCE(NULLIF(TRIM(no_shipment),''), CONCAT('id', id)), COALESCE(tujuan,'')";
+    // suffix kolom => nama gudang. Tambah gudang baru cukup di sini.
+private const GUDANG = [
+    ''   => 'KACS',
+    '_2' => 'SENTUL',
+    '_3' => 'CCIE',
+    '_4' => 'P5',
+    '_5' => 'FIFATEX',
+];
+
+private function gudangSuffixes(): array
+{
+    return array_keys(self::GUDANG);
+}
+
+/** [planning, tiba, keluar] per gudang */
+private function gudangCycles(): array
+{
+    return array_map(
+        fn($s) => ["planning_loading{$s}", "tanggal_tiba_gudang{$s}", "tanggal_keluar_gudang{$s}"],
+        $this->gudangSuffixes()
+    );
+}
+
+/** Semua field gudang untuk update/autosave */
+private function gudangPayload(Request $request, array $rumus): array
+{
+    $out = [];
+    foreach ($this->gudangSuffixes() as $s) {
+        $out["planning_loading{$s}"]      = $request->{"planning_loading{$s}"};
+        $out["tanggal_tiba_gudang{$s}"]   = $request->{"tanggal_tiba_gudang{$s}"};
+        $out["tanggal_keluar_gudang{$s}"] = $request->{"tanggal_keluar_gudang{$s}"};
+        $out["waktu_tiba_gudang{$s}"]     = $this->cleanTime($request->{"waktu_tiba_gudang{$s}"});
+        $out["waktu_keluar_gudang{$s}"]   = $this->cleanTime($request->{"waktu_keluar_gudang{$s}"});
+        $out["reason_gudang{$s}"]         = ($rumus["status_gudang{$s}"] ?? null) === 'Delay'
+            ? ($request->{"reason_gudang{$s}"} ?: null) : null;
+        $out["lama_digudang{$s}"] = $rumus["lama_digudang{$s}"] ?? null;
+        $out["status_gudang{$s}"] = $rumus["status_gudang{$s}"] ?? null;
+        $out["sla_loading{$s}"]   = $rumus["sla_loading{$s}"] ?? null;
+    }
+    return $out;
+}
 
     public function store(Request $request)
     {
@@ -39,6 +80,8 @@ $data['total_tonase'] = $this->cleanDecimalPlanner($request->total_tonase);
             'waktu_tiba_gudang', 'waktu_keluar_gudang',
 'waktu_tiba_gudang_2', 'waktu_keluar_gudang_2',
 'waktu_tiba_gudang_3', 'waktu_keluar_gudang_3',
+'planning_loading_4', 'tanggal_tiba_gudang_4', 'tanggal_keluar_gudang_4', 'reason_gudang_4',
+'planning_loading_5', 'tanggal_tiba_gudang_5', 'tanggal_keluar_gudang_5', 'reason_gudang_5',
             'dist_channel',
             'transport_lead_time',
             'tujuan',
@@ -73,6 +116,11 @@ $data['total_tonase'] = $this->cleanDecimalPlanner($request->total_tonase);
             'pulau',
             'via_kirim'
       ]);
+      foreach ($this->gudangSuffixes() as $s) {
+    foreach (['waktu_tiba_gudang', 'waktu_keluar_gudang'] as $f) {
+        $data[$f . $s] = $this->cleanTime($request->{$f . $s});
+    }
+}
 
         foreach (['waktu_tiba_gudang','waktu_keluar_gudang','waktu_tiba_gudang_2','waktu_keluar_gudang_2','waktu_tiba_gudang_3','waktu_keluar_gudang_3'] as $f) {
             $data[$f] = $this->cleanTime($request->$f);
@@ -112,19 +160,18 @@ $data['total_tonase'] = $this->cleanDecimalPlanner($request->total_tonase);
             || empty($row->tanggal_dpt_unit);
     })->count();
 
-    $ontime = $shipments->filter(function ($row) {
-        return !empty($row->tanggal_tiba_gudang)
-            || !empty($row->tanggal_tiba_gudang_2)
-            || !empty($row->tanggal_tiba_gudang_3);
-    })->count();
+  $tibaCols = array_map(fn($s) => "tanggal_tiba_gudang{$s}", $this->gudangSuffixes());
 
-    $delay = $shipments->filter(function ($row) {
-        return !empty($row->tanggal_dpt_unit)
-            && empty($row->tanggal_tiba_gudang)
-            && empty($row->tanggal_tiba_gudang_2)
-            && empty($row->tanggal_tiba_gudang_3);
-    })->count();
+$ontime = $shipments->filter(function ($row) use ($tibaCols) {
+    foreach ($tibaCols as $c) if (!empty($row->$c)) return true;
+    return false;
+})->count();
 
+$delay = $shipments->filter(function ($row) use ($tibaCols) {
+    if (empty($row->tanggal_dpt_unit)) return false;
+    foreach ($tibaCols as $c) if (!empty($row->$c)) return false;
+    return true;
+})->count();
     $summary_area = $shipments
         ->groupBy('area')
         ->map(function ($group) {
@@ -152,29 +199,18 @@ $total_in_gudang  = $this->applyFilter($this->inGudangQuery(), $request)->distin
 }
 
 
-       private function inTransitQuery()
+    private function inTransitQuery()
 {
     $filled = fn($c) => "NULLIF(TRIM({$c}), '') IS NOT NULL";
     $empty  = fn($c) => "NULLIF(TRIM({$c}), '') IS NULL";
 
-    // GANTI: dari tabel mentah -> 1 baris wakil per no_shipment + tujuan
-    $q = $this->repQuery()
-        ->whereRaw($empty('tanggal_tiba'));
+    $q = $this->repQuery()->whereRaw($empty('tanggal_tiba'));
 
-    // minimal 1 gudang sudah keluar
-    $q->whereRaw('(' . implode(' OR ', [
-        $filled('tanggal_keluar_gudang'),
-        $filled('tanggal_keluar_gudang_2'),
-        $filled('tanggal_keluar_gudang_3'),
-    ]) . ')');
+    $q->whereRaw('(' . implode(' OR ', array_map(
+        fn($s) => $filled("tanggal_keluar_gudang{$s}"), $this->gudangSuffixes()
+    )) . ')');
 
-    // tidak boleh ada siklus gudang yang masih menggantung
-    $cycles = [
-        ['planning_loading',   'tanggal_tiba_gudang',   'tanggal_keluar_gudang'],
-        ['planning_loading_2', 'tanggal_tiba_gudang_2', 'tanggal_keluar_gudang_2'],
-        ['planning_loading_3', 'tanggal_tiba_gudang_3', 'tanggal_keluar_gudang_3'],
-    ];
-    foreach ($cycles as [$planning, $tiba, $keluar]) {
+    foreach ($this->gudangCycles() as [$planning, $tiba, $keluar]) {
         $q->whereRaw('NOT ((' . $filled($planning) . ' OR ' . $filled($tiba) . ') AND ' . $empty($keluar) . ')');
     }
 
@@ -183,16 +219,15 @@ $total_in_gudang  = $this->applyFilter($this->inGudangQuery(), $request)->distin
 
 private function inTransitEstimasiSql(): string
 {
+    $keluar = implode(",\n", array_map(
+        fn($s) => "COALESCE(tanggal_keluar_gudang{$s},'1900-01-01')", $this->gudangSuffixes()
+    ));
+
     return "COALESCE(estimasi_tiba, DATE_ADD(
-        GREATEST(
-            COALESCE(tanggal_keluar_gudang,'1900-01-01'),
-            COALESCE(tanggal_keluar_gudang_2,'1900-01-01'),
-            COALESCE(tanggal_keluar_gudang_3,'1900-01-01')
-        ),
+        GREATEST({$keluar}),
         INTERVAL CAST(COALESCE(NULLIF(TRIM(transport_lead_time),''),0) AS UNSIGNED) DAY
     ))";
 }
-
 public function inTransit(Request $request)
 {
     $today   = date('Y-m-d');
@@ -255,6 +290,13 @@ public function inTransit(Request $request)
                 }
             }
         }
+        foreach (self::GUDANG as $s => $nama) {
+    $tgl = $r->{"tanggal_keluar_gudang{$s}"};
+    if (!empty($tgl)) {
+        $ts = strtotime($tgl);
+        if ($keluar === null || $ts >= $keluar) { $keluar = $ts; $asal = $nama; }
+    }
+}
 
         $lead     = (int) ($r->transport_lead_time ?? 0);
         $keluarD  = $keluar ? strtotime(date('Y-m-d', $keluar)) : null;
@@ -378,70 +420,30 @@ public function inTransit(Request $request)
         // ====================================================
         // 1. UPDATE FIELD YANG SHARED UNTUK SEMUA ROW SESHIPMENT
         // ====================================================
-        $updateShipment = [
-
-            'estimasi_tiba'         => $request->estimasi_tiba,
-            'tanggal_naik_logistik' => $request->tanggal_naik_logistik,
-            'rencana_kirim'         => $request->rencana_kirim,
-            'transport_lead_time'   => $request->transport_lead_time,
-            'planner'               => $request->planner,
-            'no_shipment'           => $newNoShipment,
-            'perubahan_mobil'       => $request->perubahan_mobil,
-            'kategori_ekspedisi'    => $request->kategori_ekspedisi,
-            'keterangan'            => $request->keterangan,
-
-            'ekpedisi'              => $request->ekpedisi,
-            'mobil'                 => $request->mobil,
-            'route'                 => $request->route,
-            'waktu_tiba_gudang'     => $this->cleanTime($request->waktu_tiba_gudang),
-'waktu_keluar_gudang'   => $this->cleanTime($request->waktu_keluar_gudang),
-'waktu_tiba_gudang_2'   => $this->cleanTime($request->waktu_tiba_gudang_2),
-'waktu_keluar_gudang_2' => $this->cleanTime($request->waktu_keluar_gudang_2),
-'waktu_tiba_gudang_3'   => $this->cleanTime($request->waktu_tiba_gudang_3),
-'waktu_keluar_gudang_3' => $this->cleanTime($request->waktu_keluar_gudang_3),
-
-            'tanggal_dpt_unit'      => $request->tanggal_dpt_unit,
-
-            'planning_loading'      => $request->planning_loading,
-            'tanggal_tiba_gudang'   => $request->tanggal_tiba_gudang,
-            'tanggal_keluar_gudang' => $request->tanggal_keluar_gudang,
-'reason_gudang'   => ($rumus['status_gudang']   ?? null) === 'Delay' ? ($request->reason_gudang   ?: null) : null,
-'reason_gudang_2' => ($rumus['status_gudang_2'] ?? null) === 'Delay' ? ($request->reason_gudang_2 ?: null) : null,
-'reason_gudang_3' => ($rumus['status_gudang_3'] ?? null) === 'Delay' ? ($request->reason_gudang_3 ?: null) : null,
-            'area'                  => $request->area,
-            'via_kirim'             => $request->via_kirim,
-
-            'planning_loading_2'      => $request->planning_loading_2,
-            'tanggal_tiba_gudang_2'   => $request->tanggal_tiba_gudang_2,
-            'tanggal_keluar_gudang_2' => $request->tanggal_keluar_gudang_2,
-
-            'planning_loading_3'      => $request->planning_loading_3,
-            'tanggal_tiba_gudang_3'   => $request->tanggal_tiba_gudang_3,
-            'tanggal_keluar_gudang_3' => $request->tanggal_keluar_gudang_3,
-
-            'nama_driver' => $request->nama_driver,
-            'no_pol'      => $request->no_pol,
-
-            'dist_channel' => $request->dist_channel,
-
-            'lama_waktu_pencarian' => $rumus['lama_waktu_pencarian'] ?? null,
-            'sla_dapat_mobil'      => $rumus['sla_dapat_mobil'] ?? null,
-            'status_pengiriman'    => $rumus['status_pengiriman'] ?? null,
-
-            'lama_digudang' => $rumus['lama_digudang'] ?? null,
-            'status_gudang' => $rumus['status_gudang'] ?? null,
-            'sla_loading'   => $rumus['sla_loading'] ?? null,
-
-            'lama_digudang_2' => $rumus['lama_digudang_2'] ?? null,
-            'status_gudang_2' => $rumus['status_gudang_2'] ?? null,
-            'sla_loading_2'   => $rumus['sla_loading_2'] ?? null,
-
-            'lama_digudang_3' => $rumus['lama_digudang_3'] ?? null,
-            'status_gudang_3' => $rumus['status_gudang_3'] ?? null,
-            'sla_loading_3'   => $rumus['sla_loading_3'] ?? null,
-
-            'updated_at' => now(),
-        ];
+  $updateShipment = array_merge([
+    'estimasi_tiba'         => $request->estimasi_tiba,
+    'tanggal_naik_logistik' => $request->tanggal_naik_logistik,
+    'rencana_kirim'         => $request->rencana_kirim,
+    'transport_lead_time'   => $request->transport_lead_time,
+    'planner'               => $request->planner,
+    'no_shipment'           => $newNoShipment,
+    'perubahan_mobil'       => $request->perubahan_mobil,
+    'kategori_ekspedisi'    => $request->kategori_ekspedisi,
+    'keterangan'            => $request->keterangan,
+    'ekpedisi'              => $request->ekpedisi,
+    'mobil'                 => $request->mobil,
+    'route'                 => $request->route,
+    'tanggal_dpt_unit'      => $request->tanggal_dpt_unit,
+    'area'                  => $request->area,
+    'via_kirim'             => $request->via_kirim,
+    'nama_driver'           => $request->nama_driver,
+    'no_pol'                => $request->no_pol,
+    'dist_channel'          => $request->dist_channel,
+    'lama_waktu_pencarian'  => $rumus['lama_waktu_pencarian'] ?? null,
+    'sla_dapat_mobil'       => $rumus['sla_dapat_mobil'] ?? null,
+    'status_pengiriman'     => $rumus['status_pengiriman'] ?? null,
+    'updated_at'            => now(),
+], $this->gudangPayload($request, $rumus));
 
         DB::table('logistik_pengiriman')
             ->where(function ($q) use ($oldNoShipment, $newNoShipment) {
@@ -627,68 +629,29 @@ private function groupScope($row, ?string $shipment = null)
         // ====================================================
         // 1. UPDATE FIELD SHARED UNTUK SEMUA ROW SESHIPMENT
         // ====================================================
-        $updateShipment = [
-            'planner'       => $request->planner,
-            'no_shipment'   => $newNoShipment,
-            'estimasi_tiba' => $request->estimasi_tiba,
-
-            'tanggal_naik_logistik' => $request->tanggal_naik_logistik,
-            'rencana_kirim'         => $request->rencana_kirim,
-            'tanggal_dpt_unit'      => $request->tanggal_dpt_unit,
-
-           'planning_loading'      => $request->planning_loading,
-'tanggal_tiba_gudang'   => $request->tanggal_tiba_gudang,
-'tanggal_keluar_gudang' => $request->tanggal_keluar_gudang,
-'reason_gudang'         => ($rumus['status_gudang'] ?? null) === 'Delay' ? ($request->reason_gudang ?: null) : null,    
-'waktu_tiba_gudang'     => $this->cleanTime($request->waktu_tiba_gudang),
-'waktu_keluar_gudang'   => $this->cleanTime($request->waktu_keluar_gudang),
-'waktu_tiba_gudang_2'   => $this->cleanTime($request->waktu_tiba_gudang_2),
-'waktu_keluar_gudang_2' => $this->cleanTime($request->waktu_keluar_gudang_2),
-'waktu_tiba_gudang_3'   => $this->cleanTime($request->waktu_tiba_gudang_3),
-'waktu_keluar_gudang_3' => $this->cleanTime($request->waktu_keluar_gudang_3),
-
-'planning_loading_2'      => $request->planning_loading_2,
-'tanggal_tiba_gudang_2'   => $request->tanggal_tiba_gudang_2,
-'tanggal_keluar_gudang_2' => $request->tanggal_keluar_gudang_2,
-'reason_gudang_2'         => ($rumus['status_gudang_2'] ?? null) === 'Delay' ? ($request->reason_gudang_2 ?: null) : null,
-
-'planning_loading_3'      => $request->planning_loading_3,
-'tanggal_tiba_gudang_3'   => $request->tanggal_tiba_gudang_3,
-'tanggal_keluar_gudang_3' => $request->tanggal_keluar_gudang_3,
-'reason_gudang_3'         => ($rumus['status_gudang_3'] ?? null) === 'Delay' ? ($request->reason_gudang_3 ?: null) : null,
-          
-            'route'     => $request->route,
-            'pulau'     => $request->pulau,
-            'area'      => $request->area,
-            'via_kirim' => $request->via_kirim,
-
-            'dist_channel'        => $request->dist_channel,
-            'kategori_ekspedisi'  => $request->kategori_ekspedisi,
-            'ekpedisi'            => $request->ekpedisi,
-            'transport_lead_time' => $request->transport_lead_time,
-
-            'nama_driver' => $request->nama_driver,
-            'no_pol'      => $request->no_pol,
-            'mobil'       => $request->mobil,
-
-            'lama_waktu_pencarian' => $rumus['lama_waktu_pencarian'] ?? null,
-            'sla_dapat_mobil'      => $rumus['sla_dapat_mobil'] ?? null,
-            'status_pengiriman'    => $rumus['status_pengiriman'] ?? null,
-
-            'lama_digudang' => $rumus['lama_digudang'] ?? null,
-            'status_gudang' => $rumus['status_gudang'] ?? null,
-            'sla_loading'   => $rumus['sla_loading'] ?? null,
-
-            'lama_digudang_2' => $rumus['lama_digudang_2'] ?? null,
-            'status_gudang_2' => $rumus['status_gudang_2'] ?? null,
-            'sla_loading_2'   => $rumus['sla_loading_2'] ?? null,
-
-            'lama_digudang_3' => $rumus['lama_digudang_3'] ?? null,
-            'status_gudang_3' => $rumus['status_gudang_3'] ?? null,
-            'sla_loading_3'   => $rumus['sla_loading_3'] ?? null,
-
-            'updated_at' => now(),
-        ];
+      $updateShipment = array_merge([
+    'planner'               => $request->planner,
+    'no_shipment'           => $newNoShipment,
+    'estimasi_tiba'         => $request->estimasi_tiba,
+    'tanggal_naik_logistik' => $request->tanggal_naik_logistik,
+    'rencana_kirim'         => $request->rencana_kirim,
+    'tanggal_dpt_unit'      => $request->tanggal_dpt_unit,
+    'route'                 => $request->route,
+    'pulau'                 => $request->pulau,
+    'area'                  => $request->area,
+    'via_kirim'             => $request->via_kirim,
+    'dist_channel'          => $request->dist_channel,
+    'kategori_ekspedisi'    => $request->kategori_ekspedisi,
+    'ekpedisi'              => $request->ekpedisi,
+    'transport_lead_time'   => $request->transport_lead_time,
+    'nama_driver'           => $request->nama_driver,
+    'no_pol'                => $request->no_pol,
+    'mobil'                 => $request->mobil,
+    'lama_waktu_pencarian'  => $rumus['lama_waktu_pencarian'] ?? null,
+    'sla_dapat_mobil'       => $rumus['sla_dapat_mobil'] ?? null,
+    'status_pengiriman'     => $rumus['status_pengiriman'] ?? null,
+    'updated_at'            => now(),
+], $this->gudangPayload($request, $rumus));
 
         DB::table('logistik_pengiriman')
             ->where(function ($q) use ($oldNoShipment, $newNoShipment) {
@@ -959,27 +922,19 @@ $shipOpt  = $this->optimalPerShipment($groupAgg);   // BARU
     ]);
 }
 
-    private function selesaiGudangSql(): string
+   private function selesaiGudangSql(): string
 {
     $f = fn($c) => "NULLIF(TRIM({$c}), '') IS NOT NULL";
     $e = fn($c) => "NULLIF(TRIM({$c}), '') IS NULL";
 
-    $cycles = [
-        ['planning_loading',   'tanggal_tiba_gudang',   'tanggal_keluar_gudang'],
-        ['planning_loading_2', 'tanggal_tiba_gudang_2', 'tanggal_keluar_gudang_2'],
-        ['planning_loading_3', 'tanggal_tiba_gudang_3', 'tanggal_keluar_gudang_3'],
-    ];
-
     $menggantung = [];
-    foreach ($cycles as [$p, $t, $k]) {
+    foreach ($this->gudangCycles() as [$p, $t, $k]) {
         $menggantung[] = '((' . $f($p) . ' OR ' . $f($t) . ') AND ' . $e($k) . ')';
     }
 
-    $adaKeluar = '(' . implode(' OR ', [
-        $f('tanggal_keluar_gudang'),
-        $f('tanggal_keluar_gudang_2'),
-        $f('tanggal_keluar_gudang_3'),
-    ]) . ')';
+    $adaKeluar = '(' . implode(' OR ', array_map(
+        fn($s) => $f("tanggal_keluar_gudang{$s}"), $this->gudangSuffixes()
+    )) . ')';
 
     return "CASE WHEN {$adaKeluar} AND NOT (" . implode(' OR ', $menggantung) . ") THEN 1 ELSE 0 END";
 }
@@ -1177,6 +1132,17 @@ $dateInput('planning_loading_3', $r->planning_loading_3),
 $dateTimeInput('tanggal_tiba_gudang_3',   $r->tanggal_tiba_gudang_3,   'waktu_tiba_gudang_3',   $r->waktu_tiba_gudang_3),
 $dateTimeInput('tanggal_keluar_gudang_3', $r->tanggal_keluar_gudang_3, 'waktu_keluar_gudang_3', $r->waktu_keluar_gudang_3),
 $buildSelect('reason_gudang_3', $r->reason_gudang_3, $lists['reasonGudangList'], 'row-reason-gudang'),
+// P5
+$dateInput('planning_loading_4', $r->planning_loading_4),
+$dateTimeInput('tanggal_tiba_gudang_4',   $r->tanggal_tiba_gudang_4,   'waktu_tiba_gudang_4',   $r->waktu_tiba_gudang_4),
+$dateTimeInput('tanggal_keluar_gudang_4', $r->tanggal_keluar_gudang_4, 'waktu_keluar_gudang_4', $r->waktu_keluar_gudang_4),
+$buildSelect('reason_gudang_4', $r->reason_gudang_4, $lists['reasonGudangList'], 'row-reason-gudang'),
+
+// FIFATEX
+$dateInput('planning_loading_5', $r->planning_loading_5),
+$dateTimeInput('tanggal_tiba_gudang_5',   $r->tanggal_tiba_gudang_5,   'waktu_tiba_gudang_5',   $r->waktu_tiba_gudang_5),
+$dateTimeInput('tanggal_keluar_gudang_5', $r->tanggal_keluar_gudang_5, 'waktu_keluar_gudang_5', $r->waktu_keluar_gudang_5),
+$buildSelect('reason_gudang_5', $r->reason_gudang_5, $lists['reasonGudangList'], 'row-reason-gudang'),
             // 15 tujuan
            // 15 tujuan
 '<span class="fw-medium">' . e($r->tujuan) . '</span>'
@@ -1251,6 +1217,8 @@ $r->pengiriman_optimal === 'OPTIMAL'
        ...$this->gudangCells($r, ''),
             ...$this->gudangCells($r, '_2'),
             ...$this->gudangCells($r, '_3'),
+            ...$this->gudangCells($r, '_4'),
+...$this->gudangCells($r, '_5'),
 // Sentul
 // '<span class="g2-durasi">' . e($durasiStatus($r->tanggal_tiba_gudang_2, $r->tanggal_keluar_gudang_2)) . '</span>',
 // '<span class="g2-status">' . $statusBadge($r->tanggal_tiba_gudang_2, $r->tanggal_keluar_gudang_2) . '</span>',
@@ -1531,25 +1499,23 @@ private function hitungBiayaKirimRow($totalKubik, $kubikasi, $biayaTarif): float
         return $fallback->biaya_kirim ?? null;
     }
 
-    private function getTibaGudangTerdekatRequest($request)
-    {
-        return collect([
-            $request->tanggal_tiba_gudang,
-            $request->tanggal_tiba_gudang_2,
-            $request->tanggal_tiba_gudang_3,
-        ])
-        ->filter()
-        ->sort()
-        ->first();
-    }
+ private function getTibaGudangTerdekatRequest($request)
+{
+    return collect(array_map(
+        fn($s) => $request->{"tanggal_tiba_gudang{$s}"}, $this->gudangSuffixes()
+    ))->filter()->sort()->first();
+}
 
     private function getKeluarGudangInfoRequest($request)
     {
-        $cycles = [
-            ['planning' => $request->planning_loading,   'tiba' => $request->tanggal_tiba_gudang,   'keluar' => $request->tanggal_keluar_gudang],
-            ['planning' => $request->planning_loading_2, 'tiba' => $request->tanggal_tiba_gudang_2, 'keluar' => $request->tanggal_keluar_gudang_2],
-            ['planning' => $request->planning_loading_3, 'tiba' => $request->tanggal_tiba_gudang_3, 'keluar' => $request->tanggal_keluar_gudang_3],
-        ];
+      $cycles = [];
+foreach ($this->gudangSuffixes() as $s) {
+    $cycles[] = [
+        'planning' => $request->{"planning_loading{$s}"},
+        'tiba'     => $request->{"tanggal_tiba_gudang{$s}"},
+        'keluar'   => $request->{"tanggal_keluar_gudang{$s}"},
+    ];
+}
 
         $blocked = false;
         $keluarTimestamps = [];
@@ -1583,6 +1549,8 @@ private function hitungBiayaKirimRow($totalKubik, $kubikasi, $biayaTarif): float
             'lama_digudang'        => null,
             'status_gudang'        => null,
             'sla_loading'          => null,
+            'lama_digudang_4' => null, 'status_gudang_4' => null, 'sla_loading_4' => null,
+'lama_digudang_5' => null, 'status_gudang_5' => null, 'sla_loading_5' => null,
 
             'lama_digudang_2'      => null,
             'status_gudang_2'      => null,
@@ -1683,7 +1651,7 @@ private function hitungBiayaKirimRow($totalKubik, $kubikasi, $biayaTarif): float
             $data['status_pengiriman'] = null;
         }
 
-       foreach (['', '_2', '_3'] as $s) {
+   foreach ($this->gudangSuffixes() as $s) {
     $info = $this->hitungGudang(
         $request->{'tanggal_tiba_gudang' . $s},
         $request->{'waktu_tiba_gudang' . $s},
@@ -1704,28 +1672,21 @@ private function hitungBiayaKirimRow($totalKubik, $kubikasi, $biayaTarif): float
     public function slaOntime(Request $request)
     {
         // GANTI: DB::table('logistik_pengiriman') -> 1 baris per no_shipment + tujuan
-        $query = $this->repQuery()
-            ->where(function ($q) {
-                $q->whereNotNull('tanggal_tiba_gudang')
-                  ->orWhereNotNull('tanggal_tiba_gudang_2')
-                  ->orWhereNotNull('tanggal_tiba_gudang_3');
-            });
+     $tibaCols = array_map(fn($s) => "tanggal_tiba_gudang{$s}", $this->gudangSuffixes());
 
-        if ($request->filled('bulan')) {
-            $query->where(function ($q) use ($request) {
-                $q->whereMonth('tanggal_tiba_gudang', $request->bulan)
-                  ->orWhereMonth('tanggal_tiba_gudang_2', $request->bulan)
-                  ->orWhereMonth('tanggal_tiba_gudang_3', $request->bulan);
-            });
-        }
-
-        if ($request->filled('tahun')) {
-            $query->where(function ($q) use ($request) {
-                $q->whereYear('tanggal_tiba_gudang', $request->tahun)
-                  ->orWhereYear('tanggal_tiba_gudang_2', $request->tahun)
-                  ->orWhereYear('tanggal_tiba_gudang_3', $request->tahun);
-            });
-        }
+$query = $this->repQuery()->where(function ($q) use ($tibaCols) {
+    foreach ($tibaCols as $c) $q->orWhereNotNull($c);
+});
+if ($request->filled('bulan')) {
+    $query->where(function ($q) use ($request, $tibaCols) {
+        foreach ($tibaCols as $c) $q->orWhereMonth($c, $request->bulan);
+    });
+}
+if ($request->filled('tahun')) {
+    $query->where(function ($q) use ($request, $tibaCols) {
+        foreach ($tibaCols as $c) $q->orWhereYear($c, $request->tahun);
+    });
+}
 
         if ($request->filled('area')) {
             $query->where('area', $request->area);
@@ -1734,57 +1695,23 @@ private function hitungBiayaKirimRow($totalKubik, $kubikasi, $biayaTarif): float
         $list = $query->get()
             ->map(function ($row) {
 
-                $sla = $this->hitungSla($row);
+             $sla = $this->hitungSla($row);
+$row->lama_waktu_pencarian = $sla['lama_waktu_pencarian'];
+$row->sla_dapat_mobil      = $sla['sla_dapat_mobil'];
+$row->status_pengiriman    = $sla['status_pengiriman'];
 
-                $row->lama_waktu_pencarian = $sla['lama_waktu_pencarian'];
-                $row->sla_dapat_mobil      = $sla['sla_dapat_mobil'];
-                $row->status_pengiriman    = $sla['status_pengiriman'];
-
-                $row->lama_digudang        = $sla['lama_digudang'];
-                $row->status_gudang        = $sla['status_gudang'];
-                $row->sla_loading          = $sla['sla_loading'];
-
-                $row->lama_digudang_2      = $sla['lama_digudang_2'];
-                $row->status_gudang_2      = $sla['status_gudang_2'];
-                $row->sla_loading_2        = $sla['sla_loading_2'];
-
-                $row->lama_digudang_3      = $sla['lama_digudang_3'];
-                $row->status_gudang_3      = $sla['status_gudang_3'];
-                $row->sla_loading_3        = $sla['sla_loading_3'];
-
-                $gudang = [];
-
-                if (!empty($row->tanggal_tiba_gudang)) {
-                    $gudang[1] = strtotime($row->tanggal_tiba_gudang);
-                }
-                if (!empty($row->tanggal_tiba_gudang_2)) {
-                    $gudang[2] = strtotime($row->tanggal_tiba_gudang_2);
-                }
-                if (!empty($row->tanggal_tiba_gudang_3)) {
-                    $gudang[3] = strtotime($row->tanggal_tiba_gudang_3);
-                }
-
-                $row->gudang_sla = count($gudang)
-                    ? array_search(min($gudang), $gudang)
-                    : null;
-
-                $keluar = [];
-
-                if (!empty($row->tanggal_keluar_gudang)) {
-                    $keluar[1] = strtotime($row->tanggal_keluar_gudang);
-                }
-                if (!empty($row->tanggal_keluar_gudang_2)) {
-                    $keluar[2] = strtotime($row->tanggal_keluar_gudang_2);
-                }
-                if (!empty($row->tanggal_keluar_gudang_3)) {
-                    $keluar[3] = strtotime($row->tanggal_keluar_gudang_3);
-                }
-
-                $row->gudang_keluar_terakhir = count($keluar)
-                    ? array_search(max($keluar), $keluar)
-                    : null;
-
-                return $row;
+$gudang = []; $keluar = [];
+foreach ($this->gudangSuffixes() as $s) {
+    $n = $s === '' ? 1 : (int) ltrim($s, '_');
+    $row->{"lama_digudang{$s}"} = $sla["lama_digudang{$s}"];
+    $row->{"status_gudang{$s}"} = $sla["status_gudang{$s}"];
+    $row->{"sla_loading{$s}"}   = $sla["sla_loading{$s}"];
+    if (!empty($row->{"tanggal_tiba_gudang{$s}"}))   $gudang[$n] = strtotime($row->{"tanggal_tiba_gudang{$s}"});
+    if (!empty($row->{"tanggal_keluar_gudang{$s}"})) $keluar[$n] = strtotime($row->{"tanggal_keluar_gudang{$s}"});
+}
+$row->gudang_sla             = count($gudang) ? array_search(min($gudang), $gudang) : null;
+$row->gudang_keluar_terakhir = count($keluar) ? array_search(max($keluar), $keluar) : null;
+return $row;
             })
             ->values();
 
@@ -1804,21 +1731,8 @@ private function hitungBiayaKirimRow($totalKubik, $kubikasi, $biayaTarif): float
         $query = $this->repQuery()
             ->whereNotNull('rencana_kirim')
             ->whereRaw("TRIM(rencana_kirim) <> ''")
-            ->whereNotNull('tanggal_dpt_unit')
-            ->whereRaw("TRIM(tanggal_dpt_unit) <> ''")
-            ->where(function ($q) {
-                $q->whereNull('tanggal_tiba_gudang')
-                  ->orWhere('tanggal_tiba_gudang', '');
-            })
-            ->where(function ($q) {
-                $q->whereNull('tanggal_tiba_gudang_2')
-                  ->orWhere('tanggal_tiba_gudang_2', '');
-            })
-            ->where(function ($q) {
-                $q->whereNull('tanggal_tiba_gudang_3')
-                  ->orWhere('tanggal_tiba_gudang_3', '');
-            });
-
+          ->whereNotNull('tanggal_dpt_unit')
+->whereRaw("TRIM(tanggal_dpt_unit) <> ''");   // <- tambah titik koma
         if ($request->filled('bulan')) {
             $query->whereMonth('tanggal_naik_logistik', $request->bulan);
         }
@@ -1919,7 +1833,9 @@ private function hitungBiayaKirimRow($totalKubik, $kubikasi, $biayaTarif): float
         ->sort()
         ->values();
 
-        return $tanggal->first();
+     return collect(array_map(
+    fn($s) => $row->{"tanggal_tiba_gudang{$s}"}, $this->gudangSuffixes()
+))->filter()->sort()->values()->first();
     }
 
     public function armada(Request $request)
@@ -2007,18 +1923,8 @@ public function inGudang(Request $request)
         $base->where('planner', $request->input('planner'));
     }
 
-    // ===== ringkasan =====
-    $semuaKosong = fn($q) => collect([
-        'planning_loading', 'tanggal_tiba_gudang', 'tanggal_keluar_gudang',
-        'planning_loading_2', 'tanggal_tiba_gudang_2', 'tanggal_keluar_gudang_2',
-        'planning_loading_3', 'tanggal_tiba_gudang_3', 'tanggal_keluar_gudang_3',
-    ])->each(fn($c) => $q->whereRaw("NULLIF(TRIM({$c}), '') IS NULL"));
-
-   $kolomGudang = [
-    'planning_loading', 'tanggal_tiba_gudang', 'tanggal_keluar_gudang',
-    'planning_loading_2', 'tanggal_tiba_gudang_2', 'tanggal_keluar_gudang_2',
-    'planning_loading_3', 'tanggal_tiba_gudang_3', 'tanggal_keluar_gudang_3',
-];
+   // ===== ringkasan =====
+$kolomGudang = array_merge(...$this->gudangCycles());
 
 $total   = (clone $base)->count();
 $qBelum  = clone $base;
@@ -2033,14 +1939,11 @@ $summary = [
     'sedang'      => $total - $belumInput,
 ];
 
-    // ===== tabel =====
-  // whitelist kolom yang boleh di-sort (key = nama di URL)
 $belumSql   = implode(' AND ', array_map(fn($c) => "NULLIF(TRIM({$c}), '') IS NULL", $kolomGudang));
 $selesaiSql = implode(' + ', array_map(
-    fn($c) => "(NULLIF(TRIM({$c}), '') IS NOT NULL)",
-    ['tanggal_keluar_gudang', 'tanggal_keluar_gudang_2', 'tanggal_keluar_gudang_3']
+    fn($s) => "(NULLIF(TRIM(tanggal_keluar_gudang{$s}), '') IS NOT NULL)",
+    $this->gudangSuffixes()
 ));
-
 $sortMap = [
     'no_shipment'    => 'CAST(no_shipment AS UNSIGNED)',
     'planner'        => 'planner',
@@ -2070,11 +1973,10 @@ $list = $q->orderBy('tanggal_naik_logistik', 'ASC')
     ->paginate(50)
     ->withQueryString();
 
-    $cycles = [
-        ['KACS',   'planning_loading',   'tanggal_tiba_gudang',   'tanggal_keluar_gudang'],
-        ['SENTUL', 'planning_loading_2', 'tanggal_tiba_gudang_2', 'tanggal_keluar_gudang_2'],
-        ['CCIE',   'planning_loading_3', 'tanggal_tiba_gudang_3', 'tanggal_keluar_gudang_3'],
-    ];
+   $cycles = [];
+foreach (self::GUDANG as $s => $nama) {
+    $cycles[] = [$nama, "planning_loading{$s}", "tanggal_tiba_gudang{$s}", "tanggal_keluar_gudang{$s}"];
+}
 
    $list->getCollection()->transform(function ($r) use ($cycles) {
     $selesai    = [];
@@ -2151,11 +2053,11 @@ public function exportPlanner(Request $request)
         // GANTI: DB::table('logistik_pengiriman') -> 1 baris per no_shipment + tujuan
         $query = $this->repQuery()
             ->whereNotNull('tanggal_dpt_unit')
-            ->where(function ($q) {
-                $q->whereNotNull('tanggal_tiba_gudang')
-                  ->orWhereNotNull('tanggal_tiba_gudang_2')
-                  ->orWhereNotNull('tanggal_tiba_gudang_3');
-            });
+           ->where(function ($q) {
+    foreach ($this->gudangSuffixes() as $s) {
+        $q->orWhereNotNull("tanggal_tiba_gudang{$s}");
+    }
+});
 
         if ($request->filled('bulan')) {
             $query->whereMonth('tanggal_naik_logistik', $request->bulan);

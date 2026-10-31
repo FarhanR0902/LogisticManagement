@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Sales;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Cache; 
 use App\Models\LogistikPengirimanPasuruan;
 
 /**
@@ -13,6 +14,8 @@ use App\Models\LogistikPengirimanPasuruan;
  */
 class SalesController extends Controller
 {
+    // hanya tampilkan data periode shipment ini (format di DB: "MM-YYYY")
+private const PERIODE_SHIPMENT = '11-2026';
     private const PULAU_MAP = [
         'JAWA'       => ['JABODEBEK','BANTEN','JAWA_BARAT','JAWA_TENGAH','JAWA_TIMUR','YOGYAKARTA'],
         'SUMATERA'   => ['ACEH','SUMATERA_UTARA','SUMATERA_BARAT','RIAU','KEP._RIAU','JAMBI','SUMATERA_SELATAN','BENGKULU','LAMPUNG','KEP._BANGKA_BELITUNG'],
@@ -28,20 +31,24 @@ class SalesController extends Controller
      * ===================================================================== */
     public function filterByDistChannel($query)
     {
+
+     $query->where('periode_shipment', self::PERIODE_SHIPMENT);
         if (session('dist_channel')) {
             $query->where('dist_channel', session('dist_channel'));
         }
         return $query;
     }
 
-    public function filterByDistChannelPasuruan($query)
-    {
-        if (session('dist_channel')) {
-            $query->where('dist_channel_pasuruan', session('dist_channel'));
-        }
-        return $query;
-    }
+public function filterByDistChannelPasuruan($query)
+{
+    // hanya tampilkan periode shipment ini (format di DB: "MM-YYYY")
+    $query->where('periode_shipment_pasuruan', self::PERIODE_SHIPMENT);
 
+    if (session('dist_channel')) {
+        $query->where('dist_channel_pasuruan', session('dist_channel'));
+    }
+    return $query;
+}
     /* =====================================================================
      |  HELPER GROUPING (shipment + tujuan)
      * ===================================================================== */
@@ -77,12 +84,10 @@ class SalesController extends Controller
             ->select(DB::raw('MIN(id) as id'))
             ->groupByRaw("COALESCE(NULLIF(TRIM(no_shipment_pasuruan),''), CONCAT('id', id)), COALESCE(tujuan_pasuruan,'')");
     }
-
-    private function countGroupsPasuruan($query): int
-    {
-        return DB::query()->fromSub($this->groupIdsQueryPasuruan($query), 'g')->count();
-    }
-
+private function countGroupsPasuruan($query): int
+{
+    return DB::query()->fromSub($this->groupIdsQueryPasuruan($query), 'g')->count();
+}
     private function grupBiayaQueryPasuruan($query)
     {
         return (clone $query)
@@ -1069,159 +1074,135 @@ class SalesController extends Controller
     }
 
     /** jumlah per shipment + tujuan untuk baris yang tampil di halaman ini */
-    private function groupAggPasuruan($rows): array
-    {
-        $n = fn($c) => "COALESCE(CAST(NULLIF(TRIM({$c}), '') AS DECIMAL(18,4)), 0)";
+  private function groupAggPasuruan($rows): array
+{
+    $n = fn($c) => "COALESCE(CAST(NULLIF(TRIM({$c}), '') AS DECIMAL(18,4)), 0)";
+ 
+    $shipments = $rows->pluck('no_shipment_pasuruan')
+        ->filter(fn($v) => trim((string) $v) !== '')->unique()->values();
+ 
+    if ($shipments->isEmpty()) return [];
+ 
+    $q = LogistikPengirimanPasuruan::query()->whereIn('no_shipment_pasuruan', $shipments);
+    $this->filterByDistChannelPasuruan($q);
+ 
+    return $q->select(
+            'no_shipment_pasuruan',
+            DB::raw("COALESCE(tujuan_pasuruan,'') as tujuan_key"),
+            DB::raw('COUNT(*) as jml_do'),
+            DB::raw('SUM(' . $n('total_kubik_pasuruan') . ') as sum_kubik'),
+            DB::raw('SUM(' . $n('total_tonase_pasuruan') . ') as sum_tonase'),
+            DB::raw('SUM(' . $n('nilai_muatan_pasuruan') . ') as sum_nilai'),
+            DB::raw('SUM(' . $n('total_do_pasuruan') . ') as sum_qty'),
+            DB::raw('SUM(' . $n('kirim_kontribusi_pasuruan') . ') as sum_kontribusi'),
+            DB::raw('SUM(' . $n('selisih_quantity_pasuruan') . ') as sum_selisih'),
+            DB::raw("SUM(CASE WHEN NULLIF(TRIM(selisih_quantity_pasuruan),'') IS NOT NULL THEN 1 ELSE 0 END) as jml_selisih"),
+            DB::raw('IF(SUM(' . $n('kirim_kontribusi_pasuruan') . ') > 0,
+                        SUM(' . $n('biaya_kirim_pasuruan') . '),
+                        MAX(' . $n('biaya_kirim_pasuruan') . ')) as sum_biaya')
+        )
+        ->groupBy('no_shipment_pasuruan', 'tujuan_key')
+        ->get()
+        ->keyBy(fn($g) => $g->no_shipment_pasuruan . '|' . $g->tujuan_key)
+        ->all();
+}
 
-        $shipments = $rows->pluck('no_shipment_pasuruan')
-            ->filter(fn($v) => trim((string) $v) !== '')->unique()->values();
-
-        if ($shipments->isEmpty()) return [];
-
-        $q = LogistikPengirimanPasuruan::query()->whereIn('no_shipment_pasuruan', $shipments);
-        $this->filterByDistChannelPasuruan($q);
-
-        return $q->select(
-                'no_shipment_pasuruan',
-                DB::raw("COALESCE(tujuan_pasuruan,'') as tujuan_key"),
-                DB::raw('COUNT(*) as jml_do'),
-                DB::raw('SUM(' . $n('total_kubik_pasuruan') . ') as sum_kubik'),
-DB::raw('SUM(' . $n('total_tonase_pasuruan') . ') as sum_tonase'),
-                DB::raw('SUM(' . $n('nilai_muatan_pasuruan') . ') as sum_nilai'),
-                DB::raw('SUM(' . $n('total_do_pasuruan') . ') as sum_qty'),
-                DB::raw('SUM(' . $n('kirim_kontribusi_pasuruan') . ') as sum_kontribusi'),
-                DB::raw('SUM(' . $n('selisih_quantity_pasuruan') . ') as sum_selisih'),
-                DB::raw("SUM(CASE WHEN NULLIF(TRIM(selisih_quantity_pasuruan),'') IS NOT NULL THEN 1 ELSE 0 END) as jml_selisih"),
-                DB::raw('IF(SUM(' . $n('kirim_kontribusi_pasuruan') . ') > 0,
-                            SUM(' . $n('biaya_kirim_pasuruan') . '),
-                            MAX(' . $n('biaya_kirim_pasuruan') . ')) as sum_biaya')
-            )
-            ->groupBy('no_shipment_pasuruan', 'tujuan_key')
-            ->get()
-            ->keyBy(fn($g) => $g->no_shipment_pasuruan . '|' . $g->tujuan_key)
-            ->all();
-    }
-
-    public function dataLogistikPasuruanAjax(Request $request)
-    {
-        $draw   = (int) $request->input('draw', 1);
-        $start  = max(0, (int) $request->input('start', 0));
-        $length = (int) $request->input('length', 10);
-        $searchValue = trim((string) $request->input('search.value', ''));
-
-        $query = LogistikPengirimanPasuruan::query();
-
-        $this->filterByDistChannelPasuruan($query);
-        $this->applyFilterPasuruan($query, $this->dashRequestPasuruan($request));
-
-        if ($request->filled('planner')) $query->where('planner_pasuruan', $request->planner);
-        if ($request->filled('area'))    $query->where('area_pasuruan', $request->area);
-        if ($request->filled('date'))    $query->whereDate('tanggal_terima_po_pasuruan', $request->date);
-        if ($request->filled('month'))   $query->whereMonth('tanggal_terima_po_pasuruan', $request->month);
-        if ($request->filled('year'))    $query->whereYear('tanggal_terima_po_pasuruan', $request->year);
-
-        // jumlah GRUP (shipment + tujuan), bukan jumlah DO
-        $recordsTotal = $this->countGroupsPasuruan($query);
-
-        if ($searchValue !== '') {
-            $query->where(function ($q) use ($searchValue) {
-                foreach (['no_shipment_pasuruan', 'tujuan_pasuruan', 'ekspedisi_pasuruan',
-                          'area_pasuruan', 'planner_pasuruan', 'no_do_pasuruan',
-                          'sales_document_pasuruan', 'customer_reference_pasuruan'] as $col) {
-                    $q->orWhere($col, 'like', "%{$searchValue}%");
-                }
-            });
-        }
-
-        $recordsFiltered = $this->countGroupsPasuruan($query);
-
-     $rows = LogistikPengirimanPasuruan::query()
-    ->whereIn('id', $this->groupIdsQueryPasuruan($query))
-    // baris tanpa no_shipment taruh paling bawah
-    ->orderByRaw("(no_shipment_pasuruan IS NULL OR TRIM(no_shipment_pasuruan) = '') ASC")
-    ->orderByRaw('CAST(no_shipment_pasuruan AS UNSIGNED) ASC')
-    ->orderBy('no_shipment_pasuruan')   // tie-breaker kalau ada huruf
-    ->orderBy('tujuan_pasuruan')        // tujuan dalam 1 shipment berdekatan
-    ->orderBy('id')                     // urutan stabil antar halaman
-    ->skip($start)
-    ->take($length > 0 ? min($length, 200) : max(1, $recordsFiltered))
-    ->get();
-        $groupAgg = $this->groupAggPasuruan($rows);
-
-        $data = [];
-        foreach ($rows as $r) {
-            $g = $groupAgg[$r->no_shipment_pasuruan . '|' . ($r->tujuan_pasuruan ?? '')] ?? null;
-
-            if ($g && trim((string) $r->no_shipment_pasuruan) !== '') {
-                $r->nilai_muatan_pasuruan = $g->sum_nilai;
-                $r->biaya_kirim_pasuruan  = (float) $g->sum_kontribusi > 0 ? $g->sum_kontribusi : $g->sum_biaya;
-
-                $q = (float) $g->sum_qty;
-                $r->total_kubik_pasuruan      = $g->sum_kubik;
-$r->total_tonase_pasuruan     = $g->sum_tonase;
-$r->kirim_kontribusi_pasuruan = $g->sum_kontribusi;
-                $r->total_do_pasuruan = floor($q) == $q ? (int) $q : $q;
-
-                // actual = total semua DO - total selisih (per shipment + tujuan)
-                if ((int) $g->jml_selisih > 0) {
-                    $actual = $q - (float) $g->sum_selisih;
-                    $r->actual_delivery_quantity_pasuruan = floor($actual) == $actual ? (int) $actual : $actual;
-                } else {
-                    $r->actual_delivery_quantity_pasuruan = null;
-                }
+ public function dataLogistikPasuruanAjax(Request $request)
+{
+    $draw   = (int) $request->input('draw', 1);
+    $start  = max(0, (int) $request->input('start', 0));
+    $length = (int) $request->input('length', 10);
+    $searchValue = trim((string) $request->input('search.value', ''));
+ 
+    $query = LogistikPengirimanPasuruan::query();
+ 
+    $this->filterByDistChannelPasuruan($query);
+    $this->applyFilterPasuruan($query, $this->dashRequestPasuruan($request));
+ 
+    if ($request->filled('planner')) $query->where('planner_pasuruan', $request->planner);
+    if ($request->filled('area'))    $query->where('area_pasuruan', $request->area);
+    if ($request->filled('date'))    $query->whereDate('tanggal_terima_po_pasuruan', $request->date);
+    if ($request->filled('month'))   $query->whereMonth('tanggal_terima_po_pasuruan', $request->month);
+    if ($request->filled('year'))    $query->whereYear('tanggal_terima_po_pasuruan', $request->year);
+ 
+    // jumlah GRUP (shipment + tujuan), bukan jumlah DO
+    $recordsTotal = $this->countGroupsPasuruan($query);
+ 
+    if ($searchValue !== '') {
+        $query->where(function ($q) use ($searchValue) {
+            foreach (['no_shipment_pasuruan', 'tujuan_pasuruan', 'ekspedisi_pasuruan',
+                      'area_pasuruan', 'planner_pasuruan', 'no_do_pasuruan',
+                      'sales_document_pasuruan', 'customer_reference_pasuruan'] as $col) {
+                $q->orWhere($col, 'like', "%{$searchValue}%");
             }
+        });
+        $recordsFiltered = $this->countGroupsPasuruan($query);
+    } else {
+        $recordsFiltered = $recordsTotal;
+    }
+ 
+    $rows = LogistikPengirimanPasuruan::query()
+        ->whereIn('id', $this->groupIdsQueryPasuruan($query))
+        // baris tanpa no_shipment taruh paling bawah
+        ->orderByRaw("(no_shipment_pasuruan IS NULL OR TRIM(no_shipment_pasuruan) = '') ASC")
+        ->orderByRaw('CAST(no_shipment_pasuruan AS UNSIGNED) ASC')
+        ->orderBy('no_shipment_pasuruan')
+        ->orderBy('tujuan_pasuruan')
+        ->orderBy('id')
+        ->skip($start)
+        ->take($length > 0 ? min($length, 200) : max(1, $recordsFiltered))
+        ->get();
+ 
+    $groupAgg = $this->groupAggPasuruan($rows);
+    // CR per shipment: jumlahkan semua tujuan dalam 1 shipment
+$crShipment = [];
+foreach ($groupAgg as $g) {
+    $ns    = $g->no_shipment_pasuruan;
+    $biaya = (float) $g->sum_kontribusi > 0 ? (float) $g->sum_kontribusi : (float) $g->sum_biaya;
 
-            $r->jml_do_grup = $g->jml_do ?? 1;
-            $data[] = $this->renderSalesPasuruanRow($r);
+    $crShipment[$ns]['biaya']  = ($crShipment[$ns]['biaya']  ?? 0) + $biaya;
+    $crShipment[$ns]['muatan'] = ($crShipment[$ns]['muatan'] ?? 0) + (float) $g->sum_nilai;
+}
+ 
+    $data = [];
+    foreach ($rows as $r) {
+        $g = $groupAgg[$r->no_shipment_pasuruan . '|' . ($r->tujuan_pasuruan ?? '')] ?? null;
+ 
+        if ($g && trim((string) $r->no_shipment_pasuruan) !== '') {
+            $r->nilai_muatan_pasuruan = $g->sum_nilai;
+            $r->biaya_kirim_pasuruan  = (float) $g->sum_kontribusi > 0 ? $g->sum_kontribusi : $g->sum_biaya;
+ 
+            $q = (float) $g->sum_qty;
+            $r->total_kubik_pasuruan      = $g->sum_kubik;
+            $r->total_tonase_pasuruan     = $g->sum_tonase;
+            $r->kirim_kontribusi_pasuruan = $g->sum_kontribusi;
+            $r->total_do_pasuruan         = floor($q) == $q ? (int) $q : $q;
+ 
+            if ((int) $g->jml_selisih > 0) {
+                $actual = $q - (float) $g->sum_selisih;
+                $r->actual_delivery_quantity_pasuruan = floor($actual) == $actual ? (int) $actual : $actual;
+            } else {
+                $r->actual_delivery_quantity_pasuruan = null;
+            }
         }
-
-        return response()->json([
-            'draw'            => $draw,
-            'recordsTotal'    => $recordsTotal,
-            'recordsFiltered' => $recordsFiltered,
-            'data'            => $data,
-        ]);
+        $cs = $crShipment[$r->no_shipment_pasuruan] ?? null;
+$r->cr_shipment_val = ($cs && $cs['muatan'] > 0)
+    ? ($cs['biaya'] / $cs['muatan']) * 100
+    : ((float) $r->nilai_muatan_pasuruan > 0
+        ? ((float) $r->biaya_kirim_pasuruan / (float) $r->nilai_muatan_pasuruan) * 100
+        : 0);
+ 
+        $r->jml_do_grup = $g->jml_do ?? 1;
+        $data[] = $this->renderSalesPasuruanRow($r);
     }
-
-    /** Rincian DO per shipment + tujuan (dipanggil saat klik tujuan). Dibatasi dist_channel Sales. */
-    public function dataLogistikDetailPasuruan(Request $request)
-    {
-        $request->validate([
-            'no_shipment' => 'required|string',
-            'tujuan'      => 'nullable|string',
-        ]);
-
-        $q = LogistikPengirimanPasuruan::query()
-            ->where('no_shipment_pasuruan', $request->no_shipment);
-        $this->filterByDistChannelPasuruan($q);
-
-        $tujuan = (string) $request->tujuan;
-        $tujuan !== ''
-            ? $q->where('tujuan_pasuruan', $tujuan)
-            : $q->where(fn($x) => $x->whereNull('tujuan_pasuruan')->orWhere('tujuan_pasuruan', ''));
-
-        $fmtDate = fn($v) => $v ? date('d-m-Y', strtotime($v)) : '-';
-        $fmtDes  = fn($v) => ($v === null || $v === '' || !is_numeric($v))
-            ? '-' : number_format((float) $v, 2, ',', '.');
-
-        $data = $q->orderBy('sales_document_pasuruan')->orderBy('id')->get()->map(fn($r) => [
-            'sales_document'       => $r->sales_document_pasuruan ?: '-',
-            'customer_reference'   => $r->customer_reference_pasuruan ?: '-',
-            'contract_end_date'    => $fmtDate($r->contract_end_date_pasuruan),
-            'no_do'                => $r->no_do_pasuruan ?: '-',
-            'no_delivery'          => $r->no_delivery_pasuruan ?: '-',
-            'qty'                  => $r->total_do_pasuruan,
-            'nilai_muatan'         => 'Rp ' . number_format((float) $r->nilai_muatan_pasuruan, 0, ',', '.'),
-            'kirim_kontribusi'     => $r->kirim_kontribusi_pasuruan !== null
-                ? 'Rp ' . number_format((float) $r->kirim_kontribusi_pasuruan, 0, ',', '.') : '-',
-            'kirim_kontribusi_raw' => (float) $r->kirim_kontribusi_pasuruan,
-            'total_kubik'          => $fmtDes($r->total_kubik_pasuruan),
-            'total_tonase'         => $fmtDes($r->total_tonase_pasuruan),
-        ]);
-
-        return response()->json(['data' => $data]);
-    }
-
+ 
+    return response()->json([
+        'draw'            => $draw,
+        'recordsTotal'    => $recordsTotal,
+        'recordsFiltered' => $recordsFiltered,
+        'data'            => $data,
+    ]);
+}
     /**
      * 1 baris untuk halaman Data Pasuruan (Sales).
      * Urutan array HARUS sinkron dengan <th> di sales/data_logistik_pasuruan.blade.php (52 kolom).
@@ -1272,6 +1253,9 @@ $r->kirim_kontribusi_pasuruan = $g->sum_kontribusi;
         $crHtml = $cr > 0
             ? '<span class="cr-value">' . number_format($cr, 4, ',', '.') . '%</span>'
             : '<span class="text-muted">-</span>';
+            $crShipHtml = (float) ($r->cr_shipment_val ?? 0) > 0
+    ? '<span class="cr-value">' . number_format((float) $r->cr_shipment_val, 4, ',', '.') . '%</span>'
+    : '<span class="text-muted">-</span>';
             $fmtDes    = fn ($v) => ($v === null || $v === '' || !is_numeric($v)) ? '-' : number_format((float) $v, 2, ',', '.');
 $fmtPersen = fn ($v) => ($v === null || $v === '') ? '-' : number_format((float) $v, 2, ',', '.') . '%';
 
@@ -1437,8 +1421,9 @@ $optimalCustHtml = $badgeOptimal($r->pengiriman_optimal_customer_pasuruan, 'Tida
             $r->total_do_pasuruan,
             $fmtRupiah($r->nilai_muatan_pasuruan),
             $fmtRupiah($r->biaya_kirim_pasuruan),
-            $crHtml,
-            $fmtDes($r->kubikasi_pasuruan),
+               $crHtml,
+        $crShipHtml,                 // BARU: kolom ke-16 (CR Shipment)
+        $fmtDes($r->kubikasi_pasuruan),
 $fmtDes($r->tonase_pasuruan),
 $fmtDes($r->total_kubik_pasuruan),
 $fmtDes($r->total_tonase_pasuruan),

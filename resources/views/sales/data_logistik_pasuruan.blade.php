@@ -340,6 +340,7 @@
                         <th>Nilai Muatan</th>
                         <th>Biaya Kirim</th>
                         <th>CR</th>
+                        <th>CR Shipment</th>
                         <th>Kubikasi</th>
                         <th>Tonase</th>
                         <th>Total Kubik</th>
@@ -353,9 +354,9 @@
                         <th>Tanggal Dapat Unit</th>
                         <th>Lama Waktu Pencarian</th>
                         <th>SLA Dapat Mobil</th>
-                        <th>Planning Loading Pasuruan</th>
-                        <th>Tanggal Tiba Gudang</th>
-                        <th>Tanggal Keluar Gudang</th>
+                     <th>Planning Loading Pasuruan</th>
+<th>Tanggal Tiba Pasuruan</th>      <!-- sebelumnya: Tanggal Tiba Gudang -->
+<th>Tanggal Keluar Pasuruan</th>    <!-- sebelumnya: Tanggal Keluar Gudang -->
                         <th>PIC Monitoring</th>
                         <th>Nama Kapal</th>
                         <th>ETD</th>
@@ -386,8 +387,9 @@
                         <th>Pulau</th>
                         <th>Via Kirim</th>
                         <th>Kirim Kontribusi</th>
-                        <th>Pengiriman Optimal Customer</th>
-                        <th>Reason Optimal Customer</th>
+        <th>Pengiriman Optimal Customer</th>
+        <th>Reason Optimal Customer</th>   <!-- BARU -->
+                    
                     </tr>
                 </thead>
                 <tbody>
@@ -407,17 +409,18 @@
 
         // Jumlah kolom HARUS sama dengan jumlah <th> di atas (63) dan dengan
         // jumlah item array di SalesController::renderSalesPasuruanRow().
-        const TOTAL_COLUMNS = 63;
+      // Jumlah kolom HARUS sama dengan jumlah <th> (64) dan dengan
+// jumlah item array di SalesController::renderSalesPasuruanRow().
+const TOTAL_COLUMNS = 64;
 
-        // Sorting per kolom dimatikan: backend memakai urutan tetap (orderByDesc('id')).
-        let table = $('#tableLogistik').DataTable({
-            processing: true,
-            serverSide: true,
-            scrollX: true,
-            pageLength: 10,
-            lengthMenu: [10, 25, 50, 100],
-            autoWidth: false,
-            ordering: false,
+let table = $('#tableLogistik').DataTable({
+    processing: true,      // sama dengan Pasuruan
+    serverSide: true,
+    scrollX: true,         // sama dengan Pasuruan
+    pageLength: 10,
+    lengthMenu: [10, 25, 50, 100],
+    autoWidth: false,
+    ordering: false,       // backend Sales memakai urutan tetap
             ajax: {
                 url: "{{ route('sales.data.pasuruan.ajax') }}",
                 type: 'POST',

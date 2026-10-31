@@ -68,17 +68,17 @@ th a.sort:hover { text-decoration: underline; }
 <div class="container">
 
     <div class="page-title">
-        <h2>🏭 IN GUDANG</h2>
+        <h2>🏭 SEGERA DILENGKAPI DATA</h2>
         <a href="{{ url('/planner/dashboard') }}" class="btn-back">← Dashboard</a>
     </div>
 
     <div class="kpi-row">
         <div class="kpi pink">
-            <h4>Total In Gudang</h4>
+            <h4>Gudang</h4>
             <h2>{{ $summary['total'] }}</h2>
         </div>
         <div class="kpi red">
-            <h4>Belum Diinput</h4>
+            <h4>Belum Diinput Tanggal</h4>
             <h2>{{ $summary['belum_input'] }}</h2>
         </div>
         <div class="kpi orange">

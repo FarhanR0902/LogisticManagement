@@ -861,7 +861,8 @@ font-size: 16px;
                         <th>Nilai Muatan</th>
                         <th>Biaya Kirim</th>
                         <th>CR</th>
-                          <th>Kubikasi %</th>
+                        <th>CR Shipment</th>
+                          <th>Kubikasi </th>
                            <th>Tonase</th>
                             <th>Total Kubik</th>
                         <th>Total Tonase</th>
@@ -876,8 +877,11 @@ font-size: 16px;
                         <th>SLA Dapat Mobil</th>
                         <th>Planning Loading Pasuruan</th>
                         <th>Tanggal Tiba Pasuruan</th>
-                        <th>Tanggal Keluar Pasuruan</th>
-                        <th>PIC Monitoring</th>
+                      <th>Tanggal Keluar Pasuruan</th>
+<th>Planning Loading Puntir</th>
+<th>Tanggal Tiba Puntir</th>
+<th>Tanggal Keluar Puntir</th>
+<th>PIC Monitoring</th>
                         <th>Nama Kapal</th>
                         <th>ETD</th>
                         <th>ETA</th>
@@ -980,8 +984,9 @@ $('#filterYear').val(initial.year || '');
                 { data: 'mobil' },
                 { data: 'delivery_qty' },
                 { data: 'nilai_muatan_fmt' },
-                { data: 'biaya_kirim_fmt' },
+                              { data: 'biaya_kirim_fmt' },
                 { data: 'cr_fmt' },
+                { data: 'cr_shipment_fmt', orderable: false },
                 { data: 'kubikasi_pasuruan' },
                  { data: 'tonase_pasuruan' },
                    { data: 'total_kubik_fmt' },
@@ -997,8 +1002,11 @@ $('#filterYear').val(initial.year || '');
                 { data: 'sla_dapat_mobil_badge' },
                 { data: 'planning_loading_fmt' },
                 { data: 'tiba_gudang_fmt' },
-                { data: 'keluar_gudang_fmt' },
-                { data: 'pic_monitoring' },
+               { data: 'keluar_gudang_fmt' },
+{ data: 'planning_loading_puntir_fmt' },
+{ data: 'tiba_gudang_puntir_fmt' },
+{ data: 'keluar_gudang_puntir_fmt' },
+{ data: 'pic_monitoring' },
                 { data: 'nama_kapal' },
                 { data: 'etd' },
                 { data: 'eta' },

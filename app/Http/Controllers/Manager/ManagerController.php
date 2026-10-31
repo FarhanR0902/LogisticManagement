@@ -703,7 +703,7 @@ private function dateFilterColumn($request): string
     return match ($request->input('tgl_basis')) {
         'rencana_kirim'         => 'rencana_kirim',
         'tanggal_naik_logistik' => 'tanggal_naik_logistik',
-        default                 => 'created_at',
+        default                 => 'periode_shipment',
     };
 }
 private function applyFilter($query, $request)
@@ -722,30 +722,45 @@ private function applyFilter($query, $request)
         $query->whereIn('area', self::PULAU_MAP[$request->pulau]);
     }
 
-    // PERIODE (dasar tanggal: rencana_kirim ATAU tanggal_naik_logistik)
     $col  = $this->dateFilterColumn($request);
     $from = $request->input('date_from');
     $to   = $request->input('date_to');
 
-    // kalau kebalik (mis. 10 Okt sampai 2 Okt), ditukar otomatis
+    // kalau kebalik, tukar otomatis
     if ($from && $to && $from > $to) {
         [$from, $to] = [$to, $from];
     }
 
-    if ($from) {
-        $query->whereDate($col, '>=', $from);
-    }
-    if ($to) {
-        $query->whereDate($col, '<=', $to);
+    // ===== Basis PERIODE SHIPMENT =====
+    // bulan/tahun -> periode_shipment (teks "MM-YYYY")
+    // tanggal / rentang -> tanggal_shipment (tanggal asli)
+    if ($col === 'periode_shipment') {
+        if ($request->month) {
+            $query->where('periode_shipment', substr($request->month, 5, 2) . '-' . substr($request->month, 0, 4));
+        }
+        if ($request->year) {
+            $query->where('periode_shipment', 'like', '%-' . $request->year);
+        }
+        if ($request->date) {
+            $query->whereDate('tanggal_shipment', $request->date);
+        }
+        if ($from) $query->whereDate('tanggal_shipment', '>=', $from);
+        if ($to)   $query->whereDate('tanggal_shipment', '<=', $to);
+
+        return $query;
     }
 
-    // MONTH
+    // ===== Basis lain (rencana_kirim / tanggal_naik_logistik) =====
+    if ($request->date) {
+        $query->whereDate($col, $request->date);
+    }
+    if ($from) $query->whereDate($col, '>=', $from);
+    if ($to)   $query->whereDate($col, '<=', $to);
+
     if ($request->month) {
         $query->whereMonth($col, substr($request->month, 5, 2));
         $query->whereYear($col, substr($request->month, 0, 4));
     }
-
-    // YEAR
     if ($request->year) {
         $query->whereYear($col, $request->year);
     }
@@ -1606,9 +1621,17 @@ public function dataLogistikPasuruanAjax(Request $request)
     $this->applyFilterPasuruan($query, $this->dashRequestPasuruan($request));
 
     // ---------- FILTER DARI DROPDOWN CUSTOM ----------
-    if ($request->filled('date'))    $query->whereDate('tanggal_terima_po_pasuruan', $request->date);
-    if ($request->filled('month'))   $query->whereMonth('tanggal_terima_po_pasuruan', $request->month);
-    if ($request->filled('year'))    $query->whereYear('tanggal_terima_po_pasuruan', $request->year);
+ if ($request->filled('date')) {
+    $query->whereDate('tanggal_shipment_pasuruan', $request->date);
+}
+$mDrop = (string) $request->input('month', '');
+if (ctype_digit($mDrop) && (int) $mDrop >= 1 && (int) $mDrop <= 12) {
+    $query->where('periode_shipment_pasuruan', 'like', sprintf('%02d-', (int) $mDrop) . '%');
+}
+$yDrop = (string) $request->input('year', '');
+if (ctype_digit($yDrop)) {
+    $query->where('periode_shipment_pasuruan', 'like', '%-' . $yDrop);
+}
     if ($request->filled('planner')) $query->where('planner_pasuruan', $request->planner);
     if ($request->filled('area'))    $query->where('area_pasuruan', $request->area);
 
@@ -2354,7 +2377,7 @@ private function listAreaPasuruan()
 
     return $q->distinct()->orderBy('area_pasuruan')->get();
 }
-   private function applyFilterPasuruan($query, $request)
+ private function applyFilterPasuruan($query, $request)
 {
     if ($request->filled('area')) {
         $query->where('area_pasuruan', $request->area);
@@ -2366,34 +2389,56 @@ private function listAreaPasuruan()
         $query->where('dist_channel_pasuruan', $request->dist_channel);
     }
 
-    // dasar tanggal (whitelist)
-  // dasar tanggal (whitelist)
-// ManagerController, SpvPlannerController, SpvMonitoringController (applyFilterPasuruan)
-$col = match ($request->input('tgl_basis')) {
-    'rencana_kirim_pasuruan' => 'rencana_kirim_pasuruan',
-    'create_tgl_pasuruan'    => 'create_tgl_pasuruan',
-    default                  => 'tanggal_terima_po_pasuruan',
-};
+    // dasar tanggal (whitelist). DEFAULT = periode shipment, sama seperti logistik
+    $col = match ($request->input('tgl_basis')) {
+        'tanggal_terima_po_pasuruan' => 'tanggal_terima_po_pasuruan',
+        'rencana_kirim_pasuruan'     => 'rencana_kirim_pasuruan',
+        'create_tgl_pasuruan'        => 'create_tgl_pasuruan',
+        default                      => 'periode_shipment_pasuruan',
+    };
 
-    // PERIODE dari - sampai
     $from = $request->input('date_from');
     $to   = $request->input('date_to');
     if ($from && $to && $from > $to) {
-        [$from, $to] = [$to, $from];   // kalau kebalik, tukar otomatis
+        [$from, $to] = [$to, $from];
+    }
+
+    $month = (string) $request->input('month', '');
+    $year  = (string) $request->input('year', '');
+
+    // ===== Basis PERIODE SHIPMENT =====
+    // bulan/tahun -> periode_shipment_pasuruan (teks "MM-YYYY")
+    // tanggal / rentang -> tanggal_shipment_pasuruan (tanggal asli)
+    if ($col === 'periode_shipment_pasuruan') {
+        if (preg_match('/^(\d{4})-(\d{2})$/', $month, $m)) {          // <input type="month">
+            $query->where('periode_shipment_pasuruan', $m[2] . '-' . $m[1]);
+        } elseif (ctype_digit($month) && (int) $month >= 1 && (int) $month <= 12) {   // angka 1-12
+            $query->where('periode_shipment_pasuruan', 'like', sprintf('%02d-', (int) $month) . '%');
+        }
+        if (ctype_digit($year)) {
+            $query->where('periode_shipment_pasuruan', 'like', '%-' . $year);
+        }
+        if ($request->filled('date')) {
+            $query->whereDate('tanggal_shipment_pasuruan', $request->date);
+        }
+        if ($from) $query->whereDate('tanggal_shipment_pasuruan', '>=', $from);
+        if ($to)   $query->whereDate('tanggal_shipment_pasuruan', '<=', $to);
+
+        return $query;
+    }
+
+    // ===== Basis lain =====
+    if ($request->filled('date')) {
+        $query->whereDate($col, $request->date);
     }
     if ($from) $query->whereDate($col, '>=', $from);
     if ($to)   $query->whereDate($col, '<=', $to);
 
-    // tanggal tunggal (kompatibilitas link lama)
-    if ($request->filled('date')) {
-        $query->whereDate($col, $request->date);
-    }
-
-    if ($request->filled('month') && preg_match('/^(\d{4})-(\d{2})$/', $request->month, $m)) {
+    if (preg_match('/^(\d{4})-(\d{2})$/', $month, $m)) {
         $query->whereYear($col, $m[1])->whereMonth($col, $m[2]);
     }
-    if ($request->filled('year')) {
-        $query->whereYear($col, $request->year);
+    if (ctype_digit($year)) {
+        $query->whereYear($col, $year);
     }
 
     return $query;

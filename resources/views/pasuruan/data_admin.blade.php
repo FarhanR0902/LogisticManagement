@@ -546,6 +546,9 @@ table.dataTable.dtfc-has-left th:nth-child(4).dtfc-fixed-left {
                                     <th class="th-edit">Planning Loading <span style="color:#0047FF;font-weight:900;">Pasuruan</span></th>
                                     <th class="th-edit">Tanggal Tiba <span style="color:#0047FF;font-weight:900;">Pasuruan</span></th>
                                     <th class="th-edit">Tanggal Keluar <span style="color:#0047FF;font-weight:900;">Pasuruan</span></th>
+                                    <th class="th-edit">Planning Loading <span style="color:#FF6A00;font-weight:900;">Puntir</span></th>
+<th class="th-edit">Tanggal Tiba <span style="color:#FF6A00;font-weight:900;">Puntir</span></th>
+<th class="th-edit">Tanggal Keluar <span style="color:#FF6A00;font-weight:900;">Puntir</span></th>
                                    
                                     <th class="th-default">Route</th>
                                     <th class="th-default">Pulau</th>
@@ -922,7 +925,8 @@ $('form').on('submit', function() {
     },
 columnDefs: [{
     className: "dt-center",
-   targets: [0, 24, 25, 26, 33, 34, 35, 36, 37, 38, 39]
+ // sebelum: [0, 24, 25, 26, 33, 34, 35, 36, 37, 38, 39]
+targets: [0, 27, 28, 29, 36, 37, 38, 39, 40, 41, 42]
 }],
 
                         // ====================================================
@@ -1055,6 +1059,10 @@ columnDefs: [{
                                 planning_loading_pasuruan: row.find('[name="planning_loading_pasuruan"]').val(),
                                 tanggal_tiba_gudang_pasuruan: row.find('[name="tanggal_tiba_gudang_pasuruan"]').val(),
                                 tanggal_keluar_gudang_pasuruan: row.find('[name="tanggal_keluar_gudang_pasuruan"]').val(),
+planning_loading_puntir_pasuruan: row.find('[name="planning_loading_puntir_pasuruan"]').val(),
+tanggal_tiba_gudang_puntir_pasuruan: row.find('[name="tanggal_tiba_gudang_puntir_pasuruan"]').val(),
+tanggal_keluar_gudang_puntir_pasuruan: row.find('[name="tanggal_keluar_gudang_puntir_pasuruan"]').val(),
+                                
                                 tujuan_pasuruan: row.find('[name="tujuan_pasuruan"]').val(),
                                 route_pasuruan: row.find('[name="route_pasuruan"]').val(),
                                 pulau_pasuruan: row.find('[name="pulau_pasuruan"]').val(),

@@ -1013,9 +1013,9 @@ if ($request->year) {
 private function dateFilterColumn($request): string
 {
     return match ($request->input('tgl_basis')) {
-        'create_tgl'    => 'create_tgl',
-        'rencana_kirim' => 'rencana_kirim',
-        default         => 'tanggal_naik_logistik',
+        'rencana_kirim'         => 'rencana_kirim',
+        'tanggal_naik_logistik' => 'tanggal_naik_logistik',
+        default                 => 'periode_shipment',
     };
 }
    private function belumTibaGudangQuery()
@@ -1623,35 +1623,65 @@ return response()->json([
         'summary_pulau', 'label_pulau', 'value_muatan_pulau', 'value_biaya_pulau'
     ));
 }
-    private function applyFilter($query, $request)
-    {
-        // AREA
+ private function applyFilter($query, $request)
+{
+    if ($request->area) {
+        $query->where('area', $request->area);
+    }
 
-        if ($request->area) {
-            $query->where('area', $request->area);
+    if ($request->dist_channel) {
+        $query->where('dist_channel', $request->dist_channel);
+    }
+
+    if ($request->filled('pulau') && isset(self::PULAU_MAP[$request->pulau])) {
+        $query->whereIn('area', self::PULAU_MAP[$request->pulau]);
+    }
+
+    $col  = $this->dateFilterColumn($request);
+    $from = $request->input('date_from');
+    $to   = $request->input('date_to');
+
+    // kalau kebalik, tukar otomatis
+    if ($from && $to && $from > $to) {
+        [$from, $to] = [$to, $from];
+    }
+
+    // ===== Basis PERIODE SHIPMENT =====
+    // bulan/tahun -> periode_shipment (teks "MM-YYYY")
+    // tanggal / rentang -> tanggal_shipment (tanggal asli)
+    if ($col === 'periode_shipment') {
+        if ($request->month) {
+            $query->where('periode_shipment', substr($request->month, 5, 2) . '-' . substr($request->month, 0, 4));
         }
-
-        if ($request->dist_channel) {
-            $query->where('dist_channel', $request->dist_channel);
+        if ($request->year) {
+            $query->where('periode_shipment', 'like', '%-' . $request->year);
         }
-        if ($request->filled('pulau') && isset(self::PULAU_MAP[$request->pulau])) {
-            $query->whereIn('area', self::PULAU_MAP[$request->pulau]);
+        if ($request->date) {
+            $query->whereDate('tanggal_shipment', $request->date);
         }
+        if ($from) $query->whereDate('tanggal_shipment', '>=', $from);
+        if ($to)   $query->whereDate('tanggal_shipment', '<=', $to);
 
-      $col = $this->dateFilterColumn($request);
-
-if ($request->date) {
-    $query->whereDate($col, $request->date);
-}
-if ($request->month) {
-    $query->whereMonth($col, substr($request->month, 5, 2));
-    $query->whereYear($col, substr($request->month, 0, 4));
-}
-if ($request->year) {
-    $query->whereYear($col, $request->year);
-}
         return $query;
     }
+
+    // ===== Basis lain =====
+    if ($request->date) {
+        $query->whereDate($col, $request->date);
+    }
+    if ($from) $query->whereDate($col, '>=', $from);
+    if ($to)   $query->whereDate($col, '<=', $to);
+
+    if ($request->month) {
+        $query->whereMonth($col, substr($request->month, 5, 2));
+        $query->whereYear($col, substr($request->month, 0, 4));
+    }
+    if ($request->year) {
+        $query->whereYear($col, $request->year);
+    }
+
+    return $query;
+}
 /** 1 id wakil (MIN id) per shipment + tujuan */
 private function groupIdsQuery($query)
 {

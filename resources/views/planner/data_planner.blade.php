@@ -654,6 +654,15 @@
 <th class="th-edit">Tanggal Tiba <span style="color:#FF0033;font-weight:900;">CCIE</span></th>
 <th class="th-edit">Tanggal Keluar <span style="color:#FF0033;font-weight:900;">CCIE</span></th>
 <th class="th-edit">Reason <span style="color:#FF0033;font-weight:900;">CCIE</span></th>  <!-- BARU -->
+<th class="th-edit">Planning Loading <span style="color:#7C3AED;font-weight:900;">P5</span></th>
+<th class="th-edit">Tanggal Tiba <span style="color:#7C3AED;font-weight:900;">P5</span></th>
+<th class="th-edit">Tanggal Keluar <span style="color:#7C3AED;font-weight:900;">P5</span></th>
+<th class="th-edit">Reason <span style="color:#7C3AED;font-weight:900;">P5</span></th>
+
+<th class="th-edit">Planning Loading <span style="color:#059669;font-weight:900;">Fifatex</span></th>
+<th class="th-edit">Tanggal Tiba <span style="color:#059669;font-weight:900;">Fifatex</span></th>
+<th class="th-edit">Tanggal Keluar <span style="color:#059669;font-weight:900;">Fifatex</span></th>
+<th class="th-edit">Reason <span style="color:#059669;font-weight:900;">Fifatex</span></th>
                                     <th class="th-default">Tujuan</th>
                                     <th class="th-default">Route</th>
                                     <th class="th-default">Pulau</th>
@@ -696,6 +705,13 @@
                                     <th class="th-system">Lama Di CCIE</th>
                                     <th class="th-system">Status CCIE</th>
                                     <th class="th-system">SLA Loading CCIE</th>
+                                    <th class="th-system">Lama Di P5</th>
+<th class="th-system">Status P5</th>
+<th class="th-system">SLA Loading P5</th>
+
+<th class="th-system">Lama Di Fifatex</th>
+<th class="th-system">Status Fifatex</th>
+<th class="th-system">SLA Loading Fifatex</th>
 
                                     <th class="th-default">Shipping Point</th>
                                     <th class="th-system">Kelengkapan Data</th>
@@ -907,10 +923,10 @@ var distChannelFilter = [];
                     $('#dtLoadingOverlay').hide();
                 }
             },
-            columnDefs: [{
-                className: "dt-center",
-targets: [0, 1, 2, 30, 40, 42, 44, 46, 48, 49, 51, 52, 54, 55, 57]
-            }],
+          columnDefs: [{
+    className: "dt-center",
+    targets: [0, 1, 2, 38, 48, 50, 52, 54, 56, 57, 59, 60, 62, 63, 65, 66, 68, 69, 71]
+}],
             rowCallback: function(row, data, index) {
                 let $row = $(row);
                 let deleteLink = $row.find('a[href*="/planner/delete/"]').attr('href');
@@ -1204,6 +1220,20 @@ $(document).on('click', '.chip-import', function () {
                     reason_gudang:   row.find('[name="reason_gudang"]').val(),
                     reason_gudang_2: row.find('[name="reason_gudang_2"]').val(),
                     reason_gudang_3: row.find('[name="reason_gudang_3"]').val(),
+                    reason_gudang_4: row.find('[name="reason_gudang_4"]').val(),
+reason_gudang_5: row.find('[name="reason_gudang_5"]').val(),
+
+planning_loading_4:      row.find('[name="planning_loading_4"]').val(),
+tanggal_tiba_gudang_4:   row.find('[name="tanggal_tiba_gudang_4"]').val(),
+tanggal_keluar_gudang_4: row.find('[name="tanggal_keluar_gudang_4"]').val(),
+waktu_tiba_gudang_4:     row.find('[name="waktu_tiba_gudang_4"]').val(),
+waktu_keluar_gudang_4:   row.find('[name="waktu_keluar_gudang_4"]').val(),
+
+planning_loading_5:      row.find('[name="planning_loading_5"]').val(),
+tanggal_tiba_gudang_5:   row.find('[name="tanggal_tiba_gudang_5"]').val(),
+tanggal_keluar_gudang_5: row.find('[name="tanggal_keluar_gudang_5"]').val(),
+waktu_tiba_gudang_5:     row.find('[name="waktu_tiba_gudang_5"]').val(),
+waktu_keluar_gudang_5:   row.find('[name="waktu_keluar_gudang_5"]').val(),
 
                     planning_loading_2: row.find('[name="planning_loading_2"]').val(),
                     tanggal_tiba_gudang_2: row.find('[name="tanggal_tiba_gudang_2"]').val(),
@@ -1472,10 +1502,12 @@ $(document).on('click', '.chip-import', function () {
         }
 
         // nomor kolom (mulai dari 0): Lama, Status, SLA per gudang
-    const GUDANG_COLS = [
-    { suffix: '',   cols: [47, 48, 49] },   // KACS
-    { suffix: '_2', cols: [50, 51, 52] },   // Sentul
-    { suffix: '_3', cols: [53, 54, 55] }    // CCIE
+ const GUDANG_COLS = [
+    { suffix: '',   cols: [55, 56, 57] },   // KACS
+    { suffix: '_2', cols: [58, 59, 60] },   // Sentul
+    { suffix: '_3', cols: [61, 62, 63] },   // CCIE
+    { suffix: '_4', cols: [64, 65, 66] },   // P5
+    { suffix: '_5', cols: [67, 68, 69] }    // Fifatex
 ];
 
         function recalcGudang($tr) {
@@ -1524,11 +1556,13 @@ $(document).on('click', '.chip-import', function () {
         // ==========================================================
         // VALIDASI: gudang Delay (> 24 jam) wajib isi reason
         // ==========================================================
-        const GUDANG_CEK = [
-            { label: 'KACS',   suffix: '',   reason: 'reason_gudang'   },
-            { label: 'Sentul', suffix: '_2', reason: 'reason_gudang_2' },
-            { label: 'CCIE',   suffix: '_3', reason: 'reason_gudang_3' }
-        ];
+const GUDANG_CEK = [
+    { label: 'KACS',    suffix: '',   reason: 'reason_gudang'   },
+    { label: 'Sentul',  suffix: '_2', reason: 'reason_gudang_2' },
+    { label: 'CCIE',    suffix: '_3', reason: 'reason_gudang_3' },
+    { label: 'P5',      suffix: '_4', reason: 'reason_gudang_4' },
+    { label: 'Fifatex', suffix: '_5', reason: 'reason_gudang_5' }
+];
 
         function cekReasonRow(id) {
             const $tr = $('tr[data-id="' + id + '"]');

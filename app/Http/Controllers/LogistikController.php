@@ -1,7 +1,7 @@
 <?php
 
-
 namespace App\Http\Controllers;
+
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Http\Request;
 use App\Exports\LogistikExportFull;
@@ -15,69 +15,200 @@ use Carbon\Carbon;
 
 class LogistikController extends Controller
 {
+    private const PERIODE_SALES = '11-2026';
 
-private const PULAU_MAP = [
-    'JAWA'       => ['JABODEBEK','BANTEN','JAWA_BARAT','JAWA_TENGAH','JAWA_TIMUR','YOGYAKARTA'],
-    'SUMATERA'   => ['ACEH','SUMATERA_UTARA','SUMATERA_BARAT','RIAU','KEP._RIAU','JAMBI','SUMATERA_SELATAN','BENGKULU','LAMPUNG','KEP._BANGKA_BELITUNG'],
-    'KALIMANTAN' => ['KALIMANTAN_BARAT','KALIMANTAN_TENGAH','KALIMANTAN_SELATAN','KALIMANTAN_TIMUR','KALIMANTAN_UTARA'],
-    'SULAWESI'   => ['SULAWESI_UTARA','SULAWESI_TENGAH','SULAWESI_SELATAN','SULAWESI_TENGGARA','SULAWESI_BARAT','GORONTALO'],
-    'BALI_NUSRA' => ['PROV._BALI','NUSA_TENGGARA_BARAT','NUSA_TENGGARA_TIMUR'],
-    'MALUKU'     => ['PROV._MALUKU','PROV._MALUKU_UTARA'],
-    'PAPUA'      => ['PROV._PAPUA','PAPUA_BARAT','PAPUA_BARAT_DAYA','PAPUA_SELATAN','PAPUA_TENGAH'],
+    private const PULAU_MAP = [
+        'JAWA'       => ['JABODEBEK', 'BANTEN', 'JAWA_BARAT', 'JAWA_TENGAH', 'JAWA_TIMUR', 'YOGYAKARTA'],
+        'SUMATERA'   => ['ACEH', 'SUMATERA_UTARA', 'SUMATERA_BARAT', 'RIAU', 'KEP._RIAU', 'JAMBI', 'SUMATERA_SELATAN', 'BENGKULU', 'LAMPUNG', 'KEP._BANGKA_BELITUNG'],
+        'KALIMANTAN' => ['KALIMANTAN_BARAT', 'KALIMANTAN_TENGAH', 'KALIMANTAN_SELATAN', 'KALIMANTAN_TIMUR', 'KALIMANTAN_UTARA'],
+        'SULAWESI'   => ['SULAWESI_UTARA', 'SULAWESI_TENGAH', 'SULAWESI_SELATAN', 'SULAWESI_TENGGARA', 'SULAWESI_BARAT', 'GORONTALO'],
+        'BALI_NUSRA' => ['PROV._BALI', 'NUSA_TENGGARA_BARAT', 'NUSA_TENGGARA_TIMUR'],
+        'MALUKU'     => ['PROV._MALUKU', 'PROV._MALUKU_UTARA'],
+        'PAPUA'      => ['PROV._PAPUA', 'PAPUA_BARAT', 'PAPUA_BARAT_DAYA', 'PAPUA_SELATAN', 'PAPUA_TENGAH'],
+    ];
+    private const GUDANG = [
+    ''   => 'KACS',
+    '_2' => 'SENTUL',
+    '_3' => 'CCIE',
+    '_4' => 'P5',
+    '_5' => 'FIFATEX',
 ];
 
-/**
- * Filter dari dashboard manager (dikirim sebagai dash[...]).
- * Logikanya HARUS sama dengan ManagerController::applyFilter().
- */
-private function applyDashboardFilter($query, array $f)
+private function gudangSuffixes(): array
 {
-    $areas = array_values(array_filter((array) ($f['area'] ?? []), 'strlen'));
-    if (!empty($areas)) {
-        $query->whereIn('area', $areas);
-    }
-
-    if (!empty($f['dist_channel'])) {
-        $query->where('dist_channel', $f['dist_channel']);
-    }
-
-    if (!empty($f['pulau']) && isset(self::PULAU_MAP[$f['pulau']])) {
-        $query->whereIn('area', self::PULAU_MAP[$f['pulau']]);
-    }
-
-    // dasar tanggal: rencana_kirim (default) atau tanggal_naik_logistik
- $col = match ($f['tgl_basis'] ?? '') {
-    'rencana_kirim'         => 'rencana_kirim',
-    'tanggal_naik_logistik' => 'tanggal_naik_logistik',
-    default                 => 'create_tgl',
-};
-
-    $from = $f['date_from'] ?? null;
-    $to   = $f['date_to'] ?? null;
-
-    if ($from && $to && $from > $to) {
-        [$from, $to] = [$to, $from];
-    }
-    if ($from) {
-        $query->whereDate($col, '>=', $from);
-    }
-    if ($to) {
-        $query->whereDate($col, '<=', $to);
-    }
-
-    if (!empty($f['month'])) {
-        $query->whereMonth($col, substr($f['month'], 5, 2));
-        $query->whereYear($col, substr($f['month'], 0, 4));
-    }
-
-    if (!empty($f['year'])) {
-        $query->whereYear($col, $f['year']);
-    }
-
-    return $query;
+    return array_keys(self::GUDANG);
 }
+
     /* =========================================================
-     * DASHBOARD (tidak diubah — tetap sama seperti sebelumnya)
+     * HELPER FILTER TANGGAL
+     * ========================================================= */
+
+    /**
+     * Tentukan kolom tanggal dari pilihan "tgl_basis".
+     * 'periode_shipment' di DB berisi string bulan-tahun (mis. 11-2026),
+     * bukan tanggal -> dialihkan ke kolom tanggal_shipment.
+     */
+    private function resolveTanggalColumn(?string $basis): string
+    {
+        return match ($basis) {
+            'rencana_kirim'         => 'rencana_kirim',
+            'tanggal_naik_logistik' => 'tanggal_naik_logistik',
+            'periode_shipment',
+            'tanggal_shipment'      => 'tanggal_shipment',
+            default                 => 'create_tgl',
+        };
+    }
+
+    /**
+     * Ekspresi SQL tanggal yang tahan format: Y-m-d (DATE/DATETIME) ATAU d-m-Y (string).
+     */
+    private function dateExpr(string $col): string
+    {
+        return "COALESCE(DATE(`{$col}`), STR_TO_DATE(`{$col}`, '%d-%m-%Y'))";
+    }
+
+    /**
+     * Terapkan filter from/to/month/year pada kolom tanggal terpilih.
+     */
+    private function applyDateRange($query, string $col, $from, $to, $month = null, $year = null)
+    {
+        $expr = $this->dateExpr($col);
+
+        if ($from && $to && $from > $to) {
+            [$from, $to] = [$to, $from];
+        }
+        if ($from) {
+            $query->whereRaw("{$expr} >= ?", [$from]);
+        }
+        if ($to) {
+            $query->whereRaw("{$expr} <= ?", [$to]);
+        }
+        if ($month) {
+            $query->whereRaw("MONTH({$expr}) = ?", [(int) $month]);
+        }
+        if ($year) {
+            $query->whereRaw("YEAR({$expr}) = ?", [(int) $year]);
+        }
+
+        return $query;
+    }
+
+    private function gudangExtraCells($r): array
+{
+    $out = [];
+    foreach (['_4', '_5'] as $s) {
+        $n      = ltrim($s, '_');
+        $tiba   = $r->{"tanggal_tiba_gudang{$s}"};
+        $keluar = $r->{"tanggal_keluar_gudang{$s}"};
+
+        $out["planning_loading{$s}"]        = $this->fmtDate($r->{"planning_loading{$s}"});
+        $out["tanggal_tiba_gudang{$s}"]     = $this->fmtDate($tiba);
+        $out["waktu_tiba_gudang{$s}_fmt"]   = $this->fmtWaktu($r->{"waktu_tiba_gudang{$s}"});
+        $out["tanggal_keluar_gudang{$s}"]   = $this->fmtDate($keluar);
+        $out["waktu_keluar_gudang{$s}_fmt"] = $this->fmtWaktu($r->{"waktu_keluar_gudang{$s}"});
+        $out["reason_gudang{$s}"]           = $r->{"reason_gudang{$s}"} ?: '-';
+        $out["lama_digudang{$s}"]           = $this->computeDurasiGudang($tiba, $keluar);
+        $out["status_gudang{$n}_badge"]     = $this->badgeStatusOnTimeDelayByDate($tiba, $keluar);
+        $out["sla_loading{$n}_badge"]       = $this->badgeSlaLoadingClean($tiba, $keluar);
+    }
+    return $out;
+}
+
+
+    /**
+     * Filter dari dashboard manager (dikirim sebagai dash[...] / query string).
+     * Logikanya HARUS sama dengan ManagerController::applyFilter().
+     */
+    private function applyDashboardFilter($query, array $f)
+    {
+        $areas = array_values(array_filter((array) ($f['area'] ?? []), 'strlen'));
+        if (!empty($areas)) {
+            $query->whereIn('area', $areas);
+        }
+
+        if (!empty($f['dist_channel'])) {
+            $query->where('dist_channel', $f['dist_channel']);
+        }
+
+        if (!empty($f['pulau']) && isset(self::PULAU_MAP[$f['pulau']])) {
+            $query->whereIn('area', self::PULAU_MAP[$f['pulau']]);
+        }
+
+        $col = $this->resolveTanggalColumn($f['tgl_basis'] ?? null);
+
+        $month = null;
+        $yearFromMonth = null;
+        if (!empty($f['month'])) {
+            // format "YYYY-MM"
+            $yearFromMonth = substr($f['month'], 0, 4);
+            $month         = substr($f['month'], 5, 2);
+        }
+
+        $this->applyDateRange(
+            $query,
+            $col,
+            $f['date_from'] ?? null,
+            $f['date_to'] ?? null,
+            $month,
+            $yearFromMonth
+        );
+
+        if (!empty($f['year'])) {
+            $query->whereRaw('YEAR(' . $this->dateExpr($col) . ') = ?', [(int) $f['year']]);
+        }
+
+        return $query;
+    }
+
+    /**
+     * Filter tanggal dari dropdown halaman: periode + bulan + tahun.
+     */
+    private function applyTanggalFilter($query, Request $request)
+    {
+        $col = $this->resolveTanggalColumn($request->input('tgl_basis'));
+
+        return $this->applyDateRange(
+            $query,
+            $col,
+            $request->input('date_from'),
+            $request->input('date_to'),
+            $request->filled('month') ? $request->month : null,
+            $request->filled('year') ? $request->year : null
+        );
+    }
+
+    /* =========================================================
+     * ROLE SALES
+     * ========================================================= */
+    private function isSales(): bool
+    {
+        return auth()->check() && auth()->user()->role === 'sales';
+    }
+
+    private function filterPeriodeSales($query)
+    {
+        if ($this->isSales()) {
+            $query->where('periode_shipment', self::PERIODE_SALES);
+        }
+        return $query;
+    }
+
+    /* =========================================================
+     * DIST CHANNEL SESSION FILTER
+     * ========================================================= */
+    private function filterByDistChannel($query)
+    {
+        $channel = session('dist_channel');
+
+        if ($channel) {
+            $query->whereRaw('LOWER(TRIM(dist_channel)) = ?', [strtolower(trim((string) $channel))]);
+        }
+
+        return $this->filterPeriodeSales($query);
+    }
+
+    /* =========================================================
+     * DASHBOARD
      * ========================================================= */
     public function dashboard(Request $request)
     {
@@ -268,112 +399,58 @@ private function applyDashboardFilter($query, array $f)
     /* =========================================================
      * IMPORT EXCEL
      * ========================================================= */
- public function import(Request $request)
-{
-    $request->validate([
-        'file' => 'required|mimes:xlsx,xls,csv',
-    ]);
-
-    $import = new LogistikImport();
-
-    try {
-        Excel::import($import, $request->file('file'));
-    } catch (\Throwable $e) {
-        logger()->error('LOGISTIK IMPORT GAGAL TOTAL', ['error' => $e->getMessage()]);
-        return back()->with('import_error', 'Import gagal total: ' . mb_substr($e->getMessage(), 0, 200));
-    }
-
-    return back()->with('import_result', [
-        'inserted'        => $import->getInsertedCount(),
-        'updated'         => $import->getUpdatedCount(),
-        'success'         => $import->getImportedCount(),
-        'skipped'         => $import->getSkippedCount(),
-        'failed'          => $import->getFailedCount(),
-        'failed_list'     => array_slice($import->getFailedList(), 0, 100),
-        'shipments'       => count(array_unique($import->getAllNoShipmentInFile())),
-        'ignored_headers' => $import->getIgnoredHeaders(),
-        'missing_columns' => $import->getMissingColumns(),
-        'unknown_planner' => $import->getUnknownPlannerCodes(),
-    ]);
-}
-
-/**
- * Filter tanggal: periode (dari-sampai) + bulan + tahun,
- * semuanya mengikuti kolom dasar yang dipilih user.
- */
-private function applyTanggalFilter($query, Request $request)
-{
-   $col = match ($request->input('tgl_basis')) {
-    'rencana_kirim'         => 'rencana_kirim',
-    'tanggal_naik_logistik' => 'tanggal_naik_logistik',
-    default                 => 'create_tgl',
-};
-
-    $from = $request->input('date_from');
-    $to   = $request->input('date_to');
-
-    // kalau kebalik (dari > sampai), tukar otomatis
-    if ($from && $to && $from > $to) {
-        [$from, $to] = [$to, $from];
-    }
-
-    if ($from) {
-        $query->whereDate($col, '>=', $from);
-    }
-    if ($to) {
-        $query->whereDate($col, '<=', $to);
-    }
-
-    if ($request->filled('month')) {
-        $query->whereMonth($col, $request->month);
-    }
-    if ($request->filled('year')) {
-        $query->whereYear($col, $request->year);
-    }
-
-    return $query;
-}
- 
-
-    /* =========================================================
-     * DIST CHANNEL SESSION FILTER (tetap sama)
-     * ========================================================= */
-    private function filterByDistChannel($query)
+    public function import(Request $request)
     {
-        $channel = session('dist_channel');
+        $request->validate([
+            'file' => 'required|mimes:xlsx,xls,csv',
+        ]);
 
-        if ($channel) {
-            $query->whereRaw('LOWER(TRIM(dist_channel)) = ?', [$channel]);
+        $import = new LogistikImport();
+
+        try {
+            Excel::import($import, $request->file('file'));
+        } catch (\Throwable $e) {
+            logger()->error('LOGISTIK IMPORT GAGAL TOTAL', ['error' => $e->getMessage()]);
+            return back()->with('import_error', 'Import gagal total: ' . mb_substr($e->getMessage(), 0, 200));
         }
 
-        return $query;
+        return back()->with('import_result', [
+            'inserted'        => $import->getInsertedCount(),
+            'updated'         => $import->getUpdatedCount(),
+            'success'         => $import->getImportedCount(),
+            'skipped'         => $import->getSkippedCount(),
+            'failed'          => $import->getFailedCount(),
+            'failed_list'     => array_slice($import->getFailedList(), 0, 100),
+            'shipments'       => count(array_unique($import->getAllNoShipmentInFile())),
+            'ignored_headers' => $import->getIgnoredHeaders(),
+            'missing_columns' => $import->getMissingColumns(),
+            'unknown_planner' => $import->getUnknownPlannerCodes(),
+        ]);
     }
 
     /* =========================================================
-     * EXPORT EXCEL (tetap sama — tetap query langsung karena export
-     * memang butuh semua baris hasil filter, bukan per-page)
+     * EXPORT EXCEL
      * ========================================================= */
-   public function export(Request $request)
-{
-    $query = LogistikPengiriman::query();
+    public function export(Request $request)
+    {
+        $query = LogistikPengiriman::query();
 
-    $this->filterByDistChannel($query);
-    $this->applyTanggalFilter($query, $request);
+        $this->filterByDistChannel($query);
+        $this->applyTanggalFilter($query, $request);
 
-    $areas = array_values(array_filter((array) $request->input('area', []), 'strlen'));
-    if (!empty($areas)) {
-        $query->whereIn('area', $areas);
+        $areas = array_values(array_filter((array) $request->input('area', []), 'strlen'));
+        if (!empty($areas)) {
+            $query->whereIn('area', $areas);
+        }
+
+        return Excel::download(
+            new LogistikExportFull($query),
+            'data_logistik_full_' . date('Ymd_His') . '.xlsx'
+        );
     }
 
-    // kirim Builder, bukan hasil get() -> Maatwebsite yang chunk otomatis
-  return Excel::download(
-    new LogistikExportFull($query),
-    'data_logistik_full_' . date('Ymd_His') . '.xlsx'
-    );
-}
-
     /* =========================================================
-     * DATA LOGISTIK — HALAMAN (ringan, tanpa query data besar)
+     * DATA LOGISTIK — HALAMAN
      * ========================================================= */
     public function dataLogistik(Request $request)
     {
@@ -385,16 +462,6 @@ private function applyTanggalFilter($query, Request $request)
 
     /* =========================================================
      * DATA LOGISTIK — ENDPOINT AJAX (SERVER-SIDE PAGINATION)
-     *
-     * Tidak pakai package tambahan (tanpa Yajra). Ngikutin format
-     * request/response DataTables secara manual:
-     *   - Terima: draw, start, length, search[value], order[0][column/dir]
-     *   - Balikin: draw, recordsTotal, recordsFiltered, data[]
-     *
-     * MySQL yang filter/sort/LIMIT-OFFSET. Badge/status/CR cuma
-     * dihitung untuk baris yang sedang tampil di halaman itu saja
-     * (default 25 baris), bukan seluruh dataset -> makanya cepat
-     * walau tabelnya ribuan/puluhan ribu baris.
      * ========================================================= */
     public function dataLogistikAjax(Request $request)
     {
@@ -403,316 +470,248 @@ private function applyTanggalFilter($query, Request $request)
         $this->filterByDistChannel($query);
 
         // ---------- FILTER DARI DROPDOWN CUSTOM ----------
-      $this->applyTanggalFilter($query, $request);
+        $this->applyTanggalFilter($query, $request);
 
         if ($request->filled('pic_monitoring')) {
             $query->where('pic_monitoring', $request->pic_monitoring);
         }
 
-     $areas = array_values(array_filter((array) $request->input('area', []), 'strlen'));
-if (!empty($areas)) {
-    $query->whereIn('area', $areas);
-}
+        $areas = array_values(array_filter((array) $request->input('area', []), 'strlen'));
+        if (!empty($areas)) {
+            $query->whereIn('area', $areas);
+        }
+
         // ---------- FILTER DARI DASHBOARD MANAGER ----------
-// ---------- FILTER DARI DASHBOARD MANAGER ----------
-// Prioritas: dash[...] dari JS. Fallback: query string halaman (Referer),
-// jadi view data_logistik tidak wajib diubah.
-$dash = $request->input('dash');
+        // Prioritas: dash[...] dari JS. Fallback: query string halaman (Referer).
+        $dash = $request->input('dash');
 
-if (!is_array($dash) || empty($dash)) {
-    $dash = [];
-    $refQuery = parse_url((string) $request->headers->get('referer'), PHP_URL_QUERY);
-    if ($refQuery) {
-        parse_str($refQuery, $dash);
-    }
-}
+        if (!is_array($dash) || empty($dash)) {
+            $dash = [];
+            $refQuery = parse_url((string) $request->headers->get('referer'), PHP_URL_QUERY);
+            if ($refQuery) {
+                parse_str($refQuery, $dash);
+            }
+        }
 
-$dash = array_intersect_key($dash, array_flip([
-    'tgl_basis', 'date_from', 'date_to', 'month', 'year',
-    'area', 'dist_channel', 'pulau',
-]));
-$dash = array_filter($dash, 'is_scalar');
+        $dash = array_intersect_key($dash, array_flip([
+            'tgl_basis',
+            'date_from',
+            'date_to',
+            'month',
+            'year',
+            'area',
+            'dist_channel',
+            'pulau',
+        ]));
 
-if (!empty($dash)) {
-    $this->applyDashboardFilter($query, $dash);
-}
+        // area boleh array (area[]=...), sisanya harus scalar
+        $dash = array_filter($dash, function ($v, $k) {
+            return $k === 'area' ? (is_scalar($v) || is_array($v)) : is_scalar($v);
+        }, ARRAY_FILTER_USE_BOTH);
 
-        // recordsTotal = total setelah filter dropdown custom (belum termasuk search box)
-$recordsTotal = $this->countGroups($query);
+        // Jangan terapkan filter tanggal dua kali kalau request sudah membawa filter yang sama
+        if ($request->filled('date_from') || $request->filled('date_to')
+            || $request->filled('month') || $request->filled('year')) {
+            unset($dash['tgl_basis'], $dash['date_from'], $dash['date_to'], $dash['month'], $dash['year']);
+        }
+        if (!empty($areas)) {
+            unset($dash['area']);
+        }
 
-        // ---------- SEARCH BOX BAWAAN DATATABLES ----------
+        if (!empty($dash)) {
+            $this->applyDashboardFilter($query, $dash);
+        }
+
+        $recordsTotal = $this->countGroups($query);
+
+        // ---------- SEARCH BOX ----------
         $searchValue = trim((string) $request->input('search.value'));
-if ($searchValue !== '') {
+        if ($searchValue !== '') {
 
-    // 1) semua kolom asli tabel (di-cache 1 jam)
-    $cols = Cache::remember('logistik_searchable_cols', 3600, function () {
-        return array_values(array_diff(
-            \Illuminate\Support\Facades\Schema::getColumnListing('logistik_pengiriman'),
-            ['id', 'created_at', 'updated_at']
-        ));
-    });
+            $cols = $this->searchableCols();
 
-    // 2) tanggal tampil d-m-Y, di DB Y-m-d -> cari dua-duanya
-    $variants = [$searchValue];
-    if (preg_match('/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})$/', $searchValue, $m)) {
-        $variants[] = sprintf('%04d-%02d-%02d', $m[3], $m[2], $m[1]);
-    }
+            $variants = [$searchValue];
+            if (preg_match('/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})$/', $searchValue, $m)) {
+                $variants[] = sprintf('%04d-%02d-%02d', $m[3], $m[2], $m[1]);
+            }
 
-    // 3) kolom hasil hitungan/badge -> ditulis ulang dalam SQL
-    $f = fn($c) => "NULLIF(TRIM({$c}), '') IS NOT NULL";
-    $e = fn($c) => "NULLIF(TRIM({$c}), '') IS NULL";
+            $f = fn($c) => "NULLIF(TRIM({$c}), '') IS NOT NULL";
+            $e = fn($c) => "NULLIF(TRIM({$c}), '') IS NULL";
 
-    $sisa = "DATEDIFF(DATE(estimasi_tiba), CURDATE())";
-    $num  = fn($c) => "CAST(COALESCE(NULLIF(TRIM({$c}),''),0) AS DECIMAL(20,4))";
-    $estAdmin = "DATE_ADD(rencana_kirim, INTERVAL (CAST(COALESCE(NULLIF(TRIM(transport_lead_time),''),0) AS UNSIGNED)
+            $sisa = "DATEDIFF(DATE(estimasi_tiba), CURDATE())";
+            $num  = fn($c) => "CAST(COALESCE(NULLIF(TRIM({$c}),''),0) AS DECIMAL(20,4))";
+            $estAdmin = "DATE_ADD(rencana_kirim, INTERVAL (CAST(COALESCE(NULLIF(TRIM(transport_lead_time),''),0) AS UNSIGNED)
                  + CASE WHEN LOWER(TRIM(area)) = 'jawa barat' THEN 1 ELSE 0 END) DAY)";
+$posisi = "CASE WHEN " . $e('tanggal_dpt_unit') . " THEN 'MENCARI UNIT'"
+    . " WHEN " . implode(' AND ', array_map(fn($s) => $e("planning_loading{$s}"), $this->gudangSuffixes()))
+    . " AND " . $e('tanggal_tiba') . " THEN 'PERJALANAN KE GUDANG'";
 
-    $computed = [
-        // Ketersediaan Unit
-        "CASE WHEN {$e('rencana_kirim')} OR {$e('tanggal_dpt_unit')} THEN 'BELUM DAPAT' ELSE 'SUDAH DAPAT' END",
+foreach (self::GUDANG as $s => $nama) {
+    $posisi .= " WHEN " . $f("planning_loading{$s}") . " AND " . $e("tanggal_tiba_gudang{$s}")
+             . " THEN 'PERJALANAN KE {$nama}'";
+    $posisi .= " WHEN " . $f("planning_loading{$s}") . " AND " . $f("tanggal_tiba_gudang{$s}")
+             . " AND " . $e("tanggal_keluar_gudang{$s}") . " THEN 'DI GUDANG {$nama}'";
+}
 
-        // Update Posisi Mobil
-        "CASE
-            WHEN {$e('tanggal_dpt_unit')} THEN 'MENCARI UNIT'
-            WHEN {$e('planning_loading')} AND {$e('planning_loading_2')} AND {$e('planning_loading_3')} AND {$e('tanggal_tiba')} THEN 'PERJALANAN KE GUDANG'
-            WHEN {$f('planning_loading')}   AND {$e('tanggal_tiba_gudang')}   THEN 'PERJALANAN KE KACS'
-            WHEN {$f('planning_loading')}   AND {$f('tanggal_tiba_gudang')}   AND {$e('tanggal_keluar_gudang')}   THEN 'DI GUDANG KACS'
-            WHEN {$f('planning_loading_2')} AND {$e('tanggal_tiba_gudang_2')} THEN 'PERJALANAN KE SENTUL'
-            WHEN {$f('planning_loading_2')} AND {$f('tanggal_tiba_gudang_2')} AND {$e('tanggal_keluar_gudang_2')} THEN 'DI GUDANG SENTUL'
-            WHEN {$f('planning_loading_3')} AND {$e('tanggal_tiba_gudang_3')} THEN 'PERJALANAN KE CCIE'
-            WHEN {$f('planning_loading_3')} AND {$f('tanggal_tiba_gudang_3')} AND {$e('tanggal_keluar_gudang_3')} THEN 'DI GUDANG CCIE'
-            WHEN {$e('tanggal_tiba')} THEN 'PERJALANAN KE TUJUAN'
-            WHEN {$f('tanggal_bongkar')} THEN 'SUDAH SELESAI'
-            ELSE 'SUDAH TIBA TUJUAN' END",
+$posisi .= " WHEN " . $e('tanggal_tiba') . " THEN 'PERJALANAN KE TUJUAN'"
+         . " WHEN " . $f('tanggal_bongkar') . " THEN 'SUDAH SELESAI'"
+         . " ELSE 'SUDAH TIBA TUJUAN' END";
+            $computed = [
+                // Ketersediaan Unit
+                "CASE WHEN {$e('rencana_kirim')} OR {$e('tanggal_dpt_unit')} THEN 'BELUM DAPAT' ELSE 'SUDAH DAPAT' END",
 
-        // Alert
-        "CASE
+           // Update Posisi Mobil
+$posisi,
+
+                // Alert
+                "CASE
             WHEN {$f('tanggal_tiba')} THEN 'TIBA'
             WHEN {$e('estimasi_tiba')} THEN ''
             WHEN {$sisa} < 0 THEN CONCAT('Pending Tiba H+', ABS({$sisa}))
             WHEN {$sisa} <= 7 THEN CONCAT('H-', {$sisa})
             ELSE 'ON TRACK' END",
 
-        // Status Bongkar
-        "CASE
+                // Status Bongkar
+                "CASE
             WHEN {$f('tanggal_bongkar')} THEN 'Sudah Bongkar'
             WHEN {$f('tanggal_tiba')} THEN CONCAT('Pending Bongkar H+', GREATEST(0, DATEDIFF(CURDATE(), DATE(tanggal_tiba))))
             ELSE '' END",
 
-        // Status Akhir
-        "CASE
+                // Status Akhir
+                "CASE
             WHEN {$e('tanggal_tiba')} THEN 'Dalam Perjalanan'
             WHEN {$e('tanggal_bongkar')} THEN 'Sudah Tiba Dalam Pembongkaran'
             WHEN UPPER(TRIM(sla_tiba)) = 'ON TIME' AND UPPER(TRIM(sla_bongkar)) = 'ON TIME' THEN 'Pengiriman On Time'
             ELSE 'Pengiriman Delay' END",
 
-        // Status Alert
-        "CASE
+                // Status Alert
+                "CASE
             WHEN UPPER(TRIM(sla_tiba)) = 'ON TIME' AND UPPER(TRIM(sla_bongkar)) = 'ON TIME' THEN 'Delivered Ontime'
             WHEN UPPER(TRIM(sla_tiba)) = 'DELAY'   AND UPPER(TRIM(sla_bongkar)) = 'ON TIME' THEN 'Delay Perjalanan'
             WHEN UPPER(TRIM(sla_tiba)) = 'ON TIME' AND UPPER(TRIM(sla_bongkar)) = 'DELAY'   THEN 'Delay Pembongkaran'
             WHEN UPPER(TRIM(sla_tiba)) = 'DELAY'   AND UPPER(TRIM(sla_bongkar)) = 'DELAY'   THEN 'Delivered Delay'
             ELSE 'Belum Selesai' END",
 
-        // Pengiriman Optimal
-        "CASE
+                // Pengiriman Optimal
+                "CASE
             WHEN {$num('kubikasi')} <= 0 AND {$num('tonase')} <= 0 THEN ''
             WHEN ({$num('kubikasi')} > 0 AND {$num('total_kubik')} / {$num('kubikasi')} * 100 >= 85)
               OR ({$num('tonase')}   > 0 AND {$num('total_tonase')} / {$num('tonase')}   * 100 >= 85) THEN 'Optimal'
             ELSE 'Tidak Optimal' END",
 
-        // Ontime/Delay Admin
-        "CASE
+                // Ontime/Delay Admin
+                "CASE
             WHEN {$e('rencana_kirim')} THEN ''
             WHEN {$f('tanggal_tiba')} THEN CASE WHEN tanggal_tiba <= {$estAdmin} THEN 'On Time' ELSE 'Delay' END
             WHEN CURDATE() > DATE({$estAdmin}) THEN 'Delay'
             ELSE 'Belum Tiba' END",
 
-        // Estimasi Tiba Di Customer (d-m-Y)
-        "CASE WHEN {$e('rencana_kirim')} THEN '' ELSE DATE_FORMAT({$estAdmin}, '%d-%m-%Y') END",
-    ];
+                // Estimasi Tiba Di Customer (d-m-Y)
+                "CASE WHEN {$e('rencana_kirim')} THEN '' ELSE DATE_FORMAT({$estAdmin}, '%d-%m-%Y') END",
+            ];
 
-    $query->where(function ($q) use ($variants, $cols, $computed) {
-        foreach ($variants as $v) {
-            $like = "%{$v}%";
-            foreach ($cols as $c) {
-                $q->orWhereRaw("CAST(`{$c}` AS CHAR) LIKE ?", [$like]);
-            }
-            foreach ($computed as $x) {
-                $q->orWhereRaw("({$x}) LIKE ?", [$like]);
-            }
+            $query->where(function ($q) use ($variants, $cols, $computed) {
+                foreach ($variants as $v) {
+                    $like = "%{$v}%";
+                    foreach ($cols as $c) {
+                        $q->orWhereRaw("CAST(`{$c}` AS CHAR) LIKE ?", [$like]);
+                    }
+                    foreach ($computed as $x) {
+                        $q->orWhereRaw("({$x}) LIKE ?", [$like]);
+                    }
+                }
+            });
         }
-    });
-}
 
-$recordsFiltered = $this->countGroups($query);
-$query = LogistikPengiriman::query()->whereIn('id', $this->groupIdsQuery($query));
+        $recordsFiltered = $this->countGroups($query);
+        $query = LogistikPengiriman::query()->whereIn('id', $this->groupIdsQuery($query));
 
         // ---------- SORTING ----------
-        // Peta index kolom (urutan HARUS sama persis dengan array `columns` di blade JS).
-        // null = kolom hasil kalkulasi/badge, tidak bisa di-ORDER BY langsung -> di-skip.
- $orderableColumns = [
-    0  => 'tanggal_naik_logistik',
-    1  => 'rencana_kirim',
-    2  => 'transport_lead_time',
-   
-    5  => 'planner',
-    6  => 'no_shipment',
-    8  => 'dist_channel',
-    9  => 'tujuan',
-    10 => 'area',
-    12 => 'mobil',
-    13 => 'total_do_qty_car',
-    14 => 'nilai_muatan',
-    15 => 'biaya_kirim',
-    17 => 'kubikasi',
-    18 => 'tonase',
-    19 => 'total_kubik',
-    20 => 'total_tonase',
-    24 => 'reason_optimal',
-    25 => 'kategori_ekspedisi',
-    26 => 'ekpedisi',
-    27 => 'tanggal_dpt_unit',
+    
 
-    // KACS
-    30 => 'planning_loading',
-    31 => 'tanggal_tiba_gudang',
-    32 => 'waktu_tiba_gudang',
-    33 => 'tanggal_keluar_gudang',
-    34 => 'waktu_keluar_gudang',
-    35 => 'reason_gudang',
+     $orderColIndex = (int) $request->input('order.0.column', 0);
+$orderDir      = strtolower($request->input('order.0.dir', 'desc')) === 'asc' ? 'asc' : 'desc';
+$orderColumn   = (string) $request->input("columns.{$orderColIndex}.name", '');
+     
 
-    // SENTUL
-    39 => 'planning_loading_2',
-    40 => 'tanggal_tiba_gudang_2',
-    41 => 'waktu_tiba_gudang_2',
-    42 => 'tanggal_keluar_gudang_2',
-    43 => 'waktu_keluar_gudang_2',
-    44 => 'reason_gudang_2',
-    45 => 'lama_digudang_2',
+        // pastikan kolom benar-benar ada di tabel (hindari SQL error)
+        if (!in_array($orderColumn, $this->searchableCols(), true)) {
+            $orderColumn = 'tanggal_naik_logistik';
+        }
 
-    // CCIE
-    48 => 'planning_loading_3',
-    49 => 'tanggal_tiba_gudang_3',
-    50 => 'waktu_tiba_gudang_3',
-    51 => 'tanggal_keluar_gudang_3',
-    52 => 'waktu_keluar_gudang_3',
-    53 => 'reason_gudang_3',
-    54 => 'lama_digudang_3',
+        if ($orderColumn === 'no_shipment') {
+            $query->orderByRaw("CAST(no_shipment AS UNSIGNED) {$orderDir}");
+        } else {
+            $query->orderBy($orderColumn, $orderDir)
+                ->orderByRaw('CAST(no_shipment AS UNSIGNED) ASC');
+        }
 
-    57 => 'pic_monitoring',
-    58 => 'nama_kapal',
-    59 => 'etd',
-    60 => 'eta',
-    63 => 'act_urutan_bongkar',
-    64 => 'qty_monitoring',
-    65 => 'biaya_kuli',
-    66 => 'total_biaya_kuli',
-    67 => 'selisih_qty',
-    68 => 'remarks_qty',
-    69 => 'act_pgi_date',
-    70 => 'atd',
-    71 => 'ata',
-    73 => 'tanggal_tiba',
-    76 => 'sla_tiba',
-    77 => 'tanggal_bongkar',
-    80 => 'overstay_days',
-    81 => 'sla_bongkar',
-    82 => 'reason_tiba',
-    83 => 'reason_bongkar',
-    86 => 'remarks',
-     3  => 'nama_driver',
-    4  => 'no_pol',
-    87 => 'route',
-    89 => 'pulau',
-    90 => 'via_kirim',
+        $query->orderBy('tujuan')->orderBy('id');
 
-    // kolom baru di akhir
-    93 => 'create_on',
-94 => 'no_delivery',
- 96 => 'sales_document',
-    97 => 'contract_end_date',
-    98 => 'no_do',
-
-];
-
-        $orderColIndex = (int) $request->input('order.0.column', 0);
-$orderDir = strtolower($request->input('order.0.dir', 'desc')) === 'asc' ? 'asc' : 'desc';
-
-$orderName = (string) $request->input('columns.' . (int) $request->input('order.0.column', 0) . '.name');
-$allCols   = Cache::remember('logistik_searchable_cols', 3600, fn () => array_values(array_diff(
-    Schema::getColumnListing('logistik_pengiriman'), ['id', 'created_at', 'updated_at']
-)));
-$orderColumn = in_array($orderName, $allCols, true) ? $orderName : 'tanggal_naik_logistik';
-        $orderColumn = $orderableColumns[$orderColIndex] ?? 'tanggal_naik_logistik';
-
-if ($orderColumn === 'no_shipment') {
-    // no_shipment diurutkan sebagai angka, bukan teks
-    $query->orderByRaw("CAST(no_shipment AS UNSIGNED) {$orderDir}");
-} else {
-    $query->orderBy($orderColumn, $orderDir)
-          ->orderByRaw('CAST(no_shipment AS UNSIGNED) ASC');   // pengurut cadangan
-}
-
-// supaya tujuan dalam 1 shipment selalu berdekatan dan urutan antar halaman stabil
-$query->orderBy('tujuan')->orderBy('id');
-
-        // ---------- PAGINATION (LIMIT/OFFSET) ----------
-        $start = max(0, (int) $request->input('start', 0));
+        // ---------- PAGINATION ----------
+        $start  = max(0, (int) $request->input('start', 0));
         $length = (int) $request->input('length', 25);
-        $length = $length > 0 ? min($length, 200) : $recordsFiltered; // cap biar gak diminta ambil semua sekaligus
+        $length = $length > 0 ? min($length, 200) : 200;
 
-       $rows = $query->skip($start)->take($length)->get();
+        $rows = $query->skip($start)->take($length)->get();
 
-$shipments = $rows->pluck('no_shipment')->filter()->unique()->values();
+        $shipments = $rows->pluck('no_shipment')->filter()->unique()->values();
 
-$groupAgg = LogistikPengiriman::query()
-    ->whereIn('no_shipment', $shipments)
-    ->select(
-        'no_shipment',
-        DB::raw("COALESCE(tujuan,'') as tujuan_key"),
-        DB::raw('COUNT(*) as jml_do'),
-        DB::raw('SUM(COALESCE(nilai_muatan,0)) as sum_nilai'),
-              DB::raw('SUM(COALESCE(total_kubik,0)) as sum_kubik'),
-        DB::raw('SUM(COALESCE(total_tonase,0)) as sum_tonase'),
-        DB::raw('SUM(COALESCE(total_do_qty_car,0)) as sum_qty'),
-        DB::raw('SUM(kirim_kontribusi) as sum_kontribusi'),
-        DB::raw('MAX(COALESCE(biaya_kirim,0)) as sum_biaya')
-    )
-    
-    ->groupBy('no_shipment', 'tujuan_key')
-    ->get()
-    ->keyBy(fn($g) => $g->no_shipment . '|' . $g->tujuan_key);
+        $groupAgg = LogistikPengiriman::query()
+            ->whereIn('no_shipment', $shipments)
+            ->select(
+                'no_shipment',
+                DB::raw("COALESCE(tujuan,'') as tujuan_key"),
+                DB::raw('COUNT(*) as jml_do'),
+                DB::raw('SUM(COALESCE(nilai_muatan,0)) as sum_nilai'),
+                DB::raw('SUM(COALESCE(total_kubik,0)) as sum_kubik'),
+                DB::raw('SUM(COALESCE(total_tonase,0)) as sum_tonase'),
+                DB::raw('SUM(COALESCE(total_do_qty_car,0)) as sum_qty'),
+                DB::raw('SUM(kirim_kontribusi) as sum_kontribusi'),
+                DB::raw('MAX(COALESCE(biaya_kirim,0)) as sum_biaya'),
+                DB::raw('SUM(COALESCE(selisih_qty,0)) as sum_selisih'),
+                DB::raw('MAX(COALESCE(biaya_kuli,0)) as max_kuli')
+            )
+            ->groupBy('no_shipment', 'tujuan_key')
+            ->get()
+            ->keyBy(fn($g) => $g->no_shipment . '|' . $g->tujuan_key);
 
-$shipmentAgg = Cache::remember('logistik_shipment_agg', 300, fn() => $this->shipmentAggregates());
-            // ---------- BANGUN BARIS OUTPUT (hanya untuk baris yang tampil) ----------
-    
-$data = $rows->map(function ($r) use ($shipmentAgg, $groupAgg) {
+        // CR per shipment: jumlahkan semua tujuan dalam 1 shipment, lalu hitung CR-nya
+        $crShipment = $groupAgg
+            ->groupBy(fn($g) => $g->no_shipment)
+            ->map(function ($grp) {
+                $biaya  = $grp->sum(fn($g) => (float) ($g->sum_kontribusi ?? $g->sum_biaya));
+                $muatan = $grp->sum(fn($g) => (float) $g->sum_nilai);
 
-    // agregat per shipment + tujuan (jumlahan semua DO)
-    $g = $groupAgg[$r->no_shipment . '|' . ($r->tujuan ?? '')] ?? null;
-   if ($g) {
-    // timpa di memori saja (tidak disimpan ke DB)
-    $r->nilai_muatan     = $g->sum_nilai;
-    $r->total_kubik      = $g->sum_kubik;
-    $r->total_tonase     = $g->sum_tonase;
-    $r->kirim_kontribusi = $g->sum_kontribusi;
-    $r->biaya_kirim      = $g->sum_biaya;
+                return $muatan > 0 ? ($biaya / $muatan) * 100 : 0;
+            });
 
-    $q = (float) $g->sum_qty;
-    $r->total_do_qty_car = floor($q) == $q ? (int) $q : $q;
+        $shipmentAgg = Cache::remember('logistik_shipment_agg', 300, fn() => $this->shipmentAggregates());
 
-    // BARU: actual, selisih, dan biaya kuli per grup
-    $sumSelisih          = (float) $g->sum_selisih;
-    $r->selisih_qty      = $sumSelisih != 0 ? $sumSelisih : null;
-    $r->qty_monitoring   = $q - $sumSelisih;                    // 2262 - 100 = 2162
-    $biayaKuli           = (float) $g->max_kuli;
-    $r->biaya_kuli       = $biayaKuli;
-    $r->total_biaya_kuli = $r->qty_monitoring * $biayaKuli;     // 2162 x 300 = 648.600
-}
+        // ---------- BANGUN BARIS OUTPUT ----------
+        $data = $rows->map(function ($r) use ($shipmentAgg, $groupAgg, $crShipment) {
 
-    $estimasi      = $this->computeEstimasiDanAlert($r);
-    $estimasiAdmin = $this->computeEstimasiAdmin($r);
+            $g = $groupAgg[$r->no_shipment . '|' . ($r->tujuan ?? '')] ?? null;
+            if ($g) {
+                $r->nilai_muatan     = $g->sum_nilai;
+                $r->total_kubik      = $g->sum_kubik;
+                $r->total_tonase     = $g->sum_tonase;
+                $r->kirim_kontribusi = $g->sum_kontribusi;
+                $r->biaya_kirim      = $g->sum_biaya;
+
+                $q = (float) $g->sum_qty;
+                $r->total_do_qty_car = floor($q) == $q ? (int) $q : $q;
+
+                $sumSelisih          = (float) $g->sum_selisih;
+                $r->selisih_qty      = $sumSelisih != 0 ? $sumSelisih : null;
+                $r->qty_monitoring   = $q - $sumSelisih;
+                $biayaKuli           = (float) $g->max_kuli;
+                $r->biaya_kuli       = $biayaKuli;
+                $r->total_biaya_kuli = $r->qty_monitoring * $biayaKuli;
+            }
+
+            $estimasi      = $this->computeEstimasiDanAlert($r);
+            $estimasiAdmin = $this->computeEstimasiAdmin($r);
 
             return [
                 'tanggal_naik_logistik_fmt'   => $this->fmtDate($r->tanggal_naik_logistik),
@@ -724,32 +723,31 @@ $data = $rows->map(function ($r) use ($shipmentAgg, $groupAgg) {
                 'no_shipment'                 => $r->no_shipment,
                 'status_pengiriman_badge'     => $this->badgeStatusPengiriman($r),
                 'dist_channel_badge'          => $this->badgeDistChannel($r->dist_channel),
-           // HAPUS, ganti dengan ini:
-'tujuan_html' => $r->no_shipment
-    ? '<a href="#" class="btn-tujuan" data-shipment="' . e($r->no_shipment) . '" data-tujuan="' . e($r->tujuan) . '">▶ '
-        . e($r->tujuan) . ($g && $g->jml_do > 1 ? ' <span class="badge gray">' . $g->jml_do . ' DO</span>' : '') . '</a>'
-    : e($r->tujuan),
+                'tujuan_html' => $r->no_shipment
+                    ? '<a href="#" class="btn-tujuan" data-shipment="' . e($r->no_shipment) . '" data-tujuan="' . e($r->tujuan) . '">▶ '
+                    . e($r->tujuan) . ($g && $g->jml_do > 1 ? ' <span class="badge gray">' . $g->jml_do . ' DO</span>' : '') . '</a>'
+                    : e($r->tujuan),
 
-// HAPUS: 'customer_reference' => ..., dan entri sales_document / contract_end_date_fmt / no_do
                 'area'                        => $r->area,
                 'ketersediaan_unit_badge'     => $this->badgeKetersediaanUnit($r),
                 'mobil'                       => $r->mobil,
                 'total_do_qty_car'            => $r->total_do_qty_car,
                 'nilai_muatan_fmt'            => 'Rp ' . number_format((float) $r->nilai_muatan, 0, ',', '.'),
-                'kirim_kontribusi_fmt' => $r->kirim_kontribusi !== null
-    ? 'Rp ' . number_format((float) $r->kirim_kontribusi, 0, ',', '.') : '-',
+                'kirim_kontribusi_fmt'        => $r->kirim_kontribusi !== null
+                    ? 'Rp ' . number_format((float) $r->kirim_kontribusi, 0, ',', '.') : '-',
                 'biaya_kirim_fmt'             => 'Rp ' . number_format((float) $r->biaya_kirim, 0, ',', '.'),
                 'cr_fmt'                      => $this->formatCR($this->computeCR($r, $shipmentAgg)),
-'kubikasi_fmt' => $this->formatKubik($r->kubikasi ?? null),
+                'cr_shipment_fmt'             => $this->formatCR((float) ($crShipment[$r->no_shipment] ?? 0)),
+                'kubikasi_fmt'                => $this->formatKubik($r->kubikasi ?? null),
                 'tonase_fmt'                  => $this->formatTonase($r->tonase ?? null),
-               'total_kubik_fmt'  => $this->formatKubik($r->total_kubik ?? null),
-'total_tonase_fmt' => $this->formatTonase($r->total_tonase ?? null),
+                'total_kubik_fmt'             => $this->formatKubik($r->total_kubik ?? null),
+                'total_tonase_fmt'            => $this->formatTonase($r->total_tonase ?? null),
                 'hasil_kubik_fmt'             => $this->formatHasilPersen($this->computeHasilKubik($r)),
                 'hasil_tonase_fmt'            => $this->formatHasilPersen($this->computeHasilTonase($r)),
-'pengiriman_optimal_badge' => $this->badgePengirimanOptimal($r, $shipmentAgg),
-             'reason_optimal'               => $r->reason_optimal,
-'pengiriman_optimal_customer_badge' => $this->badgePengirimanOptimalCustomer($r),
-'reason_optimal_customer'      => $r->reason_optimal_customer ?: '-',
+                'pengiriman_optimal_badge'    => $this->badgePengirimanOptimal($r, $shipmentAgg),
+                'reason_optimal'              => $r->reason_optimal,
+                'pengiriman_optimal_customer_badge' => $this->badgePengirimanOptimalCustomer($r),
+                'reason_optimal_customer'     => $r->reason_optimal_customer ?: '-',
                 'kategori_ekspedisi_badge'    => $this->badgeKategoriEkspedisi($r->kategori_ekspedisi),
                 'ekpedisi'                    => $r->ekpedisi,
                 'tanggal_dpt_unit_fmt'        => $this->fmtDate($r->tanggal_dpt_unit),
@@ -758,40 +756,37 @@ $data = $rows->map(function ($r) use ($shipmentAgg, $groupAgg) {
 
                 // GUDANG 1 (KACS)
                 'planning_loading_fmt'        => $this->fmtDate($r->planning_loading),
-            'tanggal_tiba_gudang_fmt'     => $this->fmtDate($r->tanggal_tiba_gudang),
-'waktu_tiba_gudang_fmt'       => $this->fmtWaktu($r->waktu_tiba_gudang),
-'tanggal_keluar_gudang_fmt'   => $this->fmtDate($r->tanggal_keluar_gudang),
-'waktu_keluar_gudang_fmt'     => $this->fmtWaktu($r->waktu_keluar_gudang),
-
-
-// GUDANG 3 (CCIE)
-
-                'reason_gudang'               => $r->reason_gudang ?: '-', 
-                //  'tanggal_keluar_gudang_fmt'   => $this->fmtDate($r->tanggal_keluar_gudang),
-              'durasi_gudang1_fmt'          => $this->computeDurasiGudang($r->tanggal_tiba_gudang, $r->tanggal_keluar_gudang),
-'status_gudang1_badge'        => $this->badgeStatusOnTimeDelayByDate($r->tanggal_tiba_gudang, $r->tanggal_keluar_gudang),
-'sla_loading1_badge'          => $this->badgeSlaLoadingClean($r->tanggal_tiba_gudang, $r->tanggal_keluar_gudang),
+                'tanggal_tiba_gudang_fmt'     => $this->fmtDate($r->tanggal_tiba_gudang),
+                'waktu_tiba_gudang_fmt'       => $this->fmtWaktu($r->waktu_tiba_gudang),
+                'tanggal_keluar_gudang_fmt'   => $this->fmtDate($r->tanggal_keluar_gudang),
+                'waktu_keluar_gudang_fmt'     => $this->fmtWaktu($r->waktu_keluar_gudang),
+                'reason_gudang'               => $r->reason_gudang ?: '-',
+                'durasi_gudang1_fmt'          => $this->computeDurasiGudang($r->tanggal_tiba_gudang, $r->tanggal_keluar_gudang),
+                'status_gudang1_badge'        => $this->badgeStatusOnTimeDelayByDate($r->tanggal_tiba_gudang, $r->tanggal_keluar_gudang),
+                'sla_loading1_badge'          => $this->badgeSlaLoadingClean($r->tanggal_tiba_gudang, $r->tanggal_keluar_gudang),
 
                 // GUDANG 2 (SENTUL)
                 'planning_loading_2'          => $this->fmtDate($r->planning_loading_2 ?? null),
-              'tanggal_tiba_gudang_2'       => $this->fmtDate($r->tanggal_tiba_gudang_2 ?? null),
-'waktu_tiba_gudang_2_fmt'     => $this->fmtWaktu($r->waktu_tiba_gudang_2),
-'tanggal_keluar_gudang_2'     => $this->fmtDate($r->tanggal_keluar_gudang_2 ?? null),
-'waktu_keluar_gudang_2_fmt'   => $this->fmtWaktu($r->waktu_keluar_gudang_2),
-                'reason_gudang_2'               => $r->reason_gudang_2 ?: '-', 
-'lama_digudang_2'             => $this->computeDurasiGudang($r->tanggal_tiba_gudang_2, $r->tanggal_keluar_gudang_2),
-'status_gudang2_badge'        => $this->badgeStatusOnTimeDelayByDate($r->tanggal_tiba_gudang_2, $r->tanggal_keluar_gudang_2),
-'sla_loading2_badge'          => $this->badgeSlaLoadingClean($r->tanggal_tiba_gudang_2, $r->tanggal_keluar_gudang_2),
+                'tanggal_tiba_gudang_2'       => $this->fmtDate($r->tanggal_tiba_gudang_2 ?? null),
+                'waktu_tiba_gudang_2_fmt'     => $this->fmtWaktu($r->waktu_tiba_gudang_2),
+                'tanggal_keluar_gudang_2'     => $this->fmtDate($r->tanggal_keluar_gudang_2 ?? null),
+                'waktu_keluar_gudang_2_fmt'   => $this->fmtWaktu($r->waktu_keluar_gudang_2),
+                'reason_gudang_2'             => $r->reason_gudang_2 ?: '-',
+                'lama_digudang_2'             => $this->computeDurasiGudang($r->tanggal_tiba_gudang_2, $r->tanggal_keluar_gudang_2),
+                'status_gudang2_badge'        => $this->badgeStatusOnTimeDelayByDate($r->tanggal_tiba_gudang_2, $r->tanggal_keluar_gudang_2),
+                'sla_loading2_badge'          => $this->badgeSlaLoadingClean($r->tanggal_tiba_gudang_2, $r->tanggal_keluar_gudang_2),
+
                 // GUDANG 3 (CCIE)
+                ...$this->gudangExtraCells($r),
                 'planning_loading_3'          => $this->fmtDate($r->planning_loading_3 ?? null),
-             'tanggal_tiba_gudang_3'       => $this->fmtDate($r->tanggal_tiba_gudang_3 ?? null),
-'waktu_tiba_gudang_3_fmt'     => $this->fmtWaktu($r->waktu_tiba_gudang_3),
-'tanggal_keluar_gudang_3'     => $this->fmtDate($r->tanggal_keluar_gudang_3 ?? null),
-'waktu_keluar_gudang_3_fmt'   => $this->fmtWaktu($r->waktu_keluar_gudang_3),
-                'reason_gudang_3'               => $r->reason_gudang_3 ?: '-', 
-'lama_digudang_3'             => $this->computeDurasiGudang($r->tanggal_tiba_gudang_3, $r->tanggal_keluar_gudang_3),
-'status_gudang3_badge'        => $this->badgeStatusOnTimeDelayByDate($r->tanggal_tiba_gudang_3, $r->tanggal_keluar_gudang_3),
-'sla_loading3_badge'          => $this->badgeSlaLoadingClean($r->tanggal_tiba_gudang_3, $r->tanggal_keluar_gudang_3),
+                'tanggal_tiba_gudang_3'       => $this->fmtDate($r->tanggal_tiba_gudang_3 ?? null),
+                'waktu_tiba_gudang_3_fmt'     => $this->fmtWaktu($r->waktu_tiba_gudang_3),
+                'tanggal_keluar_gudang_3'     => $this->fmtDate($r->tanggal_keluar_gudang_3 ?? null),
+                'waktu_keluar_gudang_3_fmt'   => $this->fmtWaktu($r->waktu_keluar_gudang_3),
+                'reason_gudang_3'             => $r->reason_gudang_3 ?: '-',
+                'lama_digudang_3'             => $this->computeDurasiGudang($r->tanggal_tiba_gudang_3, $r->tanggal_keluar_gudang_3),
+                'status_gudang3_badge'        => $this->badgeStatusOnTimeDelayByDate($r->tanggal_tiba_gudang_3, $r->tanggal_keluar_gudang_3),
+                'sla_loading3_badge'          => $this->badgeSlaLoadingClean($r->tanggal_tiba_gudang_3, $r->tanggal_keluar_gudang_3),
 
                 'pic_monitoring'              => $r->pic_monitoring,
                 'nama_kapal'                  => $r->nama_kapal,
@@ -806,20 +801,20 @@ $data = $rows->map(function ($r) use ($shipmentAgg, $groupAgg) {
                 'total_biaya_kuli'            => $r->total_biaya_kuli ? 'Rp ' . number_format($r->total_biaya_kuli, 0, ',', '.') : '',
                 'selisih_qty'                 => $r->selisih_qty,
                 'remarks_qty'                 => $r->remarks_qty,
-                'act_pgi_date'                  => $r->act_pgi_date ? Carbon::parse($r->act_pgi_date)->format('d/m/Y') : '-',
+                'act_pgi_date'                => $r->act_pgi_date ? Carbon::parse($r->act_pgi_date)->format('d/m/Y') : '-',
 
                 'atd'                         => $r->atd,
                 'ata'                         => $r->ata,
                 'estimasi_tiba_fmt'           => $estimasi['estimasi_show'],
-'tanggal_tiba_fmt'            => $this->fmtDate($r->tanggal_tiba),
-'waktu_tiba_fmt'              => $this->fmtWaktu($r->waktu_tiba ?? null),
-'lama_perjalanan' => $this->computeLamaPerjalananSimple($r),// ✅ pakai method yang sudah ada
+                'tanggal_tiba_fmt'            => $this->fmtDate($r->tanggal_tiba),
+                'waktu_tiba_fmt'              => $this->fmtWaktu($r->waktu_tiba ?? null),
+                'lama_perjalanan'             => $this->computeLamaPerjalananSimple($r),
 
                 'sla_tiba_badge'              => $this->badgeOnTimeDelay($r->sla_tiba),
-              'tanggal_bongkar_fmt'         => $this->fmtDate($r->tanggal_bongkar),
-'waktu_bongkar_fmt'           => $this->fmtWaktu($r->waktu_bongkar ?? null),
+                'tanggal_bongkar_fmt'         => $this->fmtDate($r->tanggal_bongkar),
+                'waktu_bongkar_fmt'           => $this->fmtWaktu($r->waktu_bongkar ?? null),
                 'status_bongkar_badge'        => $this->badgeStatusBongkar($r),
-              'overstay_days'               => $this->formatHari($r->overstay_days),
+                'overstay_days'               => $this->formatHari($r->overstay_days),
                 'sla_bongkar_badge'           => $this->badgeOnTimeDelay($r->sla_bongkar),
                 'reason_tiba'                 => $r->reason_tiba,
                 'reason_bongkar'              => $r->reason_bongkar,
@@ -833,15 +828,17 @@ $data = $rows->map(function ($r) use ($shipmentAgg, $groupAgg) {
                 'via_kirim'                   => $r->via_kirim,
                 'estimasi_admin_fmt'          => $estimasiAdmin ? $estimasiAdmin->format('d-m-Y') : '-',
                 'estimasi_admin_status_badge' => $this->badgeEstimasiAdmin($r),
-              'create_on_fmt'      => $this->fmtDate($r->create_on),
-'no_delivery'        => e($r->no_delivery) ?: '-',
-'customer_reference' => e($r->customer_reference) ?: '-',
-'sales_document'     => e($r->sales_document) ?: '-',
-'contract_end_date_fmt' => $this->fmtDate($r->contract_end_date),
-'no_do'              => e($r->no_do) ?: '-',
+                'create_on_fmt'               => $this->fmtDate($r->create_on),
+                'no_delivery'                 => e($r->no_delivery) ?: '-',
+                'customer_reference'          => e($r->customer_reference) ?: '-',
+                'sales_document'              => e($r->sales_document) ?: '-',
+                'contract_end_date_fmt'       => $this->fmtDate($r->contract_end_date),
+                'no_do'                       => e($r->no_do) ?: '-',
+                'tanggal_shipment_fmt'        => $this->fmtDate($r->tanggal_shipment),
+                // periode_shipment berisi string "MM-YYYY", tampilkan apa adanya
+                'periode_shipment_fmt'        => $r->periode_shipment ?: '-',
             ];
         });
-        
 
         return response()->json([
             'draw'            => (int) $request->input('draw', 1),
@@ -852,94 +849,105 @@ $data = $rows->map(function ($r) use ($shipmentAgg, $groupAgg) {
     }
 
     public function dataLogistikDetail(Request $request)
-{
-    $request->validate([
-        'no_shipment' => 'required|string',
-        'tujuan'      => 'nullable|string',
-    ]);
+    {
+        $request->validate([
+            'no_shipment' => 'required|string',
+            'tujuan'      => 'nullable|string',
+        ]);
 
-    $q = LogistikPengiriman::query()->where('no_shipment', $request->no_shipment);
-    $this->filterByDistChannel($q);
+        $q = LogistikPengiriman::query()->where('no_shipment', $request->no_shipment);
+        $this->filterByDistChannel($q);
 
-    $tujuan = (string) $request->tujuan;
-    $tujuan !== ''
-        ? $q->where('tujuan', $tujuan)
-        : $q->where(fn($x) => $x->whereNull('tujuan')->orWhere('tujuan', ''));
+        $tujuan = (string) $request->tujuan;
+        $tujuan !== ''
+            ? $q->where('tujuan', $tujuan)
+            : $q->where(fn($x) => $x->whereNull('tujuan')->orWhere('tujuan', ''));
 
-    $data = $q->orderBy('sales_document')->orderBy('id')->get()->map(fn($r) => [
-        'sales_document'     => $r->sales_document ?: '-',
-        'customer_reference' => $r->customer_reference ?: '-',
-        'contract_end_date'  => $this->fmtDate($r->contract_end_date),
-        'no_do'              => $r->no_do ?: '-',
-        'qty'                => $r->total_do_qty_car,
-      'nilai_muatan'         => 'Rp ' . number_format((float) $r->nilai_muatan, 0, ',', '.'),
-'kirim_kontribusi'     => $r->kirim_kontribusi !== null
-    ? 'Rp ' . number_format((float) $r->kirim_kontribusi, 0, ',', '.') : '-',
-'kirim_kontribusi_raw' => (float) $r->kirim_kontribusi,   // untuk baris total di JS
-'total_kubik'          => $this->formatKubik($r->total_kubik),
-        'total_tonase'       => $this->formatTonase($r->total_tonase),
-    ]);
+        $data = $q->orderBy('sales_document')->orderBy('id')->get()->map(fn($r) => [
+            'sales_document'       => $r->sales_document ?: '-',
+            'customer_reference'   => $r->customer_reference ?: '-',
+            'contract_end_date'    => $this->fmtDate($r->contract_end_date),
+            'no_do'                => $r->no_do ?: '-',
+            'qty'                  => $r->total_do_qty_car,
+            'nilai_muatan'         => 'Rp ' . number_format((float) $r->nilai_muatan, 0, ',', '.'),
+            'kirim_kontribusi'     => $r->kirim_kontribusi !== null
+                ? 'Rp ' . number_format((float) $r->kirim_kontribusi, 0, ',', '.') : '-',
+            'kirim_kontribusi_raw' => (float) $r->kirim_kontribusi,
+            'total_kubik'          => $this->formatKubik($r->total_kubik),
+            'total_tonase'         => $this->formatTonase($r->total_tonase),
+        ]);
 
-    return response()->json(['data' => $data]);
-}
-/** Subquery: 1 id wakil (MIN id) per shipment+tujuan dari query yang sudah terfilter */
-private function groupIdsQuery($query)
-{
-    return (clone $query)
-        ->select(DB::raw('MIN(id) as id'))
-        ->groupByRaw("COALESCE(NULLIF(TRIM(no_shipment),''), CONCAT('id', id)), COALESCE(tujuan,'')");
-}
+        return response()->json(['data' => $data]);
+    }
 
-private function countGroups($query): int
-{
-    return DB::query()->fromSub($this->groupIdsQuery($query), 'g')->count();
-}
+    /** Daftar kolom asli tabel (cache 1 jam) */
+    private function searchableCols(): array
+    {
+        return Cache::remember('logistik_searchable_cols', 3600, function () {
+            return array_values(array_diff(
+                Schema::getColumnListing('logistik_pengiriman'),
+                ['id', 'created_at', 'updated_at']
+            ));
+        });
+    }
+
+    /** Subquery: 1 id wakil (MIN id) per shipment+tujuan dari query yang sudah terfilter */
+    private function groupIdsQuery($query)
+    {
+        return (clone $query)
+            ->select(DB::raw('MIN(id) as id'))
+            ->groupByRaw("COALESCE(NULLIF(TRIM(no_shipment),''), CONCAT('id', id)), COALESCE(tujuan,'')");
+    }
+
+    private function countGroups($query): int
+    {
+        return DB::query()->fromSub($this->groupIdsQuery($query), 'g')->count();
+    }
+
     private function fmtWaktu($value): string
-{
-    if (empty($value)) {
-        return '-';
+    {
+        if (empty($value)) {
+            return '-';
+        }
+        return substr((string) $value, 0, 5);
     }
-    return substr((string) $value, 0, 5);
-}
-    private function formatHari($value): string
-{
-    if ($value === null || $value === '') {
-        return '-';
-    }
-    return $value . ' Hari';
-}
 
-    
+    private function formatHari($value): string
+    {
+        if ($value === null || $value === '') {
+            return '-';
+        }
+        return $value . ' Hari';
+    }
 
     /* =========================================================
-     * ARCHIVE / DELETE ALL (tetap sama)
+     * ARCHIVE / DELETE ALL
      * ========================================================= */
-   public function archiveAll()
-{
-    // hanya kolom yang ada di kedua tabel, kecuali id (storage generate id sendiri)
-    $cols = array_values(array_diff(
-        array_intersect(
-            Schema::getColumnListing('logistik_pengiriman'),
-            Schema::getColumnListing('logistik_storage')
-        ),
-        ['id']
-    ));
-    $list = '`' . implode('`,`', $cols) . '`';
+    public function archiveAll()
+    {
+        $cols = array_values(array_diff(
+            array_intersect(
+                Schema::getColumnListing('logistik_pengiriman'),
+                Schema::getColumnListing('logistik_storage')
+            ),
+            ['id']
+        ));
+        $list = '`' . implode('`,`', $cols) . '`';
 
-    $moved = 0;
+        $moved = 0;
 
-    DB::transaction(function () use ($list, &$moved) {
-        DB::insert("INSERT INTO logistik_storage ({$list}) SELECT {$list} FROM logistik_pengiriman");
-        $moved = DB::table('logistik_pengiriman')->delete();
-    });
+        DB::transaction(function () use ($list, &$moved) {
+            DB::insert("INSERT INTO logistik_storage ({$list}) SELECT {$list} FROM logistik_pengiriman");
+            $moved = DB::table('logistik_pengiriman')->delete();
+        });
 
-    Cache::forget('logistik_shipment_agg');
-    foreach (['area', 'dist_channel', 'pic_monitoring'] as $c) {
-        Cache::forget("list_{$c}");
+        Cache::forget('logistik_shipment_agg');
+        foreach (['area', 'dist_channel', 'pic_monitoring'] as $c) {
+            Cache::forget("list_{$c}");
+        }
+
+        return back()->with('success', "{$moved} baris berhasil dipindahkan ke Storage");
     }
-
-    return back()->with('success', "{$moved} baris berhasil dipindahkan ke Storage");
-}
 
     public function deleteAll()
     {
@@ -957,10 +965,7 @@ private function countGroups($query): int
     }
 
     /* =========================================================
-     * ARMADA (tetap sama — dataset biasanya lebih kecil karena
-     * sudah difilter rencana_kirim/tanggal_dpt_unit NOT NULL).
-     * Kalau tabel ini juga sudah ribuan baris, terapkan pola
-     * server-side DataTables yang sama seperti dataLogistikAjax().
+     * ARMADA
      * ========================================================= */
     public function armada(Request $request)
     {
@@ -1321,10 +1326,10 @@ private function countGroups($query): int
             ->count();
 
         $summary_monitoring = [
-            'tiba_ontime' => $total_tiba ? round(($customer_ontime / $total_tiba) * 100, 2) : 0,
-            'tiba_delay' => $total_tiba ? round(($customer_delay / $total_tiba) * 100, 2) : 0,
+            'tiba_ontime'    => $total_tiba ? round(($customer_ontime / $total_tiba) * 100, 2) : 0,
+            'tiba_delay'     => $total_tiba ? round(($customer_delay / $total_tiba) * 100, 2) : 0,
             'bongkar_ontime' => $total_bongkar ? round(($bongkar_ontime / $total_bongkar) * 100, 2) : 0,
-            'bongkar_delay' => $total_bongkar ? round(($bongkar_delay / $total_bongkar) * 100, 2) : 0,
+            'bongkar_delay'  => $total_bongkar ? round(($bongkar_delay / $total_bongkar) * 100, 2) : 0,
         ];
 
         return view('manager.dashboard', compact(
@@ -1361,13 +1366,10 @@ private function countGroups($query): int
     }
 
     /* =========================================================================
-     * =========================================================================
      *  HELPER / PRESENTER METHODS
-     *  (dipindahkan dari @php block Blade -> lebih cepat, testable, reusable)
-     * =========================================================================
      * ========================================================================= */
 
-    /** Cache dropdown list 1 jam — dulu di-query ulang tiap load halaman */
+    /** Cache dropdown list 1 jam */
     private function cachedList(string $column)
     {
         return Cache::remember("list_{$column}", 3600, function () use ($column) {
@@ -1385,124 +1387,94 @@ private function countGroups($query): int
         if (empty($value) || $value === 'mm/dd/yyyy') {
             return '-';
         }
-        return date($format, strtotime($value));
+        $ts = strtotime((string) $value);
+        return $ts === false ? (string) $value : date($format, $ts);
     }
 
-    /**
-     * Agregat per no_shipment (dipakai untuk hitung Cost Ratio).
-     * Dihitung SEKALI per request via SQL GROUP BY, bukan di JS per baris.
-     * Return: ['SHIPMENT001' => ['total_muatan' => x, 'total_biaya' => y], ...]
-     */
+    /** Agregat per no_shipment (dipakai untuk Cost Ratio & optimal). */
     private function shipmentAggregates(): array
-{
-    return DB::table('logistik_pengiriman')
-        ->select(
-            'no_shipment',
-            DB::raw('SUM(nilai_muatan) as total_muatan'),
-            DB::raw('MAX(biaya_kirim) as total_biaya'),
-            DB::raw('SUM(COALESCE(total_kubik, 0)) as sum_kubik'),
-            DB::raw('SUM(COALESCE(total_tonase, 0)) as sum_tonase'),
-            DB::raw('MAX(kubikasi) as kubikasi'),
-            DB::raw('MAX(tonase) as tonase')
-        )
-        ->whereNotNull('no_shipment')
-        ->where('no_shipment', '!=', '')
-        ->groupBy('no_shipment')
-        ->get()
-        ->keyBy('no_shipment')
-        ->map(fn($g) => [
-            'total_muatan' => (float) $g->total_muatan,
-            'total_biaya'  => (float) $g->total_biaya,
-            'sum_kubik'    => (float) $g->sum_kubik,
-            'sum_tonase'   => (float) $g->sum_tonase,
-            'kubikasi'     => (float) $g->kubikasi,
-            'tonase'       => (float) $g->tonase,
-        ])
-        ->toArray();
-}
-    /** Replikasi persis logic CR yang dulu ada di drawCallback JS */
-private function computeCR($r, array $shipmentAgg): float
-{
-    $muatan = (float) $r->nilai_muatan;
-   $biaya  = (float) ($r->kirim_kontribusi ?? $r->biaya_kirim);
+    {
+        return DB::table('logistik_pengiriman')
+            ->select(
+                'no_shipment',
+                DB::raw('SUM(nilai_muatan) as total_muatan'),
+                DB::raw('MAX(biaya_kirim) as total_biaya'),
+                DB::raw('SUM(COALESCE(total_kubik, 0)) as sum_kubik'),
+                DB::raw('SUM(COALESCE(total_tonase, 0)) as sum_tonase'),
+                DB::raw('MAX(kubikasi) as kubikasi'),
+                DB::raw('MAX(tonase) as tonase')
+            )
+            ->whereNotNull('no_shipment')
+            ->where('no_shipment', '!=', '')
+            ->groupBy('no_shipment')
+            ->get()
+            ->keyBy('no_shipment')
+            ->map(fn($g) => [
+                'total_muatan' => (float) $g->total_muatan,
+                'total_biaya'  => (float) $g->total_biaya,
+                'sum_kubik'    => (float) $g->sum_kubik,
+                'sum_tonase'   => (float) $g->sum_tonase,
+                'kubikasi'     => (float) $g->kubikasi,
+                'tonase'       => (float) $g->tonase,
+            ])
+            ->toArray();
+    }
 
-    return $muatan > 0 ? ($biaya / $muatan) * 100 : 0;
-}
+    private function computeCR($r, array $shipmentAgg): float
+    {
+        $muatan = (float) $r->nilai_muatan;
+        $biaya  = (float) ($r->kirim_kontribusi ?? $r->biaya_kirim);
+
+        return $muatan > 0 ? ($biaya / $muatan) * 100 : 0;
+    }
+
     private function formatPersen($value): string
-{
-    if ($value === null || $value === '') {
-        return '-';
-    }
-    return number_format((float) $value, 2, ',', '.') . '%';
-}
-// private function formatTonase($value): string
-// {
-//     if ($value === null || $value === '') {
-//         return '-';
-//     }
-//     return number_format((float) $value, 2, ',', '.') . ' Ton';
-// }
-
-    /** Format nilai kubikasi mentah (M3) — dipakai untuk Total_Kubik */
-private function formatKubik($value): string
-{
-    if ($value === null || $value === '') {
-        return '-';
-    }
-    return number_format((float) $value, 2, ',', '.');
-}
-
-private function formatTonase($value): string
-{
-    if ($value === null || $value === '') {
-        return '-';
-    }
-    return number_format((float) $value, 2, ',', '.');
-}
-
-    /**
-     * Hasil kubikasi = kubikasi aktual dibanding Total_Kubik (kapasitas), dalam persen.
-     * hasil_Kubik = kubikasi / Total_Kubik * 100
-     */
-private function computeHasilKubik($r): ?float
-{
-    $totalMuatan = (float) ($r->total_kubik ?? 0);
-    $kapasitas   = (float) ($r->kubikasi ?? 0);
-
-    if ($kapasitas <= 0) {
-        return null;
+    {
+        if ($value === null || $value === '') {
+            return '-';
+        }
+        return number_format((float) $value, 2, ',', '.') . '%';
     }
 
-    return ($totalMuatan / $kapasitas) * 100;
-}
-
-private function computeHasilTonase($r): ?float
-{
-    $totalMuatan = (float) ($r->total_tonase ?? 0);
-    $kapasitas   = (float) ($r->tonase ?? 0);
-
-    if ($kapasitas <= 0) {
-        return null;
+    private function formatKubik($value): string
+    {
+        if ($value === null || $value === '') {
+            return '-';
+        }
+        return number_format((float) $value, 2, ',', '.');
     }
 
-    return ($totalMuatan / $kapasitas) * 100;
-}
+    private function formatTonase($value): string
+    {
+        if ($value === null || $value === '') {
+            return '-';
+        }
+        return number_format((float) $value, 2, ',', '.');
+    }
 
-    /**
-     * Hasil tonase = tonase aktual dibanding Total_Tonase (kapasitas), dalam persen.
-     * hasil_Tonase = tonase / Total_Tonase * 100
-     */
-    // private function computeHasilTonase($r): ?float
-    // {
-    //     $total = (float) ($r->Total_Tonase ?? 0);
-    //     $aktual = (float) ($r->tonase ?? 0);
+    private function computeHasilKubik($r): ?float
+    {
+        $totalMuatan = (float) ($r->total_kubik ?? 0);
+        $kapasitas   = (float) ($r->kubikasi ?? 0);
 
-    //     if ($total <= 0) {
-    //         return null;
-    //     }
+        if ($kapasitas <= 0) {
+            return null;
+        }
 
-    //     return ($aktual / $total) * 100;
-    // }
+        return ($totalMuatan / $kapasitas) * 100;
+    }
+
+    private function computeHasilTonase($r): ?float
+    {
+        $totalMuatan = (float) ($r->total_tonase ?? 0);
+        $kapasitas   = (float) ($r->tonase ?? 0);
+
+        if ($kapasitas <= 0) {
+            return null;
+        }
+
+        return ($totalMuatan / $kapasitas) * 100;
+    }
 
     private function formatHasilPersen(?float $value): string
     {
@@ -1513,66 +1485,54 @@ private function computeHasilTonase($r): ?float
     }
 
     /**
-     * Badge Pengiriman Optimal: optimal jika SALAH SATU dari hasil_Kubik
-     * atau hasil_Tonase di atas 85%.
+     * PER SHIPMENT: hasil kubik/tonase semua baris di no_shipment yang sama dijumlahkan.
+     * Optimal jika salah satunya >= 85%.
      */
+    private function badgePengirimanOptimal($r, array $shipmentAgg = []): string
+    {
+        $no  = trim((string) $r->no_shipment);
+        $agg = ($no !== '' && isset($shipmentAgg[$no])) ? $shipmentAgg[$no] : null;
 
-    /**
- * Optimal per customer (per baris). Pakai nilai di DB kalau sudah terisi,
- * kalau kosong dihitung dari hasil_kubik / hasil_tonase baris itu.
- */
-/**
- * PER SHIPMENT: hasil kubik/tonase semua baris di no_shipment yang sama dijumlahkan.
- * Optimal jika salah satunya >= 85%.
- */
-private function badgePengirimanOptimal($r, array $shipmentAgg = []): string
-{
-    $no  = trim((string) $r->no_shipment);
-    $agg = ($no !== '' && isset($shipmentAgg[$no])) ? $shipmentAgg[$no] : null;
+        if ($agg && isset($agg['sum_kubik'])) {
+            $kapKubik    = $agg['kubikasi'];
+            $kapTonase   = $agg['tonase'];
+            $hasilKubik  = $kapKubik  > 0 ? ($agg['sum_kubik']  / $kapKubik)  * 100 : null;
+            $hasilTonase = $kapTonase > 0 ? ($agg['sum_tonase'] / $kapTonase) * 100 : null;
+        } else {
+            $hasilKubik  = $this->computeHasilKubik($r);
+            $hasilTonase = $this->computeHasilTonase($r);
+        }
 
-    if ($agg && isset($agg['sum_kubik'])) {
-        $kapKubik   = $agg['kubikasi'];
-        $kapTonase  = $agg['tonase'];
-        $hasilKubik  = $kapKubik  > 0 ? ($agg['sum_kubik']  / $kapKubik)  * 100 : null;
-        $hasilTonase = $kapTonase > 0 ? ($agg['sum_tonase'] / $kapTonase) * 100 : null;
-    } else {
-        // shipment tidak ada di agregat -> pakai baris ini saja
+        if ($hasilKubik === null && $hasilTonase === null) {
+            return '<span class="badge gray">-</span>';
+        }
+
+        $isOptimal = ($hasilKubik !== null && $hasilKubik >= 85)
+            || ($hasilTonase !== null && $hasilTonase >= 85);
+
+        return $isOptimal
+            ? '<span class="badge green">✅ Optimal</span>'
+            : '<span class="badge orange">⚠️ Tidak Optimal</span>';
+    }
+
+    /** PER CUSTOMER (per baris/tujuan) */
+    private function badgePengirimanOptimalCustomer($r): string
+    {
         $hasilKubik  = $this->computeHasilKubik($r);
         $hasilTonase = $this->computeHasilTonase($r);
+
+        if ($hasilKubik === null && $hasilTonase === null) {
+            return '<span class="badge gray">-</span>';
+        }
+
+        $isOptimal = ($hasilKubik !== null && $hasilKubik >= 85)
+            || ($hasilTonase !== null && $hasilTonase >= 85);
+
+        return $isOptimal
+            ? '<span class="badge green">✅ Optimal</span>'
+            : '<span class="badge orange">⚠️ Tidak Optimal</span>';
     }
 
-    if ($hasilKubik === null && $hasilTonase === null) {
-        return '<span class="badge gray">-</span>';
-    }
-
-    $isOptimal = ($hasilKubik !== null && $hasilKubik >= 85)
-              || ($hasilTonase !== null && $hasilTonase >= 85);
-
-    return $isOptimal
-        ? '<span class="badge green">✅ Optimal</span>'
-        : '<span class="badge orange">⚠️ Tidak Optimal</span>';
-}
-
-/**
- * PER CUSTOMER (per baris/tujuan): hanya muatan baris itu sendiri.
- * Kurang dari 85% ya Tidak Optimal, tanpa digabung dengan baris lain.
- */
-private function badgePengirimanOptimalCustomer($r): string
-{
-    $hasilKubik  = $this->computeHasilKubik($r);
-    $hasilTonase = $this->computeHasilTonase($r);
-
-    if ($hasilKubik === null && $hasilTonase === null) {
-        return '<span class="badge gray">-</span>';
-    }
-
-    $isOptimal = ($hasilKubik !== null && $hasilKubik >= 85)
-              || ($hasilTonase !== null && $hasilTonase >= 85);
-
-    return $isOptimal
-        ? '<span class="badge green">✅ Optimal</span>'
-        : '<span class="badge orange">⚠️ Tidak Optimal</span>';
-}
     private function formatCR(float $cr): string
     {
         return $cr > 0
@@ -1580,7 +1540,6 @@ private function badgePengirimanOptimalCustomer($r): string
             : '<span class="text-muted" style="color:#9e9e9e;font-size:11px;">0,0000%</span>';
     }
 
-    /** Badge generik untuk kolom SLA seperti "Sesuai SLA / H+1 / H+2" */
     private function badgeSLA($sla): string
     {
         $sla = trim((string) $sla);
@@ -1606,7 +1565,6 @@ private function badgePengirimanOptimalCustomer($r): string
         return '<span class="badge badge-gray">' . e($sla) . '</span>';
     }
 
-    /** Badge On Time / Delay generik (dipakai untuk sla_tiba & sla_bongkar) */
     private function badgeOnTimeDelay($value): string
     {
         $value = trim((string) $value);
@@ -1654,8 +1612,14 @@ private function badgePengirimanOptimalCustomer($r): string
         $channel = trim((string) $channel);
 
         $classes = [
-            'badge-green', 'badge-blue', 'badge-orange', 'badge-red',
-            'badge-purple', 'badge-pink', 'badge-cyan', 'badge-yellow',
+            'badge-green',
+            'badge-blue',
+            'badge-orange',
+            'badge-red',
+            'badge-purple',
+            'badge-pink',
+            'badge-cyan',
+            'badge-yellow',
         ];
 
         $badgeClass = $channel
@@ -1692,26 +1656,31 @@ private function badgePengirimanOptimalCustomer($r): string
 
         return '<span class="badge orange">' . e($kategori) . '</span>';
     }
-
-    /**
-     * Status pengiriman (badge "MENCARI UNIT / PERJALANAN KE GUDANG X /
-     * DI GUDANG X / PERJALANAN KE TUJUAN / SUDAH TIBA TUJUAN / SUDAH SELESAI").
-     * Replikasi persis logic panjang yang dulu ada di dalam @foreach Blade.
-     */
+private function gudangList($r): array
+{
+    $out = [];
+    foreach (self::GUDANG as $s => $nama) {
+        $out[] = [
+            'nama'     => $nama,
+            'planning' => $r->{"planning_loading{$s}"},
+            'tiba'     => $r->{"tanggal_tiba_gudang{$s}"},
+            'keluar'   => $r->{"tanggal_keluar_gudang{$s}"},
+        ];
+    }
+    return $out;
+}
     private function badgeStatusPengiriman($r): string
     {
         $dpt = $r->tanggal_dpt_unit;
         $tibaAkhir = $r->tanggal_tiba;
         $bongkarAkhir = $r->tanggal_bongkar;
 
-        $gudang = collect([
-            ['nama' => 'KACS',   'planning' => $r->planning_loading,   'tiba' => $r->tanggal_tiba_gudang,   'keluar' => $r->tanggal_keluar_gudang],
-            ['nama' => 'SENTUL', 'planning' => $r->planning_loading_2, 'tiba' => $r->tanggal_tiba_gudang_2, 'keluar' => $r->tanggal_keluar_gudang_2],
-            ['nama' => 'CCIE',   'planning' => $r->planning_loading_3, 'tiba' => $r->tanggal_tiba_gudang_3, 'keluar' => $r->tanggal_keluar_gudang_3],
-        ])
-            ->filter(fn($g) => !empty($g['planning']))
-            ->sortBy(fn($g) => strtotime($g['planning']))
-            ->values();
+    $gudang = collect($this->gudangList($r))
+    ->filter(fn($g) => !empty($g['planning']))
+    ->sortBy(fn($g) => strtotime($g['planning']))
+    ->values();
+
+$adaPlanningGudang = $gudang->count() > 0;
 
         $adaPlanningGudang = $gudang->count() > 0;
         $statusGudang = null;
@@ -1754,31 +1723,22 @@ private function badgePengirimanOptimalCustomer($r): string
         return '<span class="badge ' . $badge . '">' . e($status) . '</span>';
     }
 
-    /** Cari status gudang aktif (dipakai internal buat menentukan estimasi/alert) */
-    private function getStatusGudangAktif($r): ?array
-    {
-        $gudang = collect([
-            ['nama' => 'KACS',   'planning' => $r->planning_loading,   'tiba' => $r->tanggal_tiba_gudang],
-            ['nama' => 'SENTUL', 'planning' => $r->planning_loading_2, 'tiba' => $r->tanggal_tiba_gudang_2],
-            ['nama' => 'CCIE',   'planning' => $r->planning_loading_3, 'tiba' => $r->tanggal_tiba_gudang_3],
-        ])
-            ->filter(fn($g) => !empty($g['planning']))
-            ->sortBy(fn($g) => strtotime($g['planning']))
-            ->values();
+   private function getStatusGudangAktif($r): ?array
+{
+    $gudang = collect($this->gudangList($r))
+        ->filter(fn($g) => !empty($g['planning']))
+        ->sortBy(fn($g) => strtotime($g['planning']))
+        ->values();
 
-        foreach ($gudang as $g) {
-            if (empty($g['tiba'])) {
-                return ['status' => 'PERJALANAN KE ' . $g['nama']];
-            }
+    foreach ($gudang as $g) {
+        if (empty($g['tiba'])) {
+            return ['status' => 'PERJALANAN KE ' . $g['nama']];
         }
-
-        return null;
     }
 
-    /**
-     * Estimasi tiba + alert (H-1/H-2/.../TERLAMBAT/ON TRACK).
-     * Return array ['estimasi_show' => string, 'alert_html' => string]
-     */
+    return null;
+}
+
     private function computeEstimasiDanAlert($r): array
     {
         $statusGudang = $this->getStatusGudangAktif($r);
@@ -1899,7 +1859,6 @@ private function badgePengirimanOptimalCustomer($r): string
         return '<span class="badge badge-secondary">⏳ Belum Selesai</span>';
     }
 
-    /** Estimasi tiba versi admin (rencana_kirim + lead time, +1 hari khusus Jawa Barat) */
     private function computeEstimasiAdmin($r): ?Carbon
     {
         if (empty($r->rencana_kirim)) {
@@ -1937,39 +1896,38 @@ private function badgePengirimanOptimalCustomer($r): string
             ? '<span class="badge red">Delay</span>'
             : '<span class="badge orange">Belum Tiba</span>';
     }
-   
-private function formatLamaPerjalananRaw($value): string
-{
-    if ($value === null || $value === '' || !is_numeric($value)) {
-        return '-';
-    }
-    return (string) round((float) $value);
-}
-private function computeLamaPerjalananSimple($r): string
-{
-    if (empty($r->tanggal_tiba)) {
-        return '-';
+
+    private function formatLamaPerjalananRaw($value): string
+    {
+        if ($value === null || $value === '' || !is_numeric($value)) {
+            return '-';
+        }
+        return (string) round((float) $value);
     }
 
-    $keluarCandidates = array_filter([
-        $r->tanggal_keluar_gudang ?? null,
-        $r->tanggal_keluar_gudang_2 ?? null,
-        $r->tanggal_keluar_gudang_3 ?? null,
-    ]);
+    private function computeLamaPerjalananSimple($r): string
+    {
+        if (empty($r->tanggal_tiba)) {
+            return '-';
+        }
 
-    if (empty($keluarCandidates)) {
-        return '-';
+       $keluarCandidates = array_filter(array_map(
+    fn($s) => $r->{"tanggal_keluar_gudang{$s}"} ?? null,
+    $this->gudangSuffixes()
+));
+
+        if (empty($keluarCandidates)) {
+            return '-';
+        }
+
+        $keluar = max(array_map('strtotime', $keluarCandidates));
+        $tiba = strtotime($r->tanggal_tiba);
+
+        $hari = max(0, floor(($tiba - $keluar) / 86400));
+
+        return $hari . ' Hari';
     }
 
-    $keluar = max(array_map('strtotime', $keluarCandidates));
-    $tiba = strtotime($r->tanggal_tiba);
-
-    $hari = max(0, floor(($tiba - $keluar) / 86400));
-
-    return $hari . ' Hari';
-}
-
-    /** Durasi antara planning loading & tanggal tiba gudang, format "X Hari Y Jam" */
     private function computeDurasiGudang($planning, $tiba): string
     {
         if (empty($planning) || empty($tiba)) {
@@ -1996,7 +1954,6 @@ private function computeLamaPerjalananSimple($r): string
         return "0 Jam";
     }
 
-    /** Badge On Time / Delay dibanding 2 tanggal (planning vs realisasi), per-hari */
     private function badgeStatusOnTimeDelayByDate($planning, $tiba): string
     {
         if (empty($planning) || empty($tiba)) {
@@ -2011,7 +1968,6 @@ private function computeLamaPerjalananSimple($r): string
             : '<span class="badge green">On Time</span>';
     }
 
-    /** Badge "Sesuai SLA" / "H+n" berdasarkan selisih hari planning vs realisasi */
     private function badgeSlaLoadingClean($planning, $tiba): string
     {
         if (empty($planning) || empty($tiba)) {
@@ -2029,7 +1985,6 @@ private function computeLamaPerjalananSimple($r): string
         return '<span class="badge bg-success">Sesuai SLA</span>';
     }
 
-    /** Badge status gudang mentah (On Time / Delay / On Site) dari kolom status_gudang_2/3 */
     private function badgeStatusGudangRaw($status): string
     {
         if (empty($status)) {
@@ -2055,14 +2010,12 @@ private function computeLamaPerjalananSimple($r): string
         return '<span class="badge gray">-</span>';
     }
 
-    /** Dipakai oleh armada() — cari tanggal tiba gudang paling awal yang terisi */
-    private function getTibaGudangTerdekat($row)
-    {
-        foreach ([$row->tanggal_tiba_gudang ?? null, $row->tanggal_tiba_gudang_2 ?? null, $row->tanggal_tiba_gudang_3 ?? null] as $t) {
-            if (!empty($t)) {
-                return $t;
-            }
-        }
-        return null;
+ private function getTibaGudangTerdekat($row)
+{
+    foreach ($this->gudangSuffixes() as $s) {
+        $t = $row->{"tanggal_tiba_gudang{$s}"} ?? null;
+        if (!empty($t)) return $t;
     }
+    return null;
+}
 }
