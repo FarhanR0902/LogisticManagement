@@ -472,14 +472,15 @@ if ($request->filled('q')) {
         }
     });
 }
-
+// 1 baris wakil per shipment + tujuan
+$grouped = DB::table('logistik_pengiriman')->whereIn('id', $this->groupIdsQuery($base));
     // ===== ringkasan =====
-    $sum = (clone $base)->selectRaw("
-        COUNT(*) AS total,
-        SUM(CASE WHEN DATE({$est}) < ? THEN 1 ELSE 0 END) AS overdue,
-        SUM(CASE WHEN DATE({$est}) BETWEEN ? AND ? THEN 1 ELSE 0 END) AS soon,
-        SUM(CASE WHEN DATE({$est}) > ? THEN 1 ELSE 0 END) AS ontrack
-    ", [$today, $today, $soon, $soon])->first();
+   $sum = (clone $grouped)->selectRaw("
+    COUNT(*) AS total,
+    SUM(CASE WHEN DATE({$est}) < ? THEN 1 ELSE 0 END) AS overdue,
+    SUM(CASE WHEN DATE({$est}) BETWEEN ? AND ? THEN 1 ELSE 0 END) AS soon,
+    SUM(CASE WHEN DATE({$est}) > ? THEN 1 ELSE 0 END) AS ontrack
+", [$today, $today, $soon, $soon])->first();
 
     $summary = [
         'total'   => (int) ($sum->total ?? 0),
@@ -490,9 +491,9 @@ if ($request->filled('q')) {
 
     // ===== data tabel =====
  // SESUDAH
-$list = (clone $base)
+$list = (clone $grouped)
     ->orderBy('no_shipment', 'ASC')
-    ->orderBy('act_urutan_bongkar', 'ASC')   // tie-breaker: baris dalam 1 shipment urut sesuai urutan bongkar
+    ->orderBy('tujuan', 'ASC')
     ->paginate(50)
     ->withQueryString();
 
@@ -568,12 +569,7 @@ private function inTransitAsalSql(): string
 // =====================================================
 private function inTransitQueryPasuruan()
 {
-    $filled = fn($c) => "NULLIF(TRIM({$c}), '') IS NOT NULL";
-    $empty  = fn($c) => "NULLIF(TRIM({$c}), '') IS NULL";
-
-    return DB::table('logistik_pengiriman_pasuruan')
-        ->whereRaw($empty('tanggal_tiba_pasuruan'))
-        ->whereRaw($filled('tanggal_keluar_gudang_pasuruan'));
+    return $this->whereInTransitPasuruan(DB::table('logistik_pengiriman_pasuruan'));
 }
 
 private function inTransitEstimasiSqlPasuruan(): string
@@ -610,7 +606,8 @@ public function inTransitPasuruan(Request $request)
             }
         });
     }
-
+$grouped = DB::table('logistik_pengiriman_pasuruan')
+    ->whereIn('id', $this->groupIdsQueryPasuruan($base));
     // ===== ringkasan =====
     $sum = (clone $base)->selectRaw("
         COUNT(*) AS total,
@@ -627,11 +624,12 @@ public function inTransitPasuruan(Request $request)
     ];
 
     // ===== data tabel =====
-    $list = (clone $base)
-        ->orderByRaw("DATE({$est}) ASC")
-        ->orderBy('no_shipment_pasuruan')
-        ->paginate(50)
-        ->withQueryString();
+$list = (clone $grouped)
+    ->orderByRaw("DATE({$est}) ASC")
+    ->orderBy('no_shipment_pasuruan')
+    ->orderBy('tujuan_pasuruan')
+    ->paginate(50)
+    ->withQueryString();
 
     // mapping kolom *_pasuruan -> nama properti generik yang dipakai
     // view monitoring/in_transit.blade.php (view-nya dipakai bareng dgn versi non-pasuruan)

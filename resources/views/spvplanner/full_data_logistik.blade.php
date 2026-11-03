@@ -4,6 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
 
     <title>DATA LOGISTIK</title>
 
@@ -529,51 +530,52 @@
                 🗄 Archive All (Move to Storage)
             </button>
         </form>
+    @include('cocoklogi')
 
-        <div class="filter-box">
-            <form id="filterForm" onsubmit="return false;">
+<div class="filter-box">
+    <form id="filterForm" onsubmit="return false;">
 
-                <select id="filterArea" name="area">
-                    <option value="">Semua Area</option>
-                    @foreach($areaList as $a)
-                        <option value="{{ $a }}">{{ $a }}</option>
-                    @endforeach
-                </select>
+        <select id="filterArea" name="area">
+            <option value="">Semua Area</option>
+            @foreach($areaList as $a)
+                <option value="{{ $a }}">{{ $a }}</option>
+            @endforeach
+        </select>
 
-                <input type="date" id="filterDate" name="date">
+        <input type="date" id="filterDate" name="date">
 
-                <select id="filterMonth" name="month">
-                    <option value="">Semua Bulan</option>
-                    @for($i = 1; $i <= 12; $i++)
-                        <option value="{{ $i }}">{{ $i }}</option>
-                    @endfor
-                </select>
+        <select id="filterMonth" name="month">
+            <option value="">Semua Bulan</option>
+            @for($i = 1; $i <= 12; $i++)
+                <option value="{{ $i }}">{{ $i }}</option>
+            @endfor
+        </select>
 
-                <select id="filterYear" name="year">
-                    <option value="">Semua Tahun</option>
-                    @php
-                        $startYear = 2023;
-                        $endYear = date('Y') + 1;
-                    @endphp
-                    @for($i = $startYear; $i <= $endYear; $i++)
-                        <option value="{{ $i }}">{{ $i }}</option>
-                    @endfor
-                </select>
+        <select id="filterYear" name="year">
+            <option value="">Semua Tahun</option>
+            @php
+                $startYear = 2023;
+                $endYear = date('Y') + 1;
+            @endphp
+            @for($i = $startYear; $i <= $endYear; $i++)
+                <option value="{{ $i }}">{{ $i }}</option>
+            @endfor
+        </select>
 
-                <select id="filterPic" name="planner">
-                    <option value="">Semua PIC</option>
-                    @foreach($picList as $p)
-                        <option value="{{ $p }}">{{ $p }}</option>
-                    @endforeach
-                </select>
+        <select id="filterPic" name="planner">
+            <option value="">Semua PIC</option>
+            @foreach($picList as $p)
+                <option value="{{ $p }}">{{ $p }}</option>
+            @endforeach
+        </select>
 
-                <button type="button" id="btnResetFilter"
-                    style="padding:13px 20px;background:#ef4444;color:#fff;border:none;border-radius:10px;font-weight:600;cursor:pointer;">
-                    Reset Filter
-                </button>
+        <button type="button" id="btnResetFilter"
+            style="padding:13px 20px;background:#ef4444;color:#fff;border:none;border-radius:10px;font-weight:600;cursor:pointer;">
+            Reset Filter
+        </button>
 
-            </form>
-        </div>
+    </form>
+</div>
 
         <div class="card">
             <div id="tableLogistikWrapper">
@@ -706,6 +708,10 @@ $(document).ready(function () {
     if (qs.get('area') && $('#filterArea option[value="' + qs.get('area') + '"]').length) {
         $('#filterArea').val(qs.get('area'));
     }
+
+    $.ajaxSetup({
+    headers: { 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') }
+});
 
     // ---------- kumpulan filter: URL dashboard + dropdown halaman ----------
     function getFilters() {

@@ -333,7 +333,12 @@ $currentRoute = request()->route()->getName() ?? '';
                         class="{{ request()->routeIs('manager.dashboard') && !request()->routeIs('manager.dashboard.pasuruan') ? 'active' : '' }}">
                         🏢 Dashboard Jakarta
                     </a>
+                    
                 </li>
+                <li>
+                    <a href="{{ route('gabungan.dashboard') }}">📊 Dashboard Gabungan</a>
+                </li>
+                
                 <li>
                     <a href="{{ route('manager.dashboard.pasuruan') }}"
                         class="{{ request()->routeIs('manager.dashboard.pasuruan') ? 'active' : '' }}">
@@ -497,6 +502,12 @@ $currentRoute = request()->route()->getName() ?? '';
                         🏢 Dashboard Jakarta
                     </a>
                 </li>
+                <li>
+    <a href="{{ route('sales.gabungan.dashboard') }}"
+       class="{{ request()->routeIs('sales.gabungan.*') ? 'active' : '' }}">
+        📊 Dashboard Gabungan
+    </a>
+</li>
 
                 <li>
                     <a href="{{ route('sales.dashboard.pasuruan') }}"

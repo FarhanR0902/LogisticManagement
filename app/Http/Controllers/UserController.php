@@ -125,12 +125,13 @@ class UserController extends Controller
         $user = User::findOrFail($id);
 
         // Dist channel diambil dari tabel tujuanfillterr
-        $distChannels = DB::table('tujuanfillterr')
-            ->select('dist_channel')
-            ->whereNotNull('dist_channel')
-            ->distinct()
-            ->orderBy('dist_channel')
-            ->pluck('dist_channel');
+      $distChannels = DB::table('tujuanfillterr')
+    ->select('dist_channel')
+    ->whereNotNull('dist_channel')
+    ->distinct()
+    ->orderBy('dist_channel')
+    ->pluck('dist_channel')
+    ->prepend('MT');   // opsi gabungan semua MT
 
         return view('users.edit', compact('user', 'distChannels'));
     }
@@ -188,7 +189,7 @@ class UserController extends Controller
         return match ($role) {
             'planner' => redirect()->route('planner.dashboard'),
             'monitoring' => redirect()->route('monitoring.dashboard'),
-            'manager' => redirect()->route('manager.dashboard'),
+        'manager' => redirect()->route('gabungan.dashboard'),
             'sales' => redirect()->route('sales.dashboard'),
              'kota_import' => redirect()->route('kota.import.index'), 
             'spvplanner' => redirect()->route('spvplanner.dashboard'),

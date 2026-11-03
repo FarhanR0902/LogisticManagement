@@ -489,7 +489,12 @@ class UpdateQtyPgiPasuruanImport implements ToCollection, WithHeadingRow, WithEv
             'total_kubik'        => $this->parseNumber($this->pick($row, ['total_kubik', 'total_kubikasi', 'sum_of_kubikasi2'])),
             'total_tonase'       => $this->parseNumber($this->pick($row, ['total_tonase', 'sum_of_tonase3'])),
         ];
-
+        // tanpa total_kubik = bukan baris DO sungguhan (mis. baris pembawa biaya).
+// Jangan insert dan jangan update apa pun, biarkan data yang sudah ada.
+if ($perDo['total_kubik'] === null || (float) $perDo['total_kubik'] <= 0) {
+    $this->generalSkipped++;
+    return;
+}
         // field milik shipment / tujuan
         $shared = [];
         foreach (array_merge(self::OVERWRITE_SHIPMENT, self::FILL_IF_EMPTY) as $col) {

@@ -785,7 +785,8 @@ tbody tr:last-child td{ border-bottom:none; }
 </div>
             <div class="field">
            <label for="f-from">Periode dari</label>
-            <input id="f-from" type="date" name="date_from" value="{{ request('date_from') }}">
+            <input id="f-from" type="date" name="date_from" value="{{
+             request('date_from') }}">
         </div>
 
         <div class="field">

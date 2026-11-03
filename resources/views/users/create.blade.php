@@ -194,14 +194,20 @@
     <label>Dist Channel</label>
 
     <select name="dist_channel" id="dist_channel" style="width:100%">
-        <option value="">-- Pilih Dist Channel --</option>
+    <option value="">-- Pilih Dist Channel --</option>
 
-        @foreach($distChannels as $channel)
-            <option value="{{ $channel }}">
+    <option value="MODERN_MARKET" {{ old('dist_channel') === 'MODERN_MARKET' ? 'selected' : '' }}>
+        MODERN_MARKET (FSI + semua MT)
+    </option>
+
+    @foreach($distChannels as $channel)
+        @if(strtoupper($channel) !== 'MODERN_MARKET')
+            <option value="{{ $channel }}" {{ old('dist_channel') === $channel ? 'selected' : '' }}>
                 {{ $channel }}
             </option>
-        @endforeach
-    </select>
+        @endif
+    @endforeach
+</select>
 </div>
 
                 <button type="submit">

@@ -119,46 +119,60 @@ private function gudangSuffixes(): array
      * Filter dari dashboard manager (dikirim sebagai dash[...] / query string).
      * Logikanya HARUS sama dengan ManagerController::applyFilter().
      */
-    private function applyDashboardFilter($query, array $f)
-    {
-        $areas = array_values(array_filter((array) ($f['area'] ?? []), 'strlen'));
-        if (!empty($areas)) {
-            $query->whereIn('area', $areas);
+   private function applyDashboardFilter($query, array $f)
+{
+    $areas = array_values(array_filter((array) ($f['area'] ?? []), 'strlen'));
+    if (!empty($areas)) {
+        $query->whereIn('area', $areas);
+    }
+
+    if (!empty($f['dist_channel'])) {
+        $query->where('dist_channel', $f['dist_channel']);
+    }
+
+    if (!empty($f['pulau']) && isset(self::PULAU_MAP[$f['pulau']])) {
+        $query->whereIn('area', self::PULAU_MAP[$f['pulau']]);
+    }
+
+    $basis = $f['tgl_basis'] ?? 'periode_shipment';   // default sama dengan Manager
+    $from  = $f['date_from'] ?? null;
+    $to    = $f['date_to'] ?? null;
+    if ($from && $to && $from > $to) {
+        [$from, $to] = [$to, $from];
+    }
+
+    // ===== Basis PERIODE SHIPMENT (sama dengan ManagerController::applyFilter) =====
+    if (in_array($basis, ['periode_shipment', 'tanggal_shipment'], true)) {
+        if (!empty($f['month']) && preg_match('/^(\d{4})-(\d{2})$/', $f['month'], $m)) {
+            $query->where('periode_shipment', $m[2] . '-' . $m[1]);
         }
-
-        if (!empty($f['dist_channel'])) {
-            $query->where('dist_channel', $f['dist_channel']);
+        if (!empty($f['year']) && ctype_digit((string) $f['year'])) {
+            $query->where('periode_shipment', 'like', '%-' . $f['year']);
         }
-
-        if (!empty($f['pulau']) && isset(self::PULAU_MAP[$f['pulau']])) {
-            $query->whereIn('area', self::PULAU_MAP[$f['pulau']]);
-        }
-
-        $col = $this->resolveTanggalColumn($f['tgl_basis'] ?? null);
-
-        $month = null;
-        $yearFromMonth = null;
-        if (!empty($f['month'])) {
-            // format "YYYY-MM"
-            $yearFromMonth = substr($f['month'], 0, 4);
-            $month         = substr($f['month'], 5, 2);
-        }
-
-        $this->applyDateRange(
-            $query,
-            $col,
-            $f['date_from'] ?? null,
-            $f['date_to'] ?? null,
-            $month,
-            $yearFromMonth
-        );
-
-        if (!empty($f['year'])) {
-            $query->whereRaw('YEAR(' . $this->dateExpr($col) . ') = ?', [(int) $f['year']]);
-        }
+        if (!empty($f['date']))  $query->whereDate('tanggal_shipment', $f['date']);
+        if ($from) $query->whereDate('tanggal_shipment', '>=', $from);
+        if ($to)   $query->whereDate('tanggal_shipment', '<=', $to);
 
         return $query;
     }
+
+    // ===== Basis lain (rencana_kirim / tanggal_naik_logistik) =====
+    $col = $this->resolveTanggalColumn($basis);
+
+    $month = $yearFromMonth = null;
+    if (!empty($f['month'])) {
+        $yearFromMonth = substr($f['month'], 0, 4);
+        $month         = substr($f['month'], 5, 2);
+    }
+
+    $this->applyDateRange($query, $col, $from, $to, $month, $yearFromMonth);
+
+    if (!empty($f['year'])) {
+        $query->whereRaw('YEAR(' . $this->dateExpr($col) . ') = ?', [(int) $f['year']]);
+    }
+
+    return $query;
+}
 
     /**
      * Filter tanggal dari dropdown halaman: periode + bulan + tahun.
@@ -196,16 +210,38 @@ private function gudangSuffixes(): array
     /* =========================================================
      * DIST CHANNEL SESSION FILTER
      * ========================================================= */
-    private function filterByDistChannel($query)
-    {
-        $channel = session('dist_channel');
+   private const MODERN_MARKET_CHANNELS = [
+    'FSI',
+    'MT - Minimarket',
+    'MT - Supermarket',
+    'MT - Lokal',
+    'MT - Hypermarket',
+];
 
-        if ($channel) {
-            $query->whereRaw('LOWER(TRIM(dist_channel)) = ?', [strtolower(trim((string) $channel))]);
+private function filterByDistChannel($query)
+{
+    $u = auth()->user();
+
+    $isMM = $u && (
+        strtolower((string) $u->username) === 'modern_market'
+        || strtoupper((string) $u->dist_channel) === 'MODERN_MARKET'
+    );
+
+    $channel = $isMM ? 'MODERN_MARKET' : session('dist_channel');
+
+    if (is_array($channel)) {
+        $channel = array_values(array_filter($channel, 'strlen'));
+        if (!empty($channel)) {
+            $query->whereIn('dist_channel', $channel);
         }
-
-        return $this->filterPeriodeSales($query);
+    } elseif ($channel && strtoupper(trim((string) $channel)) === 'MODERN_MARKET') {
+        $query->whereIn('dist_channel', self::MODERN_MARKET_CHANNELS);
+    } elseif ($channel) {
+        $query->whereRaw('LOWER(TRIM(dist_channel)) = ?', [strtolower(trim((string) $channel))]);
     }
+
+    return $this->filterPeriodeSales($query);
+}
 
     /* =========================================================
      * DASHBOARD
@@ -493,17 +529,10 @@ private function gudangSuffixes(): array
             }
         }
 
-        $dash = array_intersect_key($dash, array_flip([
-            'tgl_basis',
-            'date_from',
-            'date_to',
-            'month',
-            'year',
-            'area',
-            'dist_channel',
-            'pulau',
-        ]));
-
+     $dash = array_intersect_key($dash, array_flip([
+    'tgl_basis', 'date', 'date_from', 'date_to', 'month', 'year',
+    'area', 'dist_channel', 'pulau',
+]));
         // area boleh array (area[]=...), sisanya harus scalar
         $dash = array_filter($dash, function ($v, $k) {
             return $k === 'area' ? (is_scalar($v) || is_array($v)) : is_scalar($v);

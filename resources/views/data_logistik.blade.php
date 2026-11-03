@@ -561,10 +561,8 @@
             <i class="fa fa-file-excel"></i> Export Excel
         </a>
 
-        <a href="#" id="btnExportExcel" class="btn-export">
-            <i class="fa fa-file-excel"></i> Export Excel
-        </a>
-        @include('cocoklogi')
+     
+     
         <div class="filter-box">
             <form id="filterForm" onsubmit="return false;">
 
@@ -699,15 +697,15 @@
 <th>Lama Di P5</th>
 <th>SLA Loading P5</th>
 <th>Status P5</th>
-<th>Planning Loading Fifatex</th>
-<th>Tanggal Tiba Fifatex</th>
-<th>Waktu Tiba Fifatex</th>
-<th>Tanggal Keluar Fifatex</th>
-<th>Waktu Keluar Fifatex</th>
-<th>Reason Gudang Fifatex</th>
-<th>Lama Di Fifatex</th>
-<th>SLA Loading Fifatex</th>
-<th>Status Fifatex</th>
+<th>Planning Loading Vivatex</th>
+<th>Tanggal Tiba Vivatex</th>
+<th>Waktu Tiba Vivatex</th>
+<th>Tanggal Keluar Vivatex</th>
+<th>Waktu Keluar Vivatex</th>
+<th>Reason Gudang Vivatex</th>
+<th>Lama Di Vivatex</th>
+<th>SLA Loading Vivatex</th>
+<th>Status Vivatex</th>
                         <th>PIC Monitoring</th>
                         <th>Nama Kapal</th>
                         <th>ETD</th>

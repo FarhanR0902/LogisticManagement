@@ -659,10 +659,10 @@
 <th class="th-edit">Tanggal Keluar <span style="color:#7C3AED;font-weight:900;">P5</span></th>
 <th class="th-edit">Reason <span style="color:#7C3AED;font-weight:900;">P5</span></th>
 
-<th class="th-edit">Planning Loading <span style="color:#059669;font-weight:900;">Fifatex</span></th>
-<th class="th-edit">Tanggal Tiba <span style="color:#059669;font-weight:900;">Fifatex</span></th>
-<th class="th-edit">Tanggal Keluar <span style="color:#059669;font-weight:900;">Fifatex</span></th>
-<th class="th-edit">Reason <span style="color:#059669;font-weight:900;">Fifatex</span></th>
+<th class="th-edit">Planning Loading <span style="color:#059669;font-weight:900;">Vivatex</span></th>
+<th class="th-edit">Tanggal Tiba <span style="color:#059669;font-weight:900;">Vivatex</span></th>
+<th class="th-edit">Tanggal Keluar <span style="color:#059669;font-weight:900;">Vivatex</span></th>
+<th class="th-edit">Reason <span style="color:#059669;font-weight:900;">Vivatex</span></th>
                                     <th class="th-default">Tujuan</th>
                                     <th class="th-default">Route</th>
                                     <th class="th-default">Pulau</th>

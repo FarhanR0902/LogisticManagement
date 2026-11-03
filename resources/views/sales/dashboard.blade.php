@@ -625,10 +625,9 @@ tbody tr:last-child td{ border-bottom:none; }
     <form method="GET" action="{{ url()->current() }}" class="filter-form" id="filterForm">
 
       <div class="field">
-    <label for="f-basis">Berdasarkan tanggal</label>
    <select id="f-basis" name="tgl_basis">
-    <option value="create_tgl" {{ request('tgl_basis', 'create_tgl') == 'create_tgl' ? 'selected' : '' }}>
-        Tanggal import (create_tgl)
+    <option value="periode_shipment" {{ request('tgl_basis', 'periode_shipment') == 'periode_shipment' ? 'selected' : '' }}>
+        Periode shipment
     </option>
     <option value="rencana_kirim" {{ request('tgl_basis') == 'rencana_kirim' ? 'selected' : '' }}>
         Rencana kirim
@@ -740,8 +739,7 @@ tbody tr:last-child td{ border-bottom:none; }
 <div class="section-label">Ringkasan status</div>
 
 <div class="kpi-row">
-
-<a href="{{ url('/datalogistik') }}?{{ http_build_query(request()->query()) }}" class="card blue">
+<a href="{{ route('sales.data.gabungan', request()->query()) }}" class="card blue">
     <h4>Total Shipment</h4>
     <h1>{{ $total_data }}</h1>
 </a>

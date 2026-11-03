@@ -11,7 +11,7 @@ use App\Http\Controllers\CocoklogiController;
 | CONTROLLER
 |--------------------------------------------------------------------------
 */
-
+use App\Http\Controllers\Sales\SalesGabunganController;
 use App\Http\Controllers\KpiController;
 use App\Http\Controllers\Spv\TarifPengirimanController;
 use App\Http\Controllers\AuthController;
@@ -20,6 +20,7 @@ use App\Http\Controllers\Planner\PlannerController;
 // use App\Http\Controllers\Kota\KotaController;
 use App\Http\Controllers\Monitoring\MonitoringController;
 use App\Http\Controllers\Manager\ManagerController;
+use App\Http\Controllers\Manager\GabunganController;
 use App\Http\Controllers\KotaController;
 use App\Http\Controllers\PasuruanController;
 use App\Http\Controllers\Kota\KotaImportController;
@@ -272,7 +273,12 @@ Route::get('/sla-ontime', [MonitoringController::class, 'slaOntime'])
     Route::get('/monitoring/summary-area/detail', [MonitoringController::class, 'summaryAreaDetail'])
         ->name('monitoring.summary.area.detail');
 });
-
+Route::prefix('manager/gabungan')->name('gabungan.')->group(function () {
+    Route::get('/', [GabunganController::class, 'dashboard'])->name('dashboard');
+    Route::get('/{kpi}', [GabunganController::class, 'list'])
+        ->where('kpi', 'total|gudang_ontime|belum_armada|sla_delay|tujuan_ontime|tujuan_delay|bongkar_ontime|bongkar_delay')
+        ->name('list');
+});
 Route::prefix('manager')->group(function () {
          Route::get('/kpi/planner',    [KpiController::class, 'planner'])->name('manager.kpi.planner');
     Route::get('/kpi/monitoring', [KpiController::class, 'monitoring'])->name('manager.kpi.monitoring');
@@ -387,71 +393,51 @@ Route::post(
 );
 
 
-
 Route::prefix('sales')->name('sales.')->group(function () {
-    Route::get('/summary-area', [SalesController::class, 'summaryArea'])
-        ->name('sales.summary.area');
-       
-    Route::get('/sla-delay', [SalesController::class, 'slaDelay'])
-        ->name('sla-delay');   
-    Route::get(
-        '/summary-area/{area}',
-        [SalesController::class, 'summaryAreaDetail']
-    )->name('summary.area.detail');
-    Route::get('/dashboard-pasuruan', [SalesController::class, 'dashboardPasuruan'])
-        ->name('dashboard.pasuruan');
 
-    Route::get('/data-logistik-pasuruan', [SalesController::class, 'dataLogistikPasuruan'])
-        ->name('data.pasuruan');
-    // GUDANG
-    Route::get('/gudang/ontime', [SalesController::class, 'gudangOntime'])
-        ->name('gudang.ontime');
+    // ===== DASHBOARD GABUNGAN (dipakai sidebar) =====
+  // ===== DASHBOARD GABUNGAN =====
+    Route::get('/gabungan', [SalesGabunganController::class, 'dashboard'])->name('gabungan.dashboard');
+    Route::get('/gabungan/in-transit', [SalesGabunganController::class, 'inTransit'])->name('gabungan.intransit');
+    Route::get('/gabungan/list/{kpi}', [SalesGabunganController::class, 'listKpi'])->name('gabungan.list');
 
-      Route::get('/data-logistik-pasuruan/detail', [SalesController::class, 'dataLogistikDetailPasuruan'])
-    ->name('data.pasuruan.detail');
+    // ===== DATA GABUNGAN =====
+  Route::get('/data-gabungan', [SalesController::class, 'dataGabungan'])->name('data.gabungan');
+Route::post('/data-gabungan/ajax', [SalesController::class, 'dataGabunganAjax'])->name('data.gabungan.ajax');
+    // ===== SUMMARY =====
+    Route::get('/summary-area', [SalesController::class, 'summaryArea'])->name('summary.area');
+    Route::get('/summary-area/{area}', [SalesController::class, 'summaryAreaDetail'])->name('summary.area.detail');
+    Route::get('/pasuruan/summary-area', [SalesController::class, 'summaryAreaPasuruan'])->name('pasuruan.summary.area');
 
-    Route::get('/gudang/delay', [SalesController::class, 'gudangDelay'])
-        ->name('gudang.delay');
+    // ===== SLA =====
+    Route::get('/sla-delay', [SalesController::class, 'slaDelay'])->name('sla-delay');
 
-    // CUSTOMER
-    Route::get('/customer/ontime', [SalesController::class, 'tujuanOntime'])
-        ->name('customer.ontime');
+    // ===== PASURUAN: dashboard, data, detail =====
+    Route::get('/dashboard-pasuruan', [SalesController::class, 'dashboardPasuruan'])->name('dashboard.pasuruan');
+    Route::get('/data-logistik-pasuruan', [SalesController::class, 'dataLogistikPasuruan'])->name('data.pasuruan');
+    Route::get('/data-logistik-pasuruan/detail', [SalesController::class, 'dataLogistikDetailPasuruan'])->name('data.pasuruan.detail');
+    Route::post('/data-logistik-pasuruan/ajax', [SalesController::class, 'dataLogistikPasuruanAjax'])->name('data.pasuruan.ajax');
+    Route::get('/pasuruan/data-ajax', [PasuruanController::class, 'dataAjaxPasuruan'])->name('pasuruan.dataAjax');
 
-    Route::get('/customer/delay', [SalesController::class, 'tujuanDelay'])
-        ->name('customer.delay');
+    // ===== GUDANG =====
+    Route::get('/gudang/ontime', [SalesController::class, 'gudangOntime'])->name('gudang.ontime');
+    Route::get('/gudang/delay', [SalesController::class, 'gudangDelay'])->name('gudang.delay');
 
-    // BONGKAR
-    Route::get('/bongkar/ontime', [SalesController::class, 'bongkarOntime'])
-        ->name('bongkar.ontime');
+    // ===== CUSTOMER =====
+    Route::get('/customer/ontime', [SalesController::class, 'tujuanOntime'])->name('customer.ontime');
+    Route::get('/customer/delay', [SalesController::class, 'tujuanDelay'])->name('customer.delay');
 
-    Route::get('/bongkar/delay', [SalesController::class, 'bongkarDelay'])
-        ->name('bongkar.delay');
+    // ===== BONGKAR =====
+    Route::get('/bongkar/ontime', [SalesController::class, 'bongkarOntime'])->name('bongkar.ontime');
+    Route::get('/bongkar/delay', [SalesController::class, 'bongkarDelay'])->name('bongkar.delay');
 
-    // SUMMARY
-    Route::get('/summary-area', [SalesController::class, 'summaryArea'])
-        ->name('summary.area');
-
-    Route::get('/sales/customer/ontime', [SalesController::class, 'ontime'])
-        ->name('customer.ontime');
-
-    Route::get('/pasuruan/gudang/ontime', [SalesController::class, 'gudangOntimePasuruan'])
-        ->name('pasuruan.gudang.ontime');
-    Route::get('/pasuruan/gudang/delay', [SalesController::class, 'gudangDelayPasuruan'])
-        ->name('pasuruan.gudang.delay');
-    Route::get('/pasuruan/tujuan/ontime', [SalesController::class, 'tujuanOntimePasuruan'])
-        ->name('pasuruan.tujuan.ontime');
-    Route::get('/pasuruan/tujuan/delay', [SalesController::class, 'tujuanDelayPasuruan'])
-        ->name('pasuruan.tujuan.delay');
-    Route::get('/pasuruan/bongkar/ontime', [SalesController::class, 'bongkarOntimePasuruan'])
-        ->name('pasuruan.bongkar.ontime');
-    Route::get('/pasuruan/bongkar/delay', [SalesController::class, 'bongkarDelayPasuruan'])
-        ->name('pasuruan.bongkar.delay');
-    Route::get('/pasuruan/summary-area', [SalesController::class, 'summaryAreaPasuruan'])
-        ->name('pasuruan.summary.area');
-    Route::get('/pasuruan/data-ajax', [PasuruanController::class, 'dataAjaxPasuruan'])
-        ->name('pasuruan.dataAjax');
-    Route::post('/data-logistik-pasuruan/ajax', [SalesController::class, 'dataLogistikPasuruanAjax'])
-        ->name('data.pasuruan.ajax');
+    // ===== PASURUAN KPI =====
+    Route::get('/pasuruan/gudang/ontime', [SalesController::class, 'gudangOntimePasuruan'])->name('pasuruan.gudang.ontime');
+    Route::get('/pasuruan/gudang/delay', [SalesController::class, 'gudangDelayPasuruan'])->name('pasuruan.gudang.delay');
+    Route::get('/pasuruan/tujuan/ontime', [SalesController::class, 'tujuanOntimePasuruan'])->name('pasuruan.tujuan.ontime');
+    Route::get('/pasuruan/tujuan/delay', [SalesController::class, 'tujuanDelayPasuruan'])->name('pasuruan.tujuan.delay');
+    Route::get('/pasuruan/bongkar/ontime', [SalesController::class, 'bongkarOntimePasuruan'])->name('pasuruan.bongkar.ontime');
+    Route::get('/pasuruan/bongkar/delay', [SalesController::class, 'bongkarDelayPasuruan'])->name('pasuruan.bongkar.delay');
 });
 
 Route::middleware(['auth'])->prefix('spvplanner')->group(function () {
