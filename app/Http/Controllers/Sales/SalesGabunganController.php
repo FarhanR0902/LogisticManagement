@@ -10,9 +10,9 @@ class SalesGabunganController extends Controller
 {
     private const PERIODE_SHIPMENT = '11-2026';   // samakan dengan SalesController
 
-    private const MODERN_MARKET_CHANNELS = [
-        'FSI', 'MT - Minimarket', 'MT - Supermarket', 'MT - Lokal', 'MT - Hypermarket',
-    ];
+   private const MODERN_MARKET_CHANNELS = [
+    'MT - Minimarket', 'MT - Supermarket', 'MT - Lokal', 'MT - Hypermarket', 'MT - Ecommerce',
+];
 
     private const PULAU_MAP = [
         'JAWA'       => ['JABODEBEK','BANTEN','JAWA_BARAT','JAWA_TENGAH','JAWA_TIMUR','YOGYAKARTA'],

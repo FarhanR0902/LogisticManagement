@@ -211,7 +211,7 @@ private function gudangSuffixes(): array
      * DIST CHANNEL SESSION FILTER
      * ========================================================= */
    private const MODERN_MARKET_CHANNELS = [
-    'FSI',
+    
     'MT - Minimarket',
     'MT - Supermarket',
     'MT - Lokal',

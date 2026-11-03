@@ -502,12 +502,7 @@ $currentRoute = request()->route()->getName() ?? '';
                         🏢 Dashboard Jakarta
                     </a>
                 </li>
-                <li>
-    <a href="{{ route('sales.gabungan.dashboard') }}"
-       class="{{ request()->routeIs('sales.gabungan.*') ? 'active' : '' }}">
-        📊 Dashboard Gabungan
-    </a>
-</li>
+     
 
                 <li>
                     <a href="{{ route('sales.dashboard.pasuruan') }}"

@@ -136,7 +136,7 @@ class PasuruanController extends Controller
     ];
 
     private const MODERN_MARKET_CHANNELS = [
-    'FSI',
+    
     'MT - Minimarket',
     'MT - Supermarket',
     'MT - Lokal',
