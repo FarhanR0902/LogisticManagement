@@ -50,12 +50,14 @@ $currentRoute = request()->route()->getName() ?? '';
     <ul class="menu">
 
         {{-- ================= DASHBOARD ================= --}}
-        <li>
-            <a href="{{ $dashboard_url }}" class="{{ request()->is('dashboard') ? 'active' : '' }}">
-                📊 Dashboard
-            </a>
-        </li>
-
+    {{-- ================= DASHBOARD ================= --}}
+@if(!in_array($role, ['sales', 'manager']))
+<li>
+    <a href="{{ $dashboard_url }}" class="{{ request()->is('dashboard') ? 'active' : '' }}">
+        📊 Dashboard
+    </a>
+</li>
+@endif
         {{-- ================= PLANNER ================= --}}
         @if($role === 'planner' || $role === 'developer')
 
@@ -319,34 +321,11 @@ $currentRoute = request()->route()->getName() ?? '';
 
         {{-- DASHBOARD DROPDOWN --}}
         <li>
-            <a href="javascript:void(0)"
-                onclick="toggleSubmenu('dashboardSubmenu', this)"
-                class="submenu-toggle {{ request()->routeIs('manager.dashboard*') ? 'active' : '' }}">
-                <span>📊 Dashboard</span>
-                <i class="arrow {{ request()->routeIs('manager.dashboard*') ? 'open' : '' }}">▾</i>
-            </a>
-
-            <ul class="submenu" id="dashboardSubmenu"
-                style="display: {{ request()->routeIs('manager.dashboard*') ? 'block' : 'none' }};">
-                <li>
-                    <a href="{{ route('manager.dashboard') }}"
-                        class="{{ request()->routeIs('manager.dashboard') && !request()->routeIs('manager.dashboard.pasuruan') ? 'active' : '' }}">
-                        🏢 Dashboard Jakarta
-                    </a>
-                    
-                </li>
+     
                 <li>
                     <a href="{{ route('gabungan.dashboard') }}">📊 Dashboard Gabungan</a>
                 </li>
-                
-                <li>
-                    <a href="{{ route('manager.dashboard.pasuruan') }}"
-                        class="{{ request()->routeIs('manager.dashboard.pasuruan') ? 'active' : '' }}">
-                        🏭 Dashboard Pasuruan
-                    </a>
-                </li>
-            </ul>
-        </li>
+     
 
         {{-- DATA LOGISTIK DROPDOWN --}}
         <li>
@@ -483,36 +462,19 @@ $currentRoute = request()->route()->getName() ?? '';
 
         @endif
 
-        @if($role === 'sales' || $role === 'developer')
+   @if($role === 'sales' || $role === 'developer')
+
+<li>
+ 
 
         <li>
-            <a href="javascript:void(0)"
-                onclick="toggleSubmenu('dashboardSubmenu', this)"
-                class="submenu-toggle {{ request()->routeIs('sales.dashboard*') ? 'active' : '' }}">
-                <span>📊 Dashboard</span>
-                <i class="arrow {{ request()->routeIs('sales.dashboard*') ? 'open' : '' }}">▾</i>
+            <a href="{{ route('sales.gabungan.dashboard') }}"
+                class="{{ request()->routeIs('sales.gabungan.*') ? 'active' : '' }}">
+                📊 Dashboard Gabungan
             </a>
-
-            <ul class="submenu" id="dashboardSubmenu"
-                style="display: {{ request()->routeIs('sales.dashboard*') ? 'block' : 'none' }};">
-
-                <li>
-                    <a href="{{ route('sales.dashboard') }}"
-                        class="{{ request()->routeIs('sales.dashboard') ? 'active' : '' }}">
-                        🏢 Dashboard Jakarta
-                    </a>
-                </li>
-     
-
-                <li>
-                    <a href="{{ route('sales.dashboard.pasuruan') }}"
-                        class="{{ request()->routeIs('sales.dashboard.pasuruan') ? 'active' : '' }}">
-                        🏭 Dashboard Pasuruan
-                    </a>
-                </li>
-
-            </ul>
         </li>
+
+   
 
         <li>
             <a href="javascript:void(0)"

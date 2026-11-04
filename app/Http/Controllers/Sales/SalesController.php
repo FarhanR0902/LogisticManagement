@@ -333,6 +333,7 @@ private function gabunganPasuruan(Request $request)
 
 public function dataGabunganAjax(Request $request)
 {
+    $request = $this->withDashFilters($request);
   
     $sumber  = strtolower((string) $request->input('sumber', 'semua')); // semua | jakarta | pasuruan
 

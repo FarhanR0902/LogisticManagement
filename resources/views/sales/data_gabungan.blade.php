@@ -204,7 +204,67 @@ $(function () {
         table.ajax.reload();
     });
 
-    // ... bagian rincian DO (detailUrl + handler .btn-tujuan) tempel di sini, tidak berubah
+    // ===== RINCIAN DO =====
+    var detailUrl = "{{ route('sales.data.gabungan.detail') }}";
+
+    function esc(s) {
+        return String(s == null ? '-' : s).replace(/[&<>"']/g, function (c) {
+            return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+        });
+    }
+
+    function buildDetail(rows) {
+        if (!rows || !rows.length) return '<div style="padding:10px">Tidak ada rincian.</div>';
+
+        var total = 0;
+        var h = '<table style="margin:8px 0 8px 40px;width:auto;background:#fff">' +
+            '<thead><tr>' +
+            '<th>Sales Order</th><th>Customer Reference</th><th>PO Expired</th><th>NO DO</th>' +
+            '<th>Qty Barang</th><th>Nilai Muatan</th><th>Kirim Kontribusi</th><th>Total Kubik</th><th>Total Tonase</th>' +
+            '</tr></thead><tbody>';
+
+        rows.forEach(function (r) {
+            total += Number(r.kirim_kontribusi_raw) || 0;
+            h += '<tr><td>' + esc(r.sales_document) + '</td><td>' + esc(r.customer_reference) +
+                '</td><td>' + esc(r.contract_end_date) + '</td><td>' + esc(r.no_do) +
+                '</td><td>' + esc(r.qty) + '</td><td>' + esc(r.nilai_muatan) +
+                '</td><td>' + esc(r.kirim_kontribusi) +
+                '</td><td>' + esc(r.total_kubik) + '</td><td>' + esc(r.total_tonase) + '</td></tr>';
+        });
+
+        h += '<tr style="font-weight:700;background:#f1f5f9">' +
+            '<td colspan="6" style="text-align:right">Total Kirim Kontribusi</td>' +
+            '<td>Rp ' + Math.round(total).toLocaleString('id-ID') + '</td>' +
+            '<td colspan="2"></td></tr>';
+
+        return h + '</tbody></table>';
+    }
+
+    $('#tbl tbody').on('click', '.btn-tujuan', function (e) {
+        e.preventDefault();
+        var $a  = $(this),
+            row = table.row($a.closest('tr'));
+
+        if (row.child.isShown()) {
+            row.child.hide();
+            $a.html($a.html().replace('▼', '▶'));
+            return;
+        }
+
+        row.child('<div style="padding:10px">Memuat rincian...</div>').show();
+        $a.html($a.html().replace('▶', '▼'));
+
+        $.get(detailUrl, {
+            sumber: $a.data('sumber'),
+            no_shipment: $a.data('shipment'),
+            tujuan: $a.data('tujuan')
+        }).done(function (res) {
+            row.child(buildDetail(res.data)).show();
+        }).fail(function (xhr) {
+            console.error('Rincian gagal', xhr.status, xhr.responseText);
+            row.child('<div style="padding:10px;color:#dc2626">Gagal memuat rincian (' + xhr.status + ').</div>').show();
+        });
+    });
 });
 </script>
 </body>

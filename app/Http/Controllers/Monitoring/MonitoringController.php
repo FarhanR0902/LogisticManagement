@@ -19,7 +19,38 @@ class MonitoringController extends Controller
     // DASHBOARD (tidak berubah — sudah pakai COUNT/aggregate,
     // bukan load semua baris jadi objek PHP)
     // =====================================================
+private const GUDANG = [
+    ''   => 'KACS',
+    '_2' => 'SENTUL',
+    '_3' => 'CCIE',
+    '_4' => 'P5',
+    '_5' => 'FIFATEX',
+];
+/** [planning, tiba, keluar] per gudang */
+private function gudangCycles(): array
+{
+    return array_map(
+        fn($s) => ["planning_loading{$s}", "tanggal_tiba_gudang{$s}", "tanggal_keluar_gudang{$s}"],
+        $this->gudangSuffixes()
+    );
+}
 
+/** SQL: ada siklus gudang menggantung (sudah planning/tiba, belum keluar) */
+private function blockedSql(): string
+{
+    $filled = fn($c) => "NULLIF(TRIM({$c}), '') IS NOT NULL";
+    $empty  = fn($c) => "NULLIF(TRIM({$c}), '') IS NULL";
+
+    $parts = [];
+    foreach ($this->gudangCycles() as [$p, $t, $k]) {
+        $parts[] = '((' . $filled($p) . ' OR ' . $filled($t) . ') AND ' . $empty($k) . ')';
+    }
+    return '(' . implode(' OR ', $parts) . ')';
+}
+private function gudangSuffixes(): array
+{
+    return array_keys(self::GUDANG);
+}
 
     public function dashboard()
 {
@@ -244,11 +275,22 @@ private function applyCommonFilters($query, Request $request): void
         }
     }
 
-    $keluarTerakhir = "GREATEST(
-        COALESCE(tanggal_keluar_gudang,'1900-01-01'),
-        COALESCE(tanggal_keluar_gudang_2,'1900-01-01'),
-        COALESCE(tanggal_keluar_gudang_3,'1900-01-01')
-    )";
+  $keluarTerakhir = $this->keluarTerakhirSql();
+
+foreach (['bulan' => 'MONTH', 'tahun' => 'YEAR'] as $key => $fn) {
+    $vals = array_map('intval', $this->multiInput($request, $key));
+    if (!empty($vals)) {
+        $ph = implode(',', array_fill(0, count($vals), '?'));
+        $query->whereRaw("{$fn}({$keluarTerakhir}) IN ({$ph})", $vals);
+    }
+}
+
+if ($request->filled('keluar_gudang_dari')) {
+    $query->whereRaw("DATE({$keluarTerakhir}) >= ?", [$request->input('keluar_gudang_dari')]);
+}
+if ($request->filled('keluar_gudang_sampai')) {
+    $query->whereRaw("DATE({$keluarTerakhir}) <= ?", [$request->input('keluar_gudang_sampai')]);
+};
 
     foreach (['bulan' => 'MONTH', 'tahun' => 'YEAR'] as $key => $fn) {
         $vals = array_map('intval', $this->multiInput($request, $key));
@@ -369,11 +411,13 @@ public function dataAjax(Request $request)
     $query->orderByRaw("CASE WHEN NULLIF(TRIM(tanggal_bongkar), '') IS NOT NULL THEN 1 ELSE 0 END ASC");
     $query->orderByRaw('(' . $this->prioritasTampilSql() . ') ASC');
 
-    if ($orderCol !== null && isset($orderColumnMap[$orderCol])) {
-        $query->orderBy($orderColumnMap[$orderCol], $orderDir);
-    } else {
-        $query->orderByRaw($this->keluarTerakhirSql() . ' ASC');
-    }
+  if ($orderCol !== null && (int) $orderCol === 0) {
+    $query->orderByRaw($this->keluarTerakhirSql() . " {$orderDir}");
+} elseif ($orderCol !== null && isset($orderColumnMap[$orderCol])) {
+    $query->orderBy($orderColumnMap[$orderCol], $orderDir);
+} else {
+    $query->orderByRaw($this->keluarTerakhirSql() . ' ASC');
+}
 
     // BERUBAH: tambah tujuan supaya tujuan dalam 1 shipment berdekatan
     $query->orderBy('no_shipment', 'ASC')
@@ -1116,23 +1160,15 @@ private function inTransitQuery()
     $filled = fn($c) => "NULLIF(TRIM({$c}), '') IS NOT NULL";
     $empty  = fn($c) => "NULLIF(TRIM({$c}), '') IS NULL";
 
-    $q = DB::table('logistik_pengiriman')
-        ->whereRaw($empty('tanggal_tiba'));
+    $q = DB::table('logistik_pengiriman')->whereRaw($empty('tanggal_tiba'));
 
     // minimal 1 gudang sudah keluar
-    $q->whereRaw('(' . implode(' OR ', [
-        $filled('tanggal_keluar_gudang'),
-        $filled('tanggal_keluar_gudang_2'),
-        $filled('tanggal_keluar_gudang_3'),
-    ]) . ')');
+    $q->whereRaw('(' . implode(' OR ', array_map(
+        fn($s) => $filled("tanggal_keluar_gudang{$s}"), $this->gudangSuffixes()
+    )) . ')');
 
-    // tidak boleh ada siklus gudang yang masih menggantung (blocked)
-    $cycles = [
-        ['planning_loading',   'tanggal_tiba_gudang',   'tanggal_keluar_gudang'],
-        ['planning_loading_2', 'tanggal_tiba_gudang_2', 'tanggal_keluar_gudang_2'],
-        ['planning_loading_3', 'tanggal_tiba_gudang_3', 'tanggal_keluar_gudang_3'],
-    ];
-    foreach ($cycles as [$planning, $tiba, $keluar]) {
+    // tidak boleh ada siklus yang menggantung
+    foreach ($this->gudangCycles() as [$planning, $tiba, $keluar]) {
         $q->whereRaw('NOT ((' . $filled($planning) . ' OR ' . $filled($tiba) . ') AND ' . $empty($keluar) . ')');
     }
 
@@ -1166,16 +1202,25 @@ private function inTransitFiltered(Request $request)
 }
 private function inTransitAsalSql(): string
 {
-    $k1 = "COALESCE(NULLIF(TRIM(tanggal_keluar_gudang),''),'1900-01-01')";
-    $k2 = "COALESCE(NULLIF(TRIM(tanggal_keluar_gudang_2),''),'1900-01-01')";
-    $k3 = "COALESCE(NULLIF(TRIM(tanggal_keluar_gudang_3),''),'1900-01-01')";
+    $k = [];
+    foreach (self::GUDANG as $s => $nama) {
+        $k[$s] = "COALESCE(NULLIF(TRIM(tanggal_keluar_gudang{$s}),''),'1900-01-01')";
+    }
 
-    return "CASE
-        WHEN {$k3} > '1900-01-01' AND {$k3} >= {$k1} AND {$k3} >= {$k2} THEN 'CCIE'
-        WHEN {$k2} > '1900-01-01' AND {$k2} >= {$k1} AND {$k2} >= {$k3} THEN 'SENTUL'
-        ELSE 'KACS' END";
+    // tanggal terbaru menang; kalau sama, gudang yang belakang menang
+    $whens = [];
+    foreach (array_reverse(array_keys(self::GUDANG)) as $s) {
+        if ($s === '') continue; // KACS = ELSE
+        $cmp = [];
+        foreach ($k as $s2 => $expr) {
+            if ($s2 !== $s) $cmp[] = "{$k[$s]} >= {$expr}";
+        }
+        $whens[] = "WHEN {$k[$s]} > '1900-01-01' AND " . implode(' AND ', $cmp)
+                 . " THEN '" . self::GUDANG[$s] . "'";
+    }
+
+    return 'CASE ' . implode(' ', $whens) . " ELSE '" . self::GUDANG[''] . "' END";
 }
-
 private function applyInTransitSearch($base, string $s)
 {
     $s = trim($s);
@@ -1185,16 +1230,11 @@ private function applyInTransitSearch($base, string $s)
     $like = "%{$s}%";
 
     $est = $this->inTransitEstimasiSql();
-    $k1  = "COALESCE(tanggal_keluar_gudang,'1900-01-01')";
-    $k2  = "COALESCE(tanggal_keluar_gudang_2,'1900-01-01')";
-    $k3  = "COALESCE(tanggal_keluar_gudang_3,'1900-01-01')";
-    $keluar = "GREATEST({$k1},{$k2},{$k3})";
+  $est    = $this->inTransitEstimasiSql();
+$keluar = $this->keluarTerakhirSql();
+$asal   = $this->inTransitAsalSql();
 
-    // Keluar Dari (sama logikanya dgn PHP: tanggal terbaru, kalau sama menang yg belakang)
-    $asal = "CASE
-        WHEN {$k3} > '1900-01-01' AND {$k3} >= {$k1} AND {$k3} >= {$k2} THEN 'CCIE'
-        WHEN {$k2} > '1900-01-01' AND {$k2} >= {$k1} AND {$k2} >= {$k3} THEN 'SENTUL'
-        ELSE 'KACS' END";
+ 
 
     $sisa = "DATEDIFF(DATE({$est}), CURDATE())";
 
@@ -1227,22 +1267,18 @@ private function applyInTransitSearch($base, string $s)
 }
 private function decorateInTransitRow($r, $todayTs)
 {
-    $keluar = null;
-    $asal   = '-';
-    foreach ([
-        ['KACS',   $r->tanggal_keluar_gudang],
-        ['SENTUL', $r->tanggal_keluar_gudang_2],
-        ['CCIE',   $r->tanggal_keluar_gudang_3],
-    ] as [$nama, $tgl]) {
-        if (!empty($tgl)) {
-            $ts = strtotime($tgl);
-            if ($keluar === null || $ts >= $keluar) {
-                $keluar = $ts;
-                $asal   = $nama;
-            }
+   $keluar = null;
+$asal   = '-';
+foreach (self::GUDANG as $s => $nama) {
+    $tgl = $r->{"tanggal_keluar_gudang{$s}"} ?? null;
+    if (!empty($tgl)) {
+        $ts = strtotime($tgl);
+        if ($keluar === null || $ts >= $keluar) {
+            $keluar = $ts;
+            $asal   = $nama;
         }
     }
-
+}
     $lead     = (int) ($r->transport_lead_time ?? 0);
     $keluarD  = $keluar ? strtotime(date('Y-m-d', $keluar)) : null;
     $estimasi = !empty($r->estimasi_tiba)
@@ -1285,89 +1321,50 @@ public function exportInTransit(Request $request)
     return Excel::download(new InTransitExport($rows), 'In_Transit_' . date('Ymd_His') . '.xlsx');
 }
 
-// 0 = sudah keluar gudang, 1 = gudang berikutnya (blocked), 2 = belum diinput, 3 = sudah bongkar
 private function prioritasTampilSql(): string
 {
     $filled = fn($c) => "NULLIF(TRIM({$c}), '') IS NOT NULL";
-    $empty  = fn($c) => "NULLIF(TRIM({$c}), '') IS NULL";
-
-    $cycles = [
-        ['planning_loading',   'tanggal_tiba_gudang',   'tanggal_keluar_gudang'],
-        ['planning_loading_2', 'tanggal_tiba_gudang_2', 'tanggal_keluar_gudang_2'],
-        ['planning_loading_3', 'tanggal_tiba_gudang_3', 'tanggal_keluar_gudang_3'],
-    ];
-    $parts = [];
-    foreach ($cycles as [$p, $t, $k]) {
-        $parts[] = '((' . $filled($p) . ' OR ' . $filled($t) . ') AND ' . $empty($k) . ')';
-    }
-    $blocked = '(' . implode(' OR ', $parts) . ')';
 
     return "CASE
         WHEN {$filled('tanggal_bongkar')} THEN 3
-        WHEN {$blocked} THEN 1
+        WHEN " . $this->blockedSql() . " THEN 1
         WHEN " . $this->keluarTerakhirSql() . " > '1900-01-01' THEN 0
         ELSE 2
     END";
 }
-
 private function keluarTerakhirSql(): string
 {
-    return "GREATEST(
-        COALESCE(NULLIF(TRIM(tanggal_keluar_gudang),''),'1900-01-01'),
-        COALESCE(NULLIF(TRIM(tanggal_keluar_gudang_2),''),'1900-01-01'),
-        COALESCE(NULLIF(TRIM(tanggal_keluar_gudang_3),''),'1900-01-01')
-    )";
+    $cols = array_map(
+        fn($s) => "COALESCE(NULLIF(TRIM(tanggal_keluar_gudang{$s}),''),'1900-01-01')",
+        $this->gudangSuffixes()
+    );
+    return 'GREATEST(' . implode(",\n", $cols) . ')';
 }
 // 0 = belum jatuh tempo, 1 = lengkap, 2 = 1 field kosong, 3 = 2 field kosong
 private function kelengkapanSql(): string
 {
     $filled = fn($c) => "NULLIF(TRIM({$c}), '') IS NOT NULL";
-    $empty  = fn($c) => "NULLIF(TRIM({$c}), '') IS NULL";
 
-    $cycles = [
-        ['planning_loading',   'tanggal_tiba_gudang',   'tanggal_keluar_gudang'],
-        ['planning_loading_2', 'tanggal_tiba_gudang_2', 'tanggal_keluar_gudang_2'],
-        ['planning_loading_3', 'tanggal_tiba_gudang_3', 'tanggal_keluar_gudang_3'],
-    ];
-    $blockedParts = [];
-    foreach ($cycles as [$p, $t, $k]) {
-        $blockedParts[] = '((' . $filled($p) . ' OR ' . $filled($t) . ') AND ' . $empty($k) . ')';
-    }
-    $blocked = '(' . implode(' OR ', $blockedParts) . ')';
-
-    $keluar = "GREATEST(
-        COALESCE(tanggal_keluar_gudang,'1900-01-01'),
-        COALESCE(tanggal_keluar_gudang_2,'1900-01-01'),
-        COALESCE(tanggal_keluar_gudang_3,'1900-01-01')
-    )";
-    $lead = "CAST(COALESCE(NULLIF(TRIM(transport_lead_time),''),0) AS UNSIGNED)";
+    $keluar = $this->keluarTerakhirSql();
+    $lead   = "CAST(COALESCE(NULLIF(TRIM(transport_lead_time),''),0) AS UNSIGNED)";
 
     $estimasi = "COALESCE(NULLIF(TRIM(estimasi_tiba),''),
         CASE WHEN {$keluar} > '1900-01-01' THEN DATE_ADD({$keluar}, INTERVAL {$lead} DAY) END)";
 
-    $overdue = "(NOT {$blocked} AND DATE({$estimasi}) < CURDATE())";
-
-       $tibaFilled     = $filled('tanggal_tiba');
-    $wTibaFilled    = $filled('waktu_tiba');
-    $bongkarFilled  = $filled('tanggal_bongkar');
-    $wBongkarFilled = $filled('waktu_bongkar');
+    $overdue = "(NOT " . $this->blockedSql() . " AND DATE({$estimasi}) < CURDATE())";
 
     return "CASE
-        WHEN {$tibaFilled} AND {$wTibaFilled} AND {$bongkarFilled} AND {$wBongkarFilled} THEN 1
-        WHEN {$tibaFilled} THEN 2
+        WHEN {$filled('tanggal_tiba')} AND {$filled('waktu_tiba')} AND {$filled('tanggal_bongkar')} AND {$filled('waktu_bongkar')} THEN 1
+        WHEN {$filled('tanggal_tiba')} THEN 2
         WHEN COALESCE({$overdue}, 0) = 0 THEN 0
         ELSE 3
     END";
-} 
+}
 // estimasi tiba: pakai yang tersimpan, kalau kosong hitung keluar terakhir + lead time
 private function inTransitEstimasiSql(): string
 {
     return "COALESCE(estimasi_tiba, DATE_ADD(
-        GREATEST(
-            COALESCE(tanggal_keluar_gudang,'1900-01-01'),
-            COALESCE(tanggal_keluar_gudang_2,'1900-01-01'),
-            COALESCE(tanggal_keluar_gudang_3,'1900-01-01')
-        ),
+        " . $this->keluarTerakhirSql() . ",
         INTERVAL CAST(COALESCE(NULLIF(TRIM(transport_lead_time),''),0) AS UNSIGNED) DAY
     ))";
 }
@@ -1671,37 +1668,31 @@ public function inTransit(Request $request)
 
  private function getKeluarGudangInfo($r)
 {
-    $cycles = [
-        ['planning' => $r->planning_loading,   'tiba' => $r->tanggal_tiba_gudang,   'keluar' => $r->tanggal_keluar_gudang],
-        ['planning' => $r->planning_loading_2, 'tiba' => $r->tanggal_tiba_gudang_2, 'keluar' => $r->tanggal_keluar_gudang_2],
-        ['planning' => $r->planning_loading_3, 'tiba' => $r->tanggal_tiba_gudang_3, 'keluar' => $r->tanggal_keluar_gudang_3],
-    ];
-
     $blocked = false;
     $blockedStatus = null; // 'menuju' | 'sedang'
     $keluarTimestamps = [];
 
-    foreach ($cycles as $c) {
-        $hasPlanning = !empty($c['planning']);
-        $hasTiba     = !empty($c['tiba']);
-        $started     = $hasPlanning || $hasTiba;
-        $selesai     = !empty($c['keluar']);
+    foreach ($this->gudangSuffixes() as $s) {
+        $planning = $r->{"planning_loading{$s}"} ?? null;
+        $tiba     = $r->{"tanggal_tiba_gudang{$s}"} ?? null;
+        $keluar   = $r->{"tanggal_keluar_gudang{$s}"} ?? null;
+
+        $started = !empty($planning) || !empty($tiba);
+        $selesai = !empty($keluar);
 
         if ($started && !$selesai) {
             $blocked = true;
-            // kalau udah tiba di gudang itu -> "sedang di gudang"
-            // kalau baru planning doang -> "menuju gudang"
-            $blockedStatus = $hasTiba ? 'sedang' : 'menuju';
+            $blockedStatus = !empty($tiba) ? 'sedang' : 'menuju';
         }
         if ($selesai) {
-            $keluarTimestamps[] = strtotime($c['keluar']);
+            $keluarTimestamps[] = strtotime($keluar);
         }
     }
 
     return [
-        'blocked'       => $blocked,
-        'blocked_status'=> $blockedStatus,
-        'keluar'        => !empty($keluarTimestamps) ? max($keluarTimestamps) : null,
+        'blocked'        => $blocked,
+        'blocked_status' => $blockedStatus,
+        'keluar'         => !empty($keluarTimestamps) ? max($keluarTimestamps) : null,
     ];
 }
 

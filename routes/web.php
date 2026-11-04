@@ -273,11 +273,13 @@ Route::get('/sla-ontime', [MonitoringController::class, 'slaOntime'])
     Route::get('/monitoring/summary-area/detail', [MonitoringController::class, 'summaryAreaDetail'])
         ->name('monitoring.summary.area.detail');
 });
-Route::prefix('manager/gabungan')->name('gabungan.')->group(function () {
-    Route::get('/', [GabunganController::class, 'dashboard'])->name('dashboard');
-    Route::get('/{kpi}', [GabunganController::class, 'list'])
-        ->where('kpi', 'total|gudang_ontime|belum_armada|sla_delay|tujuan_ontime|tujuan_delay|bongkar_ontime|bongkar_delay')
-        ->name('list');
+Route::prefix('manager/gabungan')->group(function () {
+    Route::get('/', [GabunganController::class, 'dashboard'])->name('gabungan.dashboard');
+    Route::get('/manager/gabungan/data', [GabunganController::class, 'dataGabungan'])->name('manager.gabungan.data');
+Route::post('/manager/gabungan/data/ajax', [GabunganController::class, 'dataGabunganAjax'])->name('manager.gabungan.data.ajax');
+Route::get('/data/detail', [GabunganController::class, 'detail'])->name('manager.gabungan.data.detail');  
+Route::get('/in-transit', [GabunganController::class, 'inTransit'])->name('manager.gabungan.intransit');
+    Route::get('/list/{kpi}', [GabunganController::class, 'list'])->name('manager.gabungan.list');
 });
 Route::prefix('manager')->group(function () {
          Route::get('/kpi/planner',    [KpiController::class, 'planner'])->name('manager.kpi.planner');
@@ -395,15 +397,17 @@ Route::post(
 
 Route::prefix('sales')->name('sales.')->group(function () {
 
-    // ===== DASHBOARD GABUNGAN (dipakai sidebar) =====
-  // ===== DASHBOARD GABUNGAN =====
+    // ===== DASHBOARD GABUNGAN =====
     Route::get('/gabungan', [SalesGabunganController::class, 'dashboard'])->name('gabungan.dashboard');
     Route::get('/gabungan/in-transit', [SalesGabunganController::class, 'inTransit'])->name('gabungan.intransit');
-    Route::get('/gabungan/list/{kpi}', [SalesGabunganController::class, 'listKpi'])->name('gabungan.list');
+    Route::get('/gabungan/list/{kpi}', [SalesGabunganController::class, 'list'])->name('gabungan.list');
 
-    // ===== DATA GABUNGAN =====
-  Route::get('/data-gabungan', [SalesController::class, 'dataGabungan'])->name('data.gabungan');
-Route::post('/data-gabungan/ajax', [SalesController::class, 'dataGabunganAjax'])->name('data.gabungan.ajax');
+    // ===== DATA GABUNGAN (dipakai kartu "Total Shipment") =====
+    Route::get('/data-gabungan', [SalesController::class, 'dataGabungan'])->name('data.gabungan');
+    Route::post('/data-gabungan/ajax', [SalesController::class, 'dataGabunganAjax'])->name('data.gabungan.ajax');
+    Route::get('/data-gabungan/detail', [SalesGabunganController::class, 'detail'])->name('data.gabungan.detail');
+
+    // ... sisanya tetap
     // ===== SUMMARY =====
     Route::get('/summary-area', [SalesController::class, 'summaryArea'])->name('summary.area');
     Route::get('/summary-area/{area}', [SalesController::class, 'summaryAreaDetail'])->name('summary.area.detail');

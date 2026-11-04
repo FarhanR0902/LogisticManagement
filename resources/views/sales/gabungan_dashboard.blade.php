@@ -13,8 +13,18 @@
         'PASURUAN' => 'Logistik · Pasuruan',
         default    => 'Logistik · Jakarta + Pasuruan',
     };
-      $qs = request()->query();
-    $linkKpi = fn(string $kpi) => route('sales.gabungan.list', array_merge($qs, ['kpi' => $kpi]));
+
+    $filterKeys = ['sumber','tgl_basis','date','date_from','date_to','month','year','area','dist_channel','pulau'];
+    $qs = array_filter(
+        request()->only($filterKeys),
+        fn ($v) => $v !== null && $v !== '' && $v !== []
+    );
+
+    // $listRoute, $dataRoute, $inTransitRoute dikirim controller (manager / sales)
+    $linkKpi = function ($kpi) use ($qs, $listRoute, $dataRoute) {
+        if ($kpi === 'total') return route($dataRoute, $qs);
+        return route($listRoute, ['kpi' => $kpi] + $qs);
+    };
 @endphp
 <!DOCTYPE html>
 <html lang="id">
@@ -22,7 +32,7 @@
 
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Jakarta Dashboard</title>
+<title>{{ $judulDashboard }}</title>
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -768,8 +778,6 @@ tbody tr:last-child td{ border-bottom:none; }
     #shipmentMap{ height:340px; }
 }
 
-
-
 </style>
 </head>
 
@@ -780,8 +788,8 @@ tbody tr:last-child td{ border-bottom:none; }
 <!-- HEADER -->
 <div class="page-header">
     <div class="page-title">
-       <div class="eyebrow">{{ $eyebrowDashboard }}</div>
-<h1>{{ $judulDashboard }}</h1>
+        <div class="eyebrow">{{ $eyebrowDashboard }}</div>
+        <h1>{{ $judulDashboard }}</h1>
         <p>Ringkasan performa gudang, armada, dan ketepatan waktu pengiriman.</p>
         <div class="route-rule"></div>
     </div>
@@ -790,17 +798,16 @@ tbody tr:last-child td{ border-bottom:none; }
 <!-- FILTER -->
 <div class="filter-box">
     <form method="GET" action="{{ url()->current() }}" class="filter-form" id="filterForm">
-<div class="field">
-<select id="f-basis" name="tgl_basis">
-    <option value="periode_shipment" {{ request('tgl_basis', 'periode_shipment') == 'periode_shipment' ? 'selected' : '' }}>Periode Shipment</option>
-    <option value="rencana_kirim" {{ request('tgl_basis') == 'rencana_kirim' ? 'selected' : '' }}>Rencana Kirim</option>
-    <option value="tanggal_naik_logistik" {{ request('tgl_basis') == 'tanggal_naik_logistik' ? 'selected' : '' }}>Tanggal Naik Logistik</option>
-</select>
- 
+        <div class="field">
+            <select id="f-basis" name="tgl_basis">
+                <option value="periode_shipment" {{ request('tgl_basis', 'periode_shipment') == 'periode_shipment' ? 'selected' : '' }}>Periode Shipment</option>
+                <option value="rencana_kirim" {{ request('tgl_basis') == 'rencana_kirim' ? 'selected' : '' }}>Rencana Kirim</option>
+                <option value="tanggal_naik_logistik" {{ request('tgl_basis') == 'tanggal_naik_logistik' ? 'selected' : '' }}>Tanggal Naik Logistik</option>
+            </select>
+        </div>
 
-</div>
-            <div class="field">
-           <label for="f-from">Periode dari</label>
+        <div class="field">
+            <label for="f-from">Periode dari</label>
             <input id="f-from" type="date" name="date_from" value="{{ request('date_from') }}">
         </div>
 
@@ -844,7 +851,7 @@ tbody tr:last-child td{ border-bottom:none; }
             <select id="f-dist" name="dist_channel">
                 <option value="">Semua channel</option>
                 @foreach($list_dist_channel as $d)
-                    <option value="{{ $d->dist_channel }}" {{ request('dist_channel') == $d->dist_channel? 'selected' : '' }}>
+                    <option value="{{ $d->dist_channel }}" {{ request('dist_channel') == $d->dist_channel ? 'selected' : '' }}>
                         {{ $d->dist_channel }}
                     </option>
                 @endforeach
@@ -852,13 +859,13 @@ tbody tr:last-child td{ border-bottom:none; }
         </div>
 
         <div class="field">
-    <label for="f-sumber">Sumber</label>
-    <select id="f-sumber" name="sumber">
-        <option value="">Jakarta + Pasuruan</option>
-        <option value="JAKARTA"  {{ request('sumber')=='JAKARTA'  ? 'selected' : '' }}>Jakarta</option>
-        <option value="PASURUAN" {{ request('sumber')=='PASURUAN' ? 'selected' : '' }}>Pasuruan</option>
-    </select>
-</div>
+            <label for="f-sumber">Sumber</label>
+            <select id="f-sumber" name="sumber">
+                <option value="">Jakarta + Pasuruan</option>
+                <option value="JAKARTA"  {{ request('sumber')=='JAKARTA'  ? 'selected' : '' }}>Jakarta</option>
+                <option value="PASURUAN" {{ request('sumber')=='PASURUAN' ? 'selected' : '' }}>Pasuruan</option>
+            </select>
+        </div>
         @endif
 
         <!-- Filter pulau dikirim lewat hidden input ini, diisi otomatis pas kotak pulau diklik -->
@@ -922,12 +929,12 @@ tbody tr:last-child td{ border-bottom:none; }
 <!-- KPI -->
 <div class="section-label">Ringkasan status</div>
 <div class="kpi-row">
-<a href="{{ route('sales.data.gabungan', $qs) }}" class="card blue">
+<a href="{{ $linkKpi('total') }}" class="card blue">
     <h4>Total Shipment</h4>
     <h1>{{ $total_data }}</h1>
 </a>
 
-<a href="{{ route('sales.gabungan.intransit', $qs) }}" class="card teal">
+<a href="{{ route($inTransitRoute, $qs) }}" class="card teal">
     <h4>🚚 In Transit</h4>
     <h1>{{ $total_in_transit ?? 0 }}</h1>
 </a>
@@ -990,7 +997,6 @@ tbody tr:last-child td{ border-bottom:none; }
                 : 0;
         @endphp
         <div class="hero-value">{{ number_format($ratio, 2) }}%</div>
-
     </div>
 
 </div>
@@ -1000,8 +1006,6 @@ tbody tr:last-child td{ border-bottom:none; }
 
 <!-- PETA SEBARAN -->
 <div class="table-box">
-    <!-- <h3>🗺️ Peta sebaran nilai muatan per area</h3> -->
-
     <div id="shipmentMap"></div>
 
     <div class="map-legend">
@@ -1009,12 +1013,6 @@ tbody tr:last-child td{ border-bottom:none; }
         <span><i style="background:#f59e0b;"></i> Nilai muatan sedang</span>
         <span><i style="background:#e11d48;"></i> Nilai muatan tinggi</span>
     </div>
-<!-- 
-    <p class="map-note">
-        Angka di setiap lingkaran = total nilai muatan (Rp, format ringkas) dari area tersebut.
-        Klik lingkaran untuk lihat detail lengkap (jumlah shipment, nilai muatan, biaya kirim).
-        Koordinat diambil per area di variabel <code>koordinatAreaPasuruan</code>.
-    </p> -->
 
     <div id="mapDebugBox" style="margin-top:14px;"></div>
 </div>
@@ -1112,6 +1110,7 @@ tbody tr:last-child td{ border-bottom:none; }
     </table>
     </div>
 </div>
+
 <!-- SUMMARY PLANNER + PIC MONITORING -->
 <div class="two-col">
 
@@ -1133,11 +1132,11 @@ tbody tr:last-child td{ border-bottom:none; }
                 <tr>
                     <td>{{ $p->planner }}</td>
                     <td class="num">{{ number_format($p->total) }}</td>
-                  <td class="num">
-    <span class="badge {{ $p->total_belum_rencana > 0 ? 'badge-red' : 'badge-green' }}">
-        {{ number_format($p->total_belum_rencana) }}
-    </span>
-</td>
+                    <td class="num">
+                        <span class="badge {{ $p->total_belum_rencana > 0 ? 'badge-red' : 'badge-green' }}">
+                            {{ number_format($p->total_belum_rencana) }}
+                        </span>
+                    </td>
                     <td class="num"><span class="badge badge-green">{{ number_format($p->total_ontime) }}</span></td>
                     <td class="num"><span class="badge badge-red">{{ number_format($p->total_delay) }}</span></td>
                 </tr>
@@ -1190,6 +1189,7 @@ tbody tr:last-child td{ border-bottom:none; }
     </div>
 
 </div>
+
 <!-- TWO COL: MONITORING + PLANNER -->
 <div class="two-col">
 
@@ -1370,15 +1370,13 @@ new Chart(document.getElementById('chartTujuan'), {
     }
 });
 
-// ================= PETA SEBARAN NILAI MUATAN PER AREA (PASURUAN) =================
-// Sumber data: $summary_area dari ManagerController@dashboardPasuruan()
-// Kolom yang dipakai: area_pasuruan, total_shipment, total_biaya, total_muatan
+// ================= PETA SEBARAN NILAI MUATAN PER AREA =================
+// Sumber data: $summary_area dari controller dashboard (kolom: area, total_shipment, total_biaya, total_muatan)
 const summaryAreaMapPasuruan = @json($summary_area ?? []);
 
 // Koordinat representatif per area (ibu kota provinsi/wilayah).
-// Key HARUS sama persis (huruf besar, underscore) dengan nilai kolom area_pasuruan.
-// Kalau ada nama area yang belum terdaftar di sini, area tersebut akan
-// otomatis tampil di panel "Belum ada koordinatnya" di bawah peta.
+// Key HARUS sama persis (huruf besar, underscore) dengan nilai kolom area.
+// Area yang belum terdaftar di sini tidak akan muncul di peta.
 const koordinatAreaPasuruan = {
     'BENGKULU'              : [-3.7928, 102.2608],
     'ACEH'                  : [5.5483, 95.3238],
@@ -1419,10 +1417,8 @@ const koordinatAreaPasuruan = {
     'YOGYAKARTA'            : [-7.7956, 110.3695],
 };
 
-// ================= MAPPING AREA -> PULAU (buat filter box & counter) =================
-// Dipakai untuk: (1) hitung jumlah area per pulau di badge kotak filter,
-// (2) fallback filter di sisi client kalau server belum sempat filter.
-// WAJIB sinkron dengan mapping PHP $PULAU_MAP di controller (dashboardPasuruan()).
+// ================= MAPPING AREA -> PULAU (buat counter kotak pulau) =================
+// WAJIB sinkron dengan PULAU_MAP di controller.
 const pulauAreaMap = {
     'JAWA': ['JABODEBEK','BANTEN','JAWA_BARAT','JAWA_TENGAH','JAWA_TIMUR','YOGYAKARTA'],
     'SUMATERA': ['ACEH','SUMATERA_UTARA','SUMATERA_BARAT','RIAU','KEP._RIAU','JAMBI','SUMATERA_SELATAN','BENGKULU','LAMPUNG','KEP._BANGKA_BELITUNG'],
@@ -1437,8 +1433,7 @@ function normalisasiNamaPasuruan(str){
     return (str || '').toString().trim().toUpperCase();
 }
 
-// Isi angka badge "jumlah area" di tiap kotak pulau, berdasarkan data summary_area
-// yang sedang tampil (hasil filter tanggal/bulan/tahun/area/dist_channel saat ini).
+// Isi angka badge "jumlah area" di tiap kotak pulau
 (function isiJumlahAreaPulau(){
     const counts = {};
     Object.keys(pulauAreaMap).forEach(p => counts[p] = 0);
@@ -1463,8 +1458,7 @@ function normalisasiNamaPasuruan(str){
     });
 })();
 
-// Klik kotak pulau -> isi hidden input #f-pulau -> submit form filter (reload halaman
-// dengan query string ?pulau=JAWA dst, sekaligus mempertahankan filter tanggal/area lain).
+// Klik kotak pulau -> isi hidden input #f-pulau -> submit form filter
 document.querySelectorAll('.pulau-box').forEach(box => {
     box.addEventListener('click', function(){
         document.getElementById('f-pulau').value = this.getAttribute('data-pulau');
@@ -1472,7 +1466,7 @@ document.querySelectorAll('.pulau-box').forEach(box => {
     });
 });
 
-// Format Rupiah jadi ringkas biar muat di lingkaran (mis. 125Jt, 2.3M, 1.1T)
+// Format Rupiah ringkas biar muat di lingkaran (mis. 125Jt, 2.3M, 1.1T)
 function formatRupiahRingkasPasuruan(value){
     value = Number(value) || 0;
     const abs = Math.abs(value);
@@ -1498,20 +1492,13 @@ if (document.getElementById('shipmentMap')) {
     });
 
     const boundsList = [];
-    const matched = [];
-    const unmatched = [];
 
     summaryAreaMapPasuruan.forEach(a => {
 
         const key = normalisasiNamaPasuruan(a.area);
         const koordinat = koordinatAreaPasuruan[key];
 
-        if (!koordinat) {
-            unmatched.push(a.area + ' (Rp ' + Number(a.total_muatan).toLocaleString('id-ID') + ')');
-            return; // skip kalau belum ada koordinatnya
-        }
-
-        matched.push(a.area);
+        if (!koordinat) return; // skip kalau belum ada koordinatnya
 
         const nilaiMuatan = Number(a.total_muatan) || 0;
         const ratio = nilaiMuatan / maxMuatan;
@@ -1565,48 +1552,16 @@ if (document.getElementById('shipmentMap')) {
         shipmentMap.fitBounds(boundsList, { padding: [40, 40] });
     }
 
-    // ================= DEBUG PANEL =================
+    // Peringatan kalau data area kosong
     const debugBox = document.getElementById('mapDebugBox');
-
-    if (debugBox) {
-
-        let html = '';
-
-        if (summaryAreaMapPasuruan.length === 0) {
-
-            html += `<div style="background:#fdeef2;border:1px solid #e11d48;color:#9f1239;
+    if (debugBox && summaryAreaMapPasuruan.length === 0) {
+        debugBox.innerHTML = `<div style="background:#fdeef2;border:1px solid #e11d48;color:#9f1239;
                         padding:12px 14px;border-radius:10px;font-size:13px;">
-                        ⚠️ Data <code>$summary_area</code> dari controller KOSONG (0 baris).
-                        Cek filter tanggal/area yang aktif, atau kolom <code>area_pasuruan</code>
-                        di database memang NULL semua.
+                        ⚠️ Data area kosong untuk filter yang sedang aktif.
                       </div>`;
-
-        } else {
-
-            // html += `<div style="background:#eef2ff;border:1px solid #4f46e5;color:#3730a3;
-            //             padding:12px 14px;border-radius:10px;font-size:13px;margin-bottom:10px;">
-            //             Total area dari controller: <b>${summaryAreaMapPasuruan.length}</b> baris.
-            //             Cocok dengan koordinat (muncul di peta): <b>${matched.length}</b>.
-            //             Belum ada koordinatnya (tidak muncul di peta): <b>${unmatched.length}</b>.
-            //           </div>`;
-
-            // if (unmatched.length > 0) {
-            //     html += `<details style="background:#fef7e9;border:1px solid #f59e0b;
-            //                 padding:12px 14px;border-radius:10px;font-size:13px;">
-            //                 <summary style="cursor:pointer;font-weight:600;color:#b45309;">
-            //                     ⚠️ Lihat ${unmatched.length} nama area yang BELUM ada koordinatnya
-            //                 </summary>
-            //                 <ul style="margin-top:8px;padding-left:18px;color:#78350f;">
-            //                     ${unmatched.map(u => `<li>${u}</li>`).join('')}
-            //                 </ul>
-            //               </details>`;
-            // }
-        }
-
-        debugBox.innerHTML = html;
     }
 }
-// ================= DROPDOWN AREA & DIST CHANNEL (bisa di-search) =================
+
 // ================= DROPDOWN AREA & DIST CHANNEL (bisa di-search) =================
 ['#f-area', '#f-dist'].forEach(function (sel) {
     const el = document.querySelector(sel);

@@ -206,19 +206,14 @@ select{
     <th>No Pol</th> -->
     <th>Status</th>
     <th>Tanggal Dapat Unit</th>
-    <th>Planning Loading</th>
-    <th>Tanggal Tiba Di Gudang 1</th>
-    <th>Tanggal Tiba Di Gudang 2</th>
-    <th>Tanggal Tiba Di Gudang 3</th>
-    <th>Tanggal Keluar Gudang 1</th>
-    <th>Tanggal Keluar Gudang 2</th>
-    <th>Tanggal Keluar Gudang</th>
-    <th>Lama Digudang</th>
-    <!-- <th>Status Gudang</th> -->
-    <th>SLA Ketepatan Loading</th>
-    <!-- <th>Keterangan</th> -->
-    <th>Lama Waktu Pencarian</th>
-    <th>SLA Dapat Mobil</th>
+  <th>Planning Loading</th>
+@foreach(range(1,5) as $i)<th>Tanggal Tiba Di Gudang {{ $i }}</th>@endforeach
+@foreach(range(1,5) as $i)<th>Tanggal Keluar Gudang {{ $i }}</th>@endforeach
+<th>Lama Digudang</th>
+<th>Status Gudang</th>
+<th>SLA Ketepatan Loading</th>
+<th>Lama Waktu Pencarian</th>
+<th>SLA Dapat Mobil</th>
 
 </tr>
 </thead>
@@ -235,90 +230,50 @@ $markedShipment = [];
     <td>{{ $r->tanggal_naik_logistik }}</td>
     <td>{{ $r->rencana_kirim }}</td>
     <td>{{ $r->transport_lead_time }}</td>
-    <td>{{ $r->planner }}</td>
-<td
-    @if(
-        (
-            !empty($r->tanggal_tiba_gudang) ||
-            !empty($r->tanggal_tiba_gudang_2) ||
-            !empty($r->tanggal_tiba_gudang_3)
-        )
-        &&
-        !in_array($r->no_shipment, $markedShipment)
-    )
-        class="highlight-source"
-        @php $markedShipment[] = $r->no_shipment; @endphp
-    @endif
->
-    {{ $r->no_shipment }}
-</td>
+     <td>{{ $r->planner }}</td>
+    <td
+        @if(!empty($r->gudang_sla) && !in_array($r->no_shipment, $markedShipment))
+            class="highlight-source"
+            @php $markedShipment[] = $r->no_shipment; @endphp
+        @endif
+    >
+        {{ $r->no_shipment }}
+    </td>
     <td>{{ $r->tujuan }}</td>
     <td>{{ $r->area }}</td>
-    <!-- <td>{{ $r->ketersediaan_unit }}</td> -->
+    {{-- <td>{{ $r->ketersediaan_unit }}</td> --}}
     <td>{{ $r->mobil }}</td>
-    <!-- <td>{{ $r->perubahan_mobil }}</td> -->
+    {{-- <td>{{ $r->perubahan_mobil }}</td> --}}
     <td>{{ $r->kategori_ekspedisi }}</td>
     <td>{{ $r->ekpedisi }}</td>
-    <!-- <td>{{ $r->nama_driver }}</td>
-    <td>{{ $r->no_pol }}</td> -->
-<td>{{ $r->status_pengiriman }}</td>
+    {{-- <td>{{ $r->nama_driver }}</td>
+    <td>{{ $r->no_pol }}</td> --}}
+    <td>{{ $r->status_pengiriman }}</td>
+    <td>{{ $r->tanggal_dpt_unit }}</td>
+ @php $sfx = ['', '_2', '_3', '_4', '_5']; @endphp
 
-<td>
-    {{ $r->tanggal_dpt_unit }}
+<td>{{ $r->planning_loading }}</td>
+
+@foreach($sfx as $idx => $s)
+<td class="{{ ($r->gudang_sla ?? null) == $idx + 1 ? 'highlight-source' : '' }}">
+    {{ $r->{'tanggal_tiba_gudang' . $s} }}
+    @if(($r->gudang_sla ?? null) == $idx + 1)<br><small>Tiba Tercepat</small>@endif
 </td>
-    <td>{{ $r->planning_loading }}</td>
-<td class="{{ ($r->gudang_sla ?? null) == 1 ? 'highlight-source' : '' }}">
-    {{ $r->tanggal_tiba_gudang }}
+@endforeach
 
-    @if(($r->gudang_sla ?? null) == 1)
-        <br><small>Tiba Tercepat</small>
-    @endif
+@foreach($sfx as $idx => $s)
+<td class="{{ ($r->gudang_keluar_terakhir ?? null) == $idx + 1 ? 'highlight-exit' : '' }}">
+    {{ $r->{'tanggal_keluar_gudang' . $s} }}
+    @if(($r->gudang_keluar_terakhir ?? null) == $idx + 1)<br><small>Keluar Terakhir</small>@endif
 </td>
+@endforeach
 
-<td class="{{ ($r->gudang_sla ?? null) == 2 ? 'highlight-source' : '' }}">
-    {{ $r->tanggal_tiba_gudang_2 }}
-
-    @if(($r->gudang_sla ?? null) == 2)
-        <br><small>Tiba Tercepat</small>
-    @endif
-</td>
-
-<td class="{{ ($r->gudang_sla ?? null) == 3 ? 'highlight-source' : '' }}">
-    {{ $r->tanggal_tiba_gudang_3 }}
-
-    @if(($r->gudang_sla ?? null) == 3)
-        <br><small>Tiba Tercepat</small>
-    @endif
-</td>
-   <td class="{{ ($r->gudang_keluar_terakhir ?? null) == 1 ? 'highlight-exit' : '' }}">
-    {{ $r->tanggal_keluar_gudang }}
-
-    @if(($r->gudang_keluar_terakhir ?? null) == 1)
-        <br><small>Keluar Terakhir</small>
-    @endif
-</td>
-
-<td class="{{ ($r->gudang_keluar_terakhir ?? null) == 2 ? 'highlight-exit' : '' }}">
-    {{ $r->tanggal_keluar_gudang_2 }}
-
-    @if(($r->gudang_keluar_terakhir ?? null) == 2)
-        <br><small>Keluar Terakhir</small>
-    @endif
-</td>
-
-<td class="{{ ($r->gudang_keluar_terakhir ?? null) == 3 ? 'highlight-exit' : '' }}">
-    {{ $r->tanggal_keluar_gudang_3 }}
-
-    @if(($r->gudang_keluar_terakhir ?? null) == 3)
-        <br><small>Keluar Terakhir</small>
-    @endif
-</td>
-    
-    <td>{{ $r->lama_digudang }}</td>
-    <td>{{ $r->status_gudang }}</td>
-    <td>{{ $r->sla_loading }}</td>
-    <!-- <td>{{ $r->keterangan }}</td> -->
-    <td>{{ $r->lama_waktu_pencarian }}</td>
+@php $sf = $r->gudang_keluar_terakhir ? $sfx[$r->gudang_keluar_terakhir - 1] : ''; @endphp
+<td>{{ $r->{'lama_digudang' . $sf} }}</td>
+<td>{{ $r->{'status_gudang' . $sf} }}</td>
+<td>{{ $r->{'sla_loading' . $sf} }}</td>
+<td>{{ $r->lama_waktu_pencarian }}</td>
+<td>{{ $r->sla_dapat_mobil }}</td>
     
 
    

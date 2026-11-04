@@ -13,6 +13,16 @@
         'PASURUAN' => 'Logistik · Pasuruan',
         default    => 'Logistik · Jakarta + Pasuruan',
     };
+
+    // === TAMBAH ===
+      // === TAMBAH ===
+    $qs             = request()->query();
+    $listRouteName  = $listRoute ?? 'manager.gabungan.list';
+    $transitRoute   = $inTransitRoute ?? 'manager.gabungan.intransit';
+    $dataRouteName  = $dataRoute ?? 'manager.gabungan.data';
+    $linkKpi        = fn(string $kpi) => $kpi === 'total'
+        ? route($dataRouteName, $qs)
+        : route($listRouteName, array_merge($qs, ['kpi' => $kpi]));
 @endphp
 <!DOCTYPE html>
 <html lang="id">
@@ -919,57 +929,52 @@ tbody tr:last-child td{ border-bottom:none; }
 
 <!-- KPI -->
 <div class="section-label">Ringkasan status</div>
-
 <div class="kpi-row">
 
-<a href="{{ url('/datalogistik') }}?{{ http_build_query(request()->query()) }}" class="card blue">
+<a href="{{ $linkKpi('total') }}" class="card blue">
     <h4>Total Shipment</h4>
     <h1>{{ $total_data }}</h1>
 </a>
 
-<a href="{{ route('manager.intransit', request()->query()) }}" class="card teal">
+<a href="{{ route($transitRoute, $qs) }}" class="card teal">
     <h4>🚚 In Transit</h4>
     <h1>{{ $total_in_transit ?? 0 }}</h1>
 </a>
 
-<a href="{{ route('manager.gudang.ontime', request()->query()) }}" class="card green">
+<a href="{{ $linkKpi('gudang_ontime') }}" class="card green">
     <h4>Sudah Tiba Di Gudang</h4>
     <h1>{{ $gudang_ontime }}</h1>
 </a>
 
-<a href="{{ route('manager.sla-delay', request()->query()) }}" class="card red">
+<a href="{{ $linkKpi('sla_delay') }}" class="card red">
     <h4>Belum Tiba Di Gudang</h4>
     <h1>{{ $total_sla_delay }}</h1>
 </a>
-<a href="{{ route('manager.gudang.delay', request()->query()) }}" class="card red">
+
+<a href="{{ $linkKpi('belum_armada') }}" class="card red">
     <h4>Belum Dapat Armada</h4>
     <h1>{{ $gudang_delay }}</h1>
 </a>
 
-<a href="{{ route('manager.customer.ontime', request()->query()) }}" class="card teal">
+<a href="{{ $linkKpi('tujuan_ontime') }}" class="card teal">
     <h4>Tiba Tujuan OnTime</h4>
     <h1>{{ $customer_ontime }}</h1>
 </a>
 
-<a href="{{ route('manager.customer.delay', request()->query()) }}" class="card orange">
+<a href="{{ $linkKpi('tujuan_delay') }}" class="card orange">
     <h4>Tiba Tujuan Delay</h4>
     <h1>{{ $customer_delay }}</h1>
 </a>
 
-<a href="{{ route('manager.bongkar.ontime', request()->query()) }}" class="card purple">
+<a href="{{ $linkKpi('bongkar_ontime') }}" class="card purple">
     <h4>Bongkar OnTime</h4>
     <h1>{{ $bongkar_ontime }}</h1>
 </a>
 
-<a href="{{ route('manager.bongkar.delay', request()->query()) }}" class="card dark">
+<a href="{{ $linkKpi('bongkar_delay') }}" class="card dark">
     <h4>Bongkar Delay</h4>
     <h1>{{ $bongkar_delay }}</h1>
 </a>
-
-<!-- <a href="{{ route('manager.summary.area', request()->query()) }}" class="card blue">
-    <h4>Summary Area</h4>
-    <h1>{{ count($summary_area) }}</h1>
-</a> -->
 
 </div>
 

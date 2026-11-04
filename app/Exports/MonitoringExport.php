@@ -16,6 +16,40 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 class MonitoringExport implements
     FromQuery, WithHeadings, WithMapping, ShouldAutoSize, WithColumnFormatting, WithStyles
 {
+    private const GUDANG = [
+    ''   => 'KACS',
+    '_2' => 'SENTUL',
+    '_3' => 'CCIE',
+    '_4' => 'P5',
+    '_5' => 'FIFATEX',
+];
+
+private function gudangSuffixes(): array
+{
+    return array_keys(self::GUDANG);
+}
+
+/** [planning, tiba, keluar] per gudang */
+private function gudangCycles(): array
+{
+    return array_map(
+        fn($s) => ["planning_loading{$s}", "tanggal_tiba_gudang{$s}", "tanggal_keluar_gudang{$s}"],
+        $this->gudangSuffixes()
+    );
+}
+
+/** SQL: ada siklus gudang yang menggantung (sudah planning/tiba, belum keluar) */
+private function blockedSql(): string
+{
+    $filled = fn($c) => "NULLIF(TRIM({$c}), '') IS NOT NULL";
+    $empty  = fn($c) => "NULLIF(TRIM({$c}), '') IS NULL";
+
+    $parts = [];
+    foreach ($this->gudangCycles() as [$p, $t, $k]) {
+        $parts[] = '((' . $filled($p) . ' OR ' . $filled($t) . ') AND ' . $empty($k) . ')';
+    }
+    return '(' . implode(' OR ', $parts) . ')';
+}
     private const FMT_DATE = 'dd-mm-yyyy';
 
     protected array $f;
@@ -288,35 +322,33 @@ class MonitoringExport implements
     }
 
     // salinan logic controller::getKeluarGudangInfo
-    private function getKeluarGudangInfo($r): array
-    {
-        $cycles = [
-            ['planning' => $r->planning_loading,   'tiba' => $r->tanggal_tiba_gudang,   'keluar' => $r->tanggal_keluar_gudang],
-            ['planning' => $r->planning_loading_2, 'tiba' => $r->tanggal_tiba_gudang_2, 'keluar' => $r->tanggal_keluar_gudang_2],
-            ['planning' => $r->planning_loading_3, 'tiba' => $r->tanggal_tiba_gudang_3, 'keluar' => $r->tanggal_keluar_gudang_3],
-        ];
+  private function getKeluarGudangInfo($r)
+{
+    $blocked = false;
+    $blockedStatus = null; // 'menuju' | 'sedang'
+    $keluarTimestamps = [];
 
-        $blocked = false;
-        $blockedStatus = null;
-        $keluarTs = [];
+    foreach ($this->gudangSuffixes() as $s) {
+        $planning = $r->{"planning_loading{$s}"} ?? null;
+        $tiba     = $r->{"tanggal_tiba_gudang{$s}"} ?? null;
+        $keluar   = $r->{"tanggal_keluar_gudang{$s}"} ?? null;
 
-        foreach ($cycles as $c) {
-            $started = !empty($c['planning']) || !empty($c['tiba']);
-            $selesai = !empty($c['keluar']);
+        $started = !empty($planning) || !empty($tiba);
+        $selesai = !empty($keluar);
 
-            if ($started && !$selesai) {
-                $blocked = true;
-                $blockedStatus = !empty($c['tiba']) ? 'sedang' : 'menuju';
-            }
-            if ($selesai) {
-                $keluarTs[] = strtotime($c['keluar']);
-            }
+        if ($started && !$selesai) {
+            $blocked = true;
+            $blockedStatus = !empty($tiba) ? 'sedang' : 'menuju';
         }
-
-        return [
-            'blocked'        => $blocked,
-            'blocked_status' => $blockedStatus,
-            'keluar'         => $keluarTs ? max($keluarTs) : null,
-        ];
+        if ($selesai) {
+            $keluarTimestamps[] = strtotime($keluar);
+        }
     }
+
+    return [
+        'blocked'        => $blocked,
+        'blocked_status' => $blockedStatus,
+        'keluar'         => !empty($keluarTimestamps) ? max($keluarTimestamps) : null,
+    ];
+}
 }
