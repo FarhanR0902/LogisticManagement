@@ -14,8 +14,7 @@
         default    => 'Logistik · Jakarta + Pasuruan',
     };
 
-    // === TAMBAH ===
-      // === TAMBAH ===
+    // link kartu KPI: bawa semua filter yang aktif (termasuk array area[], dist_channel[], pulau[])
     $qs             = request()->query();
     $listRouteName  = $listRoute ?? 'manager.gabungan.list';
     $transitRoute   = $inTransitRoute ?? 'manager.gabungan.intransit';
@@ -23,6 +22,15 @@
     $linkKpi        = fn(string $kpi) => $kpi === 'total'
         ? route($dataRouteName, $qs)
         : route($listRouteName, array_merge($qs, ['kpi' => $kpi]));
+
+    // filter multi-pick
+    $areaSel  = array_filter((array) request('area', []), 'strlen');
+    $distSel  = array_filter((array) request('dist_channel', []), 'strlen');
+    $pulauSel = array_filter((array) request('pulau', []), 'strlen');
+        $monthSel = array_filter((array) request('month', []), 'strlen');
+
+    $namaBulan = ['01'=>'Jan','02'=>'Feb','03'=>'Mar','04'=>'Apr','05'=>'Mei','06'=>'Jun',
+                  '07'=>'Jul','08'=>'Agu','09'=>'Sep','10'=>'Okt','11'=>'Nov','12'=>'Des'];
 @endphp
 <!DOCTYPE html>
 <html lang="id">
@@ -30,7 +38,7 @@
 
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Jakarta Dashboard</title>
+<title>{{ $judulDashboard }}</title>
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -182,8 +190,10 @@ h1,h2,h3,h4{
     letter-spacing:.04em;
 }
 
-.filter-form input,
-.filter-form select{
+/* input & select biasa (BUKAN yang dipakai Tom Select) */
+.filter-form input[type="date"],
+.filter-form input[type="month"],
+.filter-form select:not(.tomselected){
     height:38px;
     padding:0 12px;
     border:1px solid var(--border);
@@ -197,8 +207,9 @@ h1,h2,h3,h4{
     transition:border-color .15s;
 }
 
-.filter-form input:focus,
-.filter-form select:focus{
+.filter-form input[type="date"]:focus,
+.filter-form input[type="month"]:focus,
+.filter-form select:not(.tomselected):focus{
     border-color:var(--primary);
     background:#fff;
 }
@@ -309,7 +320,9 @@ h1,h2,h3,h4{
     color:var(--text-muted);
 }
 
-.pulau-box.active{
+/* .pulau-box.active ditaruh setelah :hover supaya biru tetap menang saat di-hover */
+.pulau-box.active,
+.pulau-box.active:hover{
     border-color:var(--primary);
     background:linear-gradient(135deg,var(--primary),#3730a3);
     box-shadow:0 8px 18px rgba(79,70,229,.28);
@@ -318,6 +331,45 @@ h1,h2,h3,h4{
 .pulau-box.active .pulau-name,
 .pulau-box.active .pulau-count{
     color:#fff;
+}
+
+/* tanda centang di pojok kotak yang dipilih */
+.pulau-box{ position:relative; }
+.pulau-box.active::after{
+    content:"✓";
+    position:absolute;
+    top:6px;
+    right:8px;
+    width:18px;
+    height:18px;
+    border-radius:50%;
+    background:#fff;
+    color:var(--primary);
+    font-size:12px;
+    font-weight:800;
+    line-height:18px;
+    text-align:center;
+}
+
+/* ringkasan pulau yang dipilih */
+.pulau-selected{
+    display:flex;
+    align-items:center;
+    flex-wrap:wrap;
+    gap:6px;
+    margin-bottom:10px;
+    font-size:12.5px;
+    color:var(--text-secondary);
+}
+.pulau-chip{
+    display:inline-flex;
+    align-items:center;
+    padding:3px 10px;
+    border-radius:999px;
+    background:var(--primary-light);
+    color:var(--primary);
+    font-weight:700;
+    font-size:12px;
 }
 
 /* ================= STAT CARDS ================= */
@@ -390,8 +442,9 @@ h1,h2,h3,h4{
         width:100%;
     }
 
-    .filter-form select,
-    .filter-form input{
+    .filter-form select:not(.tomselected),
+    .filter-form input[type="date"],
+    .filter-form input[type="month"]{
         min-width:130px;
         flex:1;
     }
@@ -659,15 +712,6 @@ tbody tr:last-child td{ border-bottom:none; }
     color:var(--text-muted);
     padding:22px 0;
 }
-.filter-form .ts-dropdown .dropdown-input{
-    height:34px;
-    min-width:0;
-    width:100%;
-    padding:0 10px;
-    border:1px solid var(--border);
-    border-radius:var(--radius-sm);
-    background:#fff;
-}
 
 /* ================= LAYOUT STACK ================= */
 .stack{
@@ -723,16 +767,20 @@ tbody tr:last-child td{ border-bottom:none; }
     padding:1px 6px;
     border-radius:4px;
 }
-/* ================= TOM SELECT (area & dist channel) ================= */
-.filter-form .ts-wrapper{ min-width:200px; }
+
+/* ================= TOM SELECT (area & dist channel, multi) ================= */
+.filter-form .field .ts-wrapper{
+    width:260px;
+    min-width:260px;
+    max-width:420px;
+}
 .filter-form .ts-control{
     min-height:38px;
+    padding:4px 8px;
     border:1px solid var(--border);
     border-radius:var(--radius-sm);
     background:#fbfcfe;
     font-size:13.5px;
-    padding:0 12px;
-    align-items:center;
     box-shadow:none;
 }
 .filter-form .ts-wrapper.focus .ts-control{
@@ -740,24 +788,26 @@ tbody tr:last-child td{ border-bottom:none; }
     background:#fff;
     box-shadow:none;
 }
-/* wajib: style .filter-form input yang lama bakal merusak kotak search-nya */
-.filter-form .ts-control input{
+.filter-form .ts-wrapper.multi .ts-control{
+    flex-wrap:wrap;
+}
+.filter-form .ts-wrapper.multi .ts-control > div{
+    margin:2px 4px 2px 0;
+}
+.filter-form .ts-wrapper.multi .ts-control > input{
     height:auto;
-    min-width:0;
+    min-width:60px;
+    flex:1 1 60px;
     padding:0;
     border:none;
     background:transparent;
 }
-.filter-form select.tomselected{
-    min-width:0;
-    height:auto;
-    border:0;
-}
 .ts-dropdown{ font-size:13.5px; border-radius:var(--radius-sm); }
 
 @media(max-width:768px){
-    .filter-form .ts-wrapper{ min-width:130px; flex:1; }
+    .filter-form .field .ts-wrapper{ min-width:130px; width:100%; flex:1; }
 }
+
 /* ================= RESPONSIVE ================= */
 @media(max-width:1100px){
     .chart-grid{ grid-template-columns:1fr; }
@@ -771,12 +821,8 @@ tbody tr:last-child td{ border-bottom:none; }
         padding:18px;
     }
     .filter-actions{ margin-left:0; width:100%; }
-    .filter-form select,
-    .filter-form input{ min-width:130px; flex:1; }
     #shipmentMap{ height:340px; }
 }
-
-
 
 </style>
 </head>
@@ -788,8 +834,8 @@ tbody tr:last-child td{ border-bottom:none; }
 <!-- HEADER -->
 <div class="page-header">
     <div class="page-title">
-       <div class="eyebrow">{{ $eyebrowDashboard }}</div>
-<h1>{{ $judulDashboard }}</h1>
+        <div class="eyebrow">{{ $eyebrowDashboard }}</div>
+        <h1>{{ $judulDashboard }}</h1>
         <p>Ringkasan performa gudang, armada, dan ketepatan waktu pengiriman.</p>
         <div class="route-rule"></div>
     </div>
@@ -798,17 +844,16 @@ tbody tr:last-child td{ border-bottom:none; }
 <!-- FILTER -->
 <div class="filter-box">
     <form method="GET" action="{{ url()->current() }}" class="filter-form" id="filterForm">
-<div class="field">
-<select id="f-basis" name="tgl_basis">
-    <option value="periode_shipment" {{ request('tgl_basis', 'periode_shipment') == 'periode_shipment' ? 'selected' : '' }}>Periode Shipment</option>
-    <option value="rencana_kirim" {{ request('tgl_basis') == 'rencana_kirim' ? 'selected' : '' }}>Rencana Kirim</option>
-    <option value="tanggal_naik_logistik" {{ request('tgl_basis') == 'tanggal_naik_logistik' ? 'selected' : '' }}>Tanggal Naik Logistik</option>
-</select>
- 
-</select>
-</div>
-            <div class="field">
-           <label for="f-from">Periode dari</label>
+        <div class="field">
+            <select id="f-basis" name="tgl_basis">
+                <option value="periode_shipment" {{ request('tgl_basis', 'periode_shipment') == 'periode_shipment' ? 'selected' : '' }}>Periode Shipment</option>
+                <option value="rencana_kirim" {{ request('tgl_basis') == 'rencana_kirim' ? 'selected' : '' }}>Rencana Kirim</option>
+                <option value="tanggal_naik_logistik" {{ request('tgl_basis') == 'tanggal_naik_logistik' ? 'selected' : '' }}>Tanggal Naik Logistik</option>
+            </select>
+        </div>
+
+        <div class="field">
+            <label for="f-from">Periode dari</label>
             <input id="f-from" type="date" name="date_from" value="{{ request('date_from') }}">
         </div>
 
@@ -816,10 +861,18 @@ tbody tr:last-child td{ border-bottom:none; }
             <label for="f-to">Sampai</label>
             <input id="f-to" type="date" name="date_to" value="{{ request('date_to') }}">
         </div>
-
         <div class="field">
             <label for="f-month">Bulan</label>
-            <input id="f-month" type="month" name="month" value="{{ request('month') }}">
+            <select id="f-month" name="month[]" multiple>
+                @for($y = date('Y') + 1; $y >= 2020; $y--)
+                    @for($m = 12; $m >= 1; $m--)
+                        @php $val = sprintf('%d-%02d', $y, $m); @endphp
+                        <option value="{{ $val }}" {{ in_array($val, $monthSel) ? 'selected' : '' }}>
+                            {{ $namaBulan[sprintf('%02d', $m)] }} {{ $y }}
+                        </option>
+                    @endfor
+                @endfor
+            </select>
         </div>
 
         <div class="field">
@@ -836,10 +889,9 @@ tbody tr:last-child td{ border-bottom:none; }
 
         <div class="field">
             <label for="f-area">Area</label>
-            <select id="f-area" name="area">
-                <option value="">Semua area</option>
+            <select id="f-area" name="area[]" multiple>
                 @foreach($list_area as $a)
-                    <option value="{{ $a->area }}" {{ request('area') == $a->area ? 'selected' : '' }}>
+                    <option value="{{ $a->area }}" {{ in_array($a->area, $areaSel) ? 'selected' : '' }}>
                         {{ $a->area }}
                     </option>
                 @endforeach
@@ -849,10 +901,9 @@ tbody tr:last-child td{ border-bottom:none; }
         @if(isset($list_dist_channel))
         <div class="field">
             <label for="f-dist">Dist. channel</label>
-            <select id="f-dist" name="dist_channel">
-                <option value="">Semua channel</option>
+            <select id="f-dist" name="dist_channel[]" multiple>
                 @foreach($list_dist_channel as $d)
-                    <option value="{{ $d->dist_channel }}" {{ request('dist_channel') == $d->dist_channel? 'selected' : '' }}>
+                    <option value="{{ $d->dist_channel }}" {{ in_array($d->dist_channel, $distSel) ? 'selected' : '' }}>
                         {{ $d->dist_channel }}
                     </option>
                 @endforeach
@@ -860,17 +911,21 @@ tbody tr:last-child td{ border-bottom:none; }
         </div>
 
         <div class="field">
-    <label for="f-sumber">Sumber</label>
-    <select id="f-sumber" name="sumber">
-        <option value="">Jakarta + Pasuruan</option>
-        <option value="JAKARTA"  {{ request('sumber')=='JAKARTA'  ? 'selected' : '' }}>Jakarta</option>
-        <option value="PASURUAN" {{ request('sumber')=='PASURUAN' ? 'selected' : '' }}>Pasuruan</option>
-    </select>
-</div>
+            <label for="f-sumber">Sumber</label>
+            <select id="f-sumber" name="sumber">
+                <option value="">Jakarta + Pasuruan</option>
+                <option value="JAKARTA"  {{ request('sumber')=='JAKARTA'  ? 'selected' : '' }}>Jakarta</option>
+                <option value="PASURUAN" {{ request('sumber')=='PASURUAN' ? 'selected' : '' }}>Pasuruan</option>
+            </select>
+        </div>
         @endif
 
         <!-- Filter pulau dikirim lewat hidden input ini, diisi otomatis pas kotak pulau diklik -->
-        <input type="hidden" name="pulau" id="f-pulau" value="{{ request('pulau') }}">
+        <div id="pulauInputs">
+            @foreach($pulauSel as $p)
+                <input type="hidden" name="pulau[]" value="{{ $p }}">
+            @endforeach
+        </div>
 
         <div class="filter-actions">
             <button type="submit" class="btn btn-primary">Terapkan filter</button>
@@ -882,55 +937,41 @@ tbody tr:last-child td{ border-bottom:none; }
     <!-- ================= FILTER PULAU (BOX, BUKAN DROPDOWN) ================= -->
     <div class="pulau-section">
         <div class="pulau-section-label">📍 Filter cepat berdasarkan pulau</div>
+        <div class="pulau-selected" id="pulauSelected"></div>
+
+        @php
+            $pulauList = [
+                'JAWA'       => ['🏝️', 'Jawa'],
+                'SUMATERA'   => ['🌋', 'Sumatera'],
+                'KALIMANTAN' => ['🌳', 'Kalimantan'],
+                'SULAWESI'   => ['🐚', 'Sulawesi'],
+                // 'BALI_NUSRA' => ['🏖️', 'Bali & Nusra'],
+                'MALUKU'     => ['🌊', 'Maluku'],
+                'PAPUA'      => ['🦅', 'Papua'],
+            ];
+        @endphp
+
         <div class="pulau-grid" id="pulauGrid">
-            <div class="pulau-box {{ !request('pulau') ? 'active' : '' }}" data-pulau="">
+            <div class="pulau-box {{ empty($pulauSel) ? 'active' : '' }}" data-pulau="">
                 <div class="pulau-icon">🗺️</div>
                 <div class="pulau-name">Semua Pulau</div>
                 <div class="pulau-count" data-count-for="">-</div>
             </div>
-            <div class="pulau-box {{ request('pulau') == 'JAWA' ? 'active' : '' }}" data-pulau="JAWA">
-                <div class="pulau-icon">🏝️</div>
-                <div class="pulau-name">Jawa</div>
-                <div class="pulau-count" data-count-for="JAWA">-</div>
-            </div>
-            <div class="pulau-box {{ request('pulau') == 'SUMATERA' ? 'active' : '' }}" data-pulau="SUMATERA">
-                <div class="pulau-icon">🌋</div>
-                <div class="pulau-name">Sumatera</div>
-                <div class="pulau-count" data-count-for="SUMATERA">-</div>
-            </div>
-            <div class="pulau-box {{ request('pulau') == 'KALIMANTAN' ? 'active' : '' }}" data-pulau="KALIMANTAN">
-                <div class="pulau-icon">🌳</div>
-                <div class="pulau-name">Kalimantan</div>
-                <div class="pulau-count" data-count-for="KALIMANTAN">-</div>
-            </div>
-            <div class="pulau-box {{ request('pulau') == 'SULAWESI' ? 'active' : '' }}" data-pulau="SULAWESI">
-                <div class="pulau-icon">🐚</div>
-                <div class="pulau-name">Sulawesi</div>
-                <div class="pulau-count" data-count-for="SULAWESI">-</div>
-            </div>
-            <!-- <div class="pulau-box {{ request('pulau') == 'BALI_NUSRA' ? 'active' : '' }}" data-pulau="BALI_NUSRA">
-                <div class="pulau-icon">🏖️</div>
-                <div class="pulau-name">Bali &amp; Nusra</div>
-                <div class="pulau-count" data-count-for="BALI_NUSRA">-</div>
-            </div> -->
-            <div class="pulau-box {{ request('pulau') == 'MALUKU' ? 'active' : '' }}" data-pulau="MALUKU">
-                <div class="pulau-icon">🌊</div>
-                <div class="pulau-name">Maluku</div>
-                <div class="pulau-count" data-count-for="MALUKU">-</div>
-            </div>
-            <div class="pulau-box {{ request('pulau') == 'PAPUA' ? 'active' : '' }}" data-pulau="PAPUA">
-                <div class="pulau-icon">🦅</div>
-                <div class="pulau-name">Papua</div>
-                <div class="pulau-count" data-count-for="PAPUA">-</div>
-            </div>
+
+            @foreach($pulauList as $kode => [$ikon, $nama])
+                <div class="pulau-box {{ in_array($kode, $pulauSel) ? 'active' : '' }}" data-pulau="{{ $kode }}">
+                    <div class="pulau-icon">{{ $ikon }}</div>
+                    <div class="pulau-name">{{ $nama }}</div>
+                    <div class="pulau-count" data-count-for="{{ $kode }}">-</div>
+                </div>
+            @endforeach
         </div>
     </div>
-</div>
+</div> {{-- penutup filter-box --}}
 
 <!-- KPI -->
 <div class="section-label">Ringkasan status</div>
 <div class="kpi-row">
-
 <a href="{{ $linkKpi('total') }}" class="card blue">
     <h4>Total Shipment</h4>
     <h1>{{ $total_data }}</h1>
@@ -975,7 +1016,6 @@ tbody tr:last-child td{ border-bottom:none; }
     <h4>Bongkar Delay</h4>
     <h1>{{ $bongkar_delay }}</h1>
 </a>
-
 </div>
 
 <!-- HERO TOTALS -->
@@ -1000,7 +1040,6 @@ tbody tr:last-child td{ border-bottom:none; }
                 : 0;
         @endphp
         <div class="hero-value">{{ number_format($ratio, 2) }}%</div>
-
     </div>
 
 </div>
@@ -1010,8 +1049,6 @@ tbody tr:last-child td{ border-bottom:none; }
 
 <!-- PETA SEBARAN -->
 <div class="table-box">
-    <!-- <h3>🗺️ Peta sebaran nilai muatan per area</h3> -->
-
     <div id="shipmentMap"></div>
 
     <div class="map-legend">
@@ -1019,12 +1056,6 @@ tbody tr:last-child td{ border-bottom:none; }
         <span><i style="background:#f59e0b;"></i> Nilai muatan sedang</span>
         <span><i style="background:#e11d48;"></i> Nilai muatan tinggi</span>
     </div>
-<!-- 
-    <p class="map-note">
-        Angka di setiap lingkaran = total nilai muatan (Rp, format ringkas) dari area tersebut.
-        Klik lingkaran untuk lihat detail lengkap (jumlah shipment, nilai muatan, biaya kirim).
-        Koordinat diambil per area di variabel <code>koordinatAreaPasuruan</code>.
-    </p> -->
 
     <div id="mapDebugBox" style="margin-top:14px;"></div>
 </div>
@@ -1122,6 +1153,7 @@ tbody tr:last-child td{ border-bottom:none; }
     </table>
     </div>
 </div>
+
 <!-- SUMMARY PLANNER + PIC MONITORING -->
 <div class="two-col">
 
@@ -1143,11 +1175,11 @@ tbody tr:last-child td{ border-bottom:none; }
                 <tr>
                     <td>{{ $p->planner }}</td>
                     <td class="num">{{ number_format($p->total) }}</td>
-                  <td class="num">
-    <span class="badge {{ $p->total_belum_rencana > 0 ? 'badge-red' : 'badge-green' }}">
-        {{ number_format($p->total_belum_rencana) }}
-    </span>
-</td>
+                    <td class="num">
+                        <span class="badge {{ $p->total_belum_rencana > 0 ? 'badge-red' : 'badge-green' }}">
+                            {{ number_format($p->total_belum_rencana) }}
+                        </span>
+                    </td>
                     <td class="num"><span class="badge badge-green">{{ number_format($p->total_ontime) }}</span></td>
                     <td class="num"><span class="badge badge-red">{{ number_format($p->total_delay) }}</span></td>
                 </tr>
@@ -1200,6 +1232,7 @@ tbody tr:last-child td{ border-bottom:none; }
     </div>
 
 </div>
+
 <!-- TWO COL: MONITORING + PLANNER -->
 <div class="two-col">
 
@@ -1380,15 +1413,13 @@ new Chart(document.getElementById('chartTujuan'), {
     }
 });
 
-// ================= PETA SEBARAN NILAI MUATAN PER AREA (PASURUAN) =================
-// Sumber data: $summary_area dari ManagerController@dashboardPasuruan()
-// Kolom yang dipakai: area_pasuruan, total_shipment, total_biaya, total_muatan
+// ================= PETA SEBARAN NILAI MUATAN PER AREA =================
+// Sumber data: $summary_area dari controller dashboard (kolom: area, total_shipment, total_biaya, total_muatan)
 const summaryAreaMapPasuruan = @json($summary_area ?? []);
 
 // Koordinat representatif per area (ibu kota provinsi/wilayah).
-// Key HARUS sama persis (huruf besar, underscore) dengan nilai kolom area_pasuruan.
-// Kalau ada nama area yang belum terdaftar di sini, area tersebut akan
-// otomatis tampil di panel "Belum ada koordinatnya" di bawah peta.
+// Key HARUS sama persis (huruf besar, underscore) dengan nilai kolom area.
+// Area yang belum terdaftar di sini tidak akan muncul di peta.
 const koordinatAreaPasuruan = {
     'BENGKULU'              : [-3.7928, 102.2608],
     'ACEH'                  : [5.5483, 95.3238],
@@ -1429,10 +1460,8 @@ const koordinatAreaPasuruan = {
     'YOGYAKARTA'            : [-7.7956, 110.3695],
 };
 
-// ================= MAPPING AREA -> PULAU (buat filter box & counter) =================
-// Dipakai untuk: (1) hitung jumlah area per pulau di badge kotak filter,
-// (2) fallback filter di sisi client kalau server belum sempat filter.
-// WAJIB sinkron dengan mapping PHP $PULAU_MAP di controller (dashboardPasuruan()).
+// ================= MAPPING AREA -> PULAU (buat counter kotak pulau) =================
+// WAJIB sinkron dengan PULAU_MAP di controller.
 const pulauAreaMap = {
     'JAWA': ['JABODEBEK','BANTEN','JAWA_BARAT','JAWA_TENGAH','JAWA_TIMUR','YOGYAKARTA'],
     'SUMATERA': ['ACEH','SUMATERA_UTARA','SUMATERA_BARAT','RIAU','KEP._RIAU','JAMBI','SUMATERA_SELATAN','BENGKULU','LAMPUNG','KEP._BANGKA_BELITUNG'],
@@ -1447,8 +1476,7 @@ function normalisasiNamaPasuruan(str){
     return (str || '').toString().trim().toUpperCase();
 }
 
-// Isi angka badge "jumlah area" di tiap kotak pulau, berdasarkan data summary_area
-// yang sedang tampil (hasil filter tanggal/bulan/tahun/area/dist_channel saat ini).
+// Isi angka badge "jumlah area" di tiap kotak pulau
 (function isiJumlahAreaPulau(){
     const counts = {};
     Object.keys(pulauAreaMap).forEach(p => counts[p] = 0);
@@ -1473,16 +1501,78 @@ function normalisasiNamaPasuruan(str){
     });
 })();
 
-// Klik kotak pulau -> isi hidden input #f-pulau -> submit form filter (reload halaman
-// dengan query string ?pulau=JAWA dst, sekaligus mempertahankan filter tanggal/area lain).
-document.querySelectorAll('.pulau-box').forEach(box => {
-    box.addEventListener('click', function(){
-        document.getElementById('f-pulau').value = this.getAttribute('data-pulau');
+// ================= AUTO-FILTER =================
+// Filter apa pun yang diubah akan otomatis dijalankan.
+// Ada jeda singkat supaya bisa memilih beberapa pulau / area / channel
+// sebelum halaman reload. Tombol "Terapkan filter" tetap ada sebagai cadangan.
+const JEDA_AUTO_FILTER = 700; // ms
+let timerAutoFilter = null;
+function jadwalkanSubmit() {
+    clearTimeout(timerAutoFilter);
+    timerAutoFilter = setTimeout(function () {
         document.getElementById('filterForm').submit();
-    });
-});
+    }, JEDA_AUTO_FILTER);
+}
 
-// Format Rupiah jadi ringkas biar muat di lingkaran (mis. 125Jt, 2.3M, 1.1T)
+// Kotak pulau: tandai biru + centang, simpan ke hidden input, TANPA submit.
+// Filter dijalankan lewat tombol "Terapkan filter".
+(function () {
+    const boxes   = Array.from(document.querySelectorAll('.pulau-box'));
+    const semua   = boxes.find(b => b.getAttribute('data-pulau') === '');
+    const wrap    = document.getElementById('pulauInputs');
+    const ringkas = document.getElementById('pulauSelected');
+
+    function sinkron() {
+        const dipilih = boxes.filter(b =>
+            b.getAttribute('data-pulau') !== '' && b.classList.contains('active'));
+
+        // "Semua Pulau" aktif hanya kalau tidak ada pulau yang dipilih
+        semua.classList.toggle('active', dipilih.length === 0);
+
+        // hidden input untuk dikirim ke controller
+        wrap.innerHTML = '';
+        dipilih.forEach(b => {
+            const inp = document.createElement('input');
+            inp.type  = 'hidden';
+            inp.name  = 'pulau[]';
+            inp.value = b.getAttribute('data-pulau');
+            wrap.appendChild(inp);
+        });
+
+        // ringkasan "Dipilih: ..."
+        if (dipilih.length === 0) {
+            ringkas.innerHTML = 'Dipilih: <span class="pulau-chip">Semua pulau</span>';
+        } else {
+            ringkas.innerHTML = 'Dipilih: ' + dipilih.map(b =>
+                '<span class="pulau-chip">' + b.querySelector('.pulau-name').textContent + '</span>'
+            ).join('');
+        }
+    }
+
+    // keadaan awal diambil dari URL (?pulau[]=JAWA&pulau[]=SUMATERA),
+    // jadi tanda tetap ada setelah reload walau kondisi Blade-nya meleset
+    const params  = new URLSearchParams(location.search);
+    const dariUrl = params.getAll('pulau[]').concat(params.getAll('pulau')).filter(Boolean);
+    boxes.forEach(b => {
+        const p = b.getAttribute('data-pulau');
+        if (p !== '') b.classList.toggle('active', dariUrl.includes(p));
+    });
+    sinkron();
+
+    boxes.forEach(box => {
+        box.addEventListener('click', function () {
+            if (this.getAttribute('data-pulau') === '') {
+                boxes.forEach(b => b.classList.remove('active'));
+            } else {
+                this.classList.toggle('active');
+            }
+            sinkron();
+            jadwalkanSubmit();
+        });
+    });
+})();
+
+// Format Rupiah ringkas biar muat di lingkaran (mis. 125Jt, 2.3M, 1.1T)
 function formatRupiahRingkasPasuruan(value){
     value = Number(value) || 0;
     const abs = Math.abs(value);
@@ -1508,20 +1598,13 @@ if (document.getElementById('shipmentMap')) {
     });
 
     const boundsList = [];
-    const matched = [];
-    const unmatched = [];
 
     summaryAreaMapPasuruan.forEach(a => {
 
         const key = normalisasiNamaPasuruan(a.area);
         const koordinat = koordinatAreaPasuruan[key];
 
-        if (!koordinat) {
-            unmatched.push(a.area + ' (Rp ' + Number(a.total_muatan).toLocaleString('id-ID') + ')');
-            return; // skip kalau belum ada koordinatnya
-        }
-
-        matched.push(a.area);
+        if (!koordinat) return; // skip kalau belum ada koordinatnya
 
         const nilaiMuatan = Number(a.total_muatan) || 0;
         const ratio = nilaiMuatan / maxMuatan;
@@ -1575,63 +1658,45 @@ if (document.getElementById('shipmentMap')) {
         shipmentMap.fitBounds(boundsList, { padding: [40, 40] });
     }
 
-    // ================= DEBUG PANEL =================
+    // Peringatan kalau data area kosong
     const debugBox = document.getElementById('mapDebugBox');
-
-    if (debugBox) {
-
-        let html = '';
-
-        if (summaryAreaMapPasuruan.length === 0) {
-
-            html += `<div style="background:#fdeef2;border:1px solid #e11d48;color:#9f1239;
+    if (debugBox && summaryAreaMapPasuruan.length === 0) {
+        debugBox.innerHTML = `<div style="background:#fdeef2;border:1px solid #e11d48;color:#9f1239;
                         padding:12px 14px;border-radius:10px;font-size:13px;">
-                        ⚠️ Data <code>$summary_area</code> dari controller KOSONG (0 baris).
-                        Cek filter tanggal/area yang aktif, atau kolom <code>area_pasuruan</code>
-                        di database memang NULL semua.
+                        ⚠️ Data area kosong untuk filter yang sedang aktif.
                       </div>`;
-
-        } else {
-
-            // html += `<div style="background:#eef2ff;border:1px solid #4f46e5;color:#3730a3;
-            //             padding:12px 14px;border-radius:10px;font-size:13px;margin-bottom:10px;">
-            //             Total area dari controller: <b>${summaryAreaMapPasuruan.length}</b> baris.
-            //             Cocok dengan koordinat (muncul di peta): <b>${matched.length}</b>.
-            //             Belum ada koordinatnya (tidak muncul di peta): <b>${unmatched.length}</b>.
-            //           </div>`;
-
-            // if (unmatched.length > 0) {
-            //     html += `<details style="background:#fef7e9;border:1px solid #f59e0b;
-            //                 padding:12px 14px;border-radius:10px;font-size:13px;">
-            //                 <summary style="cursor:pointer;font-weight:600;color:#b45309;">
-            //                     ⚠️ Lihat ${unmatched.length} nama area yang BELUM ada koordinatnya
-            //                 </summary>
-            //                 <ul style="margin-top:8px;padding-left:18px;color:#78350f;">
-            //                     ${unmatched.map(u => `<li>${u}</li>`).join('')}
-            //                 </ul>
-            //               </details>`;
-            // }
-        }
-
-        debugBox.innerHTML = html;
     }
 }
-// ================= DROPDOWN AREA & DIST CHANNEL (bisa di-search) =================
-// ================= DROPDOWN AREA & DIST CHANNEL (bisa di-search) =================
-['#f-area', '#f-dist'].forEach(function (sel) {
+
+// ================= DROPDOWN AREA & DIST CHANNEL (multi, bisa di-search) =================
+['#f-area', '#f-dist', '#f-month'].forEach(function (sel) {
     const el = document.querySelector(sel);
     if (!el) return;
     new TomSelect(el, {
         create: false,
         maxOptions: 500,
-        placeholder: el.id === 'f-area' ? 'Semua area' : 'Semua channel',
+        maxItems: null,
+        closeAfterSelect: false,
+        hideSelected: true,
+        placeholder: 'Semua',
         plugins: {
-            dropdown_input: {},
-            clear_button: { title: 'Hapus pilihan' }
+            remove_button: {},
+            clear_button: { title: 'Hapus semua pilihan' }
+        },
+        onChange: function () {
+            if (window.filterSiap) jadwalkanSubmit();   // abaikan saat inisialisasi
         }
     });
 });
 
+// input tanggal, bulan, dan select biasa (tahun, basis tanggal, sumber)
+document.querySelectorAll(
+    '#filterForm input[type="date"], #filterForm input[type="month"], #filterForm select:not(.tomselected)'
+).forEach(function (el) {
+    el.addEventListener('change', jadwalkanSubmit);
+});
+
+window.filterSiap = true;
 </script>
 
 </body>

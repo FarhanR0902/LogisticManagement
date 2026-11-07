@@ -18,25 +18,27 @@
     <style>
         /* Kolom yang di-freeze butuh background solid supaya konten
    di baliknya tidak keintip pas digeser */
-/* Kolom yang di-freeze butuh background solid supaya konten
+        /* Kolom yang di-freeze butuh background solid supaya konten
    di baliknya tidak keintip pas digeser */
-table.dataTable.dtfc-has-left td.dtfc-fixed-left,
-table.dataTable.dtfc-has-left th.dtfc-fixed-left {
-    background-color: #ffffff;
-    z-index: 3;
-}
+        table.dataTable.dtfc-has-left td.dtfc-fixed-left,
+        table.dataTable.dtfc-has-left th.dtfc-fixed-left {
+            background-color: #ffffff;
+            z-index: 3;
+        }
 
-/* Baris yang lagi "dirty" (belum disave) — kolom bekunya
+        /* Baris yang lagi "dirty" (belum disave) — kolom bekunya
    ikut warna oranye juga, biar konsisten */
-tr.row-dirty-pasuruan td.dtfc-fixed-left {
-    background-color: #fff7ed !important;
-}
+        tr.row-dirty-pasuruan td.dtfc-fixed-left {
+            background-color: #fff7ed !important;
+        }
 
-/* Garis pemisah di kolom ke-4 (Tujuan) — kolom terakhir yang dibekukan */
-table.dataTable.dtfc-has-left td:nth-child(4).dtfc-fixed-left,
-table.dataTable.dtfc-has-left th:nth-child(4).dtfc-fixed-left {
-    box-shadow: 3px 0 5px -2px rgba(0,0,0,0.15);
-}
+
+        /* Garis pemisah di kolom ke-4 (Tujuan) — kolom terakhir yang dibekukan */
+        table.dataTable.dtfc-has-left td:nth-child(4).dtfc-fixed-left,
+        table.dataTable.dtfc-has-left th:nth-child(4).dtfc-fixed-left {
+            box-shadow: 3px 0 5px -2px rgba(0, 0, 0, 0.15);
+        }
+
         * {
             margin: 0;
             padding: 0;
@@ -58,11 +60,26 @@ table.dataTable.dtfc-has-left th:nth-child(4).dtfc-fixed-left {
             font-weight: 600;
         }
 
-        .green { background-color: #22c55e !important; }
-        .red { background-color: #ef4444 !important; }
-        .gray { background-color: #64748b !important; }
-        .orange { background-color: #f97316 !important; }
-        .yellow { background-color: #facc15 !important; color: #000 !important; }
+        .green {
+            background-color: #22c55e !important;
+        }
+
+        .red {
+            background-color: #ef4444 !important;
+        }
+
+        .gray {
+            background-color: #64748b !important;
+        }
+
+        .orange {
+            background-color: #f97316 !important;
+        }
+
+        .yellow {
+            background-color: #facc15 !important;
+            color: #000 !important;
+        }
 
         .container-fluid-custom {
             width: calc(100% - 260px);
@@ -102,7 +119,9 @@ table.dataTable.dtfc-has-left th:nth-child(4).dtfc-fixed-left {
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
         }
 
-        .dataTables_wrapper { padding-top: 10px; }
+        .dataTables_wrapper {
+            padding-top: 10px;
+        }
 
         table.dataTable {
             border-collapse: collapse !important;
@@ -114,7 +133,9 @@ table.dataTable.dtfc-has-left th:nth-child(4).dtfc-fixed-left {
             transition: background-color 0.2s ease;
         }
 
-        table.dataTable tbody tr:hover { background-color: #f1f5f9 !important; }
+        table.dataTable tbody tr:hover {
+            background-color: #f1f5f9 !important;
+        }
 
         table.dataTable tbody td {
             padding: 12px 14px !important;
@@ -143,7 +164,9 @@ table.dataTable.dtfc-has-left th:nth-child(4).dtfc-fixed-left {
             box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.2);
         }
 
-        table input[type="date"] { width: 165px; }
+        table input[type="date"] {
+            width: 165px;
+        }
 
         .badge-status {
             padding: 5px 10px;
@@ -161,7 +184,9 @@ table.dataTable.dtfc-has-left th:nth-child(4).dtfc-fixed-left {
             padding-bottom: 15px;
         }
 
-        .form-horizontal-scroll .field-box { flex: 0 0 240px; }
+        .form-horizontal-scroll .field-box {
+            flex: 0 0 240px;
+        }
 
         .form-horizontal-scroll label {
             font-size: 13px;
@@ -177,7 +202,10 @@ table.dataTable.dtfc-has-left th:nth-child(4).dtfc-fixed-left {
             border: 1px solid #cbd5e1;
         }
 
-        .btn-action { display: inline-flex; gap: 5px; }
+        .btn-action {
+            display: inline-flex;
+            gap: 5px;
+        }
 
         th.th-default {
             background: #00d0ff !important;
@@ -219,7 +247,10 @@ table.dataTable.dtfc-has-left th:nth-child(4).dtfc-fixed-left {
             font-weight: bold;
         }
 
-        .bg-orange { background: #fd7e14 !important; color: #fff; }
+        .bg-orange {
+            background: #fd7e14 !important;
+            color: #fff;
+        }
 
         .input-filled {
             background-color: #dcfce7 !important;
@@ -248,7 +279,9 @@ table.dataTable.dtfc-has-left th:nth-child(4).dtfc-fixed-left {
             transition: all 0.2s ease;
         }
 
-        input[type="datetime-local"] { min-width: 190px; }
+        input[type="datetime-local"] {
+            min-width: 190px;
+        }
 
         input[type="date"]:focus,
         input[type="datetime-local"]:focus {
@@ -279,6 +312,11 @@ table.dataTable.dtfc-has-left th:nth-child(4).dtfc-fixed-left {
 
         tr.row-dirty-pasuruan td {
             background-color: #fff7ed !important;
+        }
+
+        tr.row-gagal-pasuruan td,
+        tr.row-gagal-pasuruan td.dtfc-fixed-left {
+            background-color: #fde68a !important;
         }
     </style>
 
@@ -532,85 +570,85 @@ table.dataTable.dtfc-has-left th:nth-child(4).dtfc-fixed-left {
                     </select>
                 </div>
 
-               <div class="card">
-    <table id="tablePlanner" class="display nowrap table table-hover" style="width:100%">
-                            <thead>
-                                <tr>
-                                    <th class="th-default">Tanggal Import</th>
-                                    <th class="th-oren">Nama Planner</th>
-                                    <th class="th-oren">No Shipment</th>
-                                     <th class="th-default">Tujuan</th>
-                                    <th class="th-edit">Tanggal Terima Dari Admin</th>
-                                    <th class="th-edit">Rencana Kirim</th>
-                                    <th class="th-edit">Tanggal Dapat Unit</th>
-                                    <th class="th-edit">Planning Loading <span style="color:#0047FF;font-weight:900;">Pasuruan</span></th>
-                                    <th class="th-edit">Tanggal Tiba <span style="color:#0047FF;font-weight:900;">Pasuruan</span></th>
-                                    <th class="th-edit">Tanggal Keluar <span style="color:#0047FF;font-weight:900;">Pasuruan</span></th>
-                                    <th class="th-edit">Planning Loading <span style="color:#FF6A00;font-weight:900;">Puntir</span></th>
-<th class="th-edit">Tanggal Tiba <span style="color:#FF6A00;font-weight:900;">Puntir</span></th>
-<th class="th-edit">Tanggal Keluar <span style="color:#FF6A00;font-weight:900;">Puntir</span></th>
-                                   
-                                    <th class="th-default">Route</th>
-                                    <th class="th-default">Pulau</th>
-                                    <th class="th-default">Area</th>
-                                    <th class="th-default">Via Kirim</th>
-                                    <th class="th-oren">Dist Channel</th>
-                                    <th class="th-oren">Kategori Ekspedisi</th>
-                                    <th class="th-oren">Ekspedisi</th>
-                                    <th class="th-oren">Lead Time</th>
-                                    <th class="th-oren">Mobil</th>
-                                    <th class="th-oren">Nama Driver</th>
-                                    <th class="th-oren">No Pol</th>
-                                    <th class="th-system">Total Qty</th>
-                                    <th class="th-system">Nilai Muatan</th>
-                                   <th class="th-system">Kubikasi (Kapasitas)</th>
-<th class="th-system">Tonase (Kapasitas)</th>
-<th class="th-oren">Total Kubik</th>
-<th class="th-oren">Total Tonase</th>
-<th class="th-system">Hasil Kubik (%)</th>
-<th class="th-system">Hasil Tonase (%)</th>
-<th class="th-system">Pengiriman Optimal</th>
-<th class="th-oren">Reason Pengiriman Optimal</th>
-<th class="th-system">Pengiriman Optimal Customer</th>
-<th class="th-oren">Reason Optimal Customer</th>
-<th class="th-system">Biaya Kirim</th>
-                             
-                                    <th class="th-system">CR (%)</th>
-                                    <th class="th-system">Status Mobil</th>
-                                    <th class="th-system">Lama Waktu Pencarian</th>
-                                    <th class="th-system">SLA Dapat Mobil</th>
-                                    <th class="th-default">Shipping Point</th>
-                                    <th class="th-oren">PIC Monitoring</th>
-                                    <th class="th-oren">Act Pgi Date</th>
-                                    <th class="th-oren">Urutan Bongkar</th>
-                                    <th class="th-oren">Selisih Qty Do</th>
-                                    <th class="th-oren">Actual Qty Do</th>
-                                    <th class="th-oren">Biaya Kuli Pasuruan</th>
-                                    <th class="th-oren">Total Biaya Kuli Pasuruan</th>
-                                    <th class="th-oren">Reason Selisih Qty Do</th>
-                                    <th class="th-system">Estimasi Tiba</th>
-                                    <th class="th-oren">Tanggal Tiba</th>
-                                    <th class="th-oren">Lama Perjalanan</th>
-                                    <th class="th-system">SLA Tiba</th>
-                                    <th class="th-oren">Tanggal Bongkar</th>
-                                    <th class="th-oren">Status Bongkar</th>
-                                    <th class="th-oren">Overstays</th>
-                                    <th class="th-oren">Sla Bongkar</th>
-                                    <th class="th-oren">Reason Waktu Tiba</th>
-                                    <th class="th-oren">Reason Waktu Bongkar</th>
-                                    <th class="th-oren">Remarks</th>
-                                    <th class="th-oren">Nama Kapal</th>
-                                    <th class="th-oren">ETD</th>
-                                    <th class="th-oren">ETA</th>
-                                    <th class="th-oren">ATD</th>
-                                    <th class="th-oren">ATA</th>
-                                    <th class="th-system">Estimasi Admin</th>
-                                    <th class="th-system">Ontime/Delay Admin</th>
-                                    <th class="th-default" style="min-width:130px;">Save & Hapus</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {{-- SENGAJA DIKOSONGKAN — baris diisi lewat AJAX (server-side
+                <div class="card">
+                    <table id="tablePlanner" class="display nowrap table table-hover" style="width:100%">
+                        <thead>
+                            <tr>
+                                <th class="th-default">Tanggal Import</th>
+                                <th class="th-oren">Nama Planner</th>
+                                <th class="th-oren">No Shipment</th>
+                                <th class="th-default">Tujuan</th>
+                                <th class="th-edit">Tanggal Terima Dari Admin</th>
+                                <th class="th-edit">Rencana Kirim</th>
+                                <th class="th-edit">Tanggal Dapat Unit</th>
+                                <th class="th-edit">Planning Loading <span style="color:#0047FF;font-weight:900;">Pasuruan</span></th>
+                                <th class="th-edit">Tanggal Tiba <span style="color:#0047FF;font-weight:900;">Pasuruan</span></th>
+                                <th class="th-edit">Tanggal Keluar <span style="color:#0047FF;font-weight:900;">Pasuruan</span></th>
+                                <th class="th-edit">Planning Loading <span style="color:#FF6A00;font-weight:900;">Puntir</span></th>
+                                <th class="th-edit">Tanggal Tiba <span style="color:#FF6A00;font-weight:900;">Puntir</span></th>
+                                <th class="th-edit">Tanggal Keluar <span style="color:#FF6A00;font-weight:900;">Puntir</span></th>
+
+                                <th class="th-default">Route</th>
+                                <th class="th-default">Pulau</th>
+                                <th class="th-default">Area</th>
+                                <th class="th-default">Via Kirim</th>
+                                <th class="th-oren">Dist Channel</th>
+                                <th class="th-oren">Kategori Ekspedisi</th>
+                                <th class="th-oren">Ekspedisi</th>
+                                <th class="th-oren">Lead Time</th>
+                                <th class="th-oren">Mobil</th>
+                                <th class="th-oren">Nama Driver</th>
+                                <th class="th-oren">No Pol</th>
+                                <th class="th-system">Total Qty</th>
+                                <th class="th-system">Nilai Muatan</th>
+                                <th class="th-system">Kubikasi (Kapasitas)</th>
+                                <th class="th-system">Tonase (Kapasitas)</th>
+                                <th class="th-oren">Total Kubik</th>
+                                <th class="th-oren">Total Tonase</th>
+                                <th class="th-system">Hasil Kubik (%)</th>
+                                <th class="th-system">Hasil Tonase (%)</th>
+                                <th class="th-system">Pengiriman Optimal</th>
+                                <th class="th-oren">Reason Pengiriman Optimal</th>
+                                <th class="th-system">Pengiriman Optimal Customer</th>
+                                <th class="th-oren">Reason Optimal Customer</th>
+                                <th class="th-system">Biaya Kirim</th>
+
+                                <th class="th-system">CR (%)</th>
+                                <th class="th-system">Status Mobil</th>
+                                <th class="th-system">Lama Waktu Pencarian</th>
+                                <th class="th-system">SLA Dapat Mobil</th>
+                                <th class="th-default">Shipping Point</th>
+                                <th class="th-oren">PIC Monitoring</th>
+                                <th class="th-oren">Act Pgi Date</th>
+                                <th class="th-oren">Urutan Bongkar</th>
+                                <th class="th-oren">Selisih Qty Do</th>
+                                <th class="th-oren">Actual Qty Do</th>
+                                <th class="th-oren">Biaya Kuli Pasuruan</th>
+                                <th class="th-oren">Total Biaya Kuli Pasuruan</th>
+                                <th class="th-oren">Reason Selisih Qty Do</th>
+                                <th class="th-system">Estimasi Tiba</th>
+                                <th class="th-oren">Tanggal Tiba</th>
+                                <th class="th-oren">Lama Perjalanan</th>
+                                <th class="th-system">SLA Tiba</th>
+                                <th class="th-oren">Tanggal Bongkar</th>
+                                <th class="th-oren">Status Bongkar</th>
+                                <th class="th-oren">Overstays</th>
+                                <th class="th-oren">Sla Bongkar</th>
+                                <th class="th-oren">Reason Waktu Tiba</th>
+                                <th class="th-oren">Reason Waktu Bongkar</th>
+                                <th class="th-oren">Remarks</th>
+                                <th class="th-oren">Nama Kapal</th>
+                                <th class="th-oren">ETD</th>
+                                <th class="th-oren">ETA</th>
+                                <th class="th-oren">ATD</th>
+                                <th class="th-oren">ATA</th>
+                                <th class="th-system">Estimasi Admin</th>
+                                <th class="th-system">Ontime/Delay Admin</th>
+                                <th class="th-default" style="min-width:130px;">Save & Hapus</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {{-- SENGAJA DIKOSONGKAN — baris diisi lewat AJAX (server-side
                                      processing) oleh dataAjaxPasuruan(), bukan lewat Blade
                                      @foreach lagi. Ini kunci percepatan loading untuk data
                                      ribuan baris: server hanya mengirim baris yang sedang
@@ -620,636 +658,762 @@ table.dataTable.dtfc-has-left th:nth-child(4).dtfc-fixed-left {
                                      (lihat $hiddenForm di renderRowColumnsPasuruan()),
                                      jadi tidak perlu lagi @foreach form terpisah di luar
                                      tabel seperti versi lama. --}}
-                            </tbody>
-                        </table>
-                    </div>
+                        </tbody>
+                    </table>
                 </div>
-
-                <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
             </div>
 
-          <script>
-                $(document).ready(function() {
+            <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+        </div>
 
-                    // ========================================================
-                    // HELPER: format angka <-> rupiah
-                    // ========================================================
-                    function formatKeRupiah(angka) {
-                        if (!angka) return '';
-                        let stringMurni = String(angka).split('.')[0];
-                        let angkaMurni = stringMurni.replace(/[^0-9]/g, '');
-                        if (angkaMurni) {
-                            return 'Rp ' + String(angkaMurni).replace(/\B(?=(\d{3})+(?!\d))/g, ".");
-                        }
-                        return '';
+        <script>
+            $(document).ready(function() {
+
+                // ========================================================
+                // HELPER: format angka <-> rupiah
+                // ========================================================
+                function formatKeRupiah(angka) {
+                    if (!angka) return '';
+                    let stringMurni = String(angka).split('.')[0];
+                    let angkaMurni = stringMurni.replace(/[^0-9]/g, '');
+                    if (angkaMurni) {
+                        return 'Rp ' + String(angkaMurni).replace(/\B(?=(\d{3})+(?!\d))/g, ".");
                     }
-                    function formatKePersenPasuruan(angka) {
-    if (angka === '' || angka === null || isNaN(angka)) return '';
-    let n = parseFloat(angka);
-    if (n < 0) n = 0;
-    if (n > 100) n = 100;
-    return n.toFixed(2).replace('.', ',') + '%';
-}
+                    return '';
+                }
 
-function ambilAngkaPersenPasuruan(teks) {
-    if (!teks) return 0;
-    let bersih = String(teks).replace(/[^0-9.,]/g, '').replace(',', '.');
-    let n = parseFloat(bersih) || 0;
-    if (n < 0) n = 0;
-    if (n > 100) n = 100;
-    return n;
-}
+                function formatKePersenPasuruan(angka) {
+                    if (angka === '' || angka === null || isNaN(angka)) return '';
+                    let n = parseFloat(angka);
+                    if (n < 0) n = 0;
+                    if (n > 100) n = 100;
+                    return n.toFixed(2).replace('.', ',') + '%';
+                }
 
-// Live formatting saat user mengetik di kolom kubikasi (per baris)
-$(document).on('focus', '.row-kubikasi-pasuruan', function() {
-    let raw = ambilAngkaPersenPasuruan($(this).val());
-    $(this).val(raw === 0 ? '' : String(raw).replace('.', ','));
-});
+                function ambilAngkaPersenPasuruan(teks) {
+                    if (!teks) return 0;
+                    let bersih = String(teks).replace(/[^0-9.,]/g, '').replace(',', '.');
+                    let n = parseFloat(bersih) || 0;
+                    if (n < 0) n = 0;
+                    if (n > 100) n = 100;
+                    return n;
+                }
 
-$(document).on('input', '.row-kubikasi-pasuruan', function() {
-    let val = $(this).val().replace(/[^0-9,]/g, '');
-    let parts = val.split(',');
-    if (parts.length > 2) {
-        val = parts[0] + ',' + parts.slice(1).join('');
-    }
-    $(this).val(val);
-});
+                // Live formatting saat user mengetik di kolom kubikasi (per baris)
+                $(document).on('focus', '.row-kubikasi-pasuruan', function() {
+                    let raw = ambilAngkaPersenPasuruan($(this).val());
+                    $(this).val(raw === 0 ? '' : String(raw).replace('.', ','));
+                });
 
-$(document).on('blur', '.row-kubikasi-pasuruan', function() {
-    $(this).val(formatKePersenPasuruan(ambilAngkaPersenPasuruan($(this).val())));
-});
-$(document).on('focus', '.modal-kubikasi-pasuruan', function() {
-    let raw = ambilAngkaPersenPasuruan($(this).val());
-    $(this).val(raw === 0 ? '' : String(raw).replace('.', ','));
-});
-
-$(document).on('input', '.modal-kubikasi-pasuruan', function() {
-    let val = $(this).val().replace(/[^0-9,]/g, '');
-    let parts = val.split(',');
-    if (parts.length > 2) {
-        val = parts[0] + ',' + parts.slice(1).join('');
-    }
-    $(this).val(val);
-});
-
-$(document).on('blur', '.modal-kubikasi-pasuruan', function() {
-    $(this).val(formatKePersenPasuruan(ambilAngkaPersenPasuruan($(this).val())));
-});
-$('form').on('submit', function() {
-    $('.row-nilai-muatan, .row-biaya-kirim, .modal-nilai-muatan, .modal-biaya-kirim').each(function() {
-        let nilaiSekarang = $(this).val();
-        if (nilaiSekarang) {
-            $(this).val(nilaiSekarang.replace(/[^0-9]/g, ''));
-        }
-    });
-    // ⬅️ TAMBAHAN
-    $('.modal-kubikasi-pasuruan').each(function() {
-        $(this).val(ambilAngkaPersenPasuruan($(this).val()));
-    });
-});
-
-                    function ambilAngkaMurni(teks) {
-                        if (!teks) return 0;
-                        let bersih = String(teks).replace(/[^0-9]/g, '');
-                        return parseFloat(bersih) || 0;
+                $(document).on('input', '.row-kubikasi-pasuruan', function() {
+                    let val = $(this).val().replace(/[^0-9,]/g, '');
+                    let parts = val.split(',');
+                    if (parts.length > 2) {
+                        val = parts[0] + ',' + parts.slice(1).join('');
                     }
+                    $(this).val(val);
+                });
 
-                    function jalankanMaskingRupiahTabel() {
-                        $('.row-nilai-muatan, .row-biaya-kirim, .modal-nilai-muatan, .modal-biaya-kirim').each(function() {
-                            let v = $(this).val();
-                            if (v && !v.includes('Rp')) {
-                                $(this).val(formatKeRupiah(v));
-                            }
-                        });
+                $(document).on('blur', '.row-kubikasi-pasuruan', function() {
+                    $(this).val(formatKePersenPasuruan(ambilAngkaPersenPasuruan($(this).val())));
+                });
+                $(document).on('focus', '.modal-kubikasi-pasuruan', function() {
+                    let raw = ambilAngkaPersenPasuruan($(this).val());
+                    $(this).val(raw === 0 ? '' : String(raw).replace('.', ','));
+                });
+
+                $(document).on('input', '.modal-kubikasi-pasuruan', function() {
+                    let val = $(this).val().replace(/[^0-9,]/g, '');
+                    let parts = val.split(',');
+                    if (parts.length > 2) {
+                        val = parts[0] + ',' + parts.slice(1).join('');
                     }
+                    $(this).val(val);
+                });
 
-                    function updateDateColor() {
-                        $('input[type="date"], input[type="datetime-local"]').each(function() {
-                            if ($(this).val()) {
-                                $(this).removeClass('input-empty').addClass('input-filled');
-                            } else {
-                                $(this).removeClass('input-filled').addClass('input-empty');
-                            }
-                        });
-                    }
-
-                    function formatRupiah(angka) {
-                        return 'Rp ' + new Intl.NumberFormat('id-ID').format(angka);
-                    }
-
-                    function hitungTotalKuli(row) {
-                        let qty = parseFloat(row.find('input[name="actual_delivery_quantity_pasuruan"]').val()) || 0;
-                        let biayaRaw = (row.find('input[name="biaya_kuli_pasuruan"]').val() || '').replace(/\./g, '') || 0;
-                        let biaya = parseFloat(biayaRaw) || 0;
-                        let total = qty * biaya;
-                        row.find('input[name="total_biaya_kuli_pasuruan"]').val(formatRupiah(total));
-                    }
-
-                    // ========================================================
-                    // select2 untuk select PER-BARIS. Karena tiap draw() ganti
-                    // total isi <tbody> (bukan cuma sembunyi/tampil seperti
-                    // client-side paging dulu), DOM selalu baru — jadi aman
-                    // untuk langsung init tanpa guard select2-hidden-accessible.
-                    // ========================================================
-                    function initSelect2RowLevel() {
-                        $('.reason-tiba-select').select2({
-                            theme: 'bootstrap-5', width: '100%', placeholder: 'Pilih Reason Tiba',
-                            allowClear: true, dropdownAutoWidth: true, dropdownParent: $('body')
-                        });
-                        $('.reason-optimal-customer-select').select2({
-    theme: 'bootstrap-5', width: '100%', placeholder: 'Pilih Reason Optimal Customer',
-    allowClear: true, dropdownAutoWidth: true, dropdownParent: $('body')
-});
-                        $('.reason-optimal-select').select2({
-    theme: 'bootstrap-5', width: '100%', placeholder: 'Pilih Reason Optimal',
-    allowClear: true, dropdownAutoWidth: true, dropdownParent: $('body')
-});
-                        $('.reason-bongkar-select').select2({
-                            theme: 'bootstrap-5', width: '100%', placeholder: 'Pilih Reason Bongkar',
-                            allowClear: true, dropdownAutoWidth: true, dropdownParent: $('body')
-                        });
-                        $('.select-tarif-row').select2({
-                            theme: 'bootstrap-5', width: '100%',
-                            allowClear: true, dropdownAutoWidth: true, dropdownParent: $('body')
-                        });
-                        $('.reason-selisih-select').select2({
-                            theme: 'bootstrap-5', width: '100%', placeholder: 'Pilih Reason Selisih',
-                            allowClear: true, dropdownAutoWidth: true, dropdownParent: $('body')
-                        });
-                    }
-
-                    // ============================================================
-                    // DATA TARIF PENGIRIMAN — dipakai untuk cascading dropdown
-                    // (Route -> Mobil -> Ekspedisi) dan preview biaya_kirim di
-                    // browser. Nilai final tetap dihitung ulang & disimpan oleh
-                    // controller saat submit/autosave, ini cuma preview visual.
-                    // ============================================================
-                    const tarifData = @json($tarifPengiriman);
-
-                    function normalizeTarif(v) {
-                        if (!v) return '';
-                        return String(v).replace(/\u00a0/g, ' ').replace(/\s*-\s*/g, '-').replace(/\s+/g, ' ').trim().toLowerCase();
-                    }
-
-                    function filterMobilByRoute(routeVal) {
-                        if (!routeVal) return tarifData;
-                        let key = normalizeTarif(routeVal);
-                        return tarifData.filter(t => normalizeTarif(t.route) === key);
-                    }
-
-                    function isiOptionSelect($select, list, field, selectedVal) {
-                        let current = selectedVal ?? $select.val();
-                        let uniqueVals = [...new Set(list.map(t => t[field]).filter(Boolean))].sort();
-
-                        $select.empty();
-                        $select.append(`<option value="">Pilih ${field}</option>`);
-                        uniqueVals.forEach(v => {
-                            let sel = (v === current) ? 'selected' : '';
-                            $select.append(`<option value="${v}" ${sel}>${v}</option>`);
-                        });
-
-                        if ($select.hasClass('select2-hidden-accessible')) {
-                            $select.trigger('change.select2');
-                        }
-                    }
-
-                    function updateCascadeMobilEkspedisi(scope, routeVal, keepMobil = null, keepEkspedisi = null) {
-                        let filtered = filterMobilByRoute(routeVal);
-                        let $mobilSelect = scope.find('[name="mobil_pasuruan"]');
-                        let $eksSelect = scope.find('[name="ekspedisi_pasuruan"]');
-                        isiOptionSelect($mobilSelect, filtered, 'mobil', keepMobil);
-                        isiOptionSelect($eksSelect, filtered, 'ekpedisi', keepEkspedisi);
-                    }
-
-                    function previewBiayaKirim(scope) {
-                        let route = scope.find('[name="route_pasuruan"]').val();
-                        let mobil = scope.find('[name="mobil_pasuruan"]').val();
-                        let eks = scope.find('[name="ekspedisi_pasuruan"]').val();
-                        if (!route || !mobil) return;
-
-                        let routeKey = normalizeTarif(route);
-                        let mobilKey = normalizeTarif(mobil);
-                        let eksKey = normalizeTarif(eks);
-
-                        let candidates = tarifData.filter(t => normalizeTarif(t.route) === routeKey);
-                        let match = null;
-                        if (eksKey) {
-                            match = candidates.find(t => normalizeTarif(t.ekpedisi) === eksKey && normalizeTarif(t.mobil).startsWith(mobilKey));
-                        }
-                        if (!match) {
-                            match = candidates.find(t => normalizeTarif(t.mobil).startsWith(mobilKey));
-                        }
-                        if (match && match.biaya_kirim) {
-                            scope.find('[name="biaya_kirim_pasuruan"]').val(formatKeRupiah(match.biaya_kirim));
-                        }
-                    }
-
-                    // --- Cascading untuk MODAL Add New Shipment ---
-                    $('#addModal').on('change', '[name="route_pasuruan"]', function() {
-                        updateCascadeMobilEkspedisi($('#addModal'), $(this).val());
-                    });
-                    $('#addModal').on('change', '[name="route_pasuruan"], [name="mobil_pasuruan"], [name="ekspedisi_pasuruan"]', function() {
-                        previewBiayaKirim($('#addModal'));
-                    });
-
-                    // --- Cascading untuk PER-BARIS di tabel (event delegation,
-                    //     tetap jalan walau baris diganti tiap draw AJAX) ---
-                    $(document).on('change', '#tablePlanner [name="route_pasuruan"]', function() {
-                        let row = $(this).closest('tr');
-                        let currentMobil = row.find('[name="mobil_pasuruan"]').val();
-                        let currentEks = row.find('[name="ekspedisi_pasuruan"]').val();
-                        updateCascadeMobilEkspedisi(row, $(this).val(), currentMobil, currentEks);
-                    });
-                    $(document).on('change', '#tablePlanner [name="route_pasuruan"], #tablePlanner [name="mobil_pasuruan"], #tablePlanner [name="ekspedisi_pasuruan"]', function() {
-                        previewBiayaKirim($(this).closest('tr'));
-                    });
-
-                    // ========================================================
-                    // FILTER STATE — dikirim sebagai parameter tambahan ke
-                    // dataAjaxPasuruan() lewat ajax.data. Controller kamu
-                    // sudah baca planner_filter / area_filter / create_tgl_filter.
-                    // ========================================================
-                    var plannerFilter = '';
-                    var areaFilter = '';
-                    var createTglFilter = '';
-
-                    // ========================================================
-                    // INISIALISASI DATATABLES — SERVER-SIDE PROCESSING
-                    // ========================================================
-                    // var table = $('#tablePlanner').DataTable({
-                    //     processing: true,
-                    //     serverSide: true,
-                    //     ordering: false, // controller belum baca parameter order; sorting selalu by id desc
-                    //     scrollX: true,
-                    //     pageLength: 10,
-                    //     lengthMenu: [10, 25, 50, 100, 250],
-                    //     ajax: {
-                    //         // Dipakai POST karena tabel ini punya banyak kolom —
-                    //         // GET bisa kena limit panjang URL (414).
-                    //         url: "{{ route('pasuruan.dataAjaxPasuruan') }}",
-                    //         type: 'POST',
-                    //         data: function(d) {
-                    //             d._token = "{{ csrf_token() }}";
-                    //             d.planner_filter = plannerFilter;
-                    //             d.area_filter = areaFilter;
-                    //             d.create_tgl_filter = createTglFilter;
-                    //         }
-                    //     },
-                    //     columnDefs: [{
-                    //         className: "dt-center",
-                    //         targets: [0, 25, 26, 27, 28, 29, 30]
-                    //     }],
-
-                    var table = $('#tablePlanner').DataTable({
-    processing: true,
-    serverSide: true,
-    ordering: false, // controller belum baca parameter order; sorting selalu by id desc
-    scrollX: true,
-    scrollCollapse: true,        // ⬅️ BARU
-    fixedColumns: {               // ⬅️ BARU — freeze 4 kolom pertama
-        left: 4
-    },
-    pageLength: 10,
-    lengthMenu: [10, 25, 50, 100, 250],
-    ajax: {
-        // Dipakai POST karena tabel ini punya banyak kolom —
-        // GET bisa kena limit panjang URL (414).
-        url: "{{ route('pasuruan.dataAjaxPasuruan') }}",
-        type: 'POST',
-        data: function(d) {
-            d._token = "{{ csrf_token() }}";
-            d.planner_filter = plannerFilter;
-            d.area_filter = areaFilter;
-            d.create_tgl_filter = createTglFilter;
-        }
-    },
-columnDefs: [{
-    className: "dt-center",
- // sebelum: [0, 24, 25, 26, 33, 34, 35, 36, 37, 38, 39]
-targets: [0, 27, 28, 29, 36, 37, 38, 39, 40, 41, 42]
-}],
-
-                        // ====================================================
-                        // rowCallback — ambil id baris dari hidden form
-                        // id="form-update-{id}" (sudah otomatis ikut terkirim
-                        // di kolom pertama, lihat $hiddenForm di controller),
-                        // lalu simpan ke atribut data-id pada <tr> supaya bisa
-                        // dipakai Save All / dirty tracking.
-                        // ====================================================
-                        rowCallback: function(row, data) {
-                            let $row = $(row);
-                            let $hiddenForm = $row.find('form[id^="form-update-"]').first();
-                            if ($hiddenForm.length) {
-                                let id = $hiddenForm.attr('id').replace('form-update-', '');
-                                $row.attr('data-id', id);
-                            }
-                        },
-
-                        drawCallback: function() {
-                            jalankanMaskingRupiahTabel();
-                            initSelect2RowLevel();
-                            updateDateColor();
-
-                            // init cascading Route -> Mobil/Ekspedisi utk baris
-                            // yang baru datang dari server (supaya opsi mobil/
-                            // ekspedisi ke-filter sesuai route tersimpan)
-                            $('#tablePlanner tbody tr').each(function() {
-                                let row = $(this);
-                                let routeVal = row.find('[name="route_pasuruan"]').val();
-                                let mobilVal = row.find('[name="mobil_pasuruan"]').val();
-                                let eksVal = row.find('[name="ekspedisi_pasuruan"]').val();
-                                if (routeVal) {
-                                    updateCascadeMobilEkspedisi(row, routeVal, mobilVal, eksVal);
-                                }
-                                // NOTE: rencana_kirim_pasuruan TIDAK lagi dihitung/
-                                // di-lock otomatis di sini — sekarang full manual.
-
-                                // baris yang masih dirty (belum ke-save & belum
-                                // di-clear) tetap ditandai visual setelah reload
-                                let id = row.data('id');
-                                if (id && dirtyRowsPasuruan.has(String(id))) {
-                                    row.addClass('row-dirty-pasuruan');
-                                }
-                            });
-
-                                                   this.api().columns.adjust();
+                $(document).on('blur', '.modal-kubikasi-pasuruan', function() {
+                    $(this).val(formatKePersenPasuruan(ambilAngkaPersenPasuruan($(this).val())));
+                });
+                $('form').on('submit', function() {
+                    $('.row-nilai-muatan, .row-biaya-kirim, .modal-nilai-muatan, .modal-biaya-kirim').each(function() {
+                        let nilaiSekarang = $(this).val();
+                        if (nilaiSekarang) {
+                            $(this).val(nilaiSekarang.replace(/[^0-9]/g, ''));
                         }
                     });
-
-                    $('#filterPlanner').on('change', function() {
-                        plannerFilter = $(this).val() || '';
-                        table.draw();
+                    // ⬅️ TAMBAHAN
+                    $('.modal-kubikasi-pasuruan').each(function() {
+                        $(this).val(ambilAngkaPersenPasuruan($(this).val()));
                     });
+                });
 
-                    $('#filterArea').on('change', function() {
-                        areaFilter = $(this).val() || '';
-                        table.draw();
-                    });
+                function ambilAngkaMurni(teks) {
+                    if (!teks) return 0;
+                    let bersih = String(teks).replace(/[^0-9]/g, '');
+                    return parseFloat(bersih) || 0;
+                }
 
-                    $('#filterCreateTgl').on('change', function() {
-                        createTglFilter = $(this).val() || '';
-                        table.draw();
+                function jalankanMaskingRupiahTabel() {
+                    $('.row-nilai-muatan, .row-biaya-kirim, .modal-nilai-muatan, .modal-biaya-kirim').each(function() {
+                        let v = $(this).val();
+                        if (v && !v.includes('Rp')) {
+                            $(this).val(formatKeRupiah(v));
+                        }
                     });
+                }
 
-                    // ========================================================
-                    // SELECT2 UNTUK FILTER HEADER (init sekali saja, elemen ini
-                    // statis / tidak diganti tiap draw AJAX)
-                    // ========================================================
-                    $('.planner-select').select2({
-                        theme: 'bootstrap-5', width: '100%', placeholder: 'Semua Planner', allowClear: true
-                    });
-                    $('.area-select').select2({
-                        theme: 'bootstrap-5', width: '100%', placeholder: 'Semua Area', allowClear: true
-                    });
-                    $('.select-tarif').select2({
-                        theme: 'bootstrap-5', width: '100%', allowClear: true, dropdownParent: $('#addModal')
-                    });
-
-                    // ==========================================================
-                    // DIRTY TRACKING + SAVE ALL
-                    // Sebelumnya: tiap ketik -> tunggu 500ms -> auto kirim AJAX
-                    // per baris (autosave langsung).
-                    // Sekarang: tiap ketik cuma DITANDAI dirty (visual oranye +
-                    // badge jumlah). Kirim ke server HANYA saat tombol
-                    // "Save All" diklik, sekaligus untuk semua baris yang dirty.
-                    // ==========================================================
-                    let dirtyRowsPasuruan = new Set();
-
-                    function updateUnsavedBadgePasuruan() {
-                        if (dirtyRowsPasuruan.size > 0) {
-                            $('#unsavedCountPasuruan').text(dirtyRowsPasuruan.size).show();
+                function updateDateColor() {
+                    $('input[type="date"], input[type="datetime-local"]').each(function() {
+                        if ($(this).val()) {
+                            $(this).removeClass('input-empty').addClass('input-filled');
                         } else {
-                            $('#unsavedCountPasuruan').hide();
+                            $(this).removeClass('input-filled').addClass('input-empty');
                         }
-                    }
+                    });
+                }
 
-                    function markRowDirtyPasuruan($el) {
-                        let row = $el.closest('tr');
-                        let id = row.data('id');
-                        if (!id) return;
-                        dirtyRowsPasuruan.add(String(id));
-                        row.addClass('row-dirty-pasuruan');
-                        updateUnsavedBadgePasuruan();
-                    }
+                function formatRupiah(angka) {
+                    return 'Rp ' + new Intl.NumberFormat('id-ID').format(angka);
+                }
 
-                    // saveRow SEKARANG return promise AJAX-nya (bukan
-                    // fire-and-forget), supaya Save All bisa nunggu semua
-                    // request selesai lewat $.when()
-                    function saveRow(id) {
-                        let row = $('tr[data-id="' + id + '"]');
-                        if (!row.length) return $.Deferred().resolve();
+                function hitungTotalKuli(row) {
+                    let qty = parseFloat(row.find('input[name="actual_delivery_quantity_pasuruan"]').val()) || 0;
+                    let biayaRaw = (row.find('input[name="biaya_kuli_pasuruan"]').val() || '').replace(/\./g, '') || 0;
+                    let biaya = parseFloat(biayaRaw) || 0;
+                    let total = qty * biaya;
+                    row.find('input[name="total_biaya_kuli_pasuruan"]').val(formatRupiah(total));
+                }
 
-                        return $.ajax({
-                            url: "{{ url('pasuruan') }}/" + id,   // respects subfolder/base path
-                            type: 'POST',
-                            data: {
-                                _token: '{{ csrf_token() }}',
-                                _method: 'PUT',
-                                tanggal_terima_po_pasuruan: row.find('[name="tanggal_terima_po_pasuruan"]').val(),
-                                selisih_quantity_pasuruan: row.find('[name="selisih_quantity_pasuruan"]').val(),
-                                reason_selisih_quantity_pasuruan: row.find('[name="reason_selisih_quantity_pasuruan"]').val(),
-                                reason_pengiriman_optimal_pasuruan: row.find('[name="reason_pengiriman_optimal_pasuruan"]').val(),
-                                reason_pengiriman_optimal_customer_pasuruan: row.find('[name="reason_pengiriman_optimal_customer_pasuruan"]').val(),
-                                planner_pasuruan: row.find('[name="planner_pasuruan"]').val(),
-                                no_shipment_pasuruan: row.find('[name="no_shipment_pasuruan"]').val(),
-                                total_do_pasuruan: row.find('[name="total_do_pasuruan"]').val(),
-                                actual_delivery_quantity_pasuruan: row.find('[name="actual_delivery_quantity_pasuruan"]').val(),
-                                rencana_kirim_pasuruan: row.find('[name="rencana_kirim_pasuruan"]').val(),
-                                tanggal_dpt_unit_pasuruan: row.find('[name="tanggal_dpt_unit_pasuruan"]').val(),
-                                planning_loading_pasuruan: row.find('[name="planning_loading_pasuruan"]').val(),
-                                tanggal_tiba_gudang_pasuruan: row.find('[name="tanggal_tiba_gudang_pasuruan"]').val(),
-                                tanggal_keluar_gudang_pasuruan: row.find('[name="tanggal_keluar_gudang_pasuruan"]').val(),
-planning_loading_puntir_pasuruan: row.find('[name="planning_loading_puntir_pasuruan"]').val(),
-tanggal_tiba_gudang_puntir_pasuruan: row.find('[name="tanggal_tiba_gudang_puntir_pasuruan"]').val(),
-tanggal_keluar_gudang_puntir_pasuruan: row.find('[name="tanggal_keluar_gudang_puntir_pasuruan"]').val(),
-                                
-                                tujuan_pasuruan: row.find('[name="tujuan_pasuruan"]').val(),
-                                route_pasuruan: row.find('[name="route_pasuruan"]').val(),
-                                pulau_pasuruan: row.find('[name="pulau_pasuruan"]').val(),
-                                dist_channel_pasuruan: row.find('[name="dist_channel_pasuruan"]').val(),
-                                kategori_ekspedisi_pasuruan: row.find('[name="kategori_ekspedisi_pasuruan"]').val(),
-                                ekspedisi_pasuruan: row.find('[name="ekspedisi_pasuruan"]').val(),
-                                transport_lead_time_pasuruan: row.find('[name="transport_lead_time_pasuruan"]').val(),
-                                area_pasuruan: row.find('[name="area_pasuruan"]').val(),
-                                via_kirim_pasuruan: row.find('[name="via_kirim_pasuruan"]').val(),
-                                mobil_pasuruan: row.find('[name="mobil_pasuruan"]').val(),
-                                biaya_kuli_pasuruan: ambilAngkaMurni(row.find('[name="biaya_kuli_pasuruan"]').val()),
-                                nilai_muatan_pasuruan: ambilAngkaMurni(row.find('[name="nilai_muatan_pasuruan"]').val()),
-                                kubikasi_pasuruan: ambilAngkaPersenPasuruan(row.find('[name="kubikasi_pasuruan"]').val()),
-                                biaya_kirim_pasuruan: ambilAngkaMurni(row.find('[name="biaya_kirim_pasuruan"]').val()),
-                                cr_pasuruan: row.find('[name="cr_pasuruan"]').val(),
-                                reason_waktu_tiba_pasuruan: row.find('[name="reason_waktu_tiba_pasuruan"]').val(),
-                                reason_waktu_bongkar_pasuruan: row.find('[name="reason_waktu_bongkar_pasuruan"]').val(),
-                                nama_kapal_pasuruan: row.find('[name="nama_kapal_pasuruan"]').val(),
-                                etd_pasuruan: row.find('[name="etd_pasuruan"]').val(),
-                                eta_pasuruan: row.find('[name="eta_pasuruan"]').val(),
-                                atd_pasuruan: row.find('[name="atd_pasuruan"]').val(),
-                                ata_pasuruan: row.find('[name="ata_pasuruan"]').val(),
-                                pic_monitoring_pasuruan: row.find('[name="pic_monitoring_pasuruan"]').val(),
-                                remarks_pasuruan: row.find('[name="remarks_pasuruan"]').val(),
-                                nama_driver_pasuruan: row.find('[name="nama_driver_pasuruan"]').val(),
-                                no_pol_pasuruan: row.find('[name="no_pol_pasuruan"]').val(),
-                                act_urutan_bongkar_pasuruan: row.find('[name="act_urutan_bongkar_pasuruan"]').val(),
-                                tanggal_tiba_pasuruan: row.find('[name="tanggal_tiba_pasuruan"]').val(),
-                              tanggal_bongkar_pasuruan: row.find('[name="tanggal_bongkar_pasuruan"]').val(),
-act_pgi_date_pasuruan: row.find('[name="act_pgi_date_pasuruan"]').val()
-                            },
-                            success: function() {
-                                console.log("Saved " + id);
-                            },
-                            error: function(xhr) {
-                                console.log("Gagal save row " + id, xhr.status, xhr.responseText);
-                            }
-                        });
-                    }
+                // ========================================================
+                // select2 untuk select PER-BARIS. Karena tiap draw() ganti
+                // total isi <tbody> (bukan cuma sembunyi/tampil seperti
+                // client-side paging dulu), DOM selalu baru — jadi aman
+                // untuk langsung init tanpa guard select2-hidden-accessible.
+                // ========================================================
+                function initSelect2RowLevel() {
+                    $('.reason-tiba-select').select2({
+                        theme: 'bootstrap-5',
+                        width: '100%',
+                        placeholder: 'Pilih Reason Tiba',
+                        allowClear: true,
+                        dropdownAutoWidth: true,
+                        dropdownParent: $('body')
+                    });
+                    $('.reason-optimal-customer-select').select2({
+                        theme: 'bootstrap-5',
+                        width: '100%',
+                        placeholder: 'Pilih Reason Optimal Customer',
+                        allowClear: true,
+                        dropdownAutoWidth: true,
+                        dropdownParent: $('body')
+                    });
+                    $('.reason-optimal-select').select2({
+                        theme: 'bootstrap-5',
+                        width: '100%',
+                        placeholder: 'Pilih Reason Optimal',
+                        allowClear: true,
+                        dropdownAutoWidth: true,
+                        dropdownParent: $('body')
+                    });
+                    $('.reason-bongkar-select').select2({
+                        theme: 'bootstrap-5',
+                        width: '100%',
+                        placeholder: 'Pilih Reason Bongkar',
+                        allowClear: true,
+                        dropdownAutoWidth: true,
+                        dropdownParent: $('body')
+                    });
+                    $('.select-tarif-row').select2({
+                        theme: 'bootstrap-5',
+                        width: '100%',
+                        allowClear: true,
+                        dropdownAutoWidth: true,
+                        dropdownParent: $('body')
+                    });
+                    $('.reason-selisih-select').select2({
+                        theme: 'bootstrap-5',
+                        width: '100%',
+                        placeholder: 'Pilih Reason Selisih',
+                        allowClear: true,
+                        dropdownAutoWidth: true,
+                        dropdownParent: $('body')
+                    });
+                }
 
-                    // Ganti listener lama: sekarang cuma menandai dirty,
-                    // TIDAK langsung kirim AJAX tiap kali user mengetik
-                    $(document).on('change input', '#tablePlanner input, #tablePlanner select, #tablePlanner textarea', function() {
-                        markRowDirtyPasuruan($(this));
+                // ============================================================
+                // DATA TARIF PENGIRIMAN — dipakai untuk cascading dropdown
+                // (Route -> Mobil -> Ekspedisi) dan preview biaya_kirim di
+                // browser. Nilai final tetap dihitung ulang & disimpan oleh
+                // controller saat submit/autosave, ini cuma preview visual.
+                // ============================================================
+                const tarifData = @json($tarifPengiriman);
+
+                function normalizeTarif(v) {
+                    if (!v) return '';
+                    return String(v).replace(/\u00a0/g, ' ').replace(/\s*-\s*/g, '-').replace(/\s+/g, ' ').trim().toLowerCase();
+                }
+
+                function filterMobilByRoute(routeVal) {
+                    if (!routeVal) return tarifData;
+                    let key = normalizeTarif(routeVal);
+                    return tarifData.filter(t => normalizeTarif(t.route) === key);
+                }
+
+                function isiOptionSelect($select, list, field, selectedVal) {
+                    let current = selectedVal ?? $select.val();
+                    let uniqueVals = [...new Set(list.map(t => t[field]).filter(Boolean))].sort();
+
+                    $select.empty();
+                    $select.append(`<option value="">Pilih ${field}</option>`);
+                    uniqueVals.forEach(v => {
+                        let sel = (v === current) ? 'selected' : '';
+                        $select.append(`<option value="${v}" ${sel}>${v}</option>`);
                     });
 
-                    // ==========================================================
-                    // TOMBOL SAVE ALL
-                    // ==========================================================
-                    $('#btnSaveAllPasuruan').on('click', function() {
-                        if (dirtyRowsPasuruan.size === 0) {
-                            alert('Belum ada perubahan untuk disimpan.');
-                            return;
+                    if ($select.hasClass('select2-hidden-accessible')) {
+                        $select.trigger('change.select2');
+                    }
+                }
+
+                function updateCascadeMobilEkspedisi(scope, routeVal, keepMobil = null, keepEkspedisi = null) {
+                    let filtered = filterMobilByRoute(routeVal);
+                    let $mobilSelect = scope.find('[name="mobil_pasuruan"]');
+                    let $eksSelect = scope.find('[name="ekspedisi_pasuruan"]');
+                    isiOptionSelect($mobilSelect, filtered, 'mobil', keepMobil);
+                    isiOptionSelect($eksSelect, filtered, 'ekpedisi', keepEkspedisi);
+                }
+
+                function previewBiayaKirim(scope) {
+                    let route = scope.find('[name="route_pasuruan"]').val();
+                    let mobil = scope.find('[name="mobil_pasuruan"]').val();
+                    let eks = scope.find('[name="ekspedisi_pasuruan"]').val();
+                    if (!route || !mobil) return;
+
+                    let routeKey = normalizeTarif(route);
+                    let mobilKey = normalizeTarif(mobil);
+                    let eksKey = normalizeTarif(eks);
+
+                    let candidates = tarifData.filter(t => normalizeTarif(t.route) === routeKey);
+                    let match = null;
+                    if (eksKey) {
+                        match = candidates.find(t => normalizeTarif(t.ekpedisi) === eksKey && normalizeTarif(t.mobil).startsWith(mobilKey));
+                    }
+                    if (!match) {
+                        match = candidates.find(t => normalizeTarif(t.mobil).startsWith(mobilKey));
+                    }
+                    if (match && match.biaya_kirim) {
+                        scope.find('[name="biaya_kirim_pasuruan"]').val(formatKeRupiah(match.biaya_kirim));
+                    }
+                }
+
+                // --- Cascading untuk MODAL Add New Shipment ---
+                $('#addModal').on('change', '[name="route_pasuruan"]', function() {
+                    updateCascadeMobilEkspedisi($('#addModal'), $(this).val());
+                });
+                $('#addModal').on('change', '[name="route_pasuruan"], [name="mobil_pasuruan"], [name="ekspedisi_pasuruan"]', function() {
+                    previewBiayaKirim($('#addModal'));
+                });
+
+                // --- Cascading untuk PER-BARIS di tabel (event delegation,
+                //     tetap jalan walau baris diganti tiap draw AJAX) ---
+                $(document).on('change', '#tablePlanner [name="route_pasuruan"]', function() {
+                    let row = $(this).closest('tr');
+                    let currentMobil = row.find('[name="mobil_pasuruan"]').val();
+                    let currentEks = row.find('[name="ekspedisi_pasuruan"]').val();
+                    updateCascadeMobilEkspedisi(row, $(this).val(), currentMobil, currentEks);
+                });
+                $(document).on('change', '#tablePlanner [name="route_pasuruan"], #tablePlanner [name="mobil_pasuruan"], #tablePlanner [name="ekspedisi_pasuruan"]', function() {
+                    previewBiayaKirim($(this).closest('tr'));
+                });
+
+                // ========================================================
+                // FILTER STATE — dikirim sebagai parameter tambahan ke
+                // dataAjaxPasuruan() lewat ajax.data. Controller kamu
+                // sudah baca planner_filter / area_filter / create_tgl_filter.
+                // ========================================================
+                var plannerFilter = '';
+                var areaFilter = '';
+                var createTglFilter = '';
+
+                // ========================================================
+                // INISIALISASI DATATABLES — SERVER-SIDE PROCESSING
+                // ========================================================
+                // var table = $('#tablePlanner').DataTable({
+                //     processing: true,
+                //     serverSide: true,
+                //     ordering: false, // controller belum baca parameter order; sorting selalu by id desc
+                //     scrollX: true,
+                //     pageLength: 10,
+                //     lengthMenu: [10, 25, 50, 100, 250],
+                //     ajax: {
+                //         // Dipakai POST karena tabel ini punya banyak kolom —
+                //         // GET bisa kena limit panjang URL (414).
+                //         url: "{{ route('pasuruan.dataAjaxPasuruan') }}",
+                //         type: 'POST',
+                //         data: function(d) {
+                //             d._token = "{{ csrf_token() }}";
+                //             d.planner_filter = plannerFilter;
+                //             d.area_filter = areaFilter;
+                //             d.create_tgl_filter = createTglFilter;
+                //         }
+                //     },
+                //     columnDefs: [{
+                //         className: "dt-center",
+                //         targets: [0, 25, 26, 27, 28, 29, 30]
+                //     }],
+
+                var table = $('#tablePlanner').DataTable({
+                    processing: true,
+                    serverSide: true,
+                    ordering: false, // controller belum baca parameter order; sorting selalu by id desc
+                    scrollX: true,
+                    scrollCollapse: true, // ⬅️ BARU
+                    fixedColumns: { // ⬅️ BARU — freeze 4 kolom pertama
+                        left: 4
+                    },
+                    pageLength: 10,
+                    lengthMenu: [10, 25, 50, 100, 250],
+                    ajax: {
+                        // Dipakai POST karena tabel ini punya banyak kolom —
+                        // GET bisa kena limit panjang URL (414).
+                        url: "{{ route('pasuruan.dataAjaxPasuruan') }}",
+                        type: 'POST',
+                        data: function(d) {
+                            d._token = "{{ csrf_token() }}";
+                            d.planner_filter = plannerFilter;
+                            d.area_filter = areaFilter;
+                            d.create_tgl_filter = createTglFilter;
                         }
+                    },
+                    columnDefs: [{
+                        className: "dt-center",
+                        // sebelum: [0, 24, 25, 26, 33, 34, 35, 36, 37, 38, 39]
+                        targets: [0, 27, 28, 29, 36, 37, 38, 39, 40, 41, 42]
+                    }],
 
-                        let btn = $(this);
-                        btn.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin"></i> Menyimpan...');
-
-                        let ids = Array.from(dirtyRowsPasuruan);
-                        let requests = ids.map(id => saveRow(id));
-
-                        $.when.apply($, requests)
-                            .done(function() {
-                                dirtyRowsPasuruan.clear();
-                                updateUnsavedBadgePasuruan();
-                                alert('Semua perubahan (' + ids.length + ' baris) berhasil disimpan!');
-                                table.ajax.reload(null, false); // refresh data, tetap di halaman yang sama
-                            })
-                            .fail(function() {
-                                alert('Sebagian data gagal disimpan, cek console (F12) untuk detail.');
-                            })
-                            .always(function() {
-                                btn.prop('disabled', false).html(
-                                    '<i class="fa-solid fa-floppy-disk"></i> Save All ' +
-                                    '<span id="unsavedCountPasuruan" class="badge bg-danger rounded-pill" style="display:none;">0</span>'
-                                );
-                                updateUnsavedBadgePasuruan();
-                            });
-                    });
-
-                    $(document).on('input', '.row-nilai-muatan, .row-biaya-kirim', function() {
-                        $(this).val(formatKeRupiah(ambilAngkaMurni($(this).val())));
-                    });
-
-                    $(document).on('input', '.modal-nilai-muatan, .modal-biaya-kirim', function() {
-                        var muatanModal = ambilAngkaMurni($('.modal-nilai-muatan').val());
-                        var biayaModal = ambilAngkaMurni($('.modal-biaya-kirim').val());
-                        var crModal = 0;
-                        if (muatanModal > 0) {
-                            crModal = (biayaModal / muatanModal) * 100;
+                    // ====================================================
+                    // rowCallback — ambil id baris dari hidden form
+                    // id="form-update-{id}" (sudah otomatis ikut terkirim
+                    // di kolom pertama, lihat $hiddenForm di controller),
+                    // lalu simpan ke atribut data-id pada <tr> supaya bisa
+                    // dipakai Save All / dirty tracking.
+                    // ====================================================
+                    rowCallback: function(row, data) {
+                        let $row = $(row);
+                        let $hiddenForm = $row.find('form[id^="form-update-"]').first();
+                        if ($hiddenForm.length) {
+                            let id = $hiddenForm.attr('id').replace('form-update-', '');
+                            $row.attr('data-id', id);
                         }
-                        $('.modal-cr').val(crModal.toFixed(4) + '%');
-                    });
+                    },
 
-                    $('form').on('submit', function() {
-                        $('.row-nilai-muatan, .row-biaya-kirim, .modal-nilai-muatan, .modal-biaya-kirim').each(function() {
-                            let nilaiSekarang = $(this).val();
-                            if (nilaiSekarang) {
-                                $(this).val(nilaiSekarang.replace(/[^0-9]/g, ''));
-                            }
-                        });
-                    });
-
-                    $(document).on('input', 'input[name="biaya_kuli_pasuruan"]', function() {
-                        let raw = $(this).val().replace(/\D/g, '');
-                        $(this).val(raw ? new Intl.NumberFormat('id-ID').format(raw) : '');
-                        hitungTotalKuli($(this).closest('tr'));
-                    });
-
-                    $(document).on('change', 'input[type="date"], input[type="datetime-local"]', function() {
+                    drawCallback: function() {
+                        jalankanMaskingRupiahTabel();
+                        initSelect2RowLevel();
                         updateDateColor();
-                    });
 
-                    document.addEventListener('paste', function(e) {
-                        let el = document.activeElement;
-                        if (el.type !== 'date') return;
+                        // init cascading Route -> Mobil/Ekspedisi utk baris
+                        // yang baru datang dari server (supaya opsi mobil/
+                        // ekspedisi ke-filter sesuai route tersimpan)
+                        $('#tablePlanner tbody tr').each(function() {
+                            let row = $(this);
+                            let routeVal = row.find('[name="route_pasuruan"]').val();
+                            let mobilVal = row.find('[name="mobil_pasuruan"]').val();
+                            let eksVal = row.find('[name="ekspedisi_pasuruan"]').val();
+                            if (routeVal) {
+                                updateCascadeMobilEkspedisi(row, routeVal, mobilVal, eksVal);
+                            }
+                            // NOTE: rencana_kirim_pasuruan TIDAK lagi dihitung/
+                            // di-lock otomatis di sini — sekarang full manual.
 
-                        e.preventDefault();
-                        let txt = (e.clipboardData || window.clipboardData).getData('text').trim();
-
-                        let m = txt.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-                        if (m) {
-                            let hasil = m[3] + '-' + m[2].padStart(2, '0') + '-' + m[1].padStart(2, '0');
-                            el.value = hasil;
-                            el.dispatchEvent(new Event('change'));
-                            return;
-                        }
-                        if (/^\d{4}-\d{2}-\d{2}$/.test(txt)) {
-                            el.value = txt;
-                            el.dispatchEvent(new Event('change'));
-                        }
-                    });
-
-                    $(document).on('copy', 'input[type="date"]', function(e) {
-                        e.preventDefault();
-                        const value = $(this).val();
-                        e.originalEvent.clipboardData.setData('text/plain', value);
-                    });
-
-                    $(document).on('paste', 'input[type="date"]', function(e) {
-                        e.preventDefault();
-                        const pasted = (e.originalEvent || e).clipboardData.getData('text').trim();
-                        if (/^\d{4}-\d{2}-\d{2}$/.test(pasted)) {
-                            $(this).val(pasted).trigger('change');
-                        }
-                    });
-
-                    $(document).on('input', '[name="total_do_pasuruan"], [name="selisih_quantity_pasuruan"]', function() {
-                        let row = $(this).closest('tr');
-                        let total = parseFloat(row.find('[name="total_do_pasuruan"]').val()) || 0;
-                        let selisih = parseFloat(row.find('[name="selisih_quantity_pasuruan"]').val()) || 0;
-                        let actual = total - selisih;
-                        row.find('[name="actual_delivery_quantity_pasuruan"]').val(actual);
-                        hitungTotalKuli(row);
-                    });
-
-                    // ========================================================
-                    // Dropdown No Shipment untuk modal Transport Laut.
-                    // ========================================================
-                    $('#transportLautModal').on('show.bs.modal', function() {
-                        let $select = $('#noShipmentTransportLaut');
-                        if ($select.data('loaded')) return;
-
-                        $.get("{{ route('pasuruan.listNoShipment') }}", function(list) {
-                            $select.empty().append('<option value="">Pilih Shipment</option>');
-                            list.forEach(function(item) {
-                                $select.append(`<option value="${item.no_shipment_pasuruan}">${item.no_shipment_pasuruan} - ${item.tujuan_pasuruan ?? ''}</option>`);
-                            });
-                            $select.data('loaded', true);
-                        }).fail(function() {
-                            console.log('Gagal memuat daftar No Shipment untuk Transport Laut.');
+                            // baris yang masih dirty (belum ke-save & belum
+                            // di-clear) tetap ditandai visual setelah reload
+                            let id = row.data('id');
+                            if (id && dirtyRowsPasuruan.has(String(id))) {
+                                row.addClass('row-dirty-pasuruan');
+                            }
                         });
+
+                        this.api().columns.adjust();
+                    }
+                });
+
+                $('#filterPlanner').on('change', function() {
+                    plannerFilter = $(this).val() || '';
+                    table.draw();
+                });
+
+                $('#filterArea').on('change', function() {
+                    areaFilter = $(this).val() || '';
+                    table.draw();
+                });
+
+                $('#filterCreateTgl').on('change', function() {
+                    createTglFilter = $(this).val() || '';
+                    table.draw();
+                });
+
+                // ========================================================
+                // SELECT2 UNTUK FILTER HEADER (init sekali saja, elemen ini
+                // statis / tidak diganti tiap draw AJAX)
+                // ========================================================
+                $('.planner-select').select2({
+                    theme: 'bootstrap-5',
+                    width: '100%',
+                    placeholder: 'Semua Planner',
+                    allowClear: true
+                });
+                $('.area-select').select2({
+                    theme: 'bootstrap-5',
+                    width: '100%',
+                    placeholder: 'Semua Area',
+                    allowClear: true
+                });
+                $('.select-tarif').select2({
+                    theme: 'bootstrap-5',
+                    width: '100%',
+                    allowClear: true,
+                    dropdownParent: $('#addModal')
+                });
+
+                // ==========================================================
+                // DIRTY TRACKING + SAVE ALL
+                // Sebelumnya: tiap ketik -> tunggu 500ms -> auto kirim AJAX
+                // per baris (autosave langsung).
+                // Sekarang: tiap ketik cuma DITANDAI dirty (visual oranye +
+                // badge jumlah). Kirim ke server HANYA saat tombol
+                // "Save All" diklik, sekaligus untuk semua baris yang dirty.
+                // ==========================================================
+                let dirtyRowsPasuruan = new Set();
+
+                function updateUnsavedBadgePasuruan() {
+                    if (dirtyRowsPasuruan.size > 0) {
+                        $('#unsavedCountPasuruan').text(dirtyRowsPasuruan.size).show();
+                    } else {
+                        $('#unsavedCountPasuruan').hide();
+                    }
+                }
+
+                function markRowDirtyPasuruan($el) {
+                    let row = $el.closest('tr');
+                    let id = row.data('id');
+                    if (!id) return;
+                    dirtyRowsPasuruan.add(String(id));
+                    row.addClass('row-dirty-pasuruan');
+                    updateUnsavedBadgePasuruan();
+                }
+
+                // saveRow SEKARANG return promise AJAX-nya (bukan
+                // fire-and-forget), supaya Save All bisa nunggu semua
+                // request selesai lewat $.when()
+                function saveRow(id) {
+                    let row = $('tr[data-id="' + id + '"]');
+                    if (!row.length) {
+                        return $.Deferred().reject({
+                            responseJSON: {
+                                errors: ['Baris id ' + id + ' tidak ada di halaman ini. Kembali ke halaman tempat kamu mengedit, lalu simpan.']
+                            }
+                        }, 'error');
+                    }
+                    return $.ajax({
+                        url: "{{ url('pasuruan') }}/" + id, // respects subfolder/base path
+                        type: 'POST',
+                        data: {
+                            _token: '{{ csrf_token() }}',
+                            _method: 'PUT',
+                            tanggal_terima_po_pasuruan: row.find('[name="tanggal_terima_po_pasuruan"]').val(),
+                            selisih_quantity_pasuruan: row.find('[name="selisih_quantity_pasuruan"]').val(),
+                            reason_selisih_quantity_pasuruan: row.find('[name="reason_selisih_quantity_pasuruan"]').val(),
+                            reason_pengiriman_optimal_pasuruan: row.find('[name="reason_pengiriman_optimal_pasuruan"]').val(),
+                            reason_pengiriman_optimal_customer_pasuruan: row.find('[name="reason_pengiriman_optimal_customer_pasuruan"]').val(),
+                            planner_pasuruan: row.find('[name="planner_pasuruan"]').val(),
+                            no_shipment_pasuruan: row.find('[name="no_shipment_pasuruan"]').val(),
+                            total_do_pasuruan: row.find('[name="total_do_pasuruan"]').val(),
+                            actual_delivery_quantity_pasuruan: row.find('[name="actual_delivery_quantity_pasuruan"]').val(),
+                            rencana_kirim_pasuruan: row.find('[name="rencana_kirim_pasuruan"]').val(),
+                            tanggal_dpt_unit_pasuruan: row.find('[name="tanggal_dpt_unit_pasuruan"]').val(),
+                            planning_loading_pasuruan: row.find('[name="planning_loading_pasuruan"]').val(),
+                            tanggal_tiba_gudang_pasuruan: row.find('[name="tanggal_tiba_gudang_pasuruan"]').val(),
+                            tanggal_keluar_gudang_pasuruan: row.find('[name="tanggal_keluar_gudang_pasuruan"]').val(),
+                            planning_loading_puntir_pasuruan: row.find('[name="planning_loading_puntir_pasuruan"]').val(),
+                            tanggal_tiba_gudang_puntir_pasuruan: row.find('[name="tanggal_tiba_gudang_puntir_pasuruan"]').val(),
+                            tanggal_keluar_gudang_puntir_pasuruan: row.find('[name="tanggal_keluar_gudang_puntir_pasuruan"]').val(),
+
+                            tujuan_pasuruan: row.find('[name="tujuan_pasuruan"]').val(),
+                            route_pasuruan: row.find('[name="route_pasuruan"]').val(),
+                            pulau_pasuruan: row.find('[name="pulau_pasuruan"]').val(),
+                            dist_channel_pasuruan: row.find('[name="dist_channel_pasuruan"]').val(),
+                            kategori_ekspedisi_pasuruan: row.find('[name="kategori_ekspedisi_pasuruan"]').val(),
+                            ekspedisi_pasuruan: row.find('[name="ekspedisi_pasuruan"]').val(),
+                            transport_lead_time_pasuruan: row.find('[name="transport_lead_time_pasuruan"]').val(),
+                            area_pasuruan: row.find('[name="area_pasuruan"]').val(),
+                            via_kirim_pasuruan: row.find('[name="via_kirim_pasuruan"]').val(),
+                            mobil_pasuruan: row.find('[name="mobil_pasuruan"]').val(),
+                            biaya_kuli_pasuruan: ambilAngkaMurni(row.find('[name="biaya_kuli_pasuruan"]').val()),
+                            nilai_muatan_pasuruan: ambilAngkaMurni(row.find('[name="nilai_muatan_pasuruan"]').val()),
+                            kubikasi_pasuruan: ambilAngkaPersenPasuruan(row.find('[name="kubikasi_pasuruan"]').val()),
+                            biaya_kirim_pasuruan: ambilAngkaMurni(row.find('[name="biaya_kirim_pasuruan"]').val()),
+                            cr_pasuruan: row.find('[name="cr_pasuruan"]').val(),
+                            reason_waktu_tiba_pasuruan: row.find('[name="reason_waktu_tiba_pasuruan"]').val(),
+                            reason_waktu_bongkar_pasuruan: row.find('[name="reason_waktu_bongkar_pasuruan"]').val(),
+                            nama_kapal_pasuruan: row.find('[name="nama_kapal_pasuruan"]').val(),
+                            etd_pasuruan: row.find('[name="etd_pasuruan"]').val(),
+                            eta_pasuruan: row.find('[name="eta_pasuruan"]').val(),
+                            atd_pasuruan: row.find('[name="atd_pasuruan"]').val(),
+                            ata_pasuruan: row.find('[name="ata_pasuruan"]').val(),
+                            pic_monitoring_pasuruan: row.find('[name="pic_monitoring_pasuruan"]').val(),
+                            remarks_pasuruan: row.find('[name="remarks_pasuruan"]').val(),
+                            nama_driver_pasuruan: row.find('[name="nama_driver_pasuruan"]').val(),
+                            no_pol_pasuruan: row.find('[name="no_pol_pasuruan"]').val(),
+                            act_urutan_bongkar_pasuruan: row.find('[name="act_urutan_bongkar_pasuruan"]').val(),
+                            tanggal_tiba_pasuruan: row.find('[name="tanggal_tiba_pasuruan"]').val(),
+                            tanggal_bongkar_pasuruan: row.find('[name="tanggal_bongkar_pasuruan"]').val(),
+                            act_pgi_date_pasuruan: row.find('[name="act_pgi_date_pasuruan"]').val()
+                        },
+                        success: function() {},
+                        error: function() {}
+                    });
+                }
+                // Ganti listener lama: sekarang cuma menandai dirty,
+                // TIDAK langsung kirim AJAX tiap kali user mengetik
+                $(document).on('change input', '#tablePlanner input, #tablePlanner select, #tablePlanner textarea', function() {
+                    markRowDirtyPasuruan($(this));
+                });
+
+                // ==========================================================
+                // TOMBOL SAVE ALL
+                // ==========================================================
+                $('#btnSaveAllPasuruan').on('click', function() {
+                    if (dirtyRowsPasuruan.size === 0) {
+                        Swal.fire({
+                            icon: 'info',
+                            title: 'Belum ada perubahan untuk disimpan.'
+                        });
+                        return;
+                    }
+
+                    let btn = $(this);
+                    btn.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin"></i> Menyimpan...');
+
+                    let ids = Array.from(dirtyRowsPasuruan);
+                    let requests = ids.map(function(id) {
+                        var d = $.Deferred();
+                        saveRow(id)
+                            .done(function() {
+                                d.resolve({
+                                    id: id,
+                                    ok: true
+                                });
+                            })
+                            .fail(function(xhr, st) {
+                                d.resolve({
+                                    id: id,
+                                    ok: false,
+                                    xhr: xhr,
+                                    st: st
+                                });
+                            });
+                        return d.promise();
                     });
 
-                    // ========================================================
-                    // Peringatan sebelum menutup/reload halaman kalau masih
-                    // ada perubahan yang belum di-Save All
-                    // ========================================================
-                    window.addEventListener('beforeunload', function(e) {
-                        if (dirtyRowsPasuruan.size > 0) {
-                            e.preventDefault();
-                            e.returnValue = '';
+                    $.when.apply($, requests)
+                        .done(function() {
+                            var hasil = Array.prototype.slice.call(arguments);
+                            var gagal = [];
+
+                            hasil.forEach(function(h) {
+                                var $tr = $('tr[data-id="' + h.id + '"]');
+                                if (h.ok) {
+                                    dirtyRowsPasuruan.delete(String(h.id));
+                                    $tr.removeClass('row-dirty-pasuruan');
+                                    $tr.removeClass('row-gagal-pasuruan');
+
+
+
+                                    return;
+                                }
+                                var ship = String($tr.find('[name="no_shipment_pasuruan"]').val() || '').trim() || '(tanpa no shipment)';
+                                var tuj = String($tr.find('[name="tujuan_pasuruan"]').val() || '').trim() || '-';
+                                pesanXhr(h.xhr, h.st).forEach(function(m) {
+                                    gagal.push(ship + ' | ' + tuj + ' : ' + m);
+                                });
+                                $tr.addClass('row-gagal-pasuruan');
+                            });
+
+                            updateUnsavedBadgePasuruan();
+
+                            if (gagal.length) {
+                                // jangan reload tabel: isian yang gagal harus tetap di layar
+                                popupGagal(gagal.length + ' pesan kesalahan, baris ini TIDAK tersimpan', gagal);
+                            } else {
+                                Swal.fire({
+                                    icon: 'success',
+                                    title: 'Tersimpan',
+                                    text: ids.length + ' baris berhasil disimpan.',
+                                    timer: 1800,
+                                    showConfirmButton: false
+                                });
+                                table.ajax.reload(null, false);
+                            }
+                        })
+                        .always(function() {
+                            btn.prop('disabled', false).html(
+                                '<i class="fa-solid fa-floppy-disk"></i> Save All ' +
+                                '<span id="unsavedCountPasuruan" class="badge bg-danger rounded-pill" style="display:none;">0</span>'
+                            );
+                            updateUnsavedBadgePasuruan();
+                        });
+                });
+
+                $(document).on('input', '.row-nilai-muatan, .row-biaya-kirim', function() {
+                    $(this).val(formatKeRupiah(ambilAngkaMurni($(this).val())));
+                });
+
+                $(document).on('input', '.modal-nilai-muatan, .modal-biaya-kirim', function() {
+                    var muatanModal = ambilAngkaMurni($('.modal-nilai-muatan').val());
+                    var biayaModal = ambilAngkaMurni($('.modal-biaya-kirim').val());
+                    var crModal = 0;
+                    if (muatanModal > 0) {
+                        crModal = (biayaModal / muatanModal) * 100;
+                    }
+                    $('.modal-cr').val(crModal.toFixed(4) + '%');
+                });
+
+                $('form').on('submit', function() {
+                    $('.row-nilai-muatan, .row-biaya-kirim, .modal-nilai-muatan, .modal-biaya-kirim').each(function() {
+                        let nilaiSekarang = $(this).val();
+                        if (nilaiSekarang) {
+                            $(this).val(nilaiSekarang.replace(/[^0-9]/g, ''));
                         }
                     });
                 });
-            </script>
 
+                $(document).on('input', 'input[name="biaya_kuli_pasuruan"]', function() {
+                    let raw = $(this).val().replace(/\D/g, '');
+                    $(this).val(raw ? new Intl.NumberFormat('id-ID').format(raw) : '');
+                    hitungTotalKuli($(this).closest('tr'));
+                });
+
+                $(document).on('change', 'input[type="date"], input[type="datetime-local"]', function() {
+                    updateDateColor();
+                });
+
+                document.addEventListener('paste', function(e) {
+                    let el = document.activeElement;
+                    if (el.type !== 'date') return;
+
+                    e.preventDefault();
+                    let txt = (e.clipboardData || window.clipboardData).getData('text').trim();
+
+                    let m = txt.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+                    if (m) {
+                        let hasil = m[3] + '-' + m[2].padStart(2, '0') + '-' + m[1].padStart(2, '0');
+                        el.value = hasil;
+                        el.dispatchEvent(new Event('change'));
+                        return;
+                    }
+                    if (/^\d{4}-\d{2}-\d{2}$/.test(txt)) {
+                        el.value = txt;
+                        el.dispatchEvent(new Event('change'));
+                    }
+                });
+
+                $(document).on('copy', 'input[type="date"]', function(e) {
+                    e.preventDefault();
+                    const value = $(this).val();
+                    e.originalEvent.clipboardData.setData('text/plain', value);
+                });
+
+                $(document).on('paste', 'input[type="date"]', function(e) {
+                    e.preventDefault();
+                    const pasted = (e.originalEvent || e).clipboardData.getData('text').trim();
+                    if (/^\d{4}-\d{2}-\d{2}$/.test(pasted)) {
+                        $(this).val(pasted).trigger('change');
+                    }
+                });
+
+                $(document).on('input', '[name="total_do_pasuruan"], [name="selisih_quantity_pasuruan"]', function() {
+                    let row = $(this).closest('tr');
+                    let total = parseFloat(row.find('[name="total_do_pasuruan"]').val()) || 0;
+                    let selisih = parseFloat(row.find('[name="selisih_quantity_pasuruan"]').val()) || 0;
+                    let actual = total - selisih;
+                    row.find('[name="actual_delivery_quantity_pasuruan"]').val(actual);
+                    hitungTotalKuli(row);
+                });
+
+                // ========================================================
+                // Dropdown No Shipment untuk modal Transport Laut.
+                // ========================================================
+                $('#transportLautModal').on('show.bs.modal', function() {
+                    let $select = $('#noShipmentTransportLaut');
+                    if ($select.data('loaded')) return;
+
+                    $.get("{{ route('pasuruan.listNoShipment') }}", function(list) {
+                        $select.empty().append('<option value="">Pilih Shipment</option>');
+                        list.forEach(function(item) {
+                            $select.append(`<option value="${item.no_shipment_pasuruan}">${item.no_shipment_pasuruan} - ${item.tujuan_pasuruan ?? ''}</option>`);
+                        });
+                        $select.data('loaded', true);
+                    }).fail(function() {
+                        console.log('Gagal memuat daftar No Shipment untuk Transport Laut.');
+                    });
+                });
+
+                // ========================================================
+                // Peringatan sebelum menutup/reload halaman kalau masih
+                // ada perubahan yang belum di-Save All
+                // ========================================================
+                window.addEventListener('beforeunload', function(e) {
+                    if (dirtyRowsPasuruan.size > 0) {
+                        e.preventDefault();
+                        e.returnValue = '';
+                    }
+                });
+            });
+        </script>
+        <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+        <script>
+            function popupGagal(title, errors, icon) {
+                var li = (errors || []).map(function(e) {
+                    return '<li>' + $('<div>').text(e).html() + '</li>';
+                }).join('');
+                Swal.fire({
+                    icon: icon || 'error',
+                    title: title || 'Data gagal disimpan',
+                    html: '<ul style="text-align:left;margin:0;padding-left:20px;max-height:300px;overflow:auto">' + li + '</ul>',
+                    confirmButtonText: 'Mengerti'
+                });
+            }
+
+            function pesanXhr(xhr, textStatus) {
+                var j = xhr.responseJSON;
+                if (j && j.errors && j.errors.length) return j.errors;
+                if (j && j.message) return [j.message];
+                if (textStatus === 'timeout') return ['Server terlalu lama merespons (30 detik). Isian belum tentu tersimpan, simpan ulang.'];
+                if (xhr.status === 0) return ['Koneksi terputus. Cek jaringan, lalu simpan ulang.'];
+                if (xhr.status === 419) return ['Sesi habis. Refresh halaman, lalu ulangi input.'];
+                if (xhr.status === 401) return ['Anda sudah logout. Login ulang dulu.'];
+                if (xhr.status === 403) return ['Akun ini tidak boleh mengubah data Pasuruan.'];
+                return ['Kesalahan server (kode ' + xhr.status + '). Hubungi admin.'];
+            }
+
+            $.ajaxSetup({
+                timeout: 30000
+            });
+
+            $(document).on('change', 'input[type=date], input[type=datetime-local]', function() {
+                var y = parseInt((this.value || '').split('-')[0], 10);
+                if (this.value && (y < 2020 || y > 2100)) {
+                    popupGagal('Tanggal tidak valid', ['Tahun "' + y + '" tidak masuk akal. Isi 4 digit, contoh 2026.'], 'warning');
+                    this.value = '';
+                    $(this).trigger('change');
+                }
+            });
+
+            @if(session('save_error'))
+            popupGagal(@json(session('save_error.title')), @json(session('save_error.errors')));
+            @endif
+        </script>
 </body>
 
 </html>

@@ -348,7 +348,8 @@
             from { transform: translateX(120%); opacity: 0; }
             to { transform: translateX(0); opacity: 1; }
         }
-
+        .dataTables_scrollBody { border-bottom: 1px solid #e2e8f0; }
+.dataTables_scrollHead { position: relative; z-index: 2; }
         /* Loading overlay ringan untuk tabel saat ajax reload */
         .dt-loading-overlay {
             position: absolute;
@@ -628,7 +629,7 @@
                 </div>
 
                 <div class="card">
-                    <div class="table-responsive" id="tablePlannerWrap">
+              <div id="tablePlannerWrap">
                         <div class="dt-loading-overlay" id="dtLoadingOverlay">Memuat data...</div>
                         <table id="tablePlanner" class="display nowrap table table-hover" style="width:100%">
                             <thead>
@@ -899,14 +900,17 @@ var distChannelFilter = [];
         // ========================================================
         // INIT DATATABLES - SERVER SIDE
         // ========================================================
-        var table = $('#tablePlanner').DataTable({
-            serverSide: true,
-            processing: true,
-            scrollX: true,
-            autoWidth: false,
-            pageLength: 10,
-            searchDelay: 400,
-            ajax: {
+var table = $('#tablePlanner').DataTable({
+    serverSide: true,
+    processing: true,
+    scrollX: true,
+    scrollY: 'calc(100vh - 220px)',
+    scrollCollapse: true,
+    autoWidth: false,
+    pageLength: 50,
+    lengthMenu: [25, 50, 100, 200],
+    searchDelay: 400,
+    ajax: {
                 url: "{{ route('planner.data.ajax') }}",
                 type: 'POST',
                 data: function(d) {
@@ -1050,7 +1054,7 @@ var distChannelFilter = [];
             if (/^\d{1,2}$/.test(v)) this.value = v = v.padStart(2, '0') + ':00';
             if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(v)) {
                 this.value = '';
-                alert('Format jam harus 24 jam, contoh 08:30 atau 17:45');
+                            popupGagal('Format jam salah', ['Gunakan 24 jam, contoh 08:30 atau 17:45. Isian dikosongkan.'], 'warning');
             }
         });
 
@@ -1276,6 +1280,7 @@ waktu_keluar_gudang_5:   row.find('[name="waktu_keluar_gudang_5"]').val(),
                     cr: row.find('[name="cr"]').val(),
                     kubikasi: ambilAngkaPersen(row.find('[name="kubikasi"]').val())
                 },
+                             timeout: 30000,
                 success: function() {
                     console.log("Saved " + id);
                 },
@@ -1313,7 +1318,7 @@ waktu_keluar_gudang_5:   row.find('[name="waktu_keluar_gudang_5"]').val(),
                 } else {
                     pesan += '\nTidak ada yang disimpan.';
                 }
-                alert(pesan);
+                            popupGagal('Reason gudang wajib diisi', pesan.split('\n').filter(function(l){ return l.indexOf('- ') === 0; }));
 
                 bermasalah.forEach(function(m) {
                     $('tr[data-id="' + m.id + '"]').addClass('highlight-row');
@@ -1326,20 +1331,44 @@ waktu_keluar_gudang_5:   row.find('[name="waktu_keluar_gudang_5"]').val(),
             let btn = $(this);
             btn.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin"></i> Menyimpan...');
 
-            let requests = idsValid.map(id => saveRow(id));
+                      let requests = idsValid.map(function(id) {
+                var d = $.Deferred();
+                saveRow(id)
+                    .done(function() { d.resolve({ id: id, ok: true }); })
+                    .fail(function(xhr, st) { d.resolve({ id: id, ok: false, xhr: xhr, st: st }); });
+                return d.promise();
+            });
 
             $.when.apply($, requests)
                 .done(function() {
-                    idsValid.forEach(id => dirtyRows.delete(id));
-                    updateUnsavedBadge();
-                    if (bermasalah.length === 0) {
-                        alert('Semua perubahan (' + idsValid.length + ' baris) berhasil disimpan!');
+                    var hasil = Array.prototype.slice.call(arguments);
+                    var gagal = [];
+
+                    hasil.forEach(function(h) {
+                        if (h.ok) { dirtyRows.delete(h.id); return; }
+
+                        var $tr = $('tr[data-id="' + h.id + '"]');
+                        var ship = String($tr.find('[name="no_shipment"]').val() || '').trim() || '(tanpa no shipment)';
+                        var tuj  = String($tr.find('[name="tujuan"]').val() || '').trim() || '-';
+                        pesanXhr(h.xhr, h.st).forEach(function(m) {
+                            gagal.push(ship + ' | ' + tuj + ' : ' + m);
+                        });
+                        $tr.addClass('highlight-row');
+                    });
+
+                                       updateUnsavedBadge();
+
+                    if (gagal.length) {
+                        // JANGAN reload tabel: isian yang gagal harus tetap di layar supaya bisa dibetulkan
+                        popupGagal(gagal.length + ' pesan kesalahan, baris ini TIDAK tersimpan', gagal);
+                        setTimeout(function () { $('.highlight-row').removeClass('highlight-row'); }, 8000);
+                    } else {
+                        loadAlertControl();
+                        table.ajax.reload(null, false);
+                        if (bermasalah.length === 0) {
+                            Swal.fire({ icon: 'success', title: 'Tersimpan', text: idsValid.length + ' baris berhasil disimpan.', timer: 1800, showConfirmButton: false });
+                        }
                     }
-                    loadAlertControl();
-                    table.ajax.reload(null, false);
-                })
-                .fail(function() {
-                    alert('Sebagian data gagal disimpan, cek console.');
                 })
                 .always(function() {
                     btn.prop('disabled', false)
@@ -1615,4 +1644,47 @@ const GUDANG_CEK = [
             }
         });
     });
+</script>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script>
+function popupGagal(title, errors, icon) {
+    var li = (errors || []).map(function (e) {
+        return '<li>' + $('<div>').text(e).html() + '</li>';
+    }).join('');
+    Swal.fire({
+        icon: icon || 'error',
+        title: title || 'Data gagal disimpan',
+        html: '<ul style="text-align:left;margin:0;padding-left:20px;max-height:300px;overflow:auto">' + li + '</ul>',
+        confirmButtonText: 'Mengerti'
+    });
+}
+
+// ubah respons gagal (xhr) jadi daftar kalimat
+function pesanXhr(xhr, textStatus) {
+    var j = xhr.responseJSON;
+    if (j && j.errors) return j.errors;
+    if (textStatus === 'timeout') return ['Server terlalu lama merespons (30 detik). Isian belum tentu tersimpan, simpan ulang.'];
+    if (xhr.status === 0)   return ['Koneksi terputus. Cek jaringan, lalu simpan ulang.'];
+    if (xhr.status === 419) return ['Sesi habis. Refresh halaman, lalu ulangi input.'];
+    if (xhr.status === 401) return ['Anda sudah logout. Login ulang dulu.'];
+    if (xhr.status === 403) return ['Akun ini tidak boleh mengubah data planner.'];
+    return ['Kesalahan server (kode ' + xhr.status + '). Hubungi admin.'];
+}
+
+// gagal dari form Add New Shipment / sesi habis (flash dari controller)
+@if(session('save_error'))
+    popupGagal(@json(session('save_error.title')), @json(session('save_error.errors')));
+@elseif(session('error'))
+    popupGagal('Gagal', [@json(session('error'))]);
+@endif
+
+// tahun ngawur (20206-10-31) langsung ditolak di browser
+$(document).on('change', 'input[type=date]', function () {
+    var y = parseInt((this.value || '').split('-')[0], 10);
+    if (this.value && (y < 2020 || y > 2100)) {
+        popupGagal('Tanggal tidak valid', ['Tahun "' + y + '" tidak masuk akal. Isi 4 digit, contoh 2026.'], 'warning');
+        this.value = '';
+        $(this).trigger('change');
+    }
+});
 </script>

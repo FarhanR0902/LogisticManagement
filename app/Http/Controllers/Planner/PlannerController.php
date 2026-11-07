@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Planner;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\DB;
 use App\Models\LogistikPengiriman;
 use Maatwebsite\Excel\Facades\Excel;
@@ -68,8 +69,8 @@ private function gudangPayload(Request $request, array $rumus): array
 
     public function store(Request $request)
     {
-        $data['total_kubik']  = $this->cleanDecimalPlanner($request->total_kubik);
-$data['total_tonase'] = $this->cleanDecimalPlanner($request->total_tonase);
+//         $data['total_kubik']  = $this->cleanDecimalPlanner($request->total_kubik);
+// $data['total_tonase'] = $this->cleanDecimalPlanner($request->total_tonase);
         $rumus = $this->hitungSla($request);
 
         $data = $request->only([
@@ -129,9 +130,20 @@ $data['total_tonase'] = $this->cleanDecimalPlanner($request->total_tonase);
         $data['total_kubik']  = $this->cleanDecimalPlanner($request->total_kubik);
         $data['total_tonase'] = $this->cleanDecimalPlanner($request->total_tonase);
 
-        LogistikPengiriman::create(array_merge($data, $rumus));
+     $payload = array_merge($data, $rumus);
 
-        return back()->with('success', 'Data berhasil disimpan');
+if ($err = array_merge($this->cekInput($request, true), $this->cekKolom(array_keys($payload), true))) {
+    return $this->gagal($request, $err);
+}
+
+try {
+    LogistikPengiriman::create($payload);
+} catch (\Throwable $e) {
+    report($e);
+    return $this->gagal($request, [$this->pesanDb($e)], 500, 'Gagal menyimpan ke database');
+}
+
+return back()->with('success', 'Data berhasil disimpan');
     }
   public function dashboard(Request $request)
 {
@@ -376,95 +388,82 @@ public function inTransit(Request $request)
      * UPDATE (form penuh dari halaman planner)
      * =====================================================
      */
-    public function update(Request $request, $id)
-    {
-        // ==========================
-        // Ambil data lama
-        // ==========================
-        $old = DB::table('logistik_pengiriman')
-            ->where('id', $id)
-            ->first();
-
-        if (!$old) {
-            return back()->with('error', 'Data tidak ditemukan');
-        }
-
-        // ==========================
-        // Hitung Estimasi Tiba (FIX: pakai blocked-check,
-        // supaya konsisten dengan logic di MonitoringController)
-        // ==========================
-        $gudangInfo = $this->getKeluarGudangInfoRequest($request);
-        $keluar  = $gudangInfo['keluar'];
-        $blocked = $gudangInfo['blocked'];
-
-        $leadTime = $request->transport_lead_time;
-
-        if (!$blocked && $keluar && $leadTime !== null && $leadTime !== '') {
-            $request->merge([
-                'estimasi_tiba' => date('Y-m-d', strtotime('+' . (int) $leadTime . ' days', $keluar)),
-            ]);
-        } elseif ($blocked) {
-            $request->merge(['estimasi_tiba' => null]);
-        } else {
-            $request->merge(['estimasi_tiba' => $old->estimasi_tiba]);
-        }
-        // ==========================
-        // Hitung SLA
-        // ==========================
-        $rumus = $this->hitungSla($request);
-
-        $oldNoShipment = $old->no_shipment;
-        $newNoShipment = $request->no_shipment;
-        $shipment      = $newNoShipment ?: $oldNoShipment;
-
-        // ====================================================
-        // 1. UPDATE FIELD YANG SHARED UNTUK SEMUA ROW SESHIPMENT
-        // ====================================================
-  $updateShipment = array_merge([
-    'estimasi_tiba'         => $request->estimasi_tiba,
-    'tanggal_naik_logistik' => $request->tanggal_naik_logistik,
-    'rencana_kirim'         => $request->rencana_kirim,
-    'transport_lead_time'   => $request->transport_lead_time,
-    'planner'               => $request->planner,
-    'no_shipment'           => $newNoShipment,
-    'perubahan_mobil'       => $request->perubahan_mobil,
-    'kategori_ekspedisi'    => $request->kategori_ekspedisi,
-    'keterangan'            => $request->keterangan,
-    'ekpedisi'              => $request->ekpedisi,
-    'mobil'                 => $request->mobil,
-    'route'                 => $request->route,
-    'tanggal_dpt_unit'      => $request->tanggal_dpt_unit,
-    'area'                  => $request->area,
-    'via_kirim'             => $request->via_kirim,
-    'nama_driver'           => $request->nama_driver,
-    'no_pol'                => $request->no_pol,
-    'dist_channel'          => $request->dist_channel,
-    'lama_waktu_pencarian'  => $rumus['lama_waktu_pencarian'] ?? null,
-    'sla_dapat_mobil'       => $rumus['sla_dapat_mobil'] ?? null,
-    'status_pengiriman'     => $rumus['status_pengiriman'] ?? null,
-    'updated_at'            => now(),
-], $this->gudangPayload($request, $rumus));
-
-        DB::table('logistik_pengiriman')
-            ->where(function ($q) use ($oldNoShipment, $newNoShipment) {
-                $q->where('no_shipment', $oldNoShipment)
-                  ->orWhere('no_shipment', $newNoShipment);
-            })
-            ->update($updateShipment);
-
-        // ====================================================
-            // 2. FIELD SPESIFIK PER ROW
-        // biaya_kirim, cr, hasil_kubik, hasil_tonase, pengiriman_optimal(_customer), kubikasi, tonase
-        // TIDAK disentuh (dihitung saat import)
- // total_*, nilai_muatan, qty TIDAK disentuh (yang tampil adalah hasil penjumlahan semua DO)
-$this->groupScope($old, $shipment)->update([
-    'pulau'                   => $request->pulau,
-    'reason_optimal'          => $request->reason_optimal ?: null,
-    'reason_optimal_customer' => $request->reason_optimal_customer ?: null,
-    'updated_at'              => now(),
-]);
-        return back()->with('success', 'Data berhasil diperbarui');
+ public function update(Request $request, $id)
+{
+    $old = DB::table('logistik_pengiriman')->where('id', $id)->first();
+    if (!$old) {
+        return $this->gagal($request, ['Data tidak ditemukan. Kemungkinan sudah dihapus user lain. Refresh halaman.'], 404);
     }
+    if ($err = $this->cekInput($request, true, $old)) {
+        return $this->gagal($request, $err);
+    }
+
+    $gudangInfo = $this->getKeluarGudangInfoRequest($request);
+    $keluar  = $gudangInfo['keluar'];
+    $blocked = $gudangInfo['blocked'];
+    $leadTime = $request->transport_lead_time;
+
+    if (!$blocked && $keluar && $leadTime !== null && $leadTime !== '') {
+        $request->merge(['estimasi_tiba' => date('Y-m-d', strtotime('+' . (int) $leadTime . ' days', $keluar))]);
+    } elseif ($blocked) {
+        $request->merge(['estimasi_tiba' => null]);
+    } else {
+        $request->merge(['estimasi_tiba' => $old->estimasi_tiba]);
+    }
+
+    $rumus = $this->hitungSla($request);
+
+    $newNoShipment = $request->no_shipment;
+    $shipment      = $newNoShipment ?: $old->no_shipment;
+
+    $updateShipment = array_merge([
+        'estimasi_tiba'         => $request->estimasi_tiba,
+        'tanggal_naik_logistik' => $request->tanggal_naik_logistik,
+        'rencana_kirim'         => $request->rencana_kirim,
+        'transport_lead_time'   => $request->transport_lead_time,
+        'planner'               => $request->planner,
+        'no_shipment'           => $newNoShipment,
+        'perubahan_mobil'       => $request->perubahan_mobil,
+        'kategori_ekspedisi'    => $request->kategori_ekspedisi,
+        'keterangan'            => $request->keterangan,
+        'ekpedisi'              => $request->ekpedisi,
+        'mobil'                 => $request->mobil,
+        'route'                 => $request->route,
+        'tanggal_dpt_unit'      => $request->tanggal_dpt_unit,
+        'area'                  => $request->area,
+        'via_kirim'             => $request->via_kirim,
+        'nama_driver'           => $request->nama_driver,
+        'no_pol'                => $request->no_pol,
+        'dist_channel'          => $request->dist_channel,
+        'lama_waktu_pencarian'  => $rumus['lama_waktu_pencarian'] ?? null,
+        'sla_dapat_mobil'       => $rumus['sla_dapat_mobil'] ?? null,
+        'status_pengiriman'     => $rumus['status_pengiriman'] ?? null,
+        'updated_at'            => now(),
+    ], $this->gudangPayload($request, $rumus));
+
+    if ($err = $this->cekKolom(array_keys($updateShipment))) {
+        return $this->gagal($request, $err, 500, 'Struktur database belum siap');
+    }
+
+    try {
+        DB::transaction(function () use ($updateShipment, $old, $newNoShipment, $shipment, $request) {
+            $this->shipmentScope(DB::table('logistik_pengiriman'), $old, $newNoShipment)
+                 ->update($updateShipment);
+
+            $this->groupScope($old, $shipment)->update([
+                'pulau'                   => $request->pulau,
+                'reason_optimal'          => $request->reason_optimal ?: null,
+                'reason_optimal_customer' => $request->reason_optimal_customer ?: null,
+                'updated_at'              => now(),
+            ]);
+        }, 3);   // otomatis coba ulang 3x kalau deadlock
+    } catch (\Throwable $e) {
+        report($e);
+        return $this->gagal($request, [$this->pesanDb($e)], 500, 'Gagal menyimpan ke database');
+    }
+
+    return back()->with('success', 'Data berhasil diperbarui');
+}
 
     /** Subquery: 1 id wakil (MIN id) per shipment+tujuan dari query yang sudah terfilter */
 private function groupIdsQuery($query)
@@ -587,101 +586,89 @@ private function groupScope($row, ?string $shipment = null)
      * AUTOSAVE ROW (inline edit per-cell)
      * =====================================================
      */
-    public function autosaveRow(Request $request, $id)
-    {
-        $old = DB::table('logistik_pengiriman')
-            ->where('id', $id)
-            ->first();
-
-        if (!$old) {
-            return response()->json(['success' => false, 'message' => 'Data tidak ditemukan'], 404);
-        }
-
-        $oldNoShipment = $old->no_shipment;
-        $newNoShipment = $request->no_shipment;
-        $shipment      = $newNoShipment ?: $oldNoShipment;
-
-        // ==========================
-        // HITUNG ESTIMASI TIBA (blocked-check)
-        // ==========================
-        $gudangInfo = $this->getKeluarGudangInfoRequest($request);
-        $keluar  = $gudangInfo['keluar'];
-        $blocked = $gudangInfo['blocked'];
-
-            $leadTime = $request->transport_lead_time;
-
-        if (!$blocked && $keluar && $leadTime !== null && $leadTime !== '') {
-            $request->merge([
-                'estimasi_tiba' => date('Y-m-d', strtotime('+' . (int) $leadTime . ' days', $keluar)),
-            ]);
-        } elseif ($blocked) {
-            $request->merge(['estimasi_tiba' => null]);
-        } else {
-            $request->merge(['estimasi_tiba' => $old->estimasi_tiba]);
-        }
-
-        // ==========================
-        // HITUNG SLA
-        // ==========================
-        $rumus = $this->hitungSla($request);
-
-       
-        // ====================================================
-        // 1. UPDATE FIELD SHARED UNTUK SEMUA ROW SESHIPMENT
-        // ====================================================
-      $updateShipment = array_merge([
-    'planner'               => $request->planner,
-    'no_shipment'           => $newNoShipment,
-    'estimasi_tiba'         => $request->estimasi_tiba,
-    'tanggal_naik_logistik' => $request->tanggal_naik_logistik,
-    'rencana_kirim'         => $request->rencana_kirim,
-    'tanggal_dpt_unit'      => $request->tanggal_dpt_unit,
-    'route'                 => $request->route,
-    'pulau'                 => $request->pulau,
-    'area'                  => $request->area,
-    'via_kirim'             => $request->via_kirim,
-    'dist_channel'          => $request->dist_channel,
-    'kategori_ekspedisi'    => $request->kategori_ekspedisi,
-    'ekpedisi'              => $request->ekpedisi,
-    'transport_lead_time'   => $request->transport_lead_time,
-    'nama_driver'           => $request->nama_driver,
-    'no_pol'                => $request->no_pol,
-    'mobil'                 => $request->mobil,
-    'lama_waktu_pencarian'  => $rumus['lama_waktu_pencarian'] ?? null,
-    'sla_dapat_mobil'       => $rumus['sla_dapat_mobil'] ?? null,
-    'status_pengiriman'     => $rumus['status_pengiriman'] ?? null,
-    'updated_at'            => now(),
-], $this->gudangPayload($request, $rumus));
-
-        DB::table('logistik_pengiriman')
-            ->where(function ($q) use ($oldNoShipment, $newNoShipment) {
-                $q->where('no_shipment', $oldNoShipment)
-                  ->orWhere('no_shipment', $newNoShipment);
-            })
-            ->update($updateShipment);
-
-        // ====================================================
-              // 2. FIELD SPESIFIK PER ROW (kolom hasil import tidak disentuh)
-     // total_*, nilai_muatan, qty TIDAK disentuh (yang tampil adalah hasil penjumlahan semua DO)
-$this->groupScope($old, $shipment)->update([
-    'pulau'                   => $request->pulau,
-    'reason_optimal'          => $request->reason_optimal ?: null,
-    'reason_optimal_customer' => $request->reason_optimal_customer ?: null,
-    'updated_at'              => now(),
-]);
-
-        // kembalikan nilai yang tersimpan di DB, bukan hitungan baru
-        $row = DB::table('logistik_pengiriman')->where('id', $id)->first(['biaya_kirim', 'cr']);
-
-        return response()->json([
-            'success'       => true,
-            'biaya_kirim'   => $row->biaya_kirim ?? null,
-            'cr'            => $row->cr ?? null,
-            'estimasi_tiba' => $request->estimasi_tiba,
-            'sla'           => $rumus,
-        ]);
+   public function autosaveRow(Request $request, $id)
+{
+    $old = DB::table('logistik_pengiriman')->where('id', $id)->first();
+    if (!$old) {
+        return $this->gagal($request, ['Data tidak ditemukan. Kemungkinan sudah dihapus user lain. Refresh halaman.'], 404);
+    }
+    if ($err = $this->cekInput($request, false, $old)) {
+        return $this->gagal($request, $err);
     }
 
+    $newNoShipment = $request->no_shipment;
+    $shipment      = $newNoShipment ?: $old->no_shipment;
+
+    $gudangInfo = $this->getKeluarGudangInfoRequest($request);
+    $keluar  = $gudangInfo['keluar'];
+    $blocked = $gudangInfo['blocked'];
+    $leadTime = $request->transport_lead_time;
+
+    if (!$blocked && $keluar && $leadTime !== null && $leadTime !== '') {
+        $request->merge(['estimasi_tiba' => date('Y-m-d', strtotime('+' . (int) $leadTime . ' days', $keluar))]);
+    } elseif ($blocked) {
+        $request->merge(['estimasi_tiba' => null]);
+    } else {
+        $request->merge(['estimasi_tiba' => $old->estimasi_tiba]);
+    }
+
+    $rumus = $this->hitungSla($request);
+
+    $updateShipment = array_merge([
+        'planner'               => $request->planner,
+        'no_shipment'           => $newNoShipment,
+        'estimasi_tiba'         => $request->estimasi_tiba,
+        'tanggal_naik_logistik' => $request->tanggal_naik_logistik,
+        'rencana_kirim'         => $request->rencana_kirim,
+        'tanggal_dpt_unit'      => $request->tanggal_dpt_unit,
+        'route'                 => $request->route,
+        'pulau'                 => $request->pulau,
+        'area'                  => $request->area,
+        'via_kirim'             => $request->via_kirim,
+        'dist_channel'          => $request->dist_channel,
+        'kategori_ekspedisi'    => $request->kategori_ekspedisi,
+        'ekpedisi'              => $request->ekpedisi,
+        'transport_lead_time'   => $request->transport_lead_time,
+        'nama_driver'           => $request->nama_driver,
+        'no_pol'                => $request->no_pol,
+        'mobil'                 => $request->mobil,
+        'lama_waktu_pencarian'  => $rumus['lama_waktu_pencarian'] ?? null,
+        'sla_dapat_mobil'       => $rumus['sla_dapat_mobil'] ?? null,
+        'status_pengiriman'     => $rumus['status_pengiriman'] ?? null,
+        'updated_at'            => now(),
+    ], $this->gudangPayload($request, $rumus));
+
+    if ($err = $this->cekKolom(array_keys($updateShipment))) {
+        return $this->gagal($request, $err, 500, 'Struktur database belum siap');
+    }
+
+    try {
+        DB::transaction(function () use ($updateShipment, $old, $newNoShipment, $shipment, $request) {
+            $this->shipmentScope(DB::table('logistik_pengiriman'), $old, $newNoShipment)
+                 ->update($updateShipment);
+
+            $this->groupScope($old, $shipment)->update([
+                'pulau'                   => $request->pulau,
+                'reason_optimal'          => $request->reason_optimal ?: null,
+                'reason_optimal_customer' => $request->reason_optimal_customer ?: null,
+                'updated_at'              => now(),
+            ]);
+        }, 3);
+    } catch (\Throwable $e) {
+        report($e);
+        return $this->gagal($request, [$this->pesanDb($e)], 500, 'Gagal menyimpan ke database');
+    }
+
+    $row = DB::table('logistik_pengiriman')->where('id', $id)->first(['biaya_kirim', 'cr']);
+
+    return response()->json([
+        'success'       => true,
+        'biaya_kirim'   => $row->biaya_kirim ?? null,
+        'cr'            => $row->cr ?? null,
+        'estimasi_tiba' => $request->estimasi_tiba,
+        'sla'           => $rumus,
+    ]);
+}
     public function searchReasonOptimal(Request $request)
 {
     $q = trim((string) $request->get('q', ''));
@@ -825,7 +812,136 @@ $this->groupScope($old, $shipment)->update([
     $value = trim((string) $value);
     return preg_match('/^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/', $value) ? $value : null;
 }
+/** Validasi isian. $old = data lama saat update (null = data baru). $ketat=false untuk autosave. */
+private function cekInput(Request $request, bool $ketat = true, $old = null): array
+{
+    $err = [];
 
+    // #5 No Shipment kosong
+    if (trim((string) $request->no_shipment) === '') {
+        if ($old === null) {
+            $err[] = 'No Shipment wajib diisi untuk data baru.';
+        } elseif (trim((string) $old->no_shipment) !== '') {
+            $err[] = 'No Shipment tidak boleh dikosongkan, karena akan melepas semua tujuan dari shipment ini.';
+        }
+    }
+
+    // #6 Lead Time
+    $lt = $request->input('transport_lead_time');
+    if ($lt !== null && $lt !== '' && (!is_numeric($lt) || $lt < 0)) {
+        $err[] = "Lead Time harus angka 0 atau lebih (diisi: {$lt}).";
+    }
+
+    // #1 tanggal: tahun 4 digit dan tanggal nyata
+    $cekTgl = function ($v, $label) use (&$err) {
+        if ($v === null || $v === '') return;
+        $ok = preg_match('/^(\d{4})-(\d{2})-(\d{2})/', $v, $m)
+            && checkdate((int) $m[2], (int) $m[3], (int) $m[1])
+            && $m[1] >= 2020 && $m[1] <= 2100;
+        if (!$ok) $err[] = "{$label}: tanggal tidak valid ({$v}). Tahun harus 4 digit, contoh 2026.";
+    };
+
+    $cekTgl($request->input('tanggal_naik_logistik'), 'Tanggal Naik');
+    $cekTgl($request->input('rencana_kirim'), 'Rencana Kirim');
+    $cekTgl($request->input('tanggal_dpt_unit'), 'Tanggal Dapat Unit');
+
+    foreach (self::GUDANG as $s => $nama) {
+        $plan    = $request->input("planning_loading{$s}");
+        $tiba    = $request->input("tanggal_tiba_gudang{$s}");
+        $keluar  = $request->input("tanggal_keluar_gudang{$s}");
+        $wTiba   = $request->input("waktu_tiba_gudang{$s}");
+        $wKeluar = $request->input("waktu_keluar_gudang{$s}");
+
+        $cekTgl($plan,   "Planning Loading {$nama}");
+        $cekTgl($tiba,   "Tanggal Tiba {$nama}");
+        $cekTgl($keluar, "Tanggal Keluar {$nama}");
+
+        // #1 jam
+        foreach ([[$wTiba, 'Jam Tiba'], [$wKeluar, 'Jam Keluar']] as [$w, $label]) {
+            if (trim((string) $w) !== '' && $this->cleanTime($w) === null) {
+                $err[] = "{$label} {$nama} harus format HH:MM, contoh 08:30 (diisi: {$w}).";
+            }
+        }
+
+        if ($tiba && $keluar) {
+            $a = strtotime(date('Y-m-d', strtotime($tiba))   . ' ' . ($this->cleanTime($wTiba)   ?: '00:00:00'));
+            $b = strtotime(date('Y-m-d', strtotime($keluar)) . ' ' . ($this->cleanTime($wKeluar) ?: '00:00:00'));
+
+            if ($b < $a) {                                                          // #2
+                $err[] = "Gudang {$nama}: waktu keluar lebih awal dari waktu tiba.";
+            } elseif ($ketat && ($b - $a) > 86400
+                && trim((string) $request->input("reason_gudang{$s}")) === '') {    // #4
+                $err[] = "Gudang {$nama}: Delay (lebih dari 24 jam), Reason Gudang wajib diisi.";
+            }
+        }
+
+        if ($ketat && $keluar && !$tiba) {                                          // #3
+            $err[] = "Gudang {$nama}: Tanggal Keluar diisi tapi Tanggal Tiba masih kosong.";
+        }
+    }
+
+    return $err;
+}
+
+/** #8: kolom harus ada di DB (dan di $fillable kalau lewat create()) */
+private function cekKolom(array $keys, bool $cekFillable = false): array
+{
+    $err    = [];
+    $hilang = array_diff($keys, Schema::getColumnListing('logistik_pengiriman'));
+    if ($hilang) {
+        $err[] = 'Kolom belum ada di database: ' . implode(', ', $hilang) . '. Hubungi admin untuk menjalankan migrasi.';
+    }
+
+    if ($cekFillable) {
+        $fill  = (new LogistikPengiriman)->getFillable();
+        $tolak = $fill ? array_diff($keys, $fill) : [];
+        if ($tolak) {
+            $err[] = 'Kolom belum didaftarkan di $fillable model: ' . implode(', ', $tolak) . '. Hubungi admin.';
+        }
+    }
+    return $err;
+}
+
+/** #5: scope update aman. Shipment kosong -> hanya baris itu sendiri (by id). */
+private function shipmentScope($q, $old, $newNoShipment)
+{
+    $ships = array_values(array_unique(array_filter(
+        [trim((string) $old->no_shipment), trim((string) $newNoShipment)], 'strlen'
+    )));
+
+    return $ships ? $q->whereIn('no_shipment', $ships) : $q->where('id', $old->id);
+}
+
+/** JSON untuk autosave, flash + redirect untuk form biasa */
+private function gagal(Request $request, array $errors, int $status = 422, string $title = 'Data gagal disimpan')
+{
+    if ($request->expectsJson() || $request->ajax()) {
+        return response()->json(['success' => false, 'title' => $title, 'errors' => $errors], $status);
+    }
+    return back()->withInput()->with('save_error', ['title' => $title, 'errors' => $errors]);
+}
+
+/** #9: terjemahkan error database jadi kalimat yang bisa dibaca */
+private function pesanDb(\Throwable $e): string
+{
+    $kode = $e instanceof \Illuminate\Database\QueryException ? ($e->errorInfo[0] ?? '') : '';
+    $msg  = $e->getMessage();
+
+    if (preg_match("/Incorrect (?:datetime|date|integer|decimal) value: '([^']*)' for column '([^']+)'/", $msg, $m)) {
+        return 'Kolom ' . ucwords(str_replace('_', ' ', $m[2])) . " berisi nilai yang salah: '{$m[1]}'. Untuk tanggal, pastikan tahun 4 digit (contoh 2026).";
+    }
+    if (preg_match("/Data too long for column '([^']+)'/", $msg, $m)) {
+        return 'Isian ' . ucwords(str_replace('_', ' ', $m[1])) . ' terlalu panjang. Persingkat lalu simpan lagi.';
+    }
+    if (preg_match("/Unknown column '([^']+)'/", $msg, $m)) {
+        return "Kolom {$m[1]} belum ada di database. Hubungi admin untuk menjalankan migrasi.";
+    }
+
+    return match (true) {
+        $kode === '40001' => 'Data sedang dipakai user lain. Coba simpan lagi.',
+        default           => 'Terjadi kesalahan di server. Hubungi admin. (kode: ' . ($kode ?: $e->getCode()) . ')',
+    };
+}
     /**
      * =====================================================
      * ENDPOINT SERVER-SIDE UNTUK DATATABLES

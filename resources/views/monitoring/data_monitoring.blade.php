@@ -1001,62 +1001,54 @@ keluar_gudang_sampai: getKeluarRange().sampai,
                 }
 
                 // ================= Simpan Semua (batch) =================
-                $(document).on('click', '#btnSaveAll', function() {
-                    let $btn = $(this);
-                    let $dirtyRows = $('#tableMonitoring tbody tr.row-dirty');
+          $(document).on('click', '#btnSaveAll', function() {
+    let $btn = $(this);
+    let $dirtyRows = $('#tableMonitoring tbody tr.row-dirty');
 
-                    if ($dirtyRows.length === 0) {
-                        $dirtyRows = $('#tableMonitoring tbody tr');
-                    }
+    if ($dirtyRows.length === 0) {
+        $dirtyRows = $('#tableMonitoring tbody tr');
+    }
+    if ($dirtyRows.length === 0) {
+        showToastMsg('Tidak ada data untuk disimpan.');
+        return;
+    }
 
-                    if ($dirtyRows.length === 0) {
-                        showToastMsg('Tidak ada data untuk disimpan.');
-                        return;
-                    }
+    let rows = [];
+    $dirtyRows.each(function() { rows.push(getRowData($(this))); });
 
-                    let rows = [];
-                    $dirtyRows.each(function() {
-                        rows.push(getRowData($(this)));
-                    });
+    $btn.prop('disabled', true);
+    $('#btnSaveAllLabel').text('Menyimpan...');
+    $dirtyRows.find('.save-status').html('⏳ Saving...');
 
-                    $btn.prop('disabled', true);
-                    $('#btnSaveAllLabel').text('Menyimpan...');
-                    $dirtyRows.find('.save-status').html('⏳ Saving...');
-
-                    $.ajax({
-                        url: "{{ route('monitoring.update.batch') }}",
-                        type: 'POST',
-                        data: {
-                            _token: '{{ csrf_token() }}',
-                            rows: rows,
-                        },
-                        success: function(res) {
-                            (res.results || []).forEach(function(r) {
-                                let row = $dirtyRows.filter('[data-id="' + r.id + '"]');
-                                if (r.status === 'success') {
-                                    row.removeClass('row-dirty');
-                                    row.find('.save-status').html('✅ Saved');
-                                    setTimeout(function() { row.find('.save-status').html(''); }, 2000);
-                                } else {
-                                    row.find('.save-status').html('❌ ' + (r.message || 'Error'));
-                                }
-                            });
-
-                            showToastMsg(res.message);
-                            updateDirtyCount();
-                            loadAlertControl(false);
-                        },
-                        error: function() {
-                            showToastMsg('❌ Gagal menyimpan batch, coba lagi.');
-                            $dirtyRows.find('.save-status').html('❌ Error');
-                        },
-                        complete: function() {
-                            $btn.prop('disabled', false);
-                            $('#btnSaveAllLabel').text('💾 Simpan Semua');
-                            updateDirtyCount();
-                        }
-                    });
-                });
+    $.ajax({
+        url: "{{ route('monitoring.update.batch') }}",
+        type: 'POST',
+        data: { _token: '{{ csrf_token() }}', rows: rows },
+        success: function(res) {
+            (res.results || []).forEach(function(r) {
+                let row = $dirtyRows.filter('[data-id="' + r.id + '"]');
+                if (r.status === 'success') {
+                    row.removeClass('row-dirty');
+                    row.find('.save-status').html('✅ Saved');
+                    setTimeout(function() { row.find('.save-status').html(''); }, 2000);
+                } else {
+                    row.find('.save-status').html('❌ Gagal');
+                }
+            });
+            tampilHasilBatch(res);
+            updateDirtyCount();
+            loadAlertControl(false);
+        },
+        error: function(xhr, textStatus) {
+            $dirtyRows.find('.save-status').html('❌ Error');
+            popupGagal('Data gagal disimpan', pesanXhr(xhr, textStatus));
+        },
+        complete: function() {
+            $btn.prop('disabled', false);
+            $('#btnSaveAllLabel').text('💾 Simpan Semua');
+        }
+    });
+});
 
                 // ================= input/select berubah -> LANGSUNG save =================
                $(document).on('change', '#tableMonitoring input, #tableMonitoring select', function() {
@@ -1157,15 +1149,27 @@ $('#tableMonitoring tbody input[type="date"]').each(function () {
         });
 
         // normalisasi SEBELUM handler auto-save (change terpicu lebih dulu daripada blur)
-        el.addEventListener('change', function () {
-            const hasil = normalizeJam(el.value);
-            if (el.value !== '' && hasil === '') {
-                el.classList.add('is-invalid');
-                setTimeout(function () { el.classList.remove('is-invalid'); }, 1500);
-            }
-            el.value = hasil;
-        });
+     el.dataset.lastOk = el.value;   // nilai valid terakhir
 
+el.dataset.lastOk = el.value;   // nilai valid terakhir
+
+el.addEventListener('change', function (e) {
+    const hasil = normalizeJam(el.value);
+
+    if (el.value !== '' && hasil === '') {
+        // jam salah: tampilkan popup, kembalikan nilai lama, JANGAN auto-save
+        e.stopPropagation();
+        const salah = el.value;
+        el.value = el.dataset.lastOk || '';
+        el.classList.add('is-invalid');
+        setTimeout(function () { el.classList.remove('is-invalid'); }, 1500);
+        popupGagal('Jam tidak valid', ['Jam "' + salah + '" tidak valid. Isi format HH:MM (00:00 sampai 23:59), contoh 14:35.'], 'warning');
+        return;
+    }
+
+    el.value = hasil;
+    el.dataset.lastOk = hasil;
+});
         // Enter = keluar dari input supaya tersimpan
         el.addEventListener('keydown', function (e) { if (e.key === 'Enter') el.blur(); });
     });
@@ -1308,6 +1312,74 @@ function goTo(f) {
     }, true);
 })();
             </script>
+            <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script>
+function popupGagal(title, errors, icon) {
+    var li = (errors || []).map(function (e) {
+        return '<li>' + $('<div>').text(e).html() + '</li>';
+    }).join('');
+    Swal.fire({
+        icon: icon || 'error',
+        title: title || 'Data gagal disimpan',
+        html: '<ul style="text-align:left;margin:0;padding-left:20px;max-height:300px;overflow:auto">' + li + '</ul>',
+        confirmButtonText: 'Mengerti'
+    });
+}
+
+// satu request gagal (xhr) -> daftar kalimat
+function pesanXhr(xhr, textStatus) {
+    var j = xhr.responseJSON;
+    if (j && j.errors && j.errors.length) return j.errors;
+    if (j && j.message) return [j.message];
+    if (textStatus === 'timeout') return ['Server terlalu lama merespons (30 detik). Isian belum tentu tersimpan, simpan ulang.'];
+    if (xhr.status === 0)   return ['Koneksi terputus. Cek jaringan, lalu simpan ulang.'];
+    if (xhr.status === 419) return ['Sesi habis. Refresh halaman, lalu ulangi input.'];
+    if (xhr.status === 401) return ['Anda sudah logout. Login ulang dulu.'];
+    if (xhr.status === 403) return ['Akun ini tidak boleh mengubah data monitoring.'];
+    return ['Kesalahan server (kode ' + xhr.status + '). Hubungi admin.'];
+}
+
+// hasil batch: kumpulkan semua baris gagal jadi SATU popup
+function tampilHasilBatch(res) {
+    var gagal = [];
+    (res.results || []).forEach(function (r) {
+        if (r.status !== 'error') return;
+        (r.errors || [r.message]).forEach(function (m) {
+            gagal.push((r.no_shipment || '(tanpa no shipment)') + ' : ' + m);
+            // tandai baris gagal
+            $('tr[data-id="' + r.id + '"]').addClass('highlight-row');
+        });
+    });
+    if (gagal.length) {
+        popupGagal(gagal.length + ' pesan kesalahan, baris ini TIDAK tersimpan', gagal);
+        setTimeout(function () { $('.highlight-row').removeClass('highlight-row'); }, 8000);
+        return false;
+    }
+    Swal.fire({ icon: 'success', title: 'Tersimpan', text: (res.success_count || 0) + ' baris berhasil disimpan.', timer: 1800, showConfirmButton: false });
+    return true;
+}
+
+$.ajaxSetup({ timeout: 30000 });   // batas 30 detik
+
+// tahun ngawur di input tanggal (flatpickr-date menyimpan Y-m-d)
+$(document).on('change', 'input.flatpickr-date, input[type=date]', function () {
+    var y = parseInt((this.value || '').split('-')[0], 10);
+    if (this.value && (y < 2020 || y > 2100)) {
+        popupGagal('Tanggal tidak valid', ['Tahun "' + y + '" tidak masuk akal. Isi 4 digit, contoh 2026.'], 'warning');
+        this.value = '';
+        $(this).trigger('change');
+    }
+});
+
+// bongkar lebih awal dari tiba (satu baris)
+$(document).on('change', 'input[name=tanggal_tiba], input[name=tanggal_bongkar]', function () {
+    var $tr = $(this).closest('tr');
+    var t = $tr.find('[name=tanggal_tiba]').val(), b = $tr.find('[name=tanggal_bongkar]').val();
+    if (t && b && b < t) {
+        popupGagal('Tanggal tidak masuk akal', ['Tanggal Bongkar (' + b + ') lebih awal dari Tanggal Tiba (' + t + ').'], 'warning');
+    }
+});
+</script>
         </div>
     </div>
 

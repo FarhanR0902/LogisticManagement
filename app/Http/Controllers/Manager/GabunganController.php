@@ -165,51 +165,71 @@ class GabunganController extends Controller
     /* =====================================================
      * FILTER
      * ===================================================== */
-    private function applyFilter($query, $request)
-    {
-        if (in_array($request->sumber, ['JAKARTA', 'PASURUAN'], true)) {
-            $query->where('sumber', $request->sumber);
+   private function applyFilter($query, $request)
+{
+    if (in_array($request->sumber, ['JAKARTA', 'PASURUAN'], true)) {
+        $query->where('sumber', $request->sumber);
+    }
+
+    $areas = array_values(array_filter((array) $request->input('area', []), 'strlen'));
+    if (!empty($areas)) $query->whereIn('area', $areas);
+
+    $dists = array_values(array_filter((array) $request->input('dist_channel', []), 'strlen'));
+    if (!empty($dists)) $query->whereIn('dist_channel', $dists);
+
+    $pulauSel  = array_values(array_filter((array) $request->input('pulau', []), 'strlen'));
+    $areaPulau = [];
+    foreach ($pulauSel as $p) {
+        if (isset(self::PULAU_MAP[$p])) $areaPulau = array_merge($areaPulau, self::PULAU_MAP[$p]);
+    }
+    if (!empty($areaPulau)) $query->whereIn('area', $areaPulau);
+
+    $col = match ($request->input('tgl_basis')) {
+        'rencana_kirim'         => 'rencana_kirim',
+        'tanggal_naik_logistik' => 'tanggal_naik_logistik',
+        default                 => 'periode_shipment',
+    };
+
+    $from = $request->input('date_from');
+    $to   = $request->input('date_to');
+    if ($from && $to && $from > $to) [$from, $to] = [$to, $from];
+
+    $months = array_values(array_filter(
+        (array) $request->input('month', []),
+        fn($m) => preg_match('/^\d{4}-\d{2}$/', (string) $m)
+    ));
+
+    // basis periode shipment: kolom berformat "MM-YYYY"
+    if ($col === 'periode_shipment') {
+        if ($months) {
+            $query->whereIn('periode_shipment', array_map(
+                fn($m) => substr($m, 5, 2) . '-' . substr($m, 0, 4), $months
+            ));
         }
-
-        $areas = array_values(array_filter((array) $request->input('area', []), 'strlen'));
-        if (!empty($areas)) $query->whereIn('area', $areas);
-
-        if ($request->dist_channel) $query->where('dist_channel', $request->dist_channel);
-
-        if ($request->filled('pulau') && isset(self::PULAU_MAP[$request->pulau])) {
-            $query->whereIn('area', self::PULAU_MAP[$request->pulau]);
-        }
-
-        $col = match ($request->input('tgl_basis')) {
-            'rencana_kirim'         => 'rencana_kirim',
-            'tanggal_naik_logistik' => 'tanggal_naik_logistik',
-            default                 => 'periode_shipment',
-        };
-
-        $from = $request->input('date_from');
-        $to   = $request->input('date_to');
-        if ($from && $to && $from > $to) [$from, $to] = [$to, $from];
-
-        if ($col === 'periode_shipment') {
-            if ($request->month) $query->where('periode_shipment', substr($request->month, 5, 2) . '-' . substr($request->month, 0, 4));
-            if ($request->year)  $query->where('periode_shipment', 'like', '%-' . $request->year);
-            if ($request->date)  $query->whereDate('tanggal_shipment', $request->date);
-            if ($from) $query->whereDate('tanggal_shipment', '>=', $from);
-            if ($to)   $query->whereDate('tanggal_shipment', '<=', $to);
-            return $query;
-        }
-
-        if ($request->date) $query->whereDate($col, $request->date);
-        if ($from) $query->whereDate($col, '>=', $from);
-        if ($to)   $query->whereDate($col, '<=', $to);
-        if ($request->month) {
-            $query->whereMonth($col, substr($request->month, 5, 2))
-                  ->whereYear($col, substr($request->month, 0, 4));
-        }
-        if ($request->year) $query->whereYear($col, $request->year);
-
+        if ($request->year && !$months) $query->where('periode_shipment', 'like', '%-' . $request->year);
+        if ($request->date) $query->whereDate('tanggal_shipment', $request->date);
+        if ($from)          $query->whereDate('tanggal_shipment', '>=', $from);
+        if ($to)            $query->whereDate('tanggal_shipment', '<=', $to);
         return $query;
     }
+
+    // basis tanggal lain (rencana_kirim / tanggal_naik_logistik)
+    if ($request->date) $query->whereDate($col, $request->date);
+    if ($from)          $query->whereDate($col, '>=', $from);
+    if ($to)            $query->whereDate($col, '<=', $to);
+
+    if ($months) {
+        $query->where(function ($w) use ($months, $col) {
+            foreach ($months as $m) {
+                $w->orWhere(fn($x) => $x->whereYear($col, substr($m, 0, 4))
+                                        ->whereMonth($col, substr($m, 5, 2)));
+            }
+        });
+    }
+    if ($request->year && !$months) $query->whereYear($col, $request->year);
+
+    return $query;
+}
 
     /* =====================================================
      * GROUPING (sumber + shipment + tujuan)
@@ -328,32 +348,36 @@ private function bongkarDtSql(): string
     /* =====================================================
      * HALAMAN DATA GABUNGAN
      * ===================================================== */
-    public function dataGabungan()
-    {
-        return view($this->dataView, [
-            'areaList' => $this->listArea()->pluck('area'),
-        ]);
+  public function dataGabungan(Request $request)
+{
+    return view($this->dataView, [
+        'areaList'      => $this->listArea()->pluck('area'),
+        'dashFilters'   => $request->query(),   // <-- filter dari dashboard
+    ]);
+}
+/** Samakan format filter untuk semua halaman (dashboard, list, in-transit, ajax) */
+
+public function dataGabunganAjax(Request $request)
+{
+    $this->mergeDashboardFilters($request);
+    $this->normalizeRequest($request);
+
+    $filtered = $this->applyFilter($this->src(), $request);
+    $base     = clone $filtered;
+
+    $s = trim((string) $request->input('search.value'));
+    if ($s !== '') {
+        $base->where(function ($q) use ($s) {
+            foreach (['no_shipment', 'tujuan', 'planner', 'area', 'mobil', 'ekpedisi'] as $c) {
+                $q->orWhere($c, 'like', "%{$s}%");
+            }
+        });
     }
 
-    public function dataGabunganAjax(Request $request)
-    {
-        $request->merge(['sumber' => strtoupper((string) $request->input('sumber'))]);
+    $recordsTotal    = $this->countGroups($filtered);   // = angka di dashboard (200)
+    $recordsFiltered = $this->countGroups($base);
 
-        $base = $this->applyFilter($this->src(), $request);
-
-        $s = trim((string) $request->input('search.value'));
-        if ($s !== '') {
-            $base->where(function ($q) use ($s) {
-                foreach (['no_shipment', 'tujuan', 'planner', 'area', 'mobil', 'ekpedisi'] as $c) {
-                    $q->orWhere($c, 'like', "%{$s}%");
-                }
-            });
-        }
-
-        $recordsTotal    = $this->countGroups($this->src());
-        $recordsFiltered = $this->countGroups($base);
-
-        $start  = max(0, (int) $request->input('start', 0));
+    $start  = max(0, (int) $request->input('start', 0));
         $length = (int) $request->input('length', 10);
         $length = $length > 0 ? min($length, 200) : 10;
 
@@ -472,6 +496,7 @@ private function bongkarDtSql(): string
      * ===================================================== */
     public function dashboard(Request $request)
     {
+         $this->normalizeRequest($request);
         $base    = $this->applyFilter($this->src(), $request);
         $grouped = $this->src()->whereIn('id', $this->groupIdsQuery($base));
 
@@ -689,7 +714,8 @@ if (!empty($row->tanggal_tiba) && !empty($row->tanggal_bongkar)) {
 
     public function list(Request $request, string $kpi)
     {
-        $cfg = static::LIST_CONFIG[$kpi] ?? abort(404);
+        $this->normalizeRequest($request);
+    $cfg = static::LIST_CONFIG[$kpi] ?? abort(404);
 
         $filter = $this->applyFilter($this->kpiQuery($kpi), $request);
 
@@ -715,6 +741,7 @@ if (!empty($row->tanggal_tiba) && !empty($row->tanggal_bongkar)) {
             'list_area'         => $this->listArea(),
             'list_dist_channel' => $this->src()->select('dist_channel')
                 ->whereNotNull('dist_channel')->distinct()->orderBy('dist_channel')->get(),
+                   'dashFilters'       => $request->query(),
         ]);
     }
 
@@ -723,6 +750,7 @@ if (!empty($row->tanggal_tiba) && !empty($row->tanggal_bongkar)) {
      * ===================================================== */
     public function inTransit(Request $request)
     {
+         $this->normalizeRequest($request);
         // In Transit tidak dibatasi periode (dipakai subclass Sales)
         $this->periodeAktif = false;
 
@@ -763,13 +791,45 @@ if (!empty($row->tanggal_tiba) && !empty($row->tanggal_bongkar)) {
         return view('monitoring.in_transit', [
             'list'      => $list,
             'summary'   => $summary,
+             'dashFilters' => $request->query(),  
             'areaList'  => $this->listArea()->pluck('area'),
             'picList'   => $this->src()->whereNotNull('pic_monitoring')->where('pic_monitoring', '!=', '')
                                 ->distinct()->orderBy('pic_monitoring')->pluck('pic_monitoring'),
             'formRoute' => route($this->inTransitRoute),
         ]);
     }
+/**
+ * Ambil filter dari URL halaman Total Shipment (Referer), karena link dashboard
+ * membawa array berindeks (pulau[0]=JAWA) yang tidak dikirim ulang oleh JS di view.
+ * Nilai yang dikirim AJAX (dropdown halaman) tetap menang.
+ */
+protected function mergeDashboardFilters(Request $request): void
+{
+    $ref = $request->headers->get('referer');
+    if (!$ref) return;
 
+    $p = parse_url($ref);
+    if (($p['host'] ?? null) !== $request->getHost() || empty($p['query'])) return;
+
+    parse_str($p['query'], $q);   // pulau[0]=JAWA, pulau[]=JAWA, dst. semua jadi array
+
+    $merge = [];
+    foreach (['area', 'pulau', 'dist_channel', 'month'] as $k) {
+        $dariUrl = array_values(array_filter((array) ($q[$k] ?? []), 'strlen'));
+        if (!$request->filled($k) && $dariUrl) $merge[$k] = $dariUrl;
+    }
+    foreach (['date', 'year', 'tgl_basis', 'date_from', 'date_to'] as $k) {
+        if (!$request->filled($k) && !empty($q[$k]) && is_string($q[$k])) $merge[$k] = $q[$k];
+    }
+
+    if ($merge) $request->merge($merge);
+}
+
+/** Samakan format filter untuk semua halaman (dashboard, list, in-transit, ajax) */
+private function normalizeRequest(Request $request): void
+{
+    $request->merge(['sumber' => strtoupper((string) $request->input('sumber'))]);
+}
     private function mapTransit($r, int $todayTs): object
     {
         $jkt  = $r->sumber === 'JAKARTA';
@@ -884,12 +944,12 @@ if (!empty($row->tanggal_tiba) && !empty($row->tanggal_bongkar)) {
 /** Rincian DO per shipment + tujuan (klik tujuan di Data Gabungan) */
 public function detail(Request $request)
 {
+    $this->mergeDashboardFilters($request);   // <-- tambahkan
     $request->validate([
         'sumber'      => 'nullable|string',
         'no_shipment' => 'required|string',
         'tujuan'      => 'nullable|string',
     ]);
-
     $pasuruan = strtoupper((string) $request->input('sumber')) === 'PASURUAN';
     $sfx      = $pasuruan ? '_pasuruan' : '';
     $tujuan   = (string) $request->input('tujuan', '');

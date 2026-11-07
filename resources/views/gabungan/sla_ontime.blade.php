@@ -55,8 +55,15 @@ select,input[type=month]{padding:8px;margin-right:10px;border:1px solid #ccc;bor
         @endforeach
     </select>
 
-    @foreach(['tgl_basis','pulau','dist_channel','year','date','date_from','date_to'] as $k)
-        @if(request($k))<input type="hidden" name="{{ $k }}" value="{{ request($k) }}">@endif
+     @foreach(['tgl_basis','pulau','dist_channel','year','date','date_from','date_to'] as $k)
+        @php $v = request($k); @endphp
+        @if(is_array($v))
+            @foreach(array_filter($v, 'strlen') as $item)
+                <input type="hidden" name="{{ $k }}[]" value="{{ $item }}">
+            @endforeach
+        @elseif($v)
+            <input type="hidden" name="{{ $k }}" value="{{ $v }}">
+        @endif
     @endforeach
 
     <button class="btn btn-green">Filter</button>

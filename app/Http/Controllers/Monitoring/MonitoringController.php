@@ -5,6 +5,7 @@ use App\Exports\InTransitExport;
 use App\Traits\LogsInput;
 use App\Http\Controllers\Controller;
 use App\Models\LogistikPengiriman;
+use Illuminate\Validation\ValidationException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
@@ -104,6 +105,126 @@ private function gudangSuffixes(): array
     ));
 }
 
+/** Validasi isian monitoring. Kembalikan daftar pesan (kosong = lolos). */
+private function cekMonitoring(array $d, LogistikPengiriman $l): array
+{
+    $err = [];
+
+    // tanggal: tahun 4 digit + tanggal nyata. Return timestamp hari, atau null.
+    $tgl = function ($v, $label) use (&$err) {
+        $v = is_string($v) ? trim($v) : $v;
+        if ($v === null || $v === '') return null;
+        if (!preg_match('/^(\d{4})-(\d{2})-(\d{2})/', $v, $m)
+            || !checkdate((int) $m[2], (int) $m[3], (int) $m[1])
+            || $m[1] < 2020 || $m[1] > 2100) {
+            $err[] = "{$label}: tanggal tidak valid ({$v}). Tahun harus 4 digit, contoh 2026.";
+            return null;
+        }
+        return strtotime(substr($v, 0, 10));
+    };
+
+    $jam = function ($v, $label) use (&$err) {
+        $v = trim((string) ($v ?? ''));
+        if ($v === '') return null;
+        if (!preg_match('/^([01]\d|2[0-3]):([0-5]\d)(:[0-5]\d)?$/', $v, $m)) {
+            $err[] = "{$label} harus format HH:MM, contoh 08:30 (diisi: {$v}).";
+            return null;
+        }
+        return ((int) $m[1] * 3600) + ((int) $m[2] * 60);
+    };
+
+    $tiba    = $tgl($d['tanggal_tiba']    ?? null, 'Tanggal Tiba');
+    $bongkar = $tgl($d['tanggal_bongkar'] ?? null, 'Tanggal Bongkar');
+    $tgl($d['act_pgi_date'] ?? null, 'Act PGI Date');
+    $etd = $tgl($d['etd'] ?? null, 'ETD');
+    $eta = $tgl($d['eta'] ?? null, 'ETA');
+    $atd = $tgl($d['atd'] ?? null, 'ATD');
+    $ata = $tgl($d['ata'] ?? null, 'ATA');
+
+    $jTiba    = $jam($d['waktu_tiba']    ?? null, 'Jam Tiba');
+    $jBongkar = $jam($d['waktu_bongkar'] ?? null, 'Jam Bongkar');
+
+    // jam tanpa tanggal (sekarang jamnya dibuang diam-diam)
+    if (empty($d['tanggal_tiba'])    && trim((string) ($d['waktu_tiba'] ?? ''))    !== '') $err[] = 'Jam Tiba diisi tapi Tanggal Tiba kosong.';
+    if (empty($d['tanggal_bongkar']) && trim((string) ($d['waktu_bongkar'] ?? '')) !== '') $err[] = 'Jam Bongkar diisi tapi Tanggal Bongkar kosong.';
+
+    // bongkar tanpa tiba
+    if ($bongkar && !$tiba && empty($d['tanggal_tiba'])) {
+        $err[] = 'Tanggal Bongkar diisi tapi Tanggal Tiba masih kosong.';
+    }
+
+    // bongkar lebih awal dari tiba (tanggal + jam)
+    if ($tiba && $bongkar) {
+        $a = $tiba + ($jTiba ?? 0);
+        $b = $bongkar + ($jBongkar ?? 0);
+        if ($b < $a) $err[] = 'Waktu Bongkar lebih awal dari waktu Tiba.';
+    }
+
+    // tiba lebih awal dari keluar gudang terakhir
+    $keluar = $this->getKeluarGudangInfo($l)['keluar'];
+    if ($tiba && $keluar && $tiba < strtotime(date('Y-m-d', $keluar))) {
+        $err[] = 'Tanggal Tiba (' . date('d-m-Y', $tiba) . ') lebih awal dari tanggal keluar gudang (' . date('d-m-Y', $keluar) . ').';
+    }
+
+    // transport laut
+    if ($etd && $eta && $eta < $etd) $err[] = 'ETA lebih awal dari ETD.';
+    if ($atd && $ata && $ata < $atd) $err[] = 'ATA lebih awal dari ATD.';
+
+    // angka
+    foreach (['selisih_qty' => 'Selisih Qty', 'biaya_kuli' => 'Biaya Kuli', 'act_urutan_bongkar' => 'Urutan Bongkar'] as $k => $label) {
+        $v = $d[$k] ?? null;
+        if ($v !== null && $v !== '' && !is_numeric($v)) $err[] = "{$label} harus angka (diisi: {$v}).";
+    }
+    if (isset($d['biaya_kuli']) && is_numeric($d['biaya_kuli']) && $d['biaya_kuli'] < 0) {
+        $err[] = 'Biaya Kuli tidak boleh negatif.';
+    }
+    if (isset($d['act_urutan_bongkar']) && is_numeric($d['act_urutan_bongkar']) && $d['act_urutan_bongkar'] < 0) {
+        $err[] = 'Urutan Bongkar tidak boleh negatif.';
+    }
+
+    // selisih qty tidak boleh melebihi total DO satu grup
+    if (isset($d['selisih_qty']) && is_numeric($d['selisih_qty']) && $d['selisih_qty'] > 0) {
+        $total = (float) LogistikPengiriman::where('no_shipment', $l->no_shipment)
+            ->whereRaw("COALESCE(tujuan,'') = ?", [(string) $l->tujuan])
+            ->sum('total_do_qty_car');
+        if ($total > 0 && $d['selisih_qty'] > $total) {
+            $err[] = "Selisih Qty ({$d['selisih_qty']}) lebih besar dari Total DO Qty ({$total}).";
+        }
+    }
+
+    return $err;
+}
+
+/** Terjemahkan exception jadi daftar kalimat yang bisa dibaca user */
+private function pesanList(\Throwable $e): array
+{
+    if ($e instanceof ValidationException) {
+        return $e->errors()['input'] ?? array_merge(...array_values($e->errors()));
+    }
+    if ($e instanceof \Illuminate\Database\Eloquent\ModelNotFoundException) {
+        return ['Data tidak ditemukan. Kemungkinan sudah dihapus user lain. Refresh halaman.'];
+    }
+
+    $msg = $e->getMessage();
+
+    if (preg_match("/Incorrect (?:datetime|date|time|integer|decimal) value: '([^']*)' for column '([^']+)'/", $msg, $m)) {
+        return ['Kolom ' . ucwords(str_replace('_', ' ', $m[2])) . " berisi nilai yang salah: '{$m[1]}'. Untuk tanggal, pastikan tahun 4 digit (contoh 2026)."];
+    }
+    if (preg_match("/Data too long for column '([^']+)'/", $msg, $m)) {
+        return ['Isian ' . ucwords(str_replace('_', ' ', $m[1])) . ' terlalu panjang. Persingkat lalu simpan lagi.'];
+    }
+    if (preg_match("/Unknown column '([^']+)'/", $msg, $m)) {
+        return ["Kolom {$m[1]} belum ada di database. Hubungi admin untuk menjalankan migrasi."];
+    }
+    if (preg_match("/Out of range value for column '([^']+)'/", $msg, $m)) {
+        return ['Angka di kolom ' . ucwords(str_replace('_', ' ', $m[1])) . ' di luar batas.'];
+    }
+    if (stripos($msg, 'Deadlock') !== false || stripos($msg, 'Lock wait timeout') !== false) {
+        return ['Data sedang dipakai user lain. Coba simpan lagi.'];
+    }
+
+    return ['Terjadi kesalahan di server. Hubungi admin. (' . mb_substr($msg, 0, 120) . ')'];
+}
 public function export(Request $request)
 {
     $filters = $request->only([
@@ -209,6 +330,26 @@ public function export(Request $request)
             'message' => 'Tidak ada data yang diisi',
         ], 422);
     }
+    $err = [];
+foreach (['etd' => 'ETD', 'eta' => 'ETA', 'atd' => 'ATD', 'ata' => 'ATA'] as $k => $label) {
+    $v = $request->$k;
+    if ($v && (!preg_match('/^(\d{4})-(\d{2})-(\d{2})/', $v, $m) || !checkdate((int) $m[2], (int) $m[3], (int) $m[1]) || $m[1] < 2020 || $m[1] > 2100)) {
+        $err[] = "{$label}: tanggal tidak valid ({$v}). Tahun harus 4 digit.";
+    }
+}
+if ($request->etd && $request->eta && $request->eta < $request->etd) $err[] = 'ETA lebih awal dari ETD.';
+if ($request->atd && $request->ata && $request->ata < $request->atd) $err[] = 'ATA lebih awal dari ATD.';
+if ($err) {
+    return response()->json(['status' => 'error', 'title' => 'Data gagal disimpan', 'message' => implode("\n", $err), 'errors' => $err], 422);
+}
+
+try {
+    LogistikPengiriman::where('no_shipment', $request->no_shipment)->update($data);
+} catch (\Throwable $e) {
+    report($e);
+    $errs = $this->pesanList($e);
+    return response()->json(['status' => 'error', 'title' => 'Gagal menyimpan', 'message' => implode("\n", $errs), 'errors' => $errs], 500);
+}
 
     LogistikPengiriman::where('no_shipment', $request->no_shipment)->update($data);
 
@@ -734,12 +875,16 @@ public function updateMonitoring(Request $request, $id)
                 $this->applyMonitoringUpdate($logistik, $request->all());
             });
         });
-    } catch (\Throwable $e) {
-        return response()->json([
-            'status'  => 'error',
-            'message' => $this->friendlyError($e),
-        ], 422);
-    }
+   } catch (\Throwable $e) {
+    report($e);
+    $errs = $this->pesanList($e);
+    return response()->json([
+        'status'  => 'error',
+        'title'   => 'Data gagal disimpan',
+        'message' => implode(' ', $errs),
+        'errors'  => $errs,
+    ], 422);
+}
  
     return response()->json([
         'status'  => 'success',
@@ -774,134 +919,78 @@ public function updateMonitoring(Request $request, $id)
 public function updateMonitoringBatch(Request $request)
 {
     $rows = $request->input('rows', []);
- 
+
     if (!is_array($rows) || empty($rows)) {
         return response()->json([
             'status'  => 'error',
+            'title'   => 'Tidak ada data',
             'message' => 'Tidak ada data yang dikirim untuk disimpan',
+            'errors'  => ['Tidak ada data yang dikirim untuk disimpan'],
         ], 422);
     }
- 
-    $results = [];
-    $failedCount = 0;
+
+    $results      = [];
+    $failedCount  = 0;
     $successCount = 0;
- 
-    // foreach ($rows as $rowData) {
-    //     $id = $rowData['id'] ?? null;
- 
-    //     if (empty($id)) {
-    //         $failedCount++;
-    //         $results[] = ['id' => null, 'status' => 'error', 'message' => 'ID baris kosong'];
-    //         continue;
-    //     }
- 
-    //     try {
-    //         DB::transaction(function () use ($id, $rowData) {
-    //             $logistik = LogistikPengiriman::findOrFail($id);
-    //             $this->applyMonitoringUpdate($logistik, $rowData);
-    //         });
- 
-    //         $successCount++;
-    //         $results[] = ['id' => $id, 'status' => 'success'];
- 
-    //     } catch (\Throwable $e) {
-    //         $failedCount++;
-    //         $results[] = [
-    //             'id'      => $id,
-    //             'status'  => 'error',
-    //             'message' => $e->getMessage(),
-    //         ];
- 
-    //         logger()->error('BATCH UPDATE MONITORING GAGAL', [
-    //             'id'    => $id,
-    //             'error' => $e->getMessage(),
-    //         ]);
-    //     }
-    // }
-foreach ($rows as $rowData) {
-    $id = $rowData['id'] ?? null;
- 
-    if (empty($id)) {
-        $failedCount++;
-        $this->writeInputLog('monitoring', 'batch', null, null, 'failed', 'ID baris kosong', $rowData);
-        $results[] = [
-            'id'          => null,
-            'no_shipment' => null,
-            'status'      => 'error',
-            'message'     => 'ID baris kosong',
-        ];
-        continue;
-    }
- 
-    $noShipment = LogistikPengiriman::where('id', $id)->value('no_shipment');
- 
-    try {
-        $this->loggedSave('monitoring', 'batch', $id, $rowData, function () use ($id, $rowData) {
-            DB::transaction(function () use ($id, $rowData) {
-                $logistik = LogistikPengiriman::findOrFail($id);
-                $this->applyMonitoringUpdate($logistik, $rowData);
+
+    foreach ($rows as $rowData) {
+        $id = $rowData['id'] ?? null;
+
+        if (empty($id)) {
+            $failedCount++;
+            $this->writeInputLog('monitoring', 'batch', null, null, 'failed', 'ID baris kosong', $rowData);
+            $results[] = [
+                'id'          => null,
+                'no_shipment' => null,
+                'status'      => 'error',
+                'message'     => 'ID baris kosong',
+                'errors'      => ['ID baris kosong'],
+            ];
+            continue;
+        }
+
+        $noShipment = LogistikPengiriman::where('id', $id)->value('no_shipment');
+
+        try {
+            $this->loggedSave('monitoring', 'batch', $id, $rowData, function () use ($id, $rowData) {
+                DB::transaction(function () use ($id, $rowData) {
+                    $logistik = LogistikPengiriman::findOrFail($id);
+                    $this->applyMonitoringUpdate($logistik, $rowData);
+                }, 3);
             });
-        });
- 
-        $successCount++;
-        $results[] = [
-            'id'          => $id,
-            'no_shipment' => $noShipment,
-            'status'      => 'success',
-        ];
- 
-    } catch (\Throwable $e) {
-        $failedCount++;
-        $results[] = [
-            'id'          => $id,
-            'no_shipment' => $noShipment,
-            'status'      => 'error',
-            'message'     => $this->friendlyError($e),
-        ];
+
+            $successCount++;
+            $results[] = [
+                'id'          => $id,
+                'no_shipment' => $noShipment,
+                'status'      => 'success',
+            ];
+        } catch (\Throwable $e) {
+            report($e);
+            $failedCount++;
+            $errs = $this->pesanList($e);
+            $results[] = [
+                'id'          => $id,
+                'no_shipment' => $noShipment,
+                'status'      => 'error',
+                'message'     => implode(' ', $errs),
+                'errors'      => $errs,
+            ];
+        }
     }
-}
- 
+
     return response()->json([
-        'status'       => $failedCount === 0 ? 'success' : ($successCount === 0 ? 'error' : 'partial'),
-        'message'      => "{$successCount} baris tersimpan" . ($failedCount > 0 ? ", {$failedCount} gagal" : ''),
-        'success_count'=> $successCount,
-        'failed_count' => $failedCount,
-        'results'      => $results,
+        'status'        => $failedCount === 0 ? 'success' : ($successCount === 0 ? 'error' : 'partial'),
+        'message'       => "{$successCount} baris tersimpan" . ($failedCount > 0 ? ", {$failedCount} gagal" : ''),
+        'success_count' => $successCount,
+        'failed_count'  => $failedCount,
+        'results'       => $results,
     ]);
 }
-
 private function friendlyError(\Throwable $e): string
 {
-    $msg = $e->getMessage();
- 
-    if ($e instanceof \Illuminate\Database\Eloquent\ModelNotFoundException) {
-        return 'Data tidak ditemukan (mungkin sudah dihapus)';
-    }
- 
-    if ($e instanceof \Illuminate\Database\QueryException) {
-        if (stripos($msg, 'Invalid datetime format') !== false
-            || stripos($msg, 'Incorrect date') !== false
-            || stripos($msg, 'Incorrect time') !== false) {
-            return 'Format tanggal/jam tidak valid';
-        }
-        if (stripos($msg, 'Data too long') !== false) {
-            return 'Isian terlalu panjang untuk kolomnya';
-        }
-        if (stripos($msg, 'Incorrect integer') !== false
-            || stripos($msg, 'Incorrect decimal') !== false
-            || stripos($msg, 'Out of range') !== false) {
-            return 'Angka tidak valid atau di luar batas';
-        }
-        if (stripos($msg, 'Deadlock') !== false
-            || stripos($msg, 'Lock wait timeout') !== false) {
-            return 'Database sedang sibuk, coba simpan lagi';
-        }
-        return 'Gagal menyimpan ke database';
-    }
- 
-    return 'Terjadi kesalahan: ' . mb_substr($msg, 0, 150);
+    return implode(' ', $this->pesanList($e));
 }
- 
 // ================================================================
 // Isi logic yang SAMA PERSIS seperti updateMonitoring() versi lama,
 // cuma sumber datanya sekarang array $data (bisa dari $request->all()
@@ -910,6 +999,10 @@ private function friendlyError(\Throwable $e): string
 // ================================================================
 private function applyMonitoringUpdate(LogistikPengiriman $logistik, array $data): void
 {
+    if ($err = $this->cekMonitoring($data, $logistik)) {
+        throw ValidationException::withMessages(['input' => $err]);
+    }
+
     $gudangInfo = $this->getKeluarGudangInfo($logistik);
     $keluar  = $gudangInfo['keluar'];
     $blocked = $gudangInfo['blocked'];

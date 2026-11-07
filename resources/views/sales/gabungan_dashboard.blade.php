@@ -25,6 +25,15 @@
         if ($kpi === 'total') return route($dataRoute, $qs);
         return route($listRoute, ['kpi' => $kpi] + $qs);
     };
+
+    // filter multi-pick (area[], dist_channel[], pulau[])
+    $areaSel  = array_filter((array) request('area', []), 'strlen');
+    $distSel  = array_filter((array) request('dist_channel', []), 'strlen');
+    $pulauSel = array_filter((array) request('pulau', []), 'strlen');
+
+    $monthSel  = array_filter((array) request('month', []), 'strlen');
+$namaBulan = ['01'=>'Jan','02'=>'Feb','03'=>'Mar','04'=>'Apr','05'=>'Mei','06'=>'Jun',
+              '07'=>'Jul','08'=>'Agu','09'=>'Sep','10'=>'Okt','11'=>'Nov','12'=>'Des'];
 @endphp
 <!DOCTYPE html>
 <html lang="id">
@@ -184,8 +193,10 @@ h1,h2,h3,h4{
     letter-spacing:.04em;
 }
 
-.filter-form input,
-.filter-form select{
+/* input & select biasa (BUKAN yang dipakai Tom Select) */
+.filter-form input[type="date"],
+.filter-form input[type="month"],
+.filter-form select:not(.tomselected){
     height:38px;
     padding:0 12px;
     border:1px solid var(--border);
@@ -199,8 +210,9 @@ h1,h2,h3,h4{
     transition:border-color .15s;
 }
 
-.filter-form input:focus,
-.filter-form select:focus{
+.filter-form input[type="date"]:focus,
+.filter-form input[type="month"]:focus,
+.filter-form select:not(.tomselected):focus{
     border-color:var(--primary);
     background:#fff;
 }
@@ -311,7 +323,9 @@ h1,h2,h3,h4{
     color:var(--text-muted);
 }
 
-.pulau-box.active{
+/* .pulau-box.active ditaruh setelah :hover supaya biru tetap menang saat di-hover */
+.pulau-box.active,
+.pulau-box.active:hover{
     border-color:var(--primary);
     background:linear-gradient(135deg,var(--primary),#3730a3);
     box-shadow:0 8px 18px rgba(79,70,229,.28);
@@ -320,6 +334,45 @@ h1,h2,h3,h4{
 .pulau-box.active .pulau-name,
 .pulau-box.active .pulau-count{
     color:#fff;
+}
+
+/* tanda centang di pojok kotak yang dipilih */
+.pulau-box{ position:relative; }
+.pulau-box.active::after{
+    content:"✓";
+    position:absolute;
+    top:6px;
+    right:8px;
+    width:18px;
+    height:18px;
+    border-radius:50%;
+    background:#fff;
+    color:var(--primary);
+    font-size:12px;
+    font-weight:800;
+    line-height:18px;
+    text-align:center;
+}
+
+/* ringkasan pulau yang dipilih */
+.pulau-selected{
+    display:flex;
+    align-items:center;
+    flex-wrap:wrap;
+    gap:6px;
+    margin-bottom:10px;
+    font-size:12.5px;
+    color:var(--text-secondary);
+}
+.pulau-chip{
+    display:inline-flex;
+    align-items:center;
+    padding:3px 10px;
+    border-radius:999px;
+    background:var(--primary-light);
+    color:var(--primary);
+    font-weight:700;
+    font-size:12px;
 }
 
 /* ================= STAT CARDS ================= */
@@ -392,8 +445,9 @@ h1,h2,h3,h4{
         width:100%;
     }
 
-    .filter-form select,
-    .filter-form input{
+    .filter-form select:not(.tomselected),
+    .filter-form input[type="date"],
+    .filter-form input[type="month"]{
         min-width:130px;
         flex:1;
     }
@@ -661,15 +715,6 @@ tbody tr:last-child td{ border-bottom:none; }
     color:var(--text-muted);
     padding:22px 0;
 }
-.filter-form .ts-dropdown .dropdown-input{
-    height:34px;
-    min-width:0;
-    width:100%;
-    padding:0 10px;
-    border:1px solid var(--border);
-    border-radius:var(--radius-sm);
-    background:#fff;
-}
 
 /* ================= LAYOUT STACK ================= */
 .stack{
@@ -725,16 +770,20 @@ tbody tr:last-child td{ border-bottom:none; }
     padding:1px 6px;
     border-radius:4px;
 }
-/* ================= TOM SELECT (area & dist channel) ================= */
-.filter-form .ts-wrapper{ min-width:200px; }
+
+/* ================= TOM SELECT (area & dist channel, multi) ================= */
+.filter-form .field .ts-wrapper{
+    width:260px;
+    min-width:260px;
+    max-width:420px;
+}
 .filter-form .ts-control{
     min-height:38px;
+    padding:4px 8px;
     border:1px solid var(--border);
     border-radius:var(--radius-sm);
     background:#fbfcfe;
     font-size:13.5px;
-    padding:0 12px;
-    align-items:center;
     box-shadow:none;
 }
 .filter-form .ts-wrapper.focus .ts-control{
@@ -742,24 +791,26 @@ tbody tr:last-child td{ border-bottom:none; }
     background:#fff;
     box-shadow:none;
 }
-/* wajib: style .filter-form input yang lama bakal merusak kotak search-nya */
-.filter-form .ts-control input{
+.filter-form .ts-wrapper.multi .ts-control{
+    flex-wrap:wrap;
+}
+.filter-form .ts-wrapper.multi .ts-control > div{
+    margin:2px 4px 2px 0;
+}
+.filter-form .ts-wrapper.multi .ts-control > input{
     height:auto;
-    min-width:0;
+    min-width:60px;
+    flex:1 1 60px;
     padding:0;
     border:none;
     background:transparent;
 }
-.filter-form select.tomselected{
-    min-width:0;
-    height:auto;
-    border:0;
-}
 .ts-dropdown{ font-size:13.5px; border-radius:var(--radius-sm); }
 
 @media(max-width:768px){
-    .filter-form .ts-wrapper{ min-width:130px; flex:1; }
+    .filter-form .field .ts-wrapper{ min-width:130px; width:100%; flex:1; }
 }
+
 /* ================= RESPONSIVE ================= */
 @media(max-width:1100px){
     .chart-grid{ grid-template-columns:1fr; }
@@ -773,8 +824,6 @@ tbody tr:last-child td{ border-bottom:none; }
         padding:18px;
     }
     .filter-actions{ margin-left:0; width:100%; }
-    .filter-form select,
-    .filter-form input{ min-width:130px; flex:1; }
     #shipmentMap{ height:340px; }
 }
 
@@ -815,11 +864,19 @@ tbody tr:last-child td{ border-bottom:none; }
             <label for="f-to">Sampai</label>
             <input id="f-to" type="date" name="date_to" value="{{ request('date_to') }}">
         </div>
-
-        <div class="field">
-            <label for="f-month">Bulan</label>
-            <input id="f-month" type="month" name="month" value="{{ request('month') }}">
-        </div>
+<div class="field">
+    <label for="f-month">Bulan</label>
+    <select id="f-month" name="month[]" multiple>
+        @for($y = date('Y') + 1; $y >= 2020; $y--)
+            @for($m = 12; $m >= 1; $m--)
+                @php $val = sprintf('%d-%02d', $y, $m); @endphp
+                <option value="{{ $val }}" {{ in_array($val, $monthSel) ? 'selected' : '' }}>
+                    {{ $namaBulan[sprintf('%02d', $m)] }} {{ $y }}
+                </option>
+            @endfor
+        @endfor
+    </select>
+</div>
 
         <div class="field">
             <label for="f-year">Tahun</label>
@@ -835,10 +892,9 @@ tbody tr:last-child td{ border-bottom:none; }
 
         <div class="field">
             <label for="f-area">Area</label>
-            <select id="f-area" name="area">
-                <option value="">Semua area</option>
+            <select id="f-area" name="area[]" multiple>
                 @foreach($list_area as $a)
-                    <option value="{{ $a->area }}" {{ request('area') == $a->area ? 'selected' : '' }}>
+                    <option value="{{ $a->area }}" {{ in_array($a->area, $areaSel) ? 'selected' : '' }}>
                         {{ $a->area }}
                     </option>
                 @endforeach
@@ -848,10 +904,9 @@ tbody tr:last-child td{ border-bottom:none; }
         @if(isset($list_dist_channel))
         <div class="field">
             <label for="f-dist">Dist. channel</label>
-            <select id="f-dist" name="dist_channel">
-                <option value="">Semua channel</option>
+            <select id="f-dist" name="dist_channel[]" multiple>
                 @foreach($list_dist_channel as $d)
-                    <option value="{{ $d->dist_channel }}" {{ request('dist_channel') == $d->dist_channel ? 'selected' : '' }}>
+                    <option value="{{ $d->dist_channel }}" {{ in_array($d->dist_channel, $distSel) ? 'selected' : '' }}>
                         {{ $d->dist_channel }}
                     </option>
                 @endforeach
@@ -869,7 +924,11 @@ tbody tr:last-child td{ border-bottom:none; }
         @endif
 
         <!-- Filter pulau dikirim lewat hidden input ini, diisi otomatis pas kotak pulau diklik -->
-        <input type="hidden" name="pulau" id="f-pulau" value="{{ request('pulau') }}">
+        <div id="pulauInputs">
+            @foreach($pulauSel as $p)
+                <input type="hidden" name="pulau[]" value="{{ $p }}">
+            @endforeach
+        </div>
 
         <div class="filter-actions">
             <button type="submit" class="btn btn-primary">Terapkan filter</button>
@@ -881,50 +940,37 @@ tbody tr:last-child td{ border-bottom:none; }
     <!-- ================= FILTER PULAU (BOX, BUKAN DROPDOWN) ================= -->
     <div class="pulau-section">
         <div class="pulau-section-label">📍 Filter cepat berdasarkan pulau</div>
+        <div class="pulau-selected" id="pulauSelected"></div>
+
+        @php
+            $pulauList = [
+                'JAWA'       => ['🏝️', 'Jawa'],
+                'SUMATERA'   => ['🌋', 'Sumatera'],
+                'KALIMANTAN' => ['🌳', 'Kalimantan'],
+                'SULAWESI'   => ['🐚', 'Sulawesi'],
+                // 'BALI_NUSRA' => ['🏖️', 'Bali & Nusra'],
+                'MALUKU'     => ['🌊', 'Maluku'],
+                'PAPUA'      => ['🦅', 'Papua'],
+            ];
+        @endphp
+
         <div class="pulau-grid" id="pulauGrid">
-            <div class="pulau-box {{ !request('pulau') ? 'active' : '' }}" data-pulau="">
+            <div class="pulau-box {{ empty($pulauSel) ? 'active' : '' }}" data-pulau="">
                 <div class="pulau-icon">🗺️</div>
                 <div class="pulau-name">Semua Pulau</div>
                 <div class="pulau-count" data-count-for="">-</div>
             </div>
-            <div class="pulau-box {{ request('pulau') == 'JAWA' ? 'active' : '' }}" data-pulau="JAWA">
-                <div class="pulau-icon">🏝️</div>
-                <div class="pulau-name">Jawa</div>
-                <div class="pulau-count" data-count-for="JAWA">-</div>
-            </div>
-            <div class="pulau-box {{ request('pulau') == 'SUMATERA' ? 'active' : '' }}" data-pulau="SUMATERA">
-                <div class="pulau-icon">🌋</div>
-                <div class="pulau-name">Sumatera</div>
-                <div class="pulau-count" data-count-for="SUMATERA">-</div>
-            </div>
-            <div class="pulau-box {{ request('pulau') == 'KALIMANTAN' ? 'active' : '' }}" data-pulau="KALIMANTAN">
-                <div class="pulau-icon">🌳</div>
-                <div class="pulau-name">Kalimantan</div>
-                <div class="pulau-count" data-count-for="KALIMANTAN">-</div>
-            </div>
-            <div class="pulau-box {{ request('pulau') == 'SULAWESI' ? 'active' : '' }}" data-pulau="SULAWESI">
-                <div class="pulau-icon">🐚</div>
-                <div class="pulau-name">Sulawesi</div>
-                <div class="pulau-count" data-count-for="SULAWESI">-</div>
-            </div>
-            <!-- <div class="pulau-box {{ request('pulau') == 'BALI_NUSRA' ? 'active' : '' }}" data-pulau="BALI_NUSRA">
-                <div class="pulau-icon">🏖️</div>
-                <div class="pulau-name">Bali &amp; Nusra</div>
-                <div class="pulau-count" data-count-for="BALI_NUSRA">-</div>
-            </div> -->
-            <div class="pulau-box {{ request('pulau') == 'MALUKU' ? 'active' : '' }}" data-pulau="MALUKU">
-                <div class="pulau-icon">🌊</div>
-                <div class="pulau-name">Maluku</div>
-                <div class="pulau-count" data-count-for="MALUKU">-</div>
-            </div>
-            <div class="pulau-box {{ request('pulau') == 'PAPUA' ? 'active' : '' }}" data-pulau="PAPUA">
-                <div class="pulau-icon">🦅</div>
-                <div class="pulau-name">Papua</div>
-                <div class="pulau-count" data-count-for="PAPUA">-</div>
-            </div>
+
+            @foreach($pulauList as $kode => [$ikon, $nama])
+                <div class="pulau-box {{ in_array($kode, $pulauSel) ? 'active' : '' }}" data-pulau="{{ $kode }}">
+                    <div class="pulau-icon">{{ $ikon }}</div>
+                    <div class="pulau-name">{{ $nama }}</div>
+                    <div class="pulau-count" data-count-for="{{ $kode }}">-</div>
+                </div>
+            @endforeach
         </div>
     </div>
-</div>
+</div> {{-- penutup filter-box --}}
 
 <!-- KPI -->
 <div class="section-label">Ringkasan status</div>
@@ -1458,13 +1504,62 @@ function normalisasiNamaPasuruan(str){
     });
 })();
 
-// Klik kotak pulau -> isi hidden input #f-pulau -> submit form filter
-document.querySelectorAll('.pulau-box').forEach(box => {
-    box.addEventListener('click', function(){
-        document.getElementById('f-pulau').value = this.getAttribute('data-pulau');
-        document.getElementById('filterForm').submit();
+// Kotak pulau: tandai biru + centang, simpan ke hidden input, TANPA submit.
+// Filter dijalankan lewat tombol "Terapkan filter".
+(function () {
+    const boxes   = Array.from(document.querySelectorAll('.pulau-box'));
+    const semua   = boxes.find(b => b.getAttribute('data-pulau') === '');
+    const wrap    = document.getElementById('pulauInputs');
+    const ringkas = document.getElementById('pulauSelected');
+
+    function sinkron() {
+        const dipilih = boxes.filter(b =>
+            b.getAttribute('data-pulau') !== '' && b.classList.contains('active'));
+
+        // "Semua Pulau" aktif hanya kalau tidak ada pulau yang dipilih
+        semua.classList.toggle('active', dipilih.length === 0);
+
+        // hidden input untuk dikirim ke controller
+        wrap.innerHTML = '';
+        dipilih.forEach(b => {
+            const inp = document.createElement('input');
+            inp.type  = 'hidden';
+            inp.name  = 'pulau[]';
+            inp.value = b.getAttribute('data-pulau');
+            wrap.appendChild(inp);
+        });
+
+        // ringkasan "Dipilih: ..."
+        if (dipilih.length === 0) {
+            ringkas.innerHTML = 'Dipilih: <span class="pulau-chip">Semua pulau</span>';
+        } else {
+            ringkas.innerHTML = 'Dipilih: ' + dipilih.map(b =>
+                '<span class="pulau-chip">' + b.querySelector('.pulau-name').textContent + '</span>'
+            ).join('');
+        }
+    }
+
+    // keadaan awal diambil dari URL (?pulau[]=JAWA&pulau[]=SUMATERA),
+    // jadi tanda tetap ada setelah reload walau kondisi Blade-nya meleset
+    const params  = new URLSearchParams(location.search);
+    const dariUrl = params.getAll('pulau[]').concat(params.getAll('pulau')).filter(Boolean);
+    boxes.forEach(b => {
+        const p = b.getAttribute('data-pulau');
+        if (p !== '') b.classList.toggle('active', dariUrl.includes(p));
     });
-});
+    sinkron();
+
+    boxes.forEach(box => {
+        box.addEventListener('click', function () {
+            if (this.getAttribute('data-pulau') === '') {
+                boxes.forEach(b => b.classList.remove('active'));
+            } else {
+                this.classList.toggle('active');
+            }
+            sinkron();
+        });
+    });
+})();
 
 // Format Rupiah ringkas biar muat di lingkaran (mis. 125Jt, 2.3M, 1.1T)
 function formatRupiahRingkasPasuruan(value){
@@ -1562,21 +1657,23 @@ if (document.getElementById('shipmentMap')) {
     }
 }
 
-// ================= DROPDOWN AREA & DIST CHANNEL (bisa di-search) =================
-['#f-area', '#f-dist'].forEach(function (sel) {
+// ================= DROPDOWN AREA & DIST CHANNEL (multi, bisa di-search) =================
+['#f-area', '#f-dist', '#f-month'].forEach(function (sel) {
     const el = document.querySelector(sel);
     if (!el) return;
     new TomSelect(el, {
         create: false,
         maxOptions: 500,
-        placeholder: el.id === 'f-area' ? 'Semua area' : 'Semua channel',
+        maxItems: null,
+        closeAfterSelect: false,
+        hideSelected: true,
+        placeholder: 'Semua',
         plugins: {
-            dropdown_input: {},
-            clear_button: { title: 'Hapus pilihan' }
+            remove_button: {},
+            clear_button: { title: 'Hapus semua pilihan' }
         }
     });
 });
-
 </script>
 
 </body>

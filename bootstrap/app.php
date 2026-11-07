@@ -21,6 +21,12 @@ return Application::configure(basePath: dirname(__DIR__))
     })
 
     ->withExceptions(function (Exceptions $exceptions) {
-        //
+      $exceptions->render(function (\Illuminate\Session\TokenMismatchException $e, $request) {
+    $pesan = ['title' => 'Sesi habis', 'errors' => ['Halaman sudah kedaluwarsa. Refresh halaman, lalu ulangi input.']];
+
+    return $request->expectsJson()
+        ? response()->json(['success' => false] + $pesan, 419)
+        : back()->withInput()->with('save_error', $pesan);
+});
     })
     ->create();

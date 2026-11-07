@@ -114,16 +114,23 @@
 </div>
 <script>
 $(function () {
-    var qs = new URLSearchParams(location.search);
+ var qs = new URLSearchParams(location.search);
 
-    // filter dari hyperlink dashboard yang tidak punya input di halaman ini
-    var linkFilter = {
-        area:         qs.getAll('area[]').concat(qs.getAll('area')).filter(Boolean),
-        pulau:        qs.get('pulau') || '',
-        dist_channel: qs.get('dist_channel') || '',
-        date:         qs.get('date') || '',
-        year:         qs.get('year') || ''
-    };
+// baca array dari query string, format apa pun: name[]=x, name[0]=x, atau name=x
+function getArr(name) {
+    var re = new RegExp('^' + name + '(\\[\\d*\\])?$'), out = [];
+    qs.forEach(function (v, k) { if (re.test(k) && v) out.push(v); });
+    return out;
+}
+
+// filter dari hyperlink dashboard yang tidak punya input di halaman ini
+var linkFilter = {
+    area:         getArr('area'),
+    pulau:        getArr('pulau'),
+    dist_channel: getArr('dist_channel'),
+    date:         qs.get('date') || '',
+    year:         qs.get('year') || ''
+};
 
     // isi input dari link dashboard (SEBELUM DataTable dibuat)
     [['sumber','fSumber'], ['tgl_basis','fBasis'], ['date_from','fFrom'], ['date_to','fTo'], ['month','fMonth']]
@@ -136,16 +143,16 @@ $(function () {
     if (!$('#fSumber').val()) $('#fSumber').val('semua');
     if (linkFilter.area.length === 1) $('#fArea').val(linkFilter.area[0]);
 
-    function renderLinkInfo() {
-        var parts = [];
-        if (linkFilter.area.length > 1) parts.push('Area: ' + linkFilter.area.join(', '));
-        if (linkFilter.pulau)           parts.push('Pulau: ' + linkFilter.pulau);
-        if (linkFilter.dist_channel)    parts.push('Dist Channel: ' + linkFilter.dist_channel);
-        if (linkFilter.date)            parts.push('Tanggal: ' + linkFilter.date);
-        if (linkFilter.year)            parts.push('Tahun: ' + linkFilter.year);
-        $('#linkInfo').toggle(parts.length > 0)
-            .text(parts.length ? 'Filter dari dashboard: ' + parts.join(' | ') : '');
-    }
+  function renderLinkInfo() {
+    var parts = [];
+    if (linkFilter.area.length > 1)     parts.push('Area: ' + linkFilter.area.join(', '));
+    if (linkFilter.pulau.length)        parts.push('Pulau: ' + linkFilter.pulau.join(', '));
+    if (linkFilter.dist_channel.length) parts.push('Dist Channel: ' + linkFilter.dist_channel.join(', '));
+    if (linkFilter.date)                parts.push('Tanggal: ' + linkFilter.date);
+    if (linkFilter.year)                parts.push('Tahun: ' + linkFilter.year);
+    $('#linkInfo').toggle(parts.length > 0)
+        .text(parts.length ? 'Filter dari dashboard: ' + parts.join(' | ') : '');
+}
     renderLinkInfo();
 
     // urutan HARUS sama dengan <th> (32 kolom)
@@ -198,7 +205,7 @@ $(function () {
     $('#btnReset').on('click', function (e) {
         e.preventDefault();
         $('#filterForm')[0].reset();
-        linkFilter = { area: [], pulau: '', dist_channel: '', date: '', year: '' };
+    linkFilter = { area: [], pulau: [], dist_channel: [], date: '', year: '' };
         history.replaceState(null, '', location.pathname);
         renderLinkInfo();
         table.ajax.reload();

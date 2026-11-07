@@ -353,11 +353,14 @@
                         <th>Ekspedisi</th>
                         <th>Tanggal Dapat Unit</th>
                         <th>Lama Waktu Pencarian</th>
-                        <th>SLA Dapat Mobil</th>
-                     <th>Planning Loading Pasuruan</th>
-<th>Tanggal Tiba Pasuruan</th>      <!-- sebelumnya: Tanggal Tiba Gudang -->
-<th>Tanggal Keluar Pasuruan</th>    <!-- sebelumnya: Tanggal Keluar Gudang -->
-                        <th>PIC Monitoring</th>
+                        <<th>SLA Dapat Mobil</th>
+<th>Planning Loading Pasuruan</th>
+<th>Tanggal Tiba Pasuruan</th>
+<th>Tanggal Keluar Pasuruan</th>
+<th>Planning Loading Puntir</th>
+<th>Tanggal Tiba Puntir</th>
+<th>Tanggal Keluar Puntir</th>
+<th>PIC Monitoring</th>
                         <th>Nama Kapal</th>
                         <th>ETD</th>
                         <th>ETA</th>
@@ -411,7 +414,7 @@
         // jumlah item array di SalesController::renderSalesPasuruanRow().
       // Jumlah kolom HARUS sama dengan jumlah <th> (64) dan dengan
 // jumlah item array di SalesController::renderSalesPasuruanRow().
-const TOTAL_COLUMNS = 64;
+const TOTAL_COLUMNS = 67;
 
 let table = $('#tableLogistik').DataTable({
     processing: true,      // sama dengan Pasuruan

@@ -121,64 +121,79 @@
 
         <div class="card">
             <table id="tableLogistik" class="display nowrap" style="width:100%">
-                <thead>
-                    <tr>
-                        <th>Tanggal Naik Logistik</th>
-                        <th>Rencana Kirim</th>
-                        <th class="col-small">Lead Time</th>
-                        <th>Planner</th>
-                        <th>No Shipment</th>
-                        <th>Update Posisi Mobil</th>
-                        <th>Dist Channel</th>
-                        <th>Tujuan</th>
-                        <th>Area</th>
-                        <th>Ketersediaan Unit</th>
-                        <th>Mobil</th>
-                        <th>Delivery Quantity</th>
-                        <th>Nilai Muatan</th>
-                        <th>Biaya Kirim</th>
-                        <th class="cr-col">CR</th>
-                        <th>Kategori Ekspedisi</th>
-                        <th>Ekspedisi</th>
-                        <th>Tanggal Dapat Unit</th>
-                        <th>Lama Waktu Pencarian</th>
-                        <th>SLA Dapat Mobil</th>
-                        <th>Planning Loading Pasuruan</th>
-                        <th>Tanggal Tiba Pasuruan</th>
-                        <th>Tanggal Keluar Pasuruan</th>
-                        <th>PIC Monitoring</th>
-                        <th>Nama Kapal</th>
-                        <th>ETD</th>
-                        <th>ETA</th>
-                        <th>Alert</th>
-                        <th class="col-small">Urutan Bongkar</th>
-                        <th>Actual Delivery Quantity</th>
-                        <th>Selsih quantity</th>
-                        <th>Reason Selisih Quantity</th>
-                        <th>Act PGI Date</th>
-                        <th>ATD</th>
-                        <th>ATA</th>
-                        <th>Tanggal Estimasi</th>
-                        <th>Tanggal Tiba</th>
-                        <th>Lama Perjalanan</th>
-                        <th>SLA Tiba</th>
-                        <th>Tanggal Bongkar</th>
-                        <th>Status Bongkar</th>
-                        <th>Overstay</th>
-                        <th>SLA Bongkar</th>
-                        <th>Reason Tiba</th>
-                        <th>Reason Bongkar</th>
-                        <th>Status Akhir</th>
-                        <th>Status Alert</th>
-                        <th>Remarks</th>
-                        <th>Route</th>
-                        <th>Shipping Point</th>
-                        <th>Pulau</th>
-                        <th>Via Kirim</th>
-                        <th>Biaya Kuli</th>
-                        <th>Total Biaya Kuli</th>
-                    </tr>
-                </thead>
+           <thead>
+    <tr>
+        <th>Tanggal Naik Logistik</th>
+        <th>Rencana Kirim</th>
+        <th class="col-small">Lead Time</th>
+        <th>Planner</th>
+        <th>No Shipment</th>
+        <th>Update Posisi Mobil</th>
+        <th>Dist Channel</th>
+        <th>Tujuan</th>
+        <th>Area</th>
+        <th>Ketersediaan Unit</th>
+        <th>Mobil</th>
+        <th>Delivery Quantity</th>
+        <th>Nilai Muatan</th>
+        <th>Biaya Kirim</th>
+        <th class="cr-col">CR</th>
+        <th class="cr-col">CR Shipment</th>
+        <th>Kubikasi</th>
+        <th>Tonase</th>
+        <th>Total Kubik</th>
+        <th>Total Tonase</th>
+        <th>Hasil Kubik</th>
+        <th>Hasil Tonase</th>
+        <th>Pengiriman Optimal</th>
+        <th>Reason Pengiriman Optimal</th>
+        <th>Kategori Ekspedisi</th>
+        <th>Ekspedisi</th>
+        <th>Tanggal Dapat Unit</th>
+        <th>Lama Waktu Pencarian</th>
+        <th>SLA Dapat Mobil</th>
+        <th>Planning Loading Pasuruan</th>
+        <th>Tanggal Tiba Pasuruan</th>
+        <th>Tanggal Keluar Pasuruan</th>
+        <th>Planning Loading Puntir</th>
+        <th>Tanggal Tiba Puntir</th>
+        <th>Tanggal Keluar Puntir</th>
+        <th>PIC Monitoring</th>
+        <th>Nama Kapal</th>
+        <th>ETD</th>
+        <th>ETA</th>
+        <th>Alert</th>
+        <th class="col-small">Urutan Bongkar</th>
+        <th>Actual Delivery Quantity</th>
+        <th>Selsih quantity</th>
+        <th>Reason Selisih Quantity</th>
+        <th>Act PGI Date</th>
+        <th>ATD</th>
+        <th>ATA</th>
+        <th>Tanggal Estimasi</th>
+        <th>Tanggal Tiba</th>
+        <th>Lama Perjalanan</th>
+        <th>SLA Tiba</th>
+        <th>Tanggal Bongkar</th>
+        <th>Status Bongkar</th>
+        <th>Overstay</th>
+        <th>SLA Bongkar</th>
+        <th>Reason Tiba</th>
+        <th>Reason Bongkar</th>
+        <th>Status Akhir</th>
+        <th>Status Alert</th>
+        <th>Remarks</th>
+        <th>Route</th>
+        <th>Shipping Point</th>
+        <th>Pulau</th>
+        <th>Via Kirim</th>
+        <th>Kirim Kontribusi</th>
+        <th>Pengiriman Optimal Customer</th>
+        <th>Reason Optimal Customer</th>
+        <th>Biaya Kuli</th>
+        <th>Total Biaya Kuli</th>
+    </tr>
+</thead>
                 <tbody>
                     <!-- SENGAJA KOSONG: diisi via AJAX oleh DataTables -->
                 </tbody>
@@ -213,62 +228,79 @@
 
             // urutan HARUS sama persis dengan <thead> di atas & dengan
             // key yang dikirim dataLogistikPasuruanAjax() di controller
-            columns: [
-                { data: 'tanggal_terima_po_fmt' },
-                { data: 'rencana_kirim_fmt' },
-                { data: 'transport_lead_time' },
-                { data: 'planner' },
-                { data: 'no_shipment' },
-                { data: 'status_pengiriman_badge' },
-                { data: 'dist_channel_badge' },
-               { data: 'tujuan_html' },
-                { data: 'area' },
-                { data: 'ketersediaan_unit_badge' },
-                { data: 'mobil' },
-                { data: 'total_do' },
-                { data: 'nilai_muatan_fmt' },
-                { data: 'biaya_kirim_fmt' },
-                { data: 'cr_fmt', className: 'cr-cell' },
-                { data: 'kategori_ekspedisi_badge' },
-                { data: 'ekspedisi' },
-                { data: 'tanggal_dpt_unit_fmt' },
-                { data: 'lama_waktu_pencarian' },
-                { data: 'sla_dapat_mobil_badge' },
-                { data: 'planning_loading_fmt' },
-                { data: 'tanggal_tiba_gudang_fmt' },
-                { data: 'tanggal_keluar_gudang_fmt' },
-                { data: 'pic_monitoring' },
-                { data: 'nama_kapal' },
-                { data: 'etd' },
-                { data: 'eta' },
-                { data: 'alert_badge' },
-                { data: 'act_urutan_bongkar' },
-                { data: 'actual_delivery_quantity' },
-                { data: 'selisih_qty_badge' },
-                { data: 'reason_selisih_quantity' },
-                { data: 'act_pgi_date_fmt' },
-                { data: 'atd_fmt' },
-                { data: 'ata_fmt' },
-                { data: 'estimasi_tiba_fmt' },
-                { data: 'tanggal_tiba_fmt' },
-                { data: 'lama_perjalanan' },
-                { data: 'sla_tiba_badge' },
-                { data: 'tanggal_bongkar_fmt' },
-                { data: 'status_bongkar_badge' },
-                { data: 'overstay_badge' },
-                { data: 'sla_bongkar_badge' },
-                { data: 'reason_tiba' },
-                { data: 'reason_bongkar' },
-                { data: 'status_akhir_badge' },
-                { data: 'status_alert_badge' },
-                { data: 'remarks' },
-                { data: 'route' },
-                { data: 'shipping_point' },
-                { data: 'pulau' },
-                { data: 'via_kirim' },
-                { data: 'biaya_kuli' },
-                { data: 'total_biaya_kuli' },
-            ]
+           order: [[0, 'desc']],
+
+columns: [
+    { data: 'tanggal_terima_po_fmt' },
+    { data: 'rencana_kirim_fmt' },
+    { data: 'transport_lead_time' },
+    { data: 'planner' },
+    { data: 'no_shipment' },
+    { data: 'status_pengiriman_badge' },
+    { data: 'dist_channel_badge' },
+    { data: 'tujuan_html' },
+    { data: 'area' },
+    { data: 'ketersediaan_unit_badge' },
+    { data: 'mobil' },
+    { data: 'total_do' },
+    { data: 'nilai_muatan_fmt' },
+    { data: 'biaya_kirim_fmt' },
+    { data: 'cr_fmt', className: 'cr-cell' },
+    { data: 'cr_shipment_fmt', className: 'cr-cell', orderable: false },
+    { data: 'kubikasi_fmt' },
+    { data: 'tonase_fmt' },
+    { data: 'total_kubik_fmt' },
+    { data: 'total_tonase_fmt' },
+    { data: 'hasil_kubik_fmt' },
+    { data: 'hasil_tonase_fmt' },
+    { data: 'pengiriman_optimal_badge' },
+    { data: 'reason_optimal' },
+    { data: 'kategori_ekspedisi_badge' },
+    { data: 'ekspedisi' },
+    { data: 'tanggal_dpt_unit_fmt' },
+    { data: 'lama_waktu_pencarian' },
+    { data: 'sla_dapat_mobil_badge' },
+    { data: 'planning_loading_fmt' },
+    { data: 'tanggal_tiba_gudang_fmt' },
+    { data: 'tanggal_keluar_gudang_fmt' },
+    { data: 'planning_loading_puntir_fmt' },
+    { data: 'tanggal_tiba_gudang_puntir_fmt' },
+    { data: 'tanggal_keluar_gudang_puntir_fmt' },
+    { data: 'pic_monitoring' },
+    { data: 'nama_kapal' },
+    { data: 'etd' },
+    { data: 'eta' },
+    { data: 'alert_badge' },
+    { data: 'act_urutan_bongkar' },
+    { data: 'actual_delivery_quantity' },
+    { data: 'selisih_qty_badge' },
+    { data: 'reason_selisih_quantity' },
+    { data: 'act_pgi_date_fmt' },
+    { data: 'atd_fmt' },
+    { data: 'ata_fmt' },
+    { data: 'estimasi_tiba_fmt' },
+    { data: 'tanggal_tiba_fmt' },
+    { data: 'lama_perjalanan' },
+    { data: 'sla_tiba_badge' },
+    { data: 'tanggal_bongkar_fmt' },
+    { data: 'status_bongkar_badge' },
+    { data: 'overstay_badge' },
+    { data: 'sla_bongkar_badge' },
+    { data: 'reason_tiba' },
+    { data: 'reason_bongkar' },
+    { data: 'status_akhir_badge' },
+    { data: 'status_alert_badge' },
+    { data: 'remarks' },
+    { data: 'route' },
+    { data: 'shipping_point' },
+    { data: 'pulau' },
+    { data: 'via_kirim' },
+    { data: 'kirim_kontribusi_fmt' },
+    { data: 'pengiriman_optimal_customer_badge' },
+    { data: 'reason_optimal_customer' },
+    { data: 'biaya_kuli' },
+    { data: 'total_biaya_kuli' },
+]
         });
 function esc(s) {
     return String(s ?? '-').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));

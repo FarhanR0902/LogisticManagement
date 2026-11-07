@@ -322,6 +322,11 @@ class UpdateQtyPgiPasuruanImport implements ToCollection, WithHeadingRow, WithEv
 
     public function collection(Collection $rows)
     {
+         logger()->info('DEBUG HEADER', [
+        'keys'  => $rows->first() ? $rows->first()->keys()->all() : 'KOSONG',
+        'first' => $rows->first() ? $rows->first()->toArray() : null,
+        'count' => $rows->count(),
+    ]);
         foreach ($rows as $row) {
 
             $noShipment = $this->cleanText($this->pick($row, ['no_shipment', 'nomer_shipment']));

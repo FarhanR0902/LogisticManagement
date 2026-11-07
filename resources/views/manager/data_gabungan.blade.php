@@ -166,27 +166,27 @@ $(function () {
             infoFiltered: "(difilter dari _MAX_ total data)",
             paginate: { first: "Awal", last: "Akhir", next: "Selanjutnya", previous: "Sebelumnya" }
         },
-        ajax: {
-         url: "{{ route('manager.gabungan.data.ajax') }}",
-            type: 'POST',
-            headers: {'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')},
-            data: function (d) {
-                d.sumber       = $('#fSumber').val();
-                d.area         = $('#fArea').val() ? [$('#fArea').val()] : linkFilter.area;
-                d.tgl_basis    = $('#fBasis').val();
-                d.date_from    = $('#fFrom').val();
-                d.date_to      = $('#fTo').val();
-                d.month        = $('#fMonth').val();
-                d.pulau        = linkFilter.pulau;
-                d.dist_channel = linkFilter.dist_channel;
-                d.date         = linkFilter.date;
-                d.year         = linkFilter.year;
-            },
-            error: function (xhr) {
-                console.error('AJAX gagal', xhr.status, xhr.responseText);
-                alert('Gagal memuat data (' + xhr.status + '). Cek Console / laravel.log.');
-            }
-        },
+   ajax: {
+    url: "{{ route('manager.gabungan.data.ajax') }}",
+    type: 'POST',
+    headers: {'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')},
+    data: function (d) {
+        d.sumber       = $('#fSumber').val();
+        d.area         = $('#fArea').val() ? [$('#fArea').val()] : linkFilter.area;
+        d.tgl_basis    = $('#fBasis').val();
+        d.date_from    = $('#fFrom').val();
+        d.date_to      = $('#fTo').val();
+        d.month        = $('#fMonth').val();
+        d.pulau        = linkFilter.pulau;
+        d.dist_channel = linkFilter.dist_channel;
+        d.date         = linkFilter.date;
+        d.year         = linkFilter.year;
+    },
+    error: function (xhr) {
+        console.error('AJAX gagal', xhr.status, xhr.responseText);
+        alert('Gagal memuat data (' + xhr.status + '). Cek Console / laravel.log.');
+    }
+},
         columns: cols.map(function (c) { return { data: c, defaultContent: '-', orderable: false }; })
     });
 
