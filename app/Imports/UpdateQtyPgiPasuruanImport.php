@@ -71,23 +71,53 @@ class UpdateQtyPgiPasuruanImport implements ToCollection, WithHeadingRow, WithEv
     private const EKSPEDISI_ALIASES = [
         // 'namadiexcel' => 'PT Nama Di Master',
     ];
+    private const MONTHS = [
+    'januari' => 1, 'jan' => 1, 'january' => 1,
+    'februari' => 2, 'feb' => 2, 'february' => 2,
+    'maret' => 3, 'mar' => 3, 'march' => 3,
+    'april' => 4, 'apr' => 4,
+    'mei' => 5, 'may' => 5,
+    'juni' => 6, 'jun' => 6, 'june' => 6,
+    'juli' => 7, 'jul' => 7, 'july' => 7,
+    'agustus' => 8, 'agu' => 8, 'agt' => 8, 'aug' => 8, 'august' => 8,
+    'september' => 9, 'sep' => 9, 'sept' => 9,
+    'oktober' => 10, 'okt' => 10, 'oct' => 10, 'october' => 10,
+    'november' => 11, 'nov' => 11, 'nopember' => 11,
+    'desember' => 12, 'des' => 12, 'dec' => 12, 'december' => 12,
+];
 
     // Excel menang kalau beda dengan DB (berlaku ke semua baris di shipment itu)
     private const OVERWRITE_SHIPMENT = ['ekpedisi', 'route', 'mobil'];
 
     // hanya diisi kalau di DB masih kosong
     private const FILL_IF_EMPTY = [
-        'pulau', 'area', 'dist_channel', 'via_kirim',
-        'kategori_ekspedisi', 'nama_driver', 'no_pol',
-        'planner', 'pic_monitoring', 'transport_lead_time', 'shipping_point',
-        'tgl_rencana_kirim', 'tgl_terima_dari_admin', 'tanggal_dpt_unit',
-        'planning_loading', 'tanggal_tiba_di_gudang', 'tanggal_keluar_gudang',
+        'pulau',
+        'area',
+        'dist_channel',
+        'via_kirim',
+        'kategori_ekspedisi',
+        'nama_driver',
+        'no_pol',
+        'planner',
+        'pic_monitoring',
+        'transport_lead_time',
+        'shipping_point',
+        'tgl_rencana_kirim',
+        'tgl_terima_dari_admin',
+        'tanggal_dpt_unit',
+        'planning_loading',
+        'tanggal_tiba_di_gudang',
+        'tanggal_keluar_gudang',
     ];
 
     // field di atas yang berisi tanggal
     private const DATE_FIELDS = [
-        'tgl_rencana_kirim', 'tgl_terima_dari_admin', 'tanggal_dpt_unit',
-        'planning_loading', 'tanggal_tiba_di_gudang', 'tanggal_keluar_gudang',
+        'tgl_rencana_kirim',
+        'tgl_terima_dari_admin',
+        'tanggal_dpt_unit',
+        'planning_loading',
+        'tanggal_tiba_di_gudang',
+        'tanggal_keluar_gudang',
     ];
 
     // header Excel alternatif (file pivot / template Pasuruan)
@@ -162,36 +192,114 @@ class UpdateQtyPgiPasuruanImport implements ToCollection, WithHeadingRow, WithEv
     private array $shipmentTujuan = [];
     private array $shipmentShared = [];
     private array $capacityRefresh = [];
+    private array $shipmentDate = [];     // no_shipment => ['tanggal' => ..., 'periode' => ...]
+    private int $dateUpdated = 0;
+    private array $dateNotFound = [];
+
+    public function getDateUpdated(): int
+    {
+        return $this->dateUpdated;
+    }
+    public function getDateNotFound(): array
+    {
+        return $this->dateNotFound;
+    }
 
     // ================= GETTERS =================
-    public function getQtyUpdated(): int { return $this->qtyUpdated; }
-    public function getQtyNotFound(): array { return $this->qtyNotFound; }
-    public function getQtyAmbiguous(): array { return $this->qtyAmbiguous; }
-    public function getQtySkipped(): int { return $this->qtySkipped; }
+    public function getQtyUpdated(): int
+    {
+        return $this->qtyUpdated;
+    }
+    public function getQtyNotFound(): array
+    {
+        return $this->qtyNotFound;
+    }
+    public function getQtyAmbiguous(): array
+    {
+        return $this->qtyAmbiguous;
+    }
+    public function getQtySkipped(): int
+    {
+        return $this->qtySkipped;
+    }
 
-    public function getPgiUpdated(): int { return $this->pgiUpdated; }
-    public function getPgiNotFound(): array { return $this->pgiNotFound; }
-    public function getPgiSkipped(): int { return $this->pgiSkipped; }
+    public function getPgiUpdated(): int
+    {
+        return $this->pgiUpdated;
+    }
+    public function getPgiNotFound(): array
+    {
+        return $this->pgiNotFound;
+    }
+    public function getPgiSkipped(): int
+    {
+        return $this->pgiSkipped;
+    }
 
-    public function getKubikTonaseUpdated(): int { return $this->kubikTonaseUpdated; }
-    public function getKubikTonaseNotFound(): array { return $this->kubikTonaseNotFound; }
-    public function getKubikTonaseSkipped(): int { return $this->kubikTonaseSkipped; }
+    public function getKubikTonaseUpdated(): int
+    {
+        return $this->kubikTonaseUpdated;
+    }
+    public function getKubikTonaseNotFound(): array
+    {
+        return $this->kubikTonaseNotFound;
+    }
+    public function getKubikTonaseSkipped(): int
+    {
+        return $this->kubikTonaseSkipped;
+    }
 
-    public function getGeneralCreated(): int { return $this->generalCreated; }
-    public function getGeneralUpdated(): int { return $this->generalUpdated; }
-    public function getGeneralUnchanged(): int { return $this->generalUnchanged; }
-    public function getGeneralAmbiguous(): array { return $this->generalAmbiguous; }
-    public function getGeneralSkipped(): int { return $this->generalSkipped; }
+    public function getGeneralCreated(): int
+    {
+        return $this->generalCreated;
+    }
+    public function getGeneralUpdated(): int
+    {
+        return $this->generalUpdated;
+    }
+    public function getGeneralUnchanged(): int
+    {
+        return $this->generalUnchanged;
+    }
+    public function getGeneralAmbiguous(): array
+    {
+        return $this->generalAmbiguous;
+    }
+    public function getGeneralSkipped(): int
+    {
+        return $this->generalSkipped;
+    }
 
     // alias dari versi sebelumnya
-    public function getInserted(): int { return $this->generalCreated; }
-    public function getInsertedList(): array { return $this->createdList; }
+    public function getInserted(): int
+    {
+        return $this->generalCreated;
+    }
+    public function getInsertedList(): array
+    {
+        return $this->createdList;
+    }
 
-    public function getBiayaKirimUpdated(): int { return $this->biayaKirimUpdated; }
-    public function getBiayaSkipped(): array { return $this->biayaSkipped; }
-    public function getTarifNotFound(): array { return $this->tarifNotFound; }
-    public function getTarifAmbiguous(): array { return $this->tarifAmbiguous; }
-    public function getTujuanNotInMaster(): array { return $this->tujuanNotInMaster; }
+    public function getBiayaKirimUpdated(): int
+    {
+        return $this->biayaKirimUpdated;
+    }
+    public function getBiayaSkipped(): array
+    {
+        return $this->biayaSkipped;
+    }
+    public function getTarifNotFound(): array
+    {
+        return $this->tarifNotFound;
+    }
+    public function getTarifAmbiguous(): array
+    {
+        return $this->tarifAmbiguous;
+    }
+    public function getTujuanNotInMaster(): array
+    {
+        return $this->tujuanNotInMaster;
+    }
 
     public function __construct()
     {
@@ -212,7 +320,7 @@ class UpdateQtyPgiPasuruanImport implements ToCollection, WithHeadingRow, WithEv
         if (self::$masterByTujuan === null) {
             self::$masterByTujuan = Schema::hasTable(self::MASTER_TABLE)
                 ? DB::table(self::MASTER_TABLE)->get()
-                    ->groupBy(fn($r) => $this->normalizeTujuan($r->{self::MASTER_TUJUAN_COL}))
+                ->groupBy(fn($r) => $this->normalizeTujuan($r->{self::MASTER_TUJUAN_COL}))
                 : collect();
         }
     }
@@ -291,6 +399,7 @@ class UpdateQtyPgiPasuruanImport implements ToCollection, WithHeadingRow, WithEv
 
                 // tiap langkah dibungkus sendiri: satu gagal tidak mematikan yang lain
                 $steps = [
+                    'processShipmentDate'   => fn() => $this->processShipmentDate(),
                     'processShipmentFields' => fn() => $this->processShipmentFields(),
                     'recalcTarifCapacity'   => fn() => $this->recalcTarifCapacity($shipments),
                     'recalcBiayaKontribusi' => fn() => $this->recalcBiayaKontribusi(),
@@ -317,16 +426,89 @@ class UpdateQtyPgiPasuruanImport implements ToCollection, WithHeadingRow, WithEv
             },
         ];
     }
+    /** ambil tanggal & periode shipment dari baris Excel (yang pertama terisi per shipment) */
+   private function collectShipmentDate($row, string $sh): void
+{
+    $tgl  = $this->convertDateUs($this->pick($row, ['tanggal_shipment']));
+    $year = $tgl !== null ? date('Y', strtotime($tgl)) : null;
+    $per  = $this->convertPeriode($this->pick($row, ['periode_shipment']), $year);
 
+    // periode kosong tapi tanggal ada -> periode diambil dari tanggal
+    if ($per === null && $tgl !== null) {
+        $per = date('m-Y', strtotime($tgl));
+    }
+
+    if ($tgl !== null) $this->shipmentDate[$sh]['tanggal'] ??= $tgl;
+    if ($per !== null) $this->shipmentDate[$sh]['periode'] ??= $per;
+}
+    /** tulis tanggal & periode ke semua baris dengan no_shipment itu */
+    private function processShipmentDate(): void
+    {
+        $cShip = $this->c('no_shipment');
+        $cTgl  = $this->c('tanggal_shipment');
+        $cPer  = $this->c('periode_shipment');
+
+        foreach ($this->shipmentDate as $sh => $v) {
+            $payload = $this->onlyCols(array_filter([
+                $cTgl => $v['tanggal'] ?? null,
+                $cPer => $v['periode'] ?? null,
+            ], fn($x) => $x !== null));
+
+            if (!$payload) continue;
+            if ($this->hasUpdatedAt) $payload['updated_at'] = now();
+
+            $affected = DB::table(self::TABLE)->where($cShip, (string) $sh)->update($payload);
+
+            if ($affected > 0) {
+                $this->dateUpdated += $affected;
+            } elseif (!DB::table(self::TABLE)->where($cShip, (string) $sh)->exists()) {
+                $this->dateNotFound[] = (string) $sh;   // shipment tidak ada di DB
+            }
+        }
+    }
+
+    /** periode shipment = teks "MM-YYYY" */
+  /** periode shipment = teks "MM-YYYY"; $fallbackYear dipakai kalau cuma ada nama bulan */
+private function convertPeriode($value, ?string $fallbackYear = null): ?string
+{
+    if ($value === null || $value === '' || $value === '-') return null;
+
+    if ($value instanceof \DateTimeInterface) return $value->format('m-Y');
+
+    if (is_numeric($value)) {
+        return (float) $value > 0 ? Date::excelToDateTimeObject($value)->format('m-Y') : null;
+    }
+
+    $v = trim((string) $value);
+
+    if (preg_match('#^(\d{1,2})[-/](\d{4})$#', $v, $m) && (int) $m[1] >= 1 && (int) $m[1] <= 12) {
+        return sprintf('%02d-%04d', (int) $m[1], (int) $m[2]);
+    }
+    if (preg_match('#^(\d{4})[-/](\d{1,2})$#', $v, $m) && (int) $m[2] >= 1 && (int) $m[2] <= 12) {
+        return sprintf('%02d-%04d', (int) $m[2], (int) $m[1]);
+    }
+
+    // nama bulan: "November" atau "November 2026"
+    if (preg_match('/^([a-z]+)\.?\s*(\d{4})?$/i', $v, $m)) {
+        $mon = self::MONTHS[strtolower($m[1])] ?? null;
+        if ($mon !== null) {
+            $year = $m[2] ?? $fallbackYear;
+            return $year ? sprintf('%02d-%04d', $mon, (int) $year) : null;
+        }
+    }
+
+    $ts = strtotime($v);
+    return $ts ? date('m-Y', $ts) : null;
+}
     // ================= MAIN =================
 
     public function collection(Collection $rows)
     {
-         logger()->info('DEBUG HEADER', [
-        'keys'  => $rows->first() ? $rows->first()->keys()->all() : 'KOSONG',
-        'first' => $rows->first() ? $rows->first()->toArray() : null,
-        'count' => $rows->count(),
-    ]);
+        logger()->info('DEBUG HEADER', [
+            'keys'  => $rows->first() ? $rows->first()->keys()->all() : 'KOSONG',
+            'first' => $rows->first() ? $rows->first()->toArray() : null,
+            'count' => $rows->count(),
+        ]);
         foreach ($rows as $row) {
 
             $noShipment = $this->cleanText($this->pick($row, ['no_shipment', 'nomer_shipment']));
@@ -340,6 +522,7 @@ class UpdateQtyPgiPasuruanImport implements ToCollection, WithHeadingRow, WithEv
             }
 
             $noShipment = (string) $noShipment;
+            $this->collectShipmentDate($row, $noShipment);
             $this->touchedShipments[$noShipment] = true;
 
             // biaya 1 mobil (diisi satu baris saja per shipment)
@@ -495,11 +678,11 @@ class UpdateQtyPgiPasuruanImport implements ToCollection, WithHeadingRow, WithEv
             'total_tonase'       => $this->parseNumber($this->pick($row, ['total_tonase', 'sum_of_tonase3'])),
         ];
         // tanpa total_kubik = bukan baris DO sungguhan (mis. baris pembawa biaya).
-// Jangan insert dan jangan update apa pun, biarkan data yang sudah ada.
-if ($perDo['total_kubik'] === null || (float) $perDo['total_kubik'] <= 0) {
-    $this->generalSkipped++;
-    return;
-}
+        // Jangan insert dan jangan update apa pun, biarkan data yang sudah ada.
+        if ($perDo['total_kubik'] === null || (float) $perDo['total_kubik'] <= 0) {
+            $this->generalSkipped++;
+            return;
+        }
         // field milik shipment / tujuan
         $shared = [];
         foreach (array_merge(self::OVERWRITE_SHIPMENT, self::FILL_IF_EMPTY) as $col) {
@@ -519,7 +702,7 @@ if ($perDo['total_kubik'] === null || (float) $perDo['total_kubik'] <= 0) {
             $existing = (clone $base)->where($cNoDo, $noDo)->first()
                 // baris lama yang no_do-nya masih kosong dipakai untuk DO pertama
                 ?? (clone $base)->where(fn($q) => $q->whereNull($cNoDo)->orWhere($cNoDo, ''))
-                                ->orderBy('id')->first();
+                ->orderBy('id')->first();
         } else {
             // template tanpa no_do: 1 baris Excel = 1 DO, dicocokkan lewat sidik jari
             // (qty + nilai muatan + kubik + tonase). Tidak cocok -> jadi baris baru.
@@ -576,14 +759,25 @@ if ($perDo['total_kubik'] === null || (float) $perDo['total_kubik'] <= 0) {
         if ($sibling) {
             // tujuan sudah ada -> salin data shipment dari baris saudara, lalu timpa field per DO
             $new = (array) $sibling;
-            foreach (array_merge(
-                ['id', 'created_at', 'updated_at'],
-                array_map(fn($k) => $this->c($k), [
-                    'sales_document', 'customer_reference', 'contract_end_date', 'no_do',
-                    'nilai_muatan', 'total_do_qty_car', 'total_kubik', 'total_tonase',
-                    'kirim_kontribusi', 'hasil_kubik', 'hasil_tonase', 'cr',
-                ])
-            ) as $k) {
+            foreach (
+                array_merge(
+                    ['id', 'created_at', 'updated_at'],
+                    array_map(fn($k) => $this->c($k), [
+                        'sales_document',
+                        'customer_reference',
+                        'contract_end_date',
+                        'no_do',
+                        'nilai_muatan',
+                        'total_do_qty_car',
+                        'total_kubik',
+                        'total_tonase',
+                        'kirim_kontribusi',
+                        'hasil_kubik',
+                        'hasil_tonase',
+                        'cr',
+                    ])
+                ) as $k
+            ) {
                 unset($new[$k]);
             }
 
@@ -654,23 +848,26 @@ if ($perDo['total_kubik'] === null || (float) $perDo['total_kubik'] <= 0) {
             && abs((float) $a - (float) $b) <= $tol;
 
         if ($qty !== null && $nil !== null) {
-            $hit = $cands->first(fn($r) =>
+            $hit = $cands->first(
+                fn($r) =>
                 $eq($r->{$cQty} ?? null, $qty, 0.5)
-                && $eq($r->{$cNil} ?? null, $nil, 1.0)
-                && ($kub === null || $eq($r->{$cKub} ?? null, $kub, 0.0005))
-                && ($ton === null || $eq($r->{$cTon} ?? null, $ton, 0.0005))
+                    && $eq($r->{$cNil} ?? null, $nil, 1.0)
+                    && ($kub === null || $eq($r->{$cKub} ?? null, $kub, 0.0005))
+                    && ($ton === null || $eq($r->{$cTon} ?? null, $ton, 0.0005))
             );
             if ($hit) return $hit;
 
-            $hit = $cands->first(fn($r) =>
+            $hit = $cands->first(
+                fn($r) =>
                 $eq($r->{$cQty} ?? null, $qty, 0.5)
-                && $eq($r->{$cNil} ?? null, $nil, 1.0)
+                    && $eq($r->{$cNil} ?? null, $nil, 1.0)
             );
             if ($hit) return $hit;
         }
 
         // baris lama yang qty & nilainya masih kosong dipakai dulu
-        return $cands->first(fn($r) =>
+        return $cands->first(
+            fn($r) =>
             (float) ($r->{$cQty} ?? 0) == 0.0 && (float) ($r->{$cNil} ?? 0) == 0.0
         );
     }
@@ -869,7 +1066,7 @@ if ($perDo['total_kubik'] === null || (float) $perDo['total_kubik'] <= 0) {
                     GROUP BY {$sh}, COALESCE({$tj},'')
                 ) g ON lp.{$sh} = g.ns AND COALESCE(lp.{$tj},'') = g.tj
                 SET lp.{$cr} = IF(g.sum_nilai <= 0, 0,
-                               ROUND({$n('lp.' . $bk)} / g.sum_nilai * 100, 4))
+                               ROUND({$n('lp.' .$bk)} / g.sum_nilai * 100, 4))
                 WHERE lp.{$sh} IN ($in)
             ", $b2);
 
@@ -989,7 +1186,9 @@ if ($perDo['total_kubik'] === null || (float) $perDo['total_kubik'] <= 0) {
             return self::EKSPEDISI_ALIASES[$key];
         }
 
-        $best = null; $bestScore = 0.0; $second = 0.0;
+        $best = null;
+        $bestScore = 0.0;
+        $second = 0.0;
 
         foreach ($candidates->pluck('ekpedisi')->filter()->unique() as $master) {
             $mk = $this->ekspedisiKey($master);
@@ -1000,13 +1199,20 @@ if ($perDo['total_kubik'] === null || (float) $perDo['total_kubik'] <= 0) {
             similar_text($key, $mk, $pct);
             $score = $pct / 100;
 
-            if (min(strlen($key), strlen($mk)) >= 6
-                && (str_contains($mk, $key) || str_contains($key, $mk))) {
+            if (
+                min(strlen($key), strlen($mk)) >= 6
+                && (str_contains($mk, $key) || str_contains($key, $mk))
+            ) {
                 $score = max($score, 0.9);
             }
 
-            if ($score > $bestScore)  { $second = $bestScore; $bestScore = $score; $best = $master; }
-            elseif ($score > $second) { $second = $score; }
+            if ($score > $bestScore) {
+                $second = $bestScore;
+                $bestScore = $score;
+                $best = $master;
+            } elseif ($score > $second) {
+                $second = $score;
+            }
         }
 
         return ($best !== null && $bestScore >= 0.85 && ($bestScore - $second) >= 0.05) ? $best : null;
@@ -1066,9 +1272,9 @@ if ($perDo['total_kubik'] === null || (float) $perDo['total_kubik'] <= 0) {
             }
             $master = $this->ekspedisiResolved[$cacheKey];
 
-            $found = $byMobil->first(fn($t) =>
-                ($master !== null && $t->ekpedisi === $master)
-                || $this->normalize($t->ekpedisi) === $ekKey
+            $found = $byMobil->first(
+                fn($t) => ($master !== null && $t->ekpedisi === $master)
+                    || $this->normalize($t->ekpedisi) === $ekKey
             );
         }
 
