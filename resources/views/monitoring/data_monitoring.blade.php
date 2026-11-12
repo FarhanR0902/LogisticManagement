@@ -283,6 +283,38 @@
     </div>
 
     <div class="toast-container" id="toastContainer"></div>
+    <div class="modal fade" id="periodeModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Pilih Periode Shipment</h5>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted" style="font-size:13px;">
+                    Pilih periode yang mau ditampilkan. Data di luar pilihan tidak dimuat.
+                </p>
+                <div class="d-flex justify-content-between mb-2" style="font-size:13px;">
+                    <a href="#" id="periodeAll">Pilih semua</a>
+                    <a href="#" id="periodeClear">Hapus</a>
+                </div>
+                <div style="max-height:320px; overflow-y:auto;">
+                    @foreach($periodeList as $p)
+                    <label class="ms-dd-item" style="font-size:15px;">
+                        <input type="checkbox" class="periode-chk"
+                               value="{{ $p->periode === '' ? '__kosong__' : $p->periode }}">
+                        <span>{{ $p->periode === '' ? '(Tanpa periode)' : $p->periode }}</span>
+                        <span class="badge gray ms-auto">{{ number_format($p->total, 0, ',', '.') }} baris</span>
+                    </label>
+                    @endforeach
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary d-none" id="btnPeriodeBatal">Batal</button>
+                <button type="button" class="btn btn-primary" id="btnPeriodeOk" disabled>Tampilkan</button>
+            </div>
+        </div>
+    </div>
+</div>
 
     <div id="kelengkapanMenu" style="display:none;">
         <button type="button" id="btnKelSort" class="kel-btn">↕ Sort</button>
@@ -314,6 +346,7 @@
                 <span class="badge bg-light" id="dirtyCount">0</span>
                 <small class="ms-1">(<span id="editedCount">0</span> data diedit)</small>
             </button>
+            
         </div>
 
     <div class="filter-box">

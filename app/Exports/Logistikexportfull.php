@@ -177,7 +177,7 @@ class LogistikExportFull implements
     // ============================================================
     // DEFINISI KOLOM [heading, tipe, closure]
     // ============================================================
-    private function columns(): array
+    protected function columns(): array
     {
         if ($this->cols !== null) {
             return $this->cols;
@@ -351,7 +351,7 @@ class LogistikExportFull implements
     // HELPER DASAR
     // ============================================================
     /** tanggal saja -> serial Excel */
-    private function xl($v)
+      protected function xl($v)
     {
         if ($v === null || $v === '' || $v === false || $v === 'mm/dd/yyyy') return '';
         $ts = is_int($v) ? $v : strtotime((string) $v);

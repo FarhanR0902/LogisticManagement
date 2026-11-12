@@ -5,8 +5,8 @@
 
 <head>
     <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet">
-    
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.css">
+
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.css">
 
     <link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet">
     <meta charset="UTF-8">
@@ -25,25 +25,50 @@
             font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
         }
 
-        .flatpickr-day.has-import {
-        background: #dcfce7; border-color: #86efac;
-        color: #166534; font-weight: 700; position: relative;
-    }
-    .flatpickr-day.has-import::after {
-        content: ''; position: absolute; bottom: 3px; left: 50%;
-        transform: translateX(-50%);
-        width: 5px; height: 5px; border-radius: 50%; background: #16a34a;
-    }
-    .flatpickr-day.has-import.selected { background: #0284c7; border-color: #0284c7; color: #fff; }
-    .chip-import {
-        display: inline-block; padding: 3px 9px; margin: 2px 3px 0 0;
-        border-radius: 14px; background: #f1f5f9; border: 1px solid #cbd5e1;
-        font-size: 11px; cursor: pointer;
-    }
-    .chip-import:hover, .chip-import.active { background: #0284c7; color: #fff; border-color: #0284c7; }
-        body {
-            background: #f8fafc;
-            color: #334155;
+        .flatpickr-day.ship-done {
+            background: #dcfce7;
+            border-color: #22c55e;
+            color: #166534;
+            font-weight: 700;
+            position: relative;
+        }
+
+        .flatpickr-day.ship-pending {
+            background: #fee2e2;
+            border-color: #ef4444;
+            color: #991b1b;
+            font-weight: 700;
+            position: relative;
+        }
+
+        .flatpickr-day.ship-done.selected {
+            background: #16a34a;
+            border-color: #16a34a;
+            color: #fff;
+        }
+
+        .flatpickr-day.ship-pending.selected {
+            background: #dc2626;
+            border-color: #dc2626;
+            color: #fff;
+        }
+
+        .ship-badge {
+            position: absolute;
+            top: -3px;
+            right: -3px;
+            min-width: 20px;
+            height: 20px;
+            line-height: 20px;
+            padding: 0 5px;
+            border-radius: 10px;
+            background: #dc2626;
+            color: #fff;
+            font-size: 12px;
+            font-weight: 700;
+            text-align: center;
+            z-index: 2;
+            box-shadow: 0 0 0 1.5px #fff;
         }
 
         .badge {
@@ -55,11 +80,26 @@
             font-weight: 300;
         }
 
-        .green { background-color: #22c55e !important; }
-        .red { background-color: #ef4444 !important; }
-        .gray { background-color: #64748b !important; }
-        .orange { background-color: #f97316 !important; }
-        .yellow { background-color: #facc15 !important; color: #000 !important; }
+        .green {
+            background-color: #22c55e !important;
+        }
+
+        .red {
+            background-color: #ef4444 !important;
+        }
+
+        .gray {
+            background-color: #64748b !important;
+        }
+
+        .orange {
+            background-color: #f97316 !important;
+        }
+
+        .yellow {
+            background-color: #facc15 !important;
+            color: #000 !important;
+        }
 
         .container-fluid-custom {
             width: calc(100% - 260px);
@@ -99,7 +139,9 @@
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
         }
 
-        .dataTables_wrapper { padding-top: 10px; }
+        .dataTables_wrapper {
+            padding-top: 10px;
+        }
 
         table.dataTable {
             border-collapse: separate !important;
@@ -112,7 +154,9 @@
             transition: background-color 0.2s ease;
         }
 
-        table.dataTable tbody tr:hover { background-color: #f1f5f9 !important; }
+        table.dataTable tbody tr:hover {
+            background-color: #f1f5f9 !important;
+        }
 
         table.dataTable tbody td {
             padding: 12px 14px !important;
@@ -122,7 +166,9 @@
             font-size: 15px;
         }
 
-        #tablePlanner .select2-container { width: 150px !important; }
+        #tablePlanner .select2-container {
+            width: 150px !important;
+        }
 
         #tablePlanner .select2-container--bootstrap-5 .select2-selection {
             min-height: 30px;
@@ -143,7 +189,10 @@
             font-size: 12px;
         }
 
-        #tablePlanner .select2-container--bootstrap-5 .select2-selection__arrow { height: 28px; top: 0; }
+        #tablePlanner .select2-container--bootstrap-5 .select2-selection__arrow {
+            height: 28px;
+            top: 0;
+        }
 
         #tablePlanner .select2-container--bootstrap-5.select2-container--focus .select2-selection,
         #tablePlanner .select2-container--bootstrap-5.select2-container--open .select2-selection {
@@ -155,7 +204,7 @@
             font-size: 13px;
             border-radius: 8px;
             border: 1px solid #cbd5e1;
-            box-shadow: 0 8px 20px rgba(0,0,0,0.12);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
             z-index: 3000;
         }
 
@@ -171,7 +220,9 @@
             color: #fff !important;
         }
 
-        #addModal .select2-container { width: 100% !important; }
+        #addModal .select2-container {
+            width: 100% !important;
+        }
 
         #addModal .select2-container--bootstrap-5 .select2-selection {
             min-height: 38px;
@@ -192,11 +243,12 @@
             background-color: #fff;
             transition: all 0.2s;
         }
-     table input.input-jam {
-    width: 165px;
-    margin-top: 4px;
-    text-align: center;
-}
+
+        table input.input-jam {
+            width: 165px;
+            margin-top: 4px;
+            text-align: center;
+        }
 
         table input:focus {
             border-color: #38bdf8;
@@ -204,7 +256,9 @@
             box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.2);
         }
 
-        table input[type="date"] { width: 165px; }
+        table input[type="date"] {
+            width: 165px;
+        }
 
         .badge-status {
             padding: 5px 10px;
@@ -222,7 +276,9 @@
             padding-bottom: 15px;
         }
 
-        .form-horizontal-scroll .field-box { flex: 0 0 240px; }
+        .form-horizontal-scroll .field-box {
+            flex: 0 0 240px;
+        }
 
         .form-horizontal-scroll label {
             font-size: 13px;
@@ -238,7 +294,10 @@
             border: 1px solid #cbd5e1;
         }
 
-        .btn-action { display: inline-flex; gap: 5px; }
+        .btn-action {
+            display: inline-flex;
+            gap: 5px;
+        }
 
         th.th-default {
             background: #00d0ff !important;
@@ -280,7 +339,10 @@
             font-weight: bold;
         }
 
-        .bg-orange { background: #fd7e14 !important; color: #fff; }
+        .bg-orange {
+            background: #fd7e14 !important;
+            color: #fff;
+        }
 
         .input-filled {
             background-color: #dcfce7 !important;
@@ -295,7 +357,12 @@
             color: #991b1b !important;
         }
 
-        .missing-field-box { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+        .missing-field-box {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
 
         #alertControlBox .box-header {
             display: flex;
@@ -304,9 +371,15 @@
             margin-bottom: 10px;
         }
 
-        #alertControlBox .box-header b { font-size: 15px; color: #1e293b; }
+        #alertControlBox .box-header b {
+            font-size: 15px;
+            color: #1e293b;
+        }
 
-        #alertControlList { max-height: 260px; overflow-y: auto; }
+        #alertControlList {
+            max-height: 260px;
+            overflow-y: auto;
+        }
 
         .alert-item {
             background: #f9fafb;
@@ -318,17 +391,42 @@
             transition: all .15s ease;
         }
 
-        .alert-item:hover { background: #f1f5f9; transform: translateY(-1px); }
+        .alert-item:hover {
+            background: #f1f5f9;
+            transform: translateY(-1px);
+        }
 
-        .alert-item .alert-top { display: flex; justify-content: space-between; align-items: center; }
+        .alert-item .alert-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
 
-        .alert-item .alert-missing { font-size: 12px; color: #6b7280; margin-top: 4px; white-space: normal; }
+        .alert-item .alert-missing {
+            font-size: 12px;
+            color: #6b7280;
+            margin-top: 4px;
+            white-space: normal;
+        }
 
-        .completeness-badge { white-space: normal; max-width: 220px; line-height: 1.4; }
+        .completeness-badge {
+            white-space: normal;
+            max-width: 220px;
+            line-height: 1.4;
+        }
 
-        .highlight-row td { background: #fde68a !important; transition: background-color .3s ease; }
+        .highlight-row td {
+            background: #fde68a !important;
+            transition: background-color .3s ease;
+        }
 
-        .toast-container { position: fixed; top: 20px; right: 20px; width: 350px; z-index: 99999; }
+        .toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            width: 350px;
+            z-index: 99999;
+        }
 
         .toast {
             background: #111827;
@@ -342,19 +440,38 @@
             font-size: 12px;
         }
 
-        .toast strong { display: block; margin-bottom: 5px; color: #fbbf24; }
+        .toast strong {
+            display: block;
+            margin-bottom: 5px;
+            color: #fbbf24;
+        }
 
         @keyframes slideIn {
-            from { transform: translateX(120%); opacity: 0; }
-            to { transform: translateX(0); opacity: 1; }
+            from {
+                transform: translateX(120%);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
         }
-        .dataTables_scrollBody { border-bottom: 1px solid #e2e8f0; }
-.dataTables_scrollHead { position: relative; z-index: 2; }
+
+        .dataTables_scrollBody {
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .dataTables_scrollHead {
+            position: relative;
+            z-index: 2;
+        }
+
         /* Loading overlay ringan untuk tabel saat ajax reload */
         .dt-loading-overlay {
             position: absolute;
             inset: 0;
-            background: rgba(255,255,255,0.6);
+            background: rgba(255, 255, 255, 0.6);
             display: none;
             align-items: center;
             justify-content: center;
@@ -362,7 +479,10 @@
             color: #0284c7;
             z-index: 10;
         }
-        #tablePlannerWrap { position: relative; }
+
+        #tablePlannerWrap {
+            position: relative;
+        }
     </style>
 </head>
 
@@ -399,15 +519,15 @@
 
         <div class="row mb-3">
 
-          <div class="col-md-3">
-    <label class="form-label fw-bold">Filter data Import</label>
-    <div class="input-group">
-        <input type="text" id="filterCreateTgl" class="form-control" placeholder="Pilih tanggal import">
-        <button type="button" class="btn btn-outline-secondary" id="btnResetTgl" title="Hapus filter">X</button>
-    </div>
-  
-</div>
-                 
+            <div class="col-md-3">
+                <label class="form-label fw-bold">Filter Tanggal Shipment</label>
+                <div class="input-group">
+                    <input type="text" id="filterCreateTgl" class="form-control" placeholder="Pilih tanggal shipment">
+                    <button type="button" class="btn btn-outline-secondary" id="btnResetTgl" title="Hapus filter">X</button>
+                </div>
+
+            </div>
+
 
             <div class="modal fade" id="addModal" tabindex="-1" aria-hidden="true">
                 <div class="modal-dialog modal-xl modal-dialog-centered">
@@ -468,7 +588,7 @@
                                         <select name="mobil" class="form-control select2-modal">
                                             <option value="">-- Pilih Mobil --</option>
                                             @foreach($mobilList as $m)
-                                                <option value="{{ $m }}">{{ $m }}</option>
+                                            <option value="{{ $m }}">{{ $m }}</option>
                                             @endforeach
                                         </select>
                                     </div>
@@ -503,7 +623,7 @@
                                         <select name="ekpedisi" class="form-control select2-modal">
                                             <option value="">-- Pilih Ekspedisi --</option>
                                             @foreach($ekpedisiList as $e)
-                                                <option value="{{ $e }}">{{ $e }}</option>
+                                            <option value="{{ $e }}">{{ $e }}</option>
                                             @endforeach
                                         </select>
                                     </div>
@@ -578,1113 +698,1196 @@
                 </div>
             </div>
 
-           <div class="col-md-3">
-    <label class="form-label fw-bold">Filter Dist Channel</label>
-    <select id="filterDistChannel" class="form-select" multiple data-placeholder="Semua Dist Channel">
-        @foreach($distChannelList as $dc)
-            <option value="{{ $dc }}">{{ $dc }}</option>
-        @endforeach
-    </select>
-</div>
-
-<div class="col-md-3">
-    <label class="form-label fw-bold">Filter Planner</label>
-    <select id="filterPlanner" class="form-select" multiple data-placeholder="Semua Planner">
-        @foreach($planners as $planner)
-            <option value="{{ $planner }}">{{ $planner }}</option>
-        @endforeach
-    </select>
-</div>
-
-<div class="col-md-3">
-    <label class="form-label fw-bold">Filter Area</label>
-    <select id="filterArea" class="form-select" multiple data-placeholder="Semua Area">
-        @foreach($areas as $area)
-            <option value="{{ $area }}">{{ $area }}</option>
-        @endforeach
-    </select>
-</div>
-
-
-
-                {{-- ===== SUMMARY: FIELD YANG PALING BANYAK KOSONG (via AJAX ringan) ===== --}}
-                <div class="card mb-3">
-                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
-                        <b style="font-size:14px; color:#374151;">📋 Field belum lengkap:</b>
-                    </div>
-                    <div class="missing-field-box" id="missingFieldSummary">
-                        <span class="badge gray">Menghitung...</span>
-                    </div>
-                </div>
-
-                {{-- ===== ALERT CONTROL BOX (via AJAX ringan) ===== --}}
-                <div class="card mb-3" id="alertControlBox">
-                    <div class="box-header">
-                        <b>🔔 Alert Control — Data Belum Lengkap (Mobil, Ekspedisi, Route, Nama Driver, No Pol)</b>
-                        <span class="badge red" id="alertControlCount">0 Alert</span>
-                    </div>
-                    <div id="alertControlList">
-                        <div class="p-2" style="color:#6b7280; font-size:13px;">Memuat data...</div>
-                    </div>
-                </div>
-
-                <div class="card">
-              <div id="tablePlannerWrap">
-                        <div class="dt-loading-overlay" id="dtLoadingOverlay">Memuat data...</div>
-                        <table id="tablePlanner" class="display nowrap table table-hover" style="width:100%">
-                            <thead>
-                                <tr>
-                                    <th class="th-default">Tanggal Import</th>
-                                    <th class="th-oren">Nama Planner</th>
-                                    <th class="th-oren">No Shipment</th>
-
-                                    <th class="th-edit">Tanggal Terima Dari Admin</th>
-                                    <th class="th-edit">Rencana Kirim</th>
-                                    <th class="th-edit">Tanggal Dapat Unit</th>
-                                    <th class="th-edit">Planning Loading <span style="color:#0047FF;font-weight:900;">KACS</span></th>
-                                    <th class="th-edit">Tanggal Tiba <span style="color:#0047FF;font-weight:900;">KACS</span></th>
-                                   <th class="th-edit">Tanggal Keluar <span style="color:#0047FF;font-weight:900;">KACS</span></th>
-<th class="th-edit">Reason <span style="color:#0047FF;font-weight:900;">KACS</span></th>   <!-- BARU -->
-
-<th class="th-edit">Planning Loading <span style="color:#FF6B00;font-weight:900;">Sentul</span></th>
-<th class="th-edit">Tanggal Tiba <span style="color:#FF6B00;font-weight:900;">Sentul</span></th>
-<th class="th-edit">Tanggal Keluar <span style="color:#FF6B00;font-weight:900;">Sentul</span></th>
-<th class="th-edit">Reason <span style="color:#FF6B00;font-weight:900;">Sentul</span></th>  <!-- BARU -->
-
-<th class="th-edit">Planning Loading <span style="color:#FF0033;font-weight:900;">CCIE</span></th>
-<th class="th-edit">Tanggal Tiba <span style="color:#FF0033;font-weight:900;">CCIE</span></th>
-<th class="th-edit">Tanggal Keluar <span style="color:#FF0033;font-weight:900;">CCIE</span></th>
-<th class="th-edit">Reason <span style="color:#FF0033;font-weight:900;">CCIE</span></th>  <!-- BARU -->
-<th class="th-edit">Planning Loading <span style="color:#7C3AED;font-weight:900;">P5</span></th>
-<th class="th-edit">Tanggal Tiba <span style="color:#7C3AED;font-weight:900;">P5</span></th>
-<th class="th-edit">Tanggal Keluar <span style="color:#7C3AED;font-weight:900;">P5</span></th>
-<th class="th-edit">Reason <span style="color:#7C3AED;font-weight:900;">P5</span></th>
-
-<th class="th-edit">Planning Loading <span style="color:#059669;font-weight:900;">Vivatex</span></th>
-<th class="th-edit">Tanggal Tiba <span style="color:#059669;font-weight:900;">Vivatex</span></th>
-<th class="th-edit">Tanggal Keluar <span style="color:#059669;font-weight:900;">Vivatex</span></th>
-<th class="th-edit">Reason <span style="color:#059669;font-weight:900;">Vivatex</span></th>
-                                    <th class="th-default">Tujuan</th>
-                                    <th class="th-default">Route</th>
-                                    <th class="th-default">Pulau</th>
-                                    <th class="th-default">Area</th>
-                                    <th class="th-default">Via Kirim</th>
-                                    <th class="th-oren">Dist Channel</th>
-                                    <th class="th-oren">Kategori Ekspedisi</th>
-                                    <th class="th-oren">Ekspedisi</th>
-                                    <th class="th-oren">Lead Time</th>
-                                    <th class="th-oren">Nama Driver</th>
-                                    <th class="th-oren">No Pol</th>
-                                    <th class="th-oren">Mobil</th>
-                                    <th class="th-system">Total Qty</th>
-                                    <th class="th-system">Nilai Muatan</th>
-                                    <th class="th-system">Biaya Kirim</th>
-                                    <th class="th-system">CR (%)</th>
-                                       <th class="th-system">Kubikasi (%)</th>
-                                       <th class="th-system">Tonase (%)</th>
-<th class="th-edit">Total Kubik</th>
-<th class="th-edit">Total Tonase</th>
-<th class="th-system">Hasil Kubik</th>
-<th class="th-system">Hasil Tonase</th>
-<th class="th-system">Pengiriman Optimal</th>
-<th class="th-edit">Reason Optimal</th>
-<th class="th-system">Pengiriman Optimal Customer</th>
-<th class="th-edit">Reason Optimal Customer</th>
-
-<th class="th-system">Status Mobil</th>
-                                    <th class="th-system">Lama Waktu Pencarian</th>
-                                    <th class="th-system">SLA Dapat Mobil</th>
-
-                                    <th class="th-system">Lama Di KACS</th>
-                                    <th class="th-system">Status KACS</th>
-                                    <th class="th-system">SLA Loading</th>
-
-                                    <th class="th-system">Lama Di Sentul</th>
-                                    <th class="th-system">Status Sentul</th>
-                                    <th class="th-system">SLA Loading Sentul</th>
-
-                                    <th class="th-system">Lama Di CCIE</th>
-                                    <th class="th-system">Status CCIE</th>
-                                    <th class="th-system">SLA Loading CCIE</th>
-                                    <th class="th-system">Lama Di P5</th>
-<th class="th-system">Status P5</th>
-<th class="th-system">SLA Loading P5</th>
-
-<th class="th-system">Lama Di Fifatex</th>
-<th class="th-system">Status Fifatex</th>
-<th class="th-system">SLA Loading Fifatex</th>
-
-                                    <th class="th-default">Shipping Point</th>
-                                    <th class="th-system">Kelengkapan Data</th>
-                                    <th class="th-default" style="min-width:130px;">Hapus</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {{-- Kosong: diisi via server-side DataTables (ajax) --}}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-                <script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.js"></script>
-                <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
-                <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-                <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
-                <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+            <div class="col-md-3">
+                <label class="form-label fw-bold">Filter Dist Channel</label>
+                <select id="filterDistChannel" class="form-select" multiple data-placeholder="Semua Dist Channel">
+                    @foreach($distChannelList as $dc)
+                    <option value="{{ $dc }}">{{ $dc }}</option>
+                    @endforeach
+                </select>
             </div>
 
+            <div class="col-md-3">
+                <label class="form-label fw-bold">Filter Planner</label>
+                <select id="filterPlanner" class="form-select" multiple data-placeholder="Semua Planner">
+                    @foreach($planners as $planner)
+                    <option value="{{ $planner }}">{{ $planner }}</option>
+                    @endforeach
+                </select>
+            </div>
+
+            <div class="col-md-3">
+                <label class="form-label fw-bold">Filter Area</label>
+                <select id="filterArea" class="form-select" multiple data-placeholder="Semua Area">
+                    @foreach($areas as $area)
+                    <option value="{{ $area }}">{{ $area }}</option>
+                    @endforeach
+                </select>
+            </div>
+
+
+
+            {{-- ===== SUMMARY: FIELD YANG PALING BANYAK KOSONG (via AJAX ringan) ===== --}}
+            <div class="card mb-3">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                    <b style="font-size:14px; color:#374151;">📋 Field belum lengkap:</b>
+                </div>
+                <div class="missing-field-box" id="missingFieldSummary">
+                    <span class="badge gray">Menghitung...</span>
+                </div>
+            </div>
+
+            {{-- ===== ALERT CONTROL BOX (via AJAX ringan) ===== --}}
+            <div class="card mb-3" id="alertControlBox">
+                <div class="box-header">
+                    <b>🔔 Alert Control — Data Belum Lengkap (Mobil, Ekspedisi, Route, Nama Driver, No Pol)</b>
+                    <span class="badge red" id="alertControlCount">0 Alert</span>
+                </div>
+                <div id="alertControlList">
+                    <div class="p-2" style="color:#6b7280; font-size:13px;">Memuat data...</div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div id="tablePlannerWrap">
+                    <div class="dt-loading-overlay" id="dtLoadingOverlay">Memuat data...</div>
+                    <table id="tablePlanner" class="display nowrap table table-hover" style="width:100%">
+                        <thead>
+                            <tr>
+                                <th class="th-default">Tanggal Import</th>
+                                <th class="th-oren">Nama Planner</th>
+                                <th class="th-oren">No Shipment</th>
+                                <th class="th-oren">Tanggal Shipment</th>
+                                <th class="th-edit">Tanggal Terima Dari Admin</th>
+                                <th class="th-edit">Rencana Kirim</th>
+                                <th class="th-edit">Tanggal Dapat Unit</th>
+                                <th class="th-edit">Planning Loading <span style="color:#0047FF;font-weight:900;">KACS</span></th>
+                                <th class="th-edit">Tanggal Tiba <span style="color:#0047FF;font-weight:900;">KACS</span></th>
+                                <th class="th-edit">Tanggal Keluar <span style="color:#0047FF;font-weight:900;">KACS</span></th>
+                                <th class="th-edit">Reason <span style="color:#0047FF;font-weight:900;">KACS</span></th> <!-- BARU -->
+
+                                <th class="th-edit">Planning Loading <span style="color:#FF6B00;font-weight:900;">Sentul</span></th>
+                                <th class="th-edit">Tanggal Tiba <span style="color:#FF6B00;font-weight:900;">Sentul</span></th>
+                                <th class="th-edit">Tanggal Keluar <span style="color:#FF6B00;font-weight:900;">Sentul</span></th>
+                                <th class="th-edit">Reason <span style="color:#FF6B00;font-weight:900;">Sentul</span></th> <!-- BARU -->
+
+                                <th class="th-edit">Planning Loading <span style="color:#FF0033;font-weight:900;">CCIE</span></th>
+                                <th class="th-edit">Tanggal Tiba <span style="color:#FF0033;font-weight:900;">CCIE</span></th>
+                                <th class="th-edit">Tanggal Keluar <span style="color:#FF0033;font-weight:900;">CCIE</span></th>
+                                <th class="th-edit">Reason <span style="color:#FF0033;font-weight:900;">CCIE</span></th> <!-- BARU -->
+                                <th class="th-edit">Planning Loading <span style="color:#7C3AED;font-weight:900;">P5</span></th>
+                                <th class="th-edit">Tanggal Tiba <span style="color:#7C3AED;font-weight:900;">P5</span></th>
+                                <th class="th-edit">Tanggal Keluar <span style="color:#7C3AED;font-weight:900;">P5</span></th>
+                                <th class="th-edit">Reason <span style="color:#7C3AED;font-weight:900;">P5</span></th>
+
+                                <th class="th-edit">Planning Loading <span style="color:#059669;font-weight:900;">Vivatex</span></th>
+                                <th class="th-edit">Tanggal Tiba <span style="color:#059669;font-weight:900;">Vivatex</span></th>
+                                <th class="th-edit">Tanggal Keluar <span style="color:#059669;font-weight:900;">Vivatex</span></th>
+                                <th class="th-edit">Reason <span style="color:#059669;font-weight:900;">Vivatex</span></th>
+                                <th class="th-default">Tujuan</th>
+                                <th class="th-default">Route</th>
+                                <th class="th-default">Pulau</th>
+                                <th class="th-default">Area</th>
+                                <th class="th-default">Via Kirim</th>
+                                <th class="th-oren">Dist Channel</th>
+                                <th class="th-oren">Kategori Ekspedisi</th>
+                                <th class="th-oren">Ekspedisi</th>
+                                <th class="th-oren">Lead Time</th>
+                                <th class="th-oren">Nama Driver</th>
+                                <th class="th-oren">No Pol</th>
+                                <th class="th-oren">Mobil</th>
+                                <th class="th-system">Total Qty</th>
+                                <th class="th-system">Nilai Muatan</th>
+                                <th class="th-system">Biaya Kirim</th>
+                                <th class="th-system">CR (%)</th>
+                                <th class="th-system">Kubikasi (%)</th>
+                                <th class="th-system">Tonase (%)</th>
+                                <th class="th-edit">Total Kubik</th>
+                                <th class="th-edit">Total Tonase</th>
+                                <th class="th-system">Hasil Kubik</th>
+                                <th class="th-system">Hasil Tonase</th>
+                                <th class="th-system">Pengiriman Optimal</th>
+                                <th class="th-edit">Reason Optimal</th>
+                                <th class="th-system">Pengiriman Optimal Customer</th>
+                                <th class="th-edit">Reason Optimal Customer</th>
+
+                                <th class="th-system">Status Mobil</th>
+                                <th class="th-system">Lama Waktu Pencarian</th>
+                                <th class="th-system">SLA Dapat Mobil</th>
+
+                                <th class="th-system">Lama Di KACS</th>
+                                <th class="th-system">Status KACS</th>
+                                <th class="th-system">SLA Loading</th>
+
+                                <th class="th-system">Lama Di Sentul</th>
+                                <th class="th-system">Status Sentul</th>
+                                <th class="th-system">SLA Loading Sentul</th>
+
+                                <th class="th-system">Lama Di CCIE</th>
+                                <th class="th-system">Status CCIE</th>
+                                <th class="th-system">SLA Loading CCIE</th>
+                                <th class="th-system">Lama Di P5</th>
+                                <th class="th-system">Status P5</th>
+                                <th class="th-system">SLA Loading P5</th>
+
+                                <th class="th-system">Lama Di Fifatex</th>
+                                <th class="th-system">Status Fifatex</th>
+                                <th class="th-system">SLA Loading Fifatex</th>
+
+                                <th class="th-default">Shipping Point</th>
+                                <th class="th-system">Kelengkapan Data</th>
+                                <th class="th-default" style="min-width:130px;">Hapus</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {{-- Kosong: diisi via server-side DataTables (ajax) --}}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.js"></script>
+            <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+            <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+            <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+            <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+        </div>
+
         <script>
-    // ==========================================================
-    // MASTER TARIF (preload sekali saat halaman dibuka)
-    // ==========================================================
-    const tarifList = @json($tarifPengiriman);
+            // ==========================================================
+            // MASTER TARIF (preload sekali saat halaman dibuka)
+            // ==========================================================
+            const tarifList = @json($tarifPengiriman);
 
-    function normalizeStr(v) {
-        if (!v) return '';
-        v = String(v).replace(/\u00A0/g, ' ');
-        v = v.replace(/\s*-\s*/g, '-');
-        v = v.replace(/\s+/g, ' ').trim();
-        return v.toLowerCase();
-    }
-
-    function normalizeMobilStr(v) {
-        if (!v) return '';
-        v = String(v).replace(/\u00A0/g, ' ');
-        v = v.replace(/\s+/g, ' ').trim();
-        return v.toLowerCase();
-    }
-
-    function cariTarif(route, mobil, ekpedisi) {
-        if (!route || !mobil) return null;
-
-        const routeKey    = normalizeStr(route);
-        const mobilKey    = normalizeMobilStr(mobil);
-        const ekpedisiKey = ekpedisi ? normalizeStr(ekpedisi) : '';
-
-        const candidates = tarifList.filter(t => normalizeStr(t.route) === routeKey);
-
-        if (candidates.length === 0) return null;
-
-        if (ekpedisiKey !== '') {
-            const strict = candidates.find(t =>
-                normalizeStr(t.ekpedisi) === ekpedisiKey &&
-                normalizeMobilStr(t.mobil).startsWith(mobilKey)
-            );
-            if (strict) return strict;
-        }
-
-        return candidates.find(t =>
-            normalizeMobilStr(t.mobil).startsWith(mobilKey)
-        ) || null;
-    }
-
-    $(document).ready(function() {
-
-        // ========================================================
-        // HELPER RUPIAH
-        // ========================================================
-        function formatKeRupiah(angka) {
-            if (!angka) return '';
-            let stringMurni = String(angka).split('.')[0];
-            let angkaMurni = stringMurni.replace(/[^0-9]/g, '');
-            if (angkaMurni) {
-                return 'Rp ' + String(angkaMurni).replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+            function normalizeStr(v) {
+                if (!v) return '';
+                v = String(v).replace(/\u00A0/g, ' ');
+                v = v.replace(/\s*-\s*/g, '-');
+                v = v.replace(/\s+/g, ' ').trim();
+                return v.toLowerCase();
             }
-            return '';
-        }
 
-        // ========================================================
-        // HELPER PERSEN (KUBIKASI)
-        // ========================================================
-        function formatKePersen(angka) {
-            if (angka === '' || angka === null || isNaN(angka)) return '';
-            let n = parseFloat(angka);
-            if (n < 0) n = 0;
-            if (n > 100) n = 100;
-            return n.toFixed(2).replace('.', ',') + '%';
-        }
-
-        function ambilAngkaPersen(teks) {
-            if (!teks) return 0;
-            let bersih = String(teks).replace(/[^0-9.,]/g, '').replace(',', '.');
-            let n = parseFloat(bersih) || 0;
-            if (n < 0) n = 0;
-            if (n > 100) n = 100;
-            return n;
-        }
-
-        // ===== KUBIKASI (ROW) =====
-        $(document).on('focus', '.row-kubikasi', function() {
-            let raw = ambilAngkaPersen($(this).val());
-            $(this).val(raw === 0 ? '' : String(raw).replace('.', ','));
-        });
-        $('#btnExport').on('click', function (e) {
-    e.preventDefault();
-
-    const params = $.param({
-        planner_filter:      plannerFilter,
-        area_filter:         areaFilter,
-        dist_channel_filter: distChannelFilter,
-        create_tgl_filter:   createTglFilter
-    });
-
-    window.location.href = "{{ route('planner.export') }}?" + params;
-});
-
-        $(document).on('input', '.row-kubikasi', function() {
-            let val = $(this).val().replace(/[^0-9,]/g, '');
-            let parts = val.split(',');
-            if (parts.length > 2) {
-                val = parts[0] + ',' + parts.slice(1).join('');
+            function normalizeMobilStr(v) {
+                if (!v) return '';
+                v = String(v).replace(/\u00A0/g, ' ');
+                v = v.replace(/\s+/g, ' ').trim();
+                return v.toLowerCase();
             }
-            $(this).val(val);
-            markRowDirty($(this));
-        });
 
-        $(document).on('blur', '.row-kubikasi', function() {
-            $(this).val(formatKePersen(ambilAngkaPersen($(this).val())));
-        });
+            function cariTarif(route, mobil, ekpedisi) {
+                if (!route || !mobil) return null;
 
-        // ===== KUBIKASI (MODAL) =====
-        $(document).on('focus', '.modal-kubikasi', function() {
-            let raw = ambilAngkaPersen($(this).val());
-            $(this).val(raw === 0 ? '' : String(raw).replace('.', ','));
-        });
+                const routeKey = normalizeStr(route);
+                const mobilKey = normalizeMobilStr(mobil);
+                const ekpedisiKey = ekpedisi ? normalizeStr(ekpedisi) : '';
 
-        $(document).on('input', '.modal-kubikasi', function() {
-            let val = $(this).val().replace(/[^0-9,]/g, '');
-            let parts = val.split(',');
-            if (parts.length > 2) {
-                val = parts[0] + ',' + parts.slice(1).join('');
-            }
-            $(this).val(val);
-        });
+                const candidates = tarifList.filter(t => normalizeStr(t.route) === routeKey);
 
-        $(document).on('blur', '.modal-kubikasi', function() {
-            $(this).val(formatKePersen(ambilAngkaPersen($(this).val())));
-        });
+                if (candidates.length === 0) return null;
 
-        // ===== TOTAL KUBIKASI & TOTAL TONASE (ROW) — larang titik, cuma boleh koma =====
-        $(document).on('input', '.row-total-kubikasi, .row-total-tonase', function() {
-            let val = $(this).val().replace(/[^0-9,]/g, '');
-            let parts = val.split(',');
-            if (parts.length > 2) {
-                val = parts[0] + ',' + parts.slice(1).join('');
-            }
-            $(this).val(val);
-            markRowDirty($(this));
-        });
-
-        function ambilAngkaMurni(teks) {
-            if (!teks) return 0;
-            let bersih = String(teks).replace(/[^0-9]/g, '');
-            return parseFloat(bersih) || 0;
-        }
-
-        function jalankanMaskingRupiahModal() {
-            $('.modal-nilai-muatan, .modal-biaya-kirim').each(function() {
-                let v = $(this).val();
-                if (v && !v.includes('Rp')) {
-                    $(this).val(formatKeRupiah(v));
-                }
-            });
-        }
-
-        // ========================================================
-        // FILTER STATE
-        // ========================================================
-    var areaFilter = [];
-var plannerFilter = [];
-var createTglFilter = '';
-var distChannelFilter = [];
-
-        // ========================================================
-        // INIT DATATABLES - SERVER SIDE
-        // ========================================================
-var table = $('#tablePlanner').DataTable({
-    serverSide: true,
-    processing: true,
-    scrollX: true,
-    scrollY: 'calc(100vh - 220px)',
-    scrollCollapse: true,
-    autoWidth: false,
-    pageLength: 50,
-    lengthMenu: [25, 50, 100, 200],
-    searchDelay: 400,
-    ajax: {
-                url: "{{ route('planner.data.ajax') }}",
-                type: 'POST',
-                data: function(d) {
-                    d.planner_filter = plannerFilter;
-                    d.area_filter = areaFilter;
-                        d.dist_channel_filter = distChannelFilter; 
-                    d.create_tgl_filter = createTglFilter;
-                    d._token = '{{ csrf_token() }}';
-                },
-                beforeSend: function() {
-                    $('#dtLoadingOverlay').css('display', 'flex');
-                },
-                complete: function() {
-                    $('#dtLoadingOverlay').hide();
-                }
-            },
-          columnDefs: [{
-    className: "dt-center",
-    targets: [0, 1, 2, 38, 48, 50, 52, 54, 56, 57, 59, 60, 62, 63, 65, 66, 68, 69, 71]
-}],
-            rowCallback: function(row, data, index) {
-                let $row = $(row);
-                let deleteLink = $row.find('a[href*="/planner/delete/"]').attr('href');
-                let id = deleteLink ? deleteLink.split('/').pop() : null;
-                if (id) {
-                    $row.attr('data-id', id);
-                    $row.addClass('autosave-row');
-                }
-            },
-            drawCallback: function() {
-                jalankanMaskingRupiahModal();
-                initSelect2Row();
-                hitungSemuaCostRatioTabel();
-                updateDateColor();
-                this.api().columns.adjust();
-            }
-        });
-
-        // ========================================================
-        // HITUNG CR (LIVE PREVIEW)
-        // ========================================================
-        function hitungSemuaCostRatioTabel() {
-
-            var shipmentGroups = {};
-
-            $('#tablePlanner tbody tr').each(function() {
-                var row = $(this);
-                var noShipment = (row.find('.row-no-shipment').val() || '').trim();
-                if (!noShipment) return;
-
-                var muatan = ambilAngkaMurni(row.find('.row-nilai-muatan').val());
-                var biaya = ambilAngkaMurni(row.find('.row-biaya-kirim').val());
-
-                if (!shipmentGroups[noShipment]) {
-                    shipmentGroups[noShipment] = { totalMuatan: 0, totalBiaya: 0 };
+                if (ekpedisiKey !== '') {
+                    const strict = candidates.find(t =>
+                        normalizeStr(t.ekpedisi) === ekpedisiKey &&
+                        normalizeMobilStr(t.mobil).startsWith(mobilKey)
+                    );
+                    if (strict) return strict;
                 }
 
-                shipmentGroups[noShipment].totalMuatan += muatan;
-                shipmentGroups[noShipment].totalBiaya = Math.max(
-                    shipmentGroups[noShipment].totalBiaya,
-                    biaya
-                );
-            });
+                return candidates.find(t =>
+                    normalizeMobilStr(t.mobil).startsWith(mobilKey)
+                ) || null;
+            }
 
-            $('#tablePlanner tbody tr').each(function() {
-                var row = $(this);
-                var noShipment = (row.find('.row-no-shipment').val() || '').trim();
-                var crInput = row.find('.row-cr');
-                var costRatio = 0;
+            $(document).ready(function() {
 
-                if (noShipment && shipmentGroups[noShipment]) {
-                    var totalMuatan = shipmentGroups[noShipment].totalMuatan;
-                    var totalBiaya = shipmentGroups[noShipment].totalBiaya;
-                    var nilaiMuatanBaris = ambilAngkaMurni(row.find('.row-nilai-muatan').val());
-
-                    if (totalMuatan > 0 && nilaiMuatanBaris > 0) {
-                        var totalCR = (totalBiaya / totalMuatan) * 100;
-                        var kontribusi = nilaiMuatanBaris / totalMuatan;
-                        costRatio = kontribusi * totalCR;
+                // ========================================================
+                // HELPER RUPIAH
+                // ========================================================
+                function formatKeRupiah(angka) {
+                    if (!angka) return '';
+                    let stringMurni = String(angka).split('.')[0];
+                    let angkaMurni = stringMurni.replace(/[^0-9]/g, '');
+                    if (angkaMurni) {
+                        return 'Rp ' + String(angkaMurni).replace(/\B(?=(\d{3})+(?!\d))/g, ".");
                     }
-
-                    crInput.val(costRatio > 0 ? costRatio.toFixed(4) + '%' : '0.0000%');
-                } else {
-                    var nilaiMuatanMurni = ambilAngkaMurni(row.find('.row-nilai-muatan').val());
-                    var biayaMurni = ambilAngkaMurni(row.find('.row-biaya-kirim').val());
-
-                    if (nilaiMuatanMurni > 0) {
-                        costRatio = (biayaMurni / nilaiMuatanMurni) * 100;
-                    }
-
-                    crInput.val(costRatio > 0 ? costRatio.toFixed(4) + '%' : '-');
+                    return '';
                 }
-            });
-        }
 
-        $(document).on('input', '.row-nilai-muatan', function() {
-            $(this).val(formatKeRupiah(ambilAngkaMurni($(this).val())));
-            hitungSemuaCostRatioTabel();
-            markRowDirty($(this));
-        });
-
-        $(document).on('input', '.row-biaya-kirim', function() {
-            $(this).val(formatKeRupiah(ambilAngkaMurni($(this).val())));
-            hitungSemuaCostRatioTabel();
-            markRowDirty($(this));
-        });
-
-        $(document).on('input', '.modal-nilai-muatan, .modal-biaya-kirim', function() {
-            var muatanModal = ambilAngkaMurni($('.modal-nilai-muatan').val());
-            var biayaModal = ambilAngkaMurni($('.modal-biaya-kirim').val());
-            var crModal = 0;
-            if (muatanModal > 0) {
-                crModal = (biayaModal / muatanModal) * 100;
-            }
-            $('.modal-cr').val(crModal.toFixed(4) + '%');
-        });
-
-        // Proteksi backend: kembalikan ke angka murni sebelum submit form modal
-        $('form').on('submit', function() {
-            $('.modal-nilai-muatan, .modal-biaya-kirim').each(function() {
-                let nilaiSekarang = $(this).val();
-                if (nilaiSekarang) {
-                    $(this).val(nilaiSekarang.replace(/[^0-9]/g, ''));
+                // ========================================================
+                // HELPER PERSEN (KUBIKASI)
+                // ========================================================
+                function formatKePersen(angka) {
+                    if (angka === '' || angka === null || isNaN(angka)) return '';
+                    let n = parseFloat(angka);
+                    if (n < 0) n = 0;
+                    if (n > 100) n = 100;
+                    return n.toFixed(2).replace('.', ',') + '%';
                 }
-            });
-            $('.modal-kubikasi').each(function() {
-                $(this).val(ambilAngkaPersen($(this).val()));
-            });
-        });
 
-        // ===== INPUT JAM 24 JAM (HH:MM) =====
-        $(document).on('input', '.input-jam', function () {
-            let v = this.value.replace(/\D/g, '').slice(0, 4);
-            if (v.length >= 3) v = v.slice(0, 2) + ':' + v.slice(2);
-            this.value = v;
-        });
+                function ambilAngkaPersen(teks) {
+                    if (!teks) return 0;
+                    let bersih = String(teks).replace(/[^0-9.,]/g, '').replace(',', '.');
+                    let n = parseFloat(bersih) || 0;
+                    if (n < 0) n = 0;
+                    if (n > 100) n = 100;
+                    return n;
+                }
 
-        $(document).on('blur', '.input-jam', function () {
-            let v = this.value;
-            if (v === '') return;
-            if (/^\d{1,2}$/.test(v)) this.value = v = v.padStart(2, '0') + ':00';
-            if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(v)) {
-                this.value = '';
-                            popupGagal('Format jam salah', ['Gunakan 24 jam, contoh 08:30 atau 17:45. Isian dikosongkan.'], 'warning');
-            }
-        });
+                // ===== KUBIKASI (ROW) =====
+                $(document).on('focus', '.row-kubikasi', function() {
+                    let raw = ambilAngkaPersen($(this).val());
+                    $(this).val(raw === 0 ? '' : String(raw).replace('.', ','));
+                });
+                $('#btnExport').on('click', function(e) {
+                    e.preventDefault();
 
-        // =========================
-        // SELECT2 (filter atas)
-        // =========================
-    $('#filterPlanner, #filterArea, #filterDistChannel').select2({
-    theme: 'bootstrap-5',
-    width: '100%',
-    placeholder: function() { return $(this).data('placeholder'); },
-    allowClear: true,
-    closeOnSelect: false
-});
-
-        // Select2 untuk dropdown DI DALAM baris
-        function initSelect2Row() {
-            $('#tablePlanner tbody tr .select2-row').each(function() {
-                if (!$(this).hasClass('select2-hidden-accessible')) {
-                    $(this).select2({
-                        theme: 'bootstrap-5',
-                        width: '150px',
-                        dropdownAutoWidth: true,
-                        dropdownParent: $('body'),
-                        placeholder: 'Cari...',
-                        allowClear: true
+                    const params = $.param({
+                        planner_filter: plannerFilter,
+                        area_filter: areaFilter,
+                        dist_channel_filter: distChannelFilter,
+                        tanggal_shipment_filter: createTglFilter
                     });
 
-                    if ($(this).is('.row-route, .row-mobil, .row-ekpedisi')) {
-                        $(this).off('select2:select.autotarif').on('select2:select.autotarif', function() {
-                            let row = $(this).closest('tr');
-                            cariBiayaKirimRow(row);
-                            markRowDirty($(this));
-                        });
+                    window.location.href = "{{ route('planner.export') }}?" + params;
+                });
+
+                $(document).on('input', '.row-kubikasi', function() {
+                    let val = $(this).val().replace(/[^0-9,]/g, '');
+                    let parts = val.split(',');
+                    if (parts.length > 2) {
+                        val = parts[0] + ',' + parts.slice(1).join('');
                     }
-
-                    $(this).off('select2:select.dirty select2:clear.dirty')
-                        .on('select2:select.dirty select2:clear.dirty', function() {
-                            markRowDirty($(this));
-                        });
-                }
-            });
-        }
-
-        function cariBiayaKirimRow(row) {
-            let route    = row.find('[name="route"]').val();
-            let mobil    = row.find('[name="mobil"]').val();
-            let ekpedisi = row.find('[name="ekpedisi"]').val();
-
-            if (!route || !mobil) return;
-
-            let tarif = cariTarif(route, mobil, ekpedisi);
-
-            if (tarif && tarif.biaya_kirim) {
-                let biayaInput = row.find('.row-biaya-kirim');
-                biayaInput.val(tarif.biaya_kirim).trigger('input');
-            }
-        }
-
-        // ======================
-        // FILTER: Area / Planner / Tanggal Import
-        // ======================
-$('#filterArea').on('change', function() {
-    areaFilter = $(this).val() || [];
-    table.draw();
-    loadAlertControl();
-});
-
-$('#filterPlanner').on('change', function() {
-    plannerFilter = $(this).val() || [];
-    table.draw();
-    loadAlertControl();
-});
-
-$('#filterDistChannel').on('change', function() {
-    distChannelFilter = $(this).val() || [];
-    table.draw();
-    loadAlertControl();
-});
-        let importDates = {};   // { 'YYYY-MM-DD': jumlah_baris }
-
-const fpImport = flatpickr('#filterCreateTgl', {
-    dateFormat: 'Y-m-d',
-    altInput: true,
-    altFormat: 'd/m/Y',
-    onDayCreate: function (dObj, dStr, instance, dayElem) {
-        const key = instance.formatDate(dayElem.dateObj, 'Y-m-d');
-        if (importDates[key]) {
-            dayElem.classList.add('has-import');
-            dayElem.title = importDates[key] + ' baris diimport';
-        }
-    },
-    onChange: function (selectedDates, dateStr) {
-        createTglFilter = dateStr;      // '' kalau dihapus
-        table.draw();
-        $('.chip-import').removeClass('active')
-            .filter('[data-tgl="' + dateStr + '"]').addClass('active');
-    }
-});
-
-$('#btnResetTgl').on('click', function () { fpImport.clear(); });
-
-$.getJSON("{{ route('planner.importDates') }}", function (res) {
-    importDates = res || {};
-    fpImport.redraw();
-
-    // 10 tanggal import terbaru sebagai tombol cepat
-    const chips = Object.keys(importDates).slice(0, 10).map(function (t) {
-        const [y, m, d] = t.split('-');
-        return '<span class="chip-import" data-tgl="' + t + '">' +
-               d + '/' + m + ' (' + importDates[t] + ')</span>';
-    }).join('');
-    $('#importChips').html(chips);
-});
-
-$(document).on('click', '.chip-import', function () {
-    fpImport.setDate($(this).data('tgl'), true);   // true = jalankan onChange
-});
-
-        // ==========================================================
-        // DIRTY TRACKING + SAVE ALL
-        // ==========================================================
-        let dirtyRows = new Set();
-
-        function updateUnsavedBadge() {
-            if (dirtyRows.size > 0) {
-                $('#unsavedCount').text(dirtyRows.size).show();
-            } else {
-                $('#unsavedCount').hide();
-            }
-        }
-
-        function markRowDirty($el) {
-            let row = $el.closest('tr');
-            let id = row.data('id');
-            if (id) {
-                dirtyRows.add(id);
-                updateUnsavedBadge();
-            }
-        }
-
-        $(document).on('change input',
-            '#tablePlanner input, #tablePlanner select, #tablePlanner textarea',
-            function() {
-                markRowDirty($(this));
-            }
-        );
-
-        function saveRow(id) {
-            let row = $('tr[data-id="' + id + '"]');
-
-            return $.ajax({
-                url: '/planner/autosave-row/' + id,
-                type: 'POST',
-                data: {
-                    _token: '{{ csrf_token() }}',
-
-                    planner: row.find('[name="planner"]').val(),
-                    no_shipment: row.find('[name="no_shipment"]').val(),
-
-                    tanggal_naik_logistik: row.find('[name="tanggal_naik_logistik"]').val(),
-                    rencana_kirim: row.find('[name="rencana_kirim"]').val(),
-                    tanggal_dpt_unit: row.find('[name="tanggal_dpt_unit"]').val(),
-
-                    planning_loading: row.find('[name="planning_loading"]').val(),
-                    tanggal_tiba_gudang: row.find('[name="tanggal_tiba_gudang"]').val(),
-                    tanggal_keluar_gudang: row.find('[name="tanggal_keluar_gudang"]').val(),
-                    reason_gudang:   row.find('[name="reason_gudang"]').val(),
-                    reason_gudang_2: row.find('[name="reason_gudang_2"]').val(),
-                    reason_gudang_3: row.find('[name="reason_gudang_3"]').val(),
-                    reason_gudang_4: row.find('[name="reason_gudang_4"]').val(),
-reason_gudang_5: row.find('[name="reason_gudang_5"]').val(),
-
-planning_loading_4:      row.find('[name="planning_loading_4"]').val(),
-tanggal_tiba_gudang_4:   row.find('[name="tanggal_tiba_gudang_4"]').val(),
-tanggal_keluar_gudang_4: row.find('[name="tanggal_keluar_gudang_4"]').val(),
-waktu_tiba_gudang_4:     row.find('[name="waktu_tiba_gudang_4"]').val(),
-waktu_keluar_gudang_4:   row.find('[name="waktu_keluar_gudang_4"]').val(),
-
-planning_loading_5:      row.find('[name="planning_loading_5"]').val(),
-tanggal_tiba_gudang_5:   row.find('[name="tanggal_tiba_gudang_5"]').val(),
-tanggal_keluar_gudang_5: row.find('[name="tanggal_keluar_gudang_5"]').val(),
-waktu_tiba_gudang_5:     row.find('[name="waktu_tiba_gudang_5"]').val(),
-waktu_keluar_gudang_5:   row.find('[name="waktu_keluar_gudang_5"]').val(),
-
-                    planning_loading_2: row.find('[name="planning_loading_2"]').val(),
-                    tanggal_tiba_gudang_2: row.find('[name="tanggal_tiba_gudang_2"]').val(),
-                    tanggal_keluar_gudang_2: row.find('[name="tanggal_keluar_gudang_2"]').val(),
-
-                    planning_loading_3: row.find('[name="planning_loading_3"]').val(),
-                    tanggal_tiba_gudang_3: row.find('[name="tanggal_tiba_gudang_3"]').val(),
-                    tanggal_keluar_gudang_3: row.find('[name="tanggal_keluar_gudang_3"]').val(),
-
-                    tujuan: row.find('[name="tujuan"]').val(),
-                    route: row.find('[name="route"]').val(),
-                    pulau: row.find('[name="pulau"]').val(),
-                    reason_optimal: row.find('[name="reason_optimal"]').val(),
-                    reason_optimal_customer: row.find('[name="reason_optimal_customer"]').val(),
-                    area: row.find('[name="area"]').val(),
-                    via_kirim: row.find('[name="via_kirim"]').val(),
-
-                    dist_channel: row.find('[name="dist_channel"]').val(),
-                    kategori_ekspedisi: row.find('[name="kategori_ekspedisi"]').val(),
-                    ekpedisi: row.find('[name="ekpedisi"]').val(),
-                    transport_lead_time: row.find('[name="transport_lead_time"]').val(),
-                    total_kubik: row.find('[name="total_kubik"]').val(),
-                    total_tonase: row.find('[name="total_tonase"]').val(),
-
-                    nama_driver: row.find('[name="nama_driver"]').val(),
-                    no_pol: row.find('[name="no_pol"]').val(),
-                    mobil: row.find('[name="mobil"]').val(),
-                    total_do_qty_car: row.find('[name="total_do_qty_car"]').val(),
-
-                    nilai_muatan: ambilAngkaMurni(row.find('[name="nilai_muatan"]').val()),
-                    biaya_kirim: ambilAngkaMurni(row.find('[name="biaya_kirim"]').val()),
-
-                    waktu_tiba_gudang:     row.find('[name="waktu_tiba_gudang"]').val(),
-                    waktu_keluar_gudang:   row.find('[name="waktu_keluar_gudang"]').val(),
-                    waktu_tiba_gudang_2:   row.find('[name="waktu_tiba_gudang_2"]').val(),
-                    waktu_keluar_gudang_2: row.find('[name="waktu_keluar_gudang_2"]').val(),
-                    waktu_tiba_gudang_3:   row.find('[name="waktu_tiba_gudang_3"]').val(),
-                    waktu_keluar_gudang_3: row.find('[name="waktu_keluar_gudang_3"]').val(),
-
-                    cr: row.find('[name="cr"]').val(),
-                    kubikasi: ambilAngkaPersen(row.find('[name="kubikasi"]').val())
-                },
-                             timeout: 30000,
-                success: function() {
-                    console.log("Saved " + id);
-                },
-                error: function(xhr) {
-                    console.log("Gagal save row " + id, xhr.status, xhr.responseText);
-                }
-            });
-        }
-
-        $('#btnSaveAll').on('click', function() {
-            if (dirtyRows.size === 0) {
-                alert('Belum ada perubahan untuk disimpan.');
-                return;
-            }
-
-            let ids = Array.from(dirtyRows);
-
-            // pisahkan: baris valid vs baris delay (>24 jam) yang reason-nya kosong
-            let bermasalah = [];
-            let idsValid = [];
-
-            ids.forEach(function(id) {
-                const masalah = cekReasonRow(id);
-                if (masalah) bermasalah.push(masalah);
-                else idsValid.push(id);
-            });
-
-            if (bermasalah.length > 0) {
-                let pesan = 'Reason gudang WAJIB diisi karena lebih dari 24 jam (Delay):\n\n';
-                bermasalah.forEach(function(m) {
-                    pesan += '- ' + m.no_shipment + ' | ' + m.tujuan + ' (' + m.gudang.join(', ') + ')\n';
+                    $(this).val(val);
+                    markRowDirty($(this));
                 });
-                if (idsValid.length > 0) {
-                    pesan += '\n' + idsValid.length + ' baris lain yang tidak bermasalah tetap disimpan.';
-                } else {
-                    pesan += '\nTidak ada yang disimpan.';
-                }
-                            popupGagal('Reason gudang wajib diisi', pesan.split('\n').filter(function(l){ return l.indexOf('- ') === 0; }));
 
-                bermasalah.forEach(function(m) {
-                    $('tr[data-id="' + m.id + '"]').addClass('highlight-row');
+                $(document).on('blur', '.row-kubikasi', function() {
+                    $(this).val(formatKePersen(ambilAngkaPersen($(this).val())));
                 });
-                setTimeout(function() { $('.highlight-row').removeClass('highlight-row'); }, 3000);
-            }
 
-            if (idsValid.length === 0) return;
+                // ===== KUBIKASI (MODAL) =====
+                $(document).on('focus', '.modal-kubikasi', function() {
+                    let raw = ambilAngkaPersen($(this).val());
+                    $(this).val(raw === 0 ? '' : String(raw).replace('.', ','));
+                });
 
-            let btn = $(this);
-            btn.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin"></i> Menyimpan...');
+                $(document).on('input', '.modal-kubikasi', function() {
+                    let val = $(this).val().replace(/[^0-9,]/g, '');
+                    let parts = val.split(',');
+                    if (parts.length > 2) {
+                        val = parts[0] + ',' + parts.slice(1).join('');
+                    }
+                    $(this).val(val);
+                });
 
-                      let requests = idsValid.map(function(id) {
-                var d = $.Deferred();
-                saveRow(id)
-                    .done(function() { d.resolve({ id: id, ok: true }); })
-                    .fail(function(xhr, st) { d.resolve({ id: id, ok: false, xhr: xhr, st: st }); });
-                return d.promise();
-            });
+                $(document).on('blur', '.modal-kubikasi', function() {
+                    $(this).val(formatKePersen(ambilAngkaPersen($(this).val())));
+                });
 
-            $.when.apply($, requests)
-                .done(function() {
-                    var hasil = Array.prototype.slice.call(arguments);
-                    var gagal = [];
+                // ===== TOTAL KUBIKASI & TOTAL TONASE (ROW) — larang titik, cuma boleh koma =====
+                $(document).on('input', '.row-total-kubikasi, .row-total-tonase', function() {
+                    let val = $(this).val().replace(/[^0-9,]/g, '');
+                    let parts = val.split(',');
+                    if (parts.length > 2) {
+                        val = parts[0] + ',' + parts.slice(1).join('');
+                    }
+                    $(this).val(val);
+                    markRowDirty($(this));
+                });
 
-                    hasil.forEach(function(h) {
-                        if (h.ok) { dirtyRows.delete(h.id); return; }
+                function ambilAngkaMurni(teks) {
+                    if (!teks) return 0;
+                    let bersih = String(teks).replace(/[^0-9]/g, '');
+                    return parseFloat(bersih) || 0;
+                }
 
-                        var $tr = $('tr[data-id="' + h.id + '"]');
-                        var ship = String($tr.find('[name="no_shipment"]').val() || '').trim() || '(tanpa no shipment)';
-                        var tuj  = String($tr.find('[name="tujuan"]').val() || '').trim() || '-';
-                        pesanXhr(h.xhr, h.st).forEach(function(m) {
-                            gagal.push(ship + ' | ' + tuj + ' : ' + m);
-                        });
-                        $tr.addClass('highlight-row');
-                    });
-
-                                       updateUnsavedBadge();
-
-                    if (gagal.length) {
-                        // JANGAN reload tabel: isian yang gagal harus tetap di layar supaya bisa dibetulkan
-                        popupGagal(gagal.length + ' pesan kesalahan, baris ini TIDAK tersimpan', gagal);
-                        setTimeout(function () { $('.highlight-row').removeClass('highlight-row'); }, 8000);
-                    } else {
-                        loadAlertControl();
-                        table.ajax.reload(null, false);
-                        if (bermasalah.length === 0) {
-                            Swal.fire({ icon: 'success', title: 'Tersimpan', text: idsValid.length + ' baris berhasil disimpan.', timer: 1800, showConfirmButton: false });
+                function jalankanMaskingRupiahModal() {
+                    $('.modal-nilai-muatan, .modal-biaya-kirim').each(function() {
+                        let v = $(this).val();
+                        if (v && !v.includes('Rp')) {
+                            $(this).val(formatKeRupiah(v));
                         }
+                    });
+                }
+
+                // ========================================================
+                // FILTER STATE
+                // ========================================================
+                var areaFilter = [];
+                var plannerFilter = [];
+                var createTglFilter = '';
+                var distChannelFilter = [];
+
+                // ========================================================
+                // INIT DATATABLES - SERVER SIDE
+                // ========================================================
+                var table = $('#tablePlanner').DataTable({
+                    serverSide: true,
+                    processing: true,
+                    scrollX: true,
+                    scrollY: 'calc(100vh - 220px)',
+                    scrollCollapse: true,
+                    autoWidth: false,
+                    pageLength: 50,
+                    lengthMenu: [25, 50, 100, 200],
+                    searchDelay: 400,
+                    ajax: {
+                        url: "{{ route('planner.data.ajax') }}",
+                        type: 'POST',
+                        data: function(d) {
+                            d.planner_filter = plannerFilter;
+                            d.area_filter = areaFilter;
+                            d.dist_channel_filter = distChannelFilter;
+                            d.tanggal_shipment_filter = createTglFilter;
+                            d._token = '{{ csrf_token() }}';
+                        },
+                        beforeSend: function() {
+                            $('#dtLoadingOverlay').css('display', 'flex');
+                        },
+                        complete: function() {
+                            $('#dtLoadingOverlay').hide();
+                        }
+                    },
+                    columnDefs: [{
+                        className: "dt-center",
+                        targets: [0, 1, 2, 3, 39, 49, 51, 53, 55, 57, 58, 60, 61, 63, 64, 66, 67, 69, 70, 72]
+                    }],
+                    rowCallback: function(row, data, index) {
+                        let $row = $(row);
+                        let deleteLink = $row.find('a[href*="/planner/delete/"]').attr('href');
+                        let id = deleteLink ? deleteLink.split('/').pop() : null;
+                        if (id) {
+                            $row.attr('data-id', id);
+                            $row.addClass('autosave-row');
+                        }
+                    },
+                    drawCallback: function() {
+                        jalankanMaskingRupiahModal();
+                        initSelect2Row();
+                        hitungSemuaCostRatioTabel();
+                        updateDateColor();
+                        this.api().columns.adjust();
                     }
-                })
-                .always(function() {
-                    btn.prop('disabled', false)
-                       .html('<i class="fa-solid fa-floppy-disk"></i> Save <span id="unsavedCount" class="badge bg-danger rounded-pill" style="display:none;">0</span>');
-                    updateUnsavedBadge();
                 });
-        });
 
-        // ==========================================================
-        // ALERT CONTROL
-        // ==========================================================
-        function loadAlertControl() {
-            $.getJSON("{{ route('planner.alerts') }}", {
-                planner_filter: plannerFilter,
-                area_filter: areaFilter,
-                dist_channel_filter: distChannelFilter
-            }, function(res) {
-                renderMissingFieldSummaryPlanner(res.missingSummary || {});
-                renderAlertControlPlanner(res.alerts || []);
-            }).fail(function() {
-                $('#missingFieldSummary').html('<span class="badge gray">Gagal memuat</span>');
-                $('#alertControlList').html('<div class="p-2" style="color:#ef4444;">Gagal memuat data</div>');
-            });
-        }
+                // ========================================================
+                // HITUNG CR (LIVE PREVIEW)
+                // ========================================================
+                function hitungSemuaCostRatioTabel() {
 
-        function renderMissingFieldSummaryPlanner(missingSummary) {
-            let entries = Object.entries(missingSummary).sort((a, b) => b[1] - a[1]);
+                    var shipmentGroups = {};
 
-            if (entries.length === 0) {
-                $('#missingFieldSummary').html('<span class="badge green">✅ Semua data lengkap</span>');
-                return;
-            }
+                    $('#tablePlanner tbody tr').each(function() {
+                        var row = $(this);
+                        var noShipment = (row.find('.row-no-shipment').val() || '').trim();
+                        if (!noShipment) return;
 
-            let html = entries.map(function(e) {
-                return '<span class="badge red">' + e[0] + ': ' + e[1] + '</span>';
-            }).join(' ');
+                        var muatan = ambilAngkaMurni(row.find('.row-nilai-muatan').val());
+                        var biaya = ambilAngkaMurni(row.find('.row-biaya-kirim').val());
 
-            $('#missingFieldSummary').html(html);
-        }
+                        if (!shipmentGroups[noShipment]) {
+                            shipmentGroups[noShipment] = {
+                                totalMuatan: 0,
+                                totalBiaya: 0
+                            };
+                        }
 
-        function renderAlertControlPlanner(alertList) {
-            $('#alertControlCount').text(alertList.length + ' Alert');
+                        shipmentGroups[noShipment].totalMuatan += muatan;
+                        shipmentGroups[noShipment].totalBiaya = Math.max(
+                            shipmentGroups[noShipment].totalBiaya,
+                            biaya
+                        );
+                    });
 
-            if (alertList.length === 0) {
-                $('#alertControlList').html('<div class="p-2" style="color:#22c55e;">✅ Semua shipment sudah lengkap datanya</div>');
-                return;
-            }
+                    $('#tablePlanner tbody tr').each(function() {
+                        var row = $(this);
+                        var noShipment = (row.find('.row-no-shipment').val() || '').trim();
+                        var crInput = row.find('.row-cr');
+                        var costRatio = 0;
 
-            let html = alertList.map(function(a) {
-                let sev = a.emptyCount >= 4 ? 'red' : a.emptyCount >= 2 ? 'orange' : 'yellow';
-                return '' +
-                    '<div class="alert-item" data-id="' + a.id + '">' +
-                        '<div class="alert-top">' +
+                        if (noShipment && shipmentGroups[noShipment]) {
+                            var totalMuatan = shipmentGroups[noShipment].totalMuatan;
+                            var totalBiaya = shipmentGroups[noShipment].totalBiaya;
+                            var nilaiMuatanBaris = ambilAngkaMurni(row.find('.row-nilai-muatan').val());
+
+                            if (totalMuatan > 0 && nilaiMuatanBaris > 0) {
+                                var totalCR = (totalBiaya / totalMuatan) * 100;
+                                var kontribusi = nilaiMuatanBaris / totalMuatan;
+                                costRatio = kontribusi * totalCR;
+                            }
+
+                            crInput.val(costRatio > 0 ? costRatio.toFixed(4) + '%' : '0.0000%');
+                        } else {
+                            var nilaiMuatanMurni = ambilAngkaMurni(row.find('.row-nilai-muatan').val());
+                            var biayaMurni = ambilAngkaMurni(row.find('.row-biaya-kirim').val());
+
+                            if (nilaiMuatanMurni > 0) {
+                                costRatio = (biayaMurni / nilaiMuatanMurni) * 100;
+                            }
+
+                            crInput.val(costRatio > 0 ? costRatio.toFixed(4) + '%' : '-');
+                        }
+                    });
+                }
+
+                $(document).on('input', '.row-nilai-muatan', function() {
+                    $(this).val(formatKeRupiah(ambilAngkaMurni($(this).val())));
+                    hitungSemuaCostRatioTabel();
+                    markRowDirty($(this));
+                });
+
+                $(document).on('input', '.row-biaya-kirim', function() {
+                    $(this).val(formatKeRupiah(ambilAngkaMurni($(this).val())));
+                    hitungSemuaCostRatioTabel();
+                    markRowDirty($(this));
+                });
+
+                $(document).on('input', '.modal-nilai-muatan, .modal-biaya-kirim', function() {
+                    var muatanModal = ambilAngkaMurni($('.modal-nilai-muatan').val());
+                    var biayaModal = ambilAngkaMurni($('.modal-biaya-kirim').val());
+                    var crModal = 0;
+                    if (muatanModal > 0) {
+                        crModal = (biayaModal / muatanModal) * 100;
+                    }
+                    $('.modal-cr').val(crModal.toFixed(4) + '%');
+                });
+
+                // Proteksi backend: kembalikan ke angka murni sebelum submit form modal
+                $('form').on('submit', function() {
+                    $('.modal-nilai-muatan, .modal-biaya-kirim').each(function() {
+                        let nilaiSekarang = $(this).val();
+                        if (nilaiSekarang) {
+                            $(this).val(nilaiSekarang.replace(/[^0-9]/g, ''));
+                        }
+                    });
+                    $('.modal-kubikasi').each(function() {
+                        $(this).val(ambilAngkaPersen($(this).val()));
+                    });
+                });
+
+                // ===== INPUT JAM 24 JAM (HH:MM) =====
+                $(document).on('input', '.input-jam', function() {
+                    let v = this.value.replace(/\D/g, '').slice(0, 4);
+                    if (v.length >= 3) v = v.slice(0, 2) + ':' + v.slice(2);
+                    this.value = v;
+                });
+
+                $(document).on('blur', '.input-jam', function() {
+                    let v = this.value;
+                    if (v === '') return;
+                    if (/^\d{1,2}$/.test(v)) this.value = v = v.padStart(2, '0') + ':00';
+                    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(v)) {
+                        this.value = '';
+                        popupGagal('Format jam salah', ['Gunakan 24 jam, contoh 08:30 atau 17:45. Isian dikosongkan.'], 'warning');
+                    }
+                });
+
+                // =========================
+                // SELECT2 (filter atas)
+                // =========================
+                $('#filterPlanner, #filterArea, #filterDistChannel').select2({
+                    theme: 'bootstrap-5',
+                    width: '100%',
+                    placeholder: function() {
+                        return $(this).data('placeholder');
+                    },
+                    allowClear: true,
+                    closeOnSelect: false
+                });
+
+                // Select2 untuk dropdown DI DALAM baris
+                function initSelect2Row() {
+                    $('#tablePlanner tbody tr .select2-row').each(function() {
+                        if (!$(this).hasClass('select2-hidden-accessible')) {
+                            $(this).select2({
+                                theme: 'bootstrap-5',
+                                width: '150px',
+                                dropdownAutoWidth: true,
+                                dropdownParent: $('body'),
+                                placeholder: 'Cari...',
+                                allowClear: true
+                            });
+
+                            if ($(this).is('.row-route, .row-mobil, .row-ekpedisi')) {
+                                $(this).off('select2:select.autotarif').on('select2:select.autotarif', function() {
+                                    let row = $(this).closest('tr');
+                                    cariBiayaKirimRow(row);
+                                    markRowDirty($(this));
+                                });
+                            }
+
+                            $(this).off('select2:select.dirty select2:clear.dirty')
+                                .on('select2:select.dirty select2:clear.dirty', function() {
+                                    markRowDirty($(this));
+                                });
+                        }
+                    });
+                }
+
+                function cariBiayaKirimRow(row) {
+                    let route = row.find('[name="route"]').val();
+                    let mobil = row.find('[name="mobil"]').val();
+                    let ekpedisi = row.find('[name="ekpedisi"]').val();
+
+                    if (!route || !mobil) return;
+
+                    let tarif = cariTarif(route, mobil, ekpedisi);
+
+                    if (tarif && tarif.biaya_kirim) {
+                        let biayaInput = row.find('.row-biaya-kirim');
+                        biayaInput.val(tarif.biaya_kirim).trigger('input');
+                    }
+                }
+
+                // ======================
+                // FILTER: Area / Planner / Tanggal Import
+                // ======================
+                $('#filterArea').on('change', function() {
+                    areaFilter = $(this).val() || [];
+                    table.draw();
+                    loadAlertControl();
+                    loadImportDates(); // tambah
+                });
+
+                $('#filterPlanner').on('change', function() {
+                    plannerFilter = $(this).val() || [];
+                    table.draw();
+                    loadAlertControl();
+                    loadImportDates(); // tambah
+                });
+
+                $('#filterDistChannel').on('change', function() {
+                    distChannelFilter = $(this).val() || [];
+                    table.draw();
+                    loadAlertControl();
+                    loadImportDates(); // tambah
+                });
+                let importDates = {}; // { 'YYYY-MM-DD': {total, belum} }
+
+                const fpImport = flatpickr('#filterCreateTgl', {
+                    dateFormat: 'Y-m-d',
+                    altInput: true,
+                    altFormat: 'd/m/Y',
+                    onDayCreate: function(dObj, dStr, instance, dayElem) {
+                        const key = instance.formatDate(dayElem.dateObj, 'Y-m-d');
+                        const info = importDates[key];
+                        if (!info) return;
+
+                        if (info.belum > 0) {
+                            dayElem.classList.add('ship-pending');
+                            dayElem.title = info.belum + ' dari ' + info.total + ' shipment belum diinput';
+                            const b = document.createElement('span');
+                            b.className = 'ship-badge';
+                            b.textContent = info.belum;
+                            dayElem.appendChild(b);
+                        } else {
+                            dayElem.classList.add('ship-done');
+                            dayElem.title = 'Semua ' + info.total + ' shipment sudah selesai';
+                        }
+                    },
+                    onChange: function(selectedDates, dateStr) {
+                        createTglFilter = dateStr; // '' kalau dihapus
+                        table.draw();
+                    }
+                });
+
+                // ambil status per tanggal, ikut filter planner / area / dist channel
+                function loadImportDates() {
+                    $.getJSON("{{ route('planner.importDates') }}", {
+                        planner_filter: plannerFilter,
+                        area_filter: areaFilter,
+                        dist_channel_filter: distChannelFilter
+                    }, function(res) {
+                        importDates = res || {};
+                        fpImport.redraw();
+                    });
+                }
+
+                $('#btnResetTgl').on('click', function() {
+                    fpImport.clear();
+                });
+
+                loadImportDates();
+                // ==========================================================
+                // DIRTY TRACKING + SAVE ALL
+                // ==========================================================
+                let dirtyRows = new Set();
+
+                function updateUnsavedBadge() {
+                    if (dirtyRows.size > 0) {
+                        $('#unsavedCount').text(dirtyRows.size).show();
+                    } else {
+                        $('#unsavedCount').hide();
+                    }
+                }
+
+                function markRowDirty($el) {
+                    let row = $el.closest('tr');
+                    let id = row.data('id');
+                    if (id) {
+                        dirtyRows.add(id);
+                        updateUnsavedBadge();
+                    }
+                }
+
+                $(document).on('change input',
+                    '#tablePlanner input, #tablePlanner select, #tablePlanner textarea',
+                    function() {
+                        markRowDirty($(this));
+                    }
+                );
+
+                function saveRow(id) {
+                    let row = $('tr[data-id="' + id + '"]');
+
+                    return $.ajax({
+                        url: '/planner/autosave-row/' + id,
+                        type: 'POST',
+                        data: {
+                            _token: '{{ csrf_token() }}',
+
+                            planner: row.find('[name="planner"]').val(),
+                            no_shipment: row.find('[name="no_shipment"]').val(),
+
+                            tanggal_naik_logistik: row.find('[name="tanggal_naik_logistik"]').val(),
+                            rencana_kirim: row.find('[name="rencana_kirim"]').val(),
+                            tanggal_dpt_unit: row.find('[name="tanggal_dpt_unit"]').val(),
+
+                            planning_loading: row.find('[name="planning_loading"]').val(),
+                            tanggal_tiba_gudang: row.find('[name="tanggal_tiba_gudang"]').val(),
+                            tanggal_keluar_gudang: row.find('[name="tanggal_keluar_gudang"]').val(),
+                            reason_gudang: row.find('[name="reason_gudang"]').val(),
+                            reason_gudang_2: row.find('[name="reason_gudang_2"]').val(),
+                            reason_gudang_3: row.find('[name="reason_gudang_3"]').val(),
+                            reason_gudang_4: row.find('[name="reason_gudang_4"]').val(),
+                            reason_gudang_5: row.find('[name="reason_gudang_5"]').val(),
+
+                            planning_loading_4: row.find('[name="planning_loading_4"]').val(),
+                            tanggal_tiba_gudang_4: row.find('[name="tanggal_tiba_gudang_4"]').val(),
+                            tanggal_keluar_gudang_4: row.find('[name="tanggal_keluar_gudang_4"]').val(),
+                            waktu_tiba_gudang_4: row.find('[name="waktu_tiba_gudang_4"]').val(),
+                            waktu_keluar_gudang_4: row.find('[name="waktu_keluar_gudang_4"]').val(),
+
+                            planning_loading_5: row.find('[name="planning_loading_5"]').val(),
+                            tanggal_tiba_gudang_5: row.find('[name="tanggal_tiba_gudang_5"]').val(),
+                            tanggal_keluar_gudang_5: row.find('[name="tanggal_keluar_gudang_5"]').val(),
+                            waktu_tiba_gudang_5: row.find('[name="waktu_tiba_gudang_5"]').val(),
+                            waktu_keluar_gudang_5: row.find('[name="waktu_keluar_gudang_5"]').val(),
+
+                            planning_loading_2: row.find('[name="planning_loading_2"]').val(),
+                            tanggal_tiba_gudang_2: row.find('[name="tanggal_tiba_gudang_2"]').val(),
+                            tanggal_keluar_gudang_2: row.find('[name="tanggal_keluar_gudang_2"]').val(),
+
+                            planning_loading_3: row.find('[name="planning_loading_3"]').val(),
+                            tanggal_tiba_gudang_3: row.find('[name="tanggal_tiba_gudang_3"]').val(),
+                            tanggal_keluar_gudang_3: row.find('[name="tanggal_keluar_gudang_3"]').val(),
+
+                            tujuan: row.find('[name="tujuan"]').val(),
+                            route: row.find('[name="route"]').val(),
+                            pulau: row.find('[name="pulau"]').val(),
+                            reason_optimal: row.find('[name="reason_optimal"]').val(),
+                            reason_optimal_customer: row.find('[name="reason_optimal_customer"]').val(),
+                            area: row.find('[name="area"]').val(),
+                            via_kirim: row.find('[name="via_kirim"]').val(),
+
+                            dist_channel: row.find('[name="dist_channel"]').val(),
+                            kategori_ekspedisi: row.find('[name="kategori_ekspedisi"]').val(),
+                            ekpedisi: row.find('[name="ekpedisi"]').val(),
+                            transport_lead_time: row.find('[name="transport_lead_time"]').val(),
+                            total_kubik: row.find('[name="total_kubik"]').val(),
+                            total_tonase: row.find('[name="total_tonase"]').val(),
+
+                            nama_driver: row.find('[name="nama_driver"]').val(),
+                            no_pol: row.find('[name="no_pol"]').val(),
+                            mobil: row.find('[name="mobil"]').val(),
+                            total_do_qty_car: row.find('[name="total_do_qty_car"]').val(),
+
+                            nilai_muatan: ambilAngkaMurni(row.find('[name="nilai_muatan"]').val()),
+                            biaya_kirim: ambilAngkaMurni(row.find('[name="biaya_kirim"]').val()),
+
+                            waktu_tiba_gudang: row.find('[name="waktu_tiba_gudang"]').val(),
+                            waktu_keluar_gudang: row.find('[name="waktu_keluar_gudang"]').val(),
+                            waktu_tiba_gudang_2: row.find('[name="waktu_tiba_gudang_2"]').val(),
+                            waktu_keluar_gudang_2: row.find('[name="waktu_keluar_gudang_2"]').val(),
+                            waktu_tiba_gudang_3: row.find('[name="waktu_tiba_gudang_3"]').val(),
+                            waktu_keluar_gudang_3: row.find('[name="waktu_keluar_gudang_3"]').val(),
+
+                            cr: row.find('[name="cr"]').val(),
+                            kubikasi: ambilAngkaPersen(row.find('[name="kubikasi"]').val())
+                        },
+                        timeout: 30000,
+                        success: function() {
+                            console.log("Saved " + id);
+                        },
+                        error: function(xhr) {
+                            console.log("Gagal save row " + id, xhr.status, xhr.responseText);
+                        }
+                    });
+                }
+
+                $('#btnSaveAll').on('click', function() {
+                    if (dirtyRows.size === 0) {
+                        alert('Belum ada perubahan untuk disimpan.');
+                        return;
+                    }
+
+                    let ids = Array.from(dirtyRows);
+
+                    // pisahkan: baris valid vs baris delay (>24 jam) yang reason-nya kosong
+                    let bermasalah = [];
+                    let idsValid = [];
+
+                    ids.forEach(function(id) {
+                        const masalah = cekReasonRow(id);
+                        if (masalah) bermasalah.push(masalah);
+                        else idsValid.push(id);
+                    });
+
+                    if (bermasalah.length > 0) {
+                        let pesan = 'Reason gudang WAJIB diisi karena lebih dari 24 jam (Delay):\n\n';
+                        bermasalah.forEach(function(m) {
+                            pesan += '- ' + m.no_shipment + ' | ' + m.tujuan + ' (' + m.gudang.join(', ') + ')\n';
+                        });
+                        if (idsValid.length > 0) {
+                            pesan += '\n' + idsValid.length + ' baris lain yang tidak bermasalah tetap disimpan.';
+                        } else {
+                            pesan += '\nTidak ada yang disimpan.';
+                        }
+                        popupGagal('Reason gudang wajib diisi', pesan.split('\n').filter(function(l) {
+                            return l.indexOf('- ') === 0;
+                        }));
+
+                        bermasalah.forEach(function(m) {
+                            $('tr[data-id="' + m.id + '"]').addClass('highlight-row');
+                        });
+                        setTimeout(function() {
+                            $('.highlight-row').removeClass('highlight-row');
+                        }, 3000);
+                    }
+
+                    if (idsValid.length === 0) return;
+
+                    let btn = $(this);
+                    btn.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin"></i> Menyimpan...');
+
+                    let requests = idsValid.map(function(id) {
+                        var d = $.Deferred();
+                        saveRow(id)
+                            .done(function() {
+                                d.resolve({
+                                    id: id,
+                                    ok: true
+                                });
+                            })
+                            .fail(function(xhr, st) {
+                                d.resolve({
+                                    id: id,
+                                    ok: false,
+                                    xhr: xhr,
+                                    st: st
+                                });
+                            });
+                        return d.promise();
+                    });
+
+                    $.when.apply($, requests)
+                        .done(function() {
+                            var hasil = Array.prototype.slice.call(arguments);
+                            var gagal = [];
+
+                            hasil.forEach(function(h) {
+                                if (h.ok) {
+                                    dirtyRows.delete(h.id);
+                                    return;
+                                }
+
+                                var $tr = $('tr[data-id="' + h.id + '"]');
+                                var ship = String($tr.find('[name="no_shipment"]').val() || '').trim() || '(tanpa no shipment)';
+                                var tuj = String($tr.find('[name="tujuan"]').val() || '').trim() || '-';
+                                pesanXhr(h.xhr, h.st).forEach(function(m) {
+                                    gagal.push(ship + ' | ' + tuj + ' : ' + m);
+                                });
+                                $tr.addClass('highlight-row');
+                            });
+
+                            updateUnsavedBadge();
+
+                            if (gagal.length) {
+                                // JANGAN reload tabel: isian yang gagal harus tetap di layar supaya bisa dibetulkan
+                                popupGagal(gagal.length + ' pesan kesalahan, baris ini TIDAK tersimpan', gagal);
+                                setTimeout(function() {
+                                    $('.highlight-row').removeClass('highlight-row');
+                                }, 8000);
+                          } else {
+    loadAlertControl();
+    loadImportDates();   // refresh badge kalender tanggal shipment
+    table.ajax.reload(null, false);
+                                if (bermasalah.length === 0) {
+                                    Swal.fire({
+                                        icon: 'success',
+                                        title: 'Tersimpan',
+                                        text: idsValid.length + ' baris berhasil disimpan.',
+                                        timer: 1800,
+                                        showConfirmButton: false
+                                    });
+                                }
+                            }
+                        })
+                        .always(function() {
+                            btn.prop('disabled', false)
+                                .html('<i class="fa-solid fa-floppy-disk"></i> Save <span id="unsavedCount" class="badge bg-danger rounded-pill" style="display:none;">0</span>');
+                            updateUnsavedBadge();
+                        });
+                });
+
+                // ==========================================================
+                // ALERT CONTROL
+                // ==========================================================
+                function loadAlertControl() {
+                    $.getJSON("{{ route('planner.alerts') }}", {
+                        planner_filter: plannerFilter,
+                        area_filter: areaFilter,
+                        dist_channel_filter: distChannelFilter
+                    }, function(res) {
+                        renderMissingFieldSummaryPlanner(res.missingSummary || {});
+                        renderAlertControlPlanner(res.alerts || []);
+                    }).fail(function() {
+                        $('#missingFieldSummary').html('<span class="badge gray">Gagal memuat</span>');
+                        $('#alertControlList').html('<div class="p-2" style="color:#ef4444;">Gagal memuat data</div>');
+                    });
+                }
+
+                function renderMissingFieldSummaryPlanner(missingSummary) {
+                    let entries = Object.entries(missingSummary).sort((a, b) => b[1] - a[1]);
+
+                    if (entries.length === 0) {
+                        $('#missingFieldSummary').html('<span class="badge green">✅ Semua data lengkap</span>');
+                        return;
+                    }
+
+                    let html = entries.map(function(e) {
+                        return '<span class="badge red">' + e[0] + ': ' + e[1] + '</span>';
+                    }).join(' ');
+
+                    $('#missingFieldSummary').html(html);
+                }
+
+                function renderAlertControlPlanner(alertList) {
+                    $('#alertControlCount').text(alertList.length + ' Alert');
+
+                    if (alertList.length === 0) {
+                        $('#alertControlList').html('<div class="p-2" style="color:#22c55e;">✅ Semua shipment sudah lengkap datanya</div>');
+                        return;
+                    }
+
+                    let html = alertList.map(function(a) {
+                        let sev = a.emptyCount >= 4 ? 'red' : a.emptyCount >= 2 ? 'orange' : 'yellow';
+                        return '' +
+                            '<div class="alert-item" data-id="' + a.id + '">' +
+                            '<div class="alert-top">' +
                             '<b>🚚 ' + a.shipment + '</b>' +
                             '<span class="badge ' + sev + '">' + a.emptyCount + ' kosong</span>' +
-                        '</div>' +
-                        '<div class="alert-missing">Belum diisi: ' + a.missing.join(', ') + '</div>' +
-                    '</div>';
-            }).join('');
+                            '</div>' +
+                            '<div class="alert-missing">Belum diisi: ' + a.missing.join(', ') + '</div>' +
+                            '</div>';
+                    }).join('');
 
-            $('#alertControlList').html(html);
-        }
-
-        $(document).on('click', '.alert-item', function() {
-            let id = $(this).data('id');
-            let shipmentText = $(this).find('b').text().replace('🚚', '').trim();
-
-            table.search(shipmentText).draw();
-
-            setTimeout(function() {
-                let $row = $('#tablePlanner tr[data-id="' + id + '"]');
-                if ($row.length) {
-                    $row.addClass('highlight-row');
-                    $row.get(0).scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    setTimeout(function() { $row.removeClass('highlight-row'); }, 2000);
+                    $('#alertControlList').html(html);
                 }
-            }, 500);
-        });
 
-        loadAlertControl();
+                $(document).on('click', '.alert-item', function() {
+                    let id = $(this).data('id');
+                    let shipmentText = $(this).find('b').text().replace('🚚', '').trim();
 
-        function showToastMsgPlanner(msg) {
-            let toast = $('<div class="toast"><strong>Perhatian</strong>' + msg + '</div>');
-            $('#toastContainer').append(toast);
-            setTimeout(function() {
-                toast.fadeOut(400, function() { toast.remove(); });
-            }, 6000);
-        }
+                    table.search(shipmentText).draw();
 
-        function updateDateColor() {
-            $('#tablePlanner input[type="date"]').each(function() {
-                if ($(this).val()) {
-                    $(this).removeClass('input-empty').addClass('input-filled');
-                } else {
-                    $(this).removeClass('input-filled').addClass('input-empty');
+                    setTimeout(function() {
+                        let $row = $('#tablePlanner tr[data-id="' + id + '"]');
+                        if ($row.length) {
+                            $row.addClass('highlight-row');
+                            $row.get(0).scrollIntoView({
+                                behavior: 'smooth',
+                                block: 'center'
+                            });
+                            setTimeout(function() {
+                                $row.removeClass('highlight-row');
+                            }, 2000);
+                        }
+                    }, 500);
+                });
+
+                loadAlertControl();
+
+                function showToastMsgPlanner(msg) {
+                    let toast = $('<div class="toast"><strong>Perhatian</strong>' + msg + '</div>');
+                    $('#toastContainer').append(toast);
+                    setTimeout(function() {
+                        toast.fadeOut(400, function() {
+                            toast.remove();
+                        });
+                    }, 6000);
                 }
-            });
-        }
 
-        $(document).on('change', '#tablePlanner input[type="date"]', function() {
-            updateDateColor();
-        });
+                function updateDateColor() {
+                    $('#tablePlanner input[type="date"]').each(function() {
+                        if ($(this).val()) {
+                            $(this).removeClass('input-empty').addClass('input-filled');
+                        } else {
+                            $(this).removeClass('input-filled').addClass('input-empty');
+                        }
+                    });
+                }
 
-        document.addEventListener('paste', function(e) {
-            let el = document.activeElement;
-            if (el.type !== 'date') return;
+                $(document).on('change', '#tablePlanner input[type="date"]', function() {
+                    updateDateColor();
+                });
 
-            e.preventDefault();
-            let txt = (e.clipboardData || window.clipboardData).getData('text').trim();
+                document.addEventListener('paste', function(e) {
+                    let el = document.activeElement;
+                    if (el.type !== 'date') return;
 
-            let m = txt.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-            if (m) {
-                let hasil = m[3] + '-' + m[2].padStart(2, '0') + '-' + m[1].padStart(2, '0');
-                el.value = hasil;
-                el.dispatchEvent(new Event('change'));
-                return;
-            }
+                    e.preventDefault();
+                    let txt = (e.clipboardData || window.clipboardData).getData('text').trim();
 
-            if (/^\d{4}-\d{2}-\d{2}$/.test(txt)) {
-                el.value = txt;
-                el.dispatchEvent(new Event('change'));
-            }
-        });
-
-        $(document).on('copy', 'input[type="date"]', function(e) {
-            e.preventDefault();
-            const value = $(this).val();
-            e.originalEvent.clipboardData.setData('text/plain', value);
-        });
-
-        $(document).on('paste', 'input[type="date"]', function(e) {
-            e.preventDefault();
-            const pasted = (e.originalEvent || e).clipboardData.getData('text').trim();
-            if (/^\d{4}-\d{2}-\d{2}$/.test(pasted)) {
-                $(this).val(pasted).trigger('change');
-            }
-        });
-
-        // ==========================================================
-        // LIVE: Lama / Status / SLA di gudang (tiba -> keluar)
-        // Aturan: <= 24 jam = On Time, > 24 jam = Delay
-        // Jam kosong dianggap 00:00
-        // ==========================================================
-        function dayNum(s) {
-            const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s || '');
-            return m ? Date.UTC(+m[1], +m[2] - 1, +m[3]) / 86400000 : null;
-        }
-
-        // selisih menit (tanggal + jam)
-        function menitGudang(tTiba, wTiba, tKeluar, wKeluar) {
-            const d1 = dayNum(tTiba), d2 = dayNum(tKeluar);
-            if (d1 === null || d2 === null) return null;
-
-            const jam = function(w) {
-                const m = /^([01]\d|2[0-3]):([0-5]\d)$/.exec((w || '').trim());
-                return m ? (+m[1] * 60 + +m[2]) : 0;
-            };
-
-            return Math.max(0, (d2 * 1440 + jam(wKeluar)) - (d1 * 1440 + jam(wTiba)));
-        }
-
-        // nomor kolom (mulai dari 0): Lama, Status, SLA per gudang
- const GUDANG_COLS = [
-    { suffix: '',   cols: [55, 56, 57] },   // KACS
-    { suffix: '_2', cols: [58, 59, 60] },   // Sentul
-    { suffix: '_3', cols: [61, 62, 63] },   // CCIE
-    { suffix: '_4', cols: [64, 65, 66] },   // P5
-    { suffix: '_5', cols: [67, 68, 69] }    // Fifatex
-];
-
-        function recalcGudang($tr) {
-            const v = n => $tr.find('[name="' + n + '"]').val();
-            const $td = $tr.children('td');
-
-            GUDANG_COLS.forEach(function(g) {
-                const menit = menitGudang(
-                    v('tanggal_tiba_gudang' + g.suffix),   v('waktu_tiba_gudang' + g.suffix),
-                    v('tanggal_keluar_gudang' + g.suffix), v('waktu_keluar_gudang' + g.suffix)
-                );
-                let dur, st, sla;
-
-                if (menit === null) {
-                    dur = '-';
-                    st  = '<span class="badge gray">-</span>';
-                    sla = '<span class="badge bg-secondary">-</span>';
-                } else {
-                    const hari = Math.floor(menit / 1440);
-                    const jm   = Math.floor((menit % 1440) / 60);
-                    const mnt  = menit % 60;
-                    dur = ((hari ? hari + ' Hari ' : '') + (jm ? jm + ' Jam ' : '') + mnt + ' Menit').trim();
-
-                    if (menit > 1440) {   // lebih dari 24 jam
-                        st  = '<span class="badge red">Delay</span>';
-                        sla = '<span class="badge red">H+' + hari + '</span>';
-                    } else {
-                        st  = '<span class="badge green">On Time</span>';
-                        sla = '<span class="badge bg-success">Sesuai SLA</span>';
+                    let m = txt.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+                    if (m) {
+                        let hasil = m[3] + '-' + m[2].padStart(2, '0') + '-' + m[1].padStart(2, '0');
+                        el.value = hasil;
+                        el.dispatchEvent(new Event('change'));
+                        return;
                     }
+
+                    if (/^\d{4}-\d{2}-\d{2}$/.test(txt)) {
+                        el.value = txt;
+                        el.dispatchEvent(new Event('change'));
+                    }
+                });
+
+                $(document).on('copy', 'input[type="date"]', function(e) {
+                    e.preventDefault();
+                    const value = $(this).val();
+                    e.originalEvent.clipboardData.setData('text/plain', value);
+                });
+
+                $(document).on('paste', 'input[type="date"]', function(e) {
+                    e.preventDefault();
+                    const pasted = (e.originalEvent || e).clipboardData.getData('text').trim();
+                    if (/^\d{4}-\d{2}-\d{2}$/.test(pasted)) {
+                        $(this).val(pasted).trigger('change');
+                    }
+                });
+
+                // ==========================================================
+                // LIVE: Lama / Status / SLA di gudang (tiba -> keluar)
+                // Aturan: <= 24 jam = On Time, > 24 jam = Delay
+                // Jam kosong dianggap 00:00
+                // ==========================================================
+                function dayNum(s) {
+                    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s || '');
+                    return m ? Date.UTC(+m[1], +m[2] - 1, +m[3]) / 86400000 : null;
                 }
 
-                $td.eq(g.cols[0]).text(dur);
-                $td.eq(g.cols[1]).html(st);
-                $td.eq(g.cols[2]).html(sla);
-            });
-        }
+                // selisih menit (tanggal + jam)
+                function menitGudang(tTiba, wTiba, tKeluar, wKeluar) {
+                    const d1 = dayNum(tTiba),
+                        d2 = dayNum(tKeluar);
+                    if (d1 === null || d2 === null) return null;
 
-        $(document).on('input change',
-            '#tablePlanner input[name^="tanggal_tiba_gudang"], #tablePlanner input[name^="tanggal_keluar_gudang"], ' +
-            '#tablePlanner input[name^="waktu_tiba_gudang"], #tablePlanner input[name^="waktu_keluar_gudang"]',
-            function() {
-                recalcGudang($(this).closest('tr'));
-            });
+                    const jam = function(w) {
+                        const m = /^([01]\d|2[0-3]):([0-5]\d)$/.exec((w || '').trim());
+                        return m ? (+m[1] * 60 + +m[2]) : 0;
+                    };
 
-        // ==========================================================
-        // VALIDASI: gudang Delay (> 24 jam) wajib isi reason
-        // ==========================================================
-const GUDANG_CEK = [
-    { label: 'KACS',    suffix: '',   reason: 'reason_gudang'   },
-    { label: 'Sentul',  suffix: '_2', reason: 'reason_gudang_2' },
-    { label: 'CCIE',    suffix: '_3', reason: 'reason_gudang_3' },
-    { label: 'P5',      suffix: '_4', reason: 'reason_gudang_4' },
-    { label: 'Fifatex', suffix: '_5', reason: 'reason_gudang_5' }
-];
-
-        function cekReasonRow(id) {
-            const $tr = $('tr[data-id="' + id + '"]');
-            const v = n => $tr.find('[name="' + n + '"]').val();
-            const kurang = [];
-
-            GUDANG_CEK.forEach(function(g) {
-                const menit = menitGudang(
-                    v('tanggal_tiba_gudang' + g.suffix),   v('waktu_tiba_gudang' + g.suffix),
-                    v('tanggal_keluar_gudang' + g.suffix), v('waktu_keluar_gudang' + g.suffix)
-                );
-                const delay = (menit !== null && menit > 1440);   // lebih dari 24 jam
-
-                if (delay && !String(v(g.reason) || '').trim()) {
-                    kurang.push(g.label);
+                    return Math.max(0, (d2 * 1440 + jam(wKeluar)) - (d1 * 1440 + jam(wTiba)));
                 }
+
+                // nomor kolom (mulai dari 0): Lama, Status, SLA per gudang
+                const GUDANG_COLS = [{
+                        suffix: '',
+                        cols: [56, 57, 58]
+                    }, // KACS
+                    {
+                        suffix: '_2',
+                        cols: [59, 60, 61]
+                    }, // Sentul
+                    {
+                        suffix: '_3',
+                        cols: [62, 63, 64]
+                    }, // CCIE
+                    {
+                        suffix: '_4',
+                        cols: [65, 66, 67]
+                    }, // P5
+                    {
+                        suffix: '_5',
+                        cols: [68, 69, 70]
+                    } // Fifatex
+                ];
+
+                function recalcGudang($tr) {
+                    const v = n => $tr.find('[name="' + n + '"]').val();
+                    const $td = $tr.children('td');
+
+                    GUDANG_COLS.forEach(function(g) {
+                        const menit = menitGudang(
+                            v('tanggal_tiba_gudang' + g.suffix), v('waktu_tiba_gudang' + g.suffix),
+                            v('tanggal_keluar_gudang' + g.suffix), v('waktu_keluar_gudang' + g.suffix)
+                        );
+                        let dur, st, sla;
+
+                        if (menit === null) {
+                            dur = '-';
+                            st = '<span class="badge gray">-</span>';
+                            sla = '<span class="badge bg-secondary">-</span>';
+                        } else {
+                            const hari = Math.floor(menit / 1440);
+                            const jm = Math.floor((menit % 1440) / 60);
+                            const mnt = menit % 60;
+                            dur = ((hari ? hari + ' Hari ' : '') + (jm ? jm + ' Jam ' : '') + mnt + ' Menit').trim();
+
+                            if (menit > 1440) { // lebih dari 24 jam
+                                st = '<span class="badge red">Delay</span>';
+                                sla = '<span class="badge red">H+' + hari + '</span>';
+                            } else {
+                                st = '<span class="badge green">On Time</span>';
+                                sla = '<span class="badge bg-success">Sesuai SLA</span>';
+                            }
+                        }
+
+                        $td.eq(g.cols[0]).text(dur);
+                        $td.eq(g.cols[1]).html(st);
+                        $td.eq(g.cols[2]).html(sla);
+                    });
+                }
+
+                $(document).on('input change',
+                    '#tablePlanner input[name^="tanggal_tiba_gudang"], #tablePlanner input[name^="tanggal_keluar_gudang"], ' +
+                    '#tablePlanner input[name^="waktu_tiba_gudang"], #tablePlanner input[name^="waktu_keluar_gudang"]',
+                    function() {
+                        recalcGudang($(this).closest('tr'));
+                    });
+
+                // ==========================================================
+                // VALIDASI: gudang Delay (> 24 jam) wajib isi reason
+                // ==========================================================
+                const GUDANG_CEK = [{
+                        label: 'KACS',
+                        suffix: '',
+                        reason: 'reason_gudang'
+                    },
+                    {
+                        label: 'Sentul',
+                        suffix: '_2',
+                        reason: 'reason_gudang_2'
+                    },
+                    {
+                        label: 'CCIE',
+                        suffix: '_3',
+                        reason: 'reason_gudang_3'
+                    },
+                    {
+                        label: 'P5',
+                        suffix: '_4',
+                        reason: 'reason_gudang_4'
+                    },
+                    {
+                        label: 'Fifatex',
+                        suffix: '_5',
+                        reason: 'reason_gudang_5'
+                    }
+                ];
+
+                function cekReasonRow(id) {
+                    const $tr = $('tr[data-id="' + id + '"]');
+                    const v = n => $tr.find('[name="' + n + '"]').val();
+                    const kurang = [];
+
+                    GUDANG_CEK.forEach(function(g) {
+                        const menit = menitGudang(
+                            v('tanggal_tiba_gudang' + g.suffix), v('waktu_tiba_gudang' + g.suffix),
+                            v('tanggal_keluar_gudang' + g.suffix), v('waktu_keluar_gudang' + g.suffix)
+                        );
+                        const delay = (menit !== null && menit > 1440); // lebih dari 24 jam
+
+                        if (delay && !String(v(g.reason) || '').trim()) {
+                            kurang.push(g.label);
+                        }
+                    });
+
+                    if (kurang.length === 0) return null;
+
+                    return {
+                        id: id,
+                        no_shipment: String(v('no_shipment') || '').trim() || '(tanpa no shipment)',
+                        tujuan: String(v('tujuan') || '').trim() || '-',
+                        gudang: kurang
+                    };
+                }
+
+                $('.select2-modal').select2({
+                    theme: 'bootstrap-5',
+                    dropdownParent: $('#addModal'),
+                    width: '100%'
+                });
             });
 
-            if (kurang.length === 0) return null;
-
-            return {
-                id: id,
-                no_shipment: String(v('no_shipment') || '').trim() || '(tanpa no shipment)',
-                tujuan: String(v('tujuan') || '').trim() || '-',
-                gudang: kurang
-            };
-        }
-
-        $('.select2-modal').select2({
-            theme: 'bootstrap-5',
-            dropdownParent: $('#addModal'),
-            width: '100%'
-        });
-    });
-
-    $('#formGudang23').on('submit', function(e) {
-        e.preventDefault();
-        $.ajax({
-            url: "{{ route('planner.updateGudang23') }}",
-            type: "POST",
-            data: $(this).serialize(),
-            success: function(res) {
-                alert(res.message);
-                $('#modalGudang23').modal('hide');
-                location.reload();
-            },
-            error: function(xhr) {
-                console.log(xhr.responseText);
-                alert('Gagal update data');
+            $('#formGudang23').on('submit', function(e) {
+                e.preventDefault();
+                $.ajax({
+                    url: "{{ route('planner.updateGudang23') }}",
+                    type: "POST",
+                    data: $(this).serialize(),
+                    success: function(res) {
+                        alert(res.message);
+                        $('#modalGudang23').modal('hide');
+                        location.reload();
+                    },
+                    error: function(xhr) {
+                        console.log(xhr.responseText);
+                        alert('Gagal update data');
+                    }
+                });
+            });
+        </script>
+        <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+        <script>
+            function popupGagal(title, errors, icon) {
+                var li = (errors || []).map(function(e) {
+                    return '<li>' + $('<div>').text(e).html() + '</li>';
+                }).join('');
+                Swal.fire({
+                    icon: icon || 'error',
+                    title: title || 'Data gagal disimpan',
+                    html: '<ul style="text-align:left;margin:0;padding-left:20px;max-height:300px;overflow:auto">' + li + '</ul>',
+                    confirmButtonText: 'Mengerti'
+                });
             }
-        });
-    });
-</script>
-<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-<script>
-function popupGagal(title, errors, icon) {
-    var li = (errors || []).map(function (e) {
-        return '<li>' + $('<div>').text(e).html() + '</li>';
-    }).join('');
-    Swal.fire({
-        icon: icon || 'error',
-        title: title || 'Data gagal disimpan',
-        html: '<ul style="text-align:left;margin:0;padding-left:20px;max-height:300px;overflow:auto">' + li + '</ul>',
-        confirmButtonText: 'Mengerti'
-    });
-}
 
-// ubah respons gagal (xhr) jadi daftar kalimat
-function pesanXhr(xhr, textStatus) {
-    var j = xhr.responseJSON;
-    if (j && j.errors) return j.errors;
-    if (textStatus === 'timeout') return ['Server terlalu lama merespons (30 detik). Isian belum tentu tersimpan, simpan ulang.'];
-    if (xhr.status === 0)   return ['Koneksi terputus. Cek jaringan, lalu simpan ulang.'];
-    if (xhr.status === 419) return ['Sesi habis. Refresh halaman, lalu ulangi input.'];
-    if (xhr.status === 401) return ['Anda sudah logout. Login ulang dulu.'];
-    if (xhr.status === 403) return ['Akun ini tidak boleh mengubah data planner.'];
-    return ['Kesalahan server (kode ' + xhr.status + '). Hubungi admin.'];
-}
+            // ubah respons gagal (xhr) jadi daftar kalimat
+            function pesanXhr(xhr, textStatus) {
+                var j = xhr.responseJSON;
+                if (j && j.errors) return j.errors;
+                if (textStatus === 'timeout') return ['Server terlalu lama merespons (30 detik). Isian belum tentu tersimpan, simpan ulang.'];
+                if (xhr.status === 0) return ['Koneksi terputus. Cek jaringan, lalu simpan ulang.'];
+                if (xhr.status === 419) return ['Sesi habis. Refresh halaman, lalu ulangi input.'];
+                if (xhr.status === 401) return ['Anda sudah logout. Login ulang dulu.'];
+                if (xhr.status === 403) return ['Akun ini tidak boleh mengubah data planner.'];
+                return ['Kesalahan server (kode ' + xhr.status + '). Hubungi admin.'];
+            }
 
-// gagal dari form Add New Shipment / sesi habis (flash dari controller)
-@if(session('save_error'))
-    popupGagal(@json(session('save_error.title')), @json(session('save_error.errors')));
-@elseif(session('error'))
-    popupGagal('Gagal', [@json(session('error'))]);
-@endif
+            // gagal dari form Add New Shipment / sesi habis (flash dari controller)
+            @if(session('save_error'))
+            popupGagal(@json(session('save_error.title')), @json(session('save_error.errors')));
+            @elseif(session('error'))
+            popupGagal('Gagal', [@json(session('error'))]);
+            @endif
 
-// tahun ngawur (20206-10-31) langsung ditolak di browser
-$(document).on('change', 'input[type=date]', function () {
-    var y = parseInt((this.value || '').split('-')[0], 10);
-    if (this.value && (y < 2020 || y > 2100)) {
-        popupGagal('Tanggal tidak valid', ['Tahun "' + y + '" tidak masuk akal. Isi 4 digit, contoh 2026.'], 'warning');
-        this.value = '';
-        $(this).trigger('change');
-    }
-});
-</script>
+            // tahun ngawur (20206-10-31) langsung ditolak di browser
+            $(document).on('change', 'input[type=date]', function() {
+                var y = parseInt((this.value || '').split('-')[0], 10);
+                if (this.value && (y < 2020 || y > 2100)) {
+                    popupGagal('Tanggal tidak valid', ['Tahun "' + y + '" tidak masuk akal. Isi 4 digit, contoh 2026.'], 'warning');
+                    this.value = '';
+                    $(this).trigger('change');
+                }
+            });
+        </script>

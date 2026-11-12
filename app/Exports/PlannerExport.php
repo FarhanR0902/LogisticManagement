@@ -17,12 +17,20 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 class PlannerExport implements
     FromQuery, WithHeadings, WithMapping, ShouldAutoSize, WithColumnFormatting, WithStyles
 {
+    // suffix kolom => nama gudang (samakan dengan PlannerController::GUDANG)
+    protected const GUDANG = [
+        ''   => 'KACS',
+        '_2' => 'Sentul',
+        '_3' => 'CCIE',
+        '_4' => 'P5',
+        '_5' => 'FIFATEX',
+    ];
+
     protected array $f;
     private ?array $cols = null;
 
     /**
-     * $filters: planner, area, create_tgl, bulan, tahun
-     * (bulan/tahun mengacu ke tanggal_naik_logistik, sama seperti applyFilter)
+     * $filters: planner, area, dist_channel, tanggal_shipment, create_tgl
      */
     public function __construct(array $filters = [])
     {
@@ -37,13 +45,14 @@ class PlannerExport implements
         $q = LogistikPengiriman::query();
         $f = $this->f;
 
-        if (!empty($f['planner']))    $q->where('planner', $f['planner']);
-        if (!empty($f['area']))       $q->where('area', $f['area']);
-        if (!empty($f['create_tgl'])) $q->whereDate('create_tgl', $f['create_tgl']);
-        if (!empty($f['bulan']))      $q->whereMonth('tanggal_naik_logistik', (int) $f['bulan']);
-        if (!empty($f['tahun']))      $q->whereYear('tanggal_naik_logistik', (int) $f['tahun']);
+        if (!empty($f['planner']))          $q->whereIn('planner', (array) $f['planner']);
+        if (!empty($f['area']))             $q->whereIn('area', (array) $f['area']);
+        if (!empty($f['dist_channel']))     $q->whereIn('dist_channel', (array) $f['dist_channel']);
+        if (!empty($f['tanggal_shipment'])) $q->whereDate('tanggal_shipment', $f['tanggal_shipment']);
+        if (!empty($f['create_tgl']))       $q->whereDate('create_tgl', $f['create_tgl']);
 
         return $q->orderByRaw($this->selesaiGudangSql() . ' ASC')
+                 ->orderBy('tanggal_shipment', 'ASC')
                  ->orderByRaw('CAST(no_shipment AS UNSIGNED) ASC')
                  ->orderBy('id', 'ASC');
     }
@@ -53,31 +62,23 @@ class PlannerExport implements
         $f = fn($c) => "NULLIF(TRIM({$c}), '') IS NOT NULL";
         $e = fn($c) => "NULLIF(TRIM({$c}), '') IS NULL";
 
-        $cycles = [
-            ['planning_loading',   'tanggal_tiba_gudang',   'tanggal_keluar_gudang'],
-            ['planning_loading_2', 'tanggal_tiba_gudang_2', 'tanggal_keluar_gudang_2'],
-            ['planning_loading_3', 'tanggal_tiba_gudang_3', 'tanggal_keluar_gudang_3'],
-        ];
-
         $menggantung = [];
-        foreach ($cycles as [$p, $t, $k]) {
-            $menggantung[] = '((' . $f($p) . ' OR ' . $f($t) . ') AND ' . $e($k) . ')';
+        $keluarCols  = [];
+        foreach (array_keys(self::GUDANG) as $s) {
+            $menggantung[] = '((' . $f("planning_loading{$s}") . ' OR ' . $f("tanggal_tiba_gudang{$s}") . ') AND ' . $e("tanggal_keluar_gudang{$s}") . ')';
+            $keluarCols[]  = $f("tanggal_keluar_gudang{$s}");
         }
 
-        $adaKeluar = '(' . implode(' OR ', [
-            $f('tanggal_keluar_gudang'),
-            $f('tanggal_keluar_gudang_2'),
-            $f('tanggal_keluar_gudang_3'),
-        ]) . ')';
+        $adaKeluar = '(' . implode(' OR ', $keluarCols) . ')';
 
         return "CASE WHEN {$adaKeluar} AND NOT (" . implode(' OR ', $menggantung) . ") THEN 1 ELSE 0 END";
     }
 
     // ============================================================
     // DEFINISI KOLOM: [heading, tipe, closure($r)]
-    // tipe: text | date | time | money | pct | pct4 | num
+    // tipe: text | ptext | date | time | money | pct | pct4 | num | num2 | int | raw
     // ============================================================
-    private function columns(): array
+    protected function columns(): array
     {
         if ($this->cols !== null) {
             return $this->cols;
@@ -93,15 +94,11 @@ class PlannerExport implements
         $c[] = ['Rencana Kirim', 'date', fn($r) => $this->xl($r->rencana_kirim)];
         $c[] = ['Tanggal Dapat Unit', 'date', fn($r) => $this->xl($r->tanggal_dpt_unit)];
 
-        // ---- 3 gudang: input ----
-        $gudang = [
-            ''   => 'KACS',
-            '_2' => 'Sentul',
-            '_3' => 'CCIE',
-        ];
+        // ---- 5 gudang: input ----
+        $gudang = self::GUDANG;
 
         foreach ($gudang as $s => $nama) {
-            $c[] = ["Planning Loading {$nama}", 'date', fn($r) => $this->xl($r->{'planning_loading' . ($s === '' ? '' : $s)})];
+            $c[] = ["Planning Loading {$nama}", 'date', fn($r) => $this->xl($r->{'planning_loading' . $s})];
             $c[] = ["Tanggal Tiba {$nama}", 'date', fn($r) => $this->xl($r->{'tanggal_tiba_gudang' . $s})];
             $c[] = ["Jam Tiba {$nama}", 'time', fn($r) => $this->jam($r->{'waktu_tiba_gudang' . $s})];
             $c[] = ["Tanggal Keluar {$nama}", 'date', fn($r) => $this->xl($r->{'tanggal_keluar_gudang' . $s})];
@@ -155,14 +152,15 @@ class PlannerExport implements
 
         $c[] = ['Shipping Point', 'text', fn($r) => $r->route ? explode('-', trim($r->route))[0] : '-'];
         $c[] = ['Kelengkapan Data', 'text', fn($r) => $this->kelengkapan($r)];
+
         // ---- rincian per DO ----
         $c[] = ['Sales Document',     'ptext', fn($r) => (string) ($r->sales_document ?? '')];
         $c[] = ['Customer Reference', 'ptext', fn($r) => (string) ($r->customer_reference ?? '')];
-        $c[] = ['Contract End Date',  'date',  fn($r) => $this->xl($r->contract_end_date) ?: '-'];
+        $c[] = ['Contract End Date',  'date',  fn($r) => $this->xl($r->contract_end_date ?? null) ?: '-'];
         $c[] = ['No DO',              'ptext', fn($r) => (string) ($r->no_do ?? '')];
         $c[] = ['Qty',                'int',   fn($r) => $this->num($r->qty_total_do_car ?? $r->total_do_qty_car)];
         $c[] = ['Nilai Muatan',       'money', fn($r) => $this->num($r->nilai_muatan)];
-        $c[] = ['Kirim Kontribusi',   'money', fn($r) => $this->num($r->kirim_kontribusi) ?: '-'];
+        $c[] = ['Kirim Kontribusi',   'money', fn($r) => $this->num($r->kirim_kontribusi ?? null) ?: '-'];
         $c[] = ['Total Kubik',        'num2',  fn($r) => $this->num($r->total_kubik)];
         $c[] = ['Total Tonase',       'num2',  fn($r) => $this->num($r->total_tonase)];
 
@@ -186,16 +184,17 @@ class PlannerExport implements
     {
         $formats = [];
 
-        foreach ($this->columns() as $i => [$head, $type]) {
+        foreach ($this->columns() as $i => $col) {
+            [$head, $type] = $col;
             $letter = Coordinate::stringFromColumnIndex($i + 1);
 
             switch ($type) {
                 case 'date':  $formats[$letter] = 'dd-mm-yyyy'; break;
                 case 'money': $formats[$letter] = '"Rp" #,##0'; break;
                 case 'pct':   $formats[$letter] = '0.00"%"'; break;
-                                case 'ptext': $formats[$letter] = NumberFormat::FORMAT_TEXT; break; // sales doc / no DO panjang, jangan jadi 1.2E+09
+                case 'ptext': $formats[$letter] = NumberFormat::FORMAT_TEXT; break;
                 case 'int':   $formats[$letter] = '#,##0'; break;
-                case 'num2':  $formats[$letter] = '#,##0.00'; break;               // 0,06 / 10,72 sesuai contoh
+                case 'num2':  $formats[$letter] = '#,##0.00'; break;
                 case 'pct4':  $formats[$letter] = '0.0000"%"'; break;
                 case 'num':   $formats[$letter] = '#,##0.##'; break;
                 case 'time':  $formats[$letter] = NumberFormat::FORMAT_TEXT; break;
@@ -216,9 +215,9 @@ class PlannerExport implements
     }
 
     // ============================================================
-    // HELPER
+    // HELPER (protected: dipakai juga oleh PlannerReportData)
     // ============================================================
-    private function xl($v)
+    protected function xl($v)
     {
         if ($v === null || $v === '' || $v === false) return '';
         $ts = is_int($v) ? $v : strtotime((string) $v);
@@ -226,24 +225,24 @@ class PlannerExport implements
         return XlDate::PHPToExcel(new \DateTime(date('Y-m-d', $ts)));
     }
 
-    private function jam($v): string
+    protected function jam($v): string
     {
         return $v ? substr((string) $v, 0, 5) : '';
     }
 
-    private function num($v)
+    protected function num($v)
     {
         return ($v === null || $v === '' || !is_numeric($v)) ? '' : (float) $v;
     }
 
-    private function cleanTime($value): ?string
+    protected function cleanTime($value): ?string
     {
         $value = trim((string) $value);
         return preg_match('/^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/', $value) ? $value : null;
     }
 
     // salinan logic PlannerController::hitungGudang (delay jika > 24 jam)
-    private function hitungGudang($tglTiba, $wTiba, $tglKeluar, $wKeluar): ?array
+    protected function hitungGudang($tglTiba, $wTiba, $tglKeluar, $wKeluar): ?array
     {
         if (empty($tglTiba) || empty($tglKeluar)) return null;
 
@@ -260,7 +259,7 @@ class PlannerExport implements
         return ['text' => $text, 'delay' => $menit > 1440, 'hari' => $hari];
     }
 
-    private function infoGudang($r, string $s): ?array
+    protected function infoGudang($r, string $s): ?array
     {
         return $this->hitungGudang(
             $r->{'tanggal_tiba_gudang' . $s},   $r->{'waktu_tiba_gudang' . $s},
@@ -269,7 +268,7 @@ class PlannerExport implements
     }
 
     // salinan logic SLA Dapat Mobil di renderRowColumns
-    private function slaDapatMobil($r): string
+    protected function slaDapatMobil($r): string
     {
         if (!$r->rencana_kirim || !$r->tanggal_dpt_unit) return '-';
 
@@ -290,7 +289,7 @@ class PlannerExport implements
     }
 
     // 5 field wajib, sama dengan render
-    private function kelengkapan($r): string
+    protected function kelengkapan($r): string
     {
         $required = [
             'mobil' => 'Mobil', 'ekpedisi' => 'Ekspedisi', 'route' => 'Route',

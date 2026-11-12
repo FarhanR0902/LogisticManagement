@@ -12,6 +12,8 @@ use App\Http\Controllers\CocoklogiController;
 |--------------------------------------------------------------------------
 */
 use App\Http\Controllers\Sales\SalesGabunganController;
+use App\Http\Controllers\Spv\SpvPlannerGabunganController;
+use App\Http\Controllers\Spv\SpvMonitoringGabunganController;
 use App\Http\Controllers\KpiController;
 use App\Http\Controllers\Spv\TarifPengirimanController;
 use App\Http\Controllers\AuthController;
@@ -121,13 +123,14 @@ Route::prefix('planner')->group(function () {
 
     Route::post('/planner/data-ajax', [App\Http\Controllers\Planner\PlannerController::class, 'dataAjax'])
         ->name('planner.data.ajax');
-        Route::get('/import-dates', [PlannerController::class, 'importDates'])->name('planner.importDates');
+    Route::get('/import-dates', [PlannerController::class, 'importDates'])->name('planner.importDates');
     Route::get('/planner/alerts', [App\Http\Controllers\Planner\PlannerController::class, 'alerts'])
         ->name('planner.alerts');
-        
+    Route::get('/planner/export-report', [PlannerController::class, 'exportPlannerReport'])
+        ->name('planner.export.report');
 
     Route::get('/planner/in-transit', [PlannerController::class, 'inTransit'])
-    ->name('planner.intransit');
+        ->name('planner.intransit');
 
     Route::get('/planner/in-gudang', [PlannerController::class, 'inGudang'])->name('planner.ingudang');
 
@@ -149,8 +152,8 @@ Route::prefix('planner')->group(function () {
     Route::get('/planner/belum-armada', [PlannerController::class, 'belumArmada'])
         ->name('planner.belum_armada');
 
-    Route::get('/planner/export', [PlannerController::class, 'exportPlanner'])
-        ->name('planner.export');
+ Route::get('/planner/export', [PlannerController::class, 'exportPlannerReport'])
+    ->name('planner.export');   
 
     // Route::get('/data', [PlannerController::class, 'index'])
     //     ->name('index');
@@ -222,11 +225,13 @@ Route::get(
     '/planner/data-logistik',
     [PlannerController::class, 'dataLogistik']
 )->name('planner.datalogistik');
-
 Route::get(
     '/monitoring/data-logistik',
     [MonitoringController::class, 'dataLogistik']
 )->name('monitoring.datalogistik');
+
+Route::post('/monitoring/fill-pic', [MonitoringController::class, 'fillPic'])->name('monitoring.fill.pic');
+Route::post('/monitoring/fill-pic', [MonitoringController::class, 'fillPic'])->name('monitoring.fill.pic');
 Route::get('/monitoring/intransit/export', [MonitoringController::class, 'exportInTransit'])
     ->name('monitoring.intransit.export');
 
@@ -253,7 +258,7 @@ Route::prefix('monitoring')->group(function () {
 
     // ================= SLA ==========
     // ... lanjutan route SLA kamu di bawah
-Route::get('/sla-ontime', [MonitoringController::class, 'slaOntime'])
+    Route::get('/sla-ontime', [MonitoringController::class, 'slaOntime'])
         ->name('monitoring.sla.ontime');
 
     Route::get('/sla-delay', [MonitoringController::class, 'slaDelay'])
@@ -274,32 +279,33 @@ Route::get('/sla-ontime', [MonitoringController::class, 'slaOntime'])
         ->name('monitoring.summary.area.detail');
 });
 Route::prefix('manager/gabungan')->group(function () {
+    Route::get('/alert/{tipe}', [GabunganController::class, 'alertList'])->name('manager.gabungan.alert');
     Route::get('/', [GabunganController::class, 'dashboard'])->name('gabungan.dashboard');
     Route::get('/manager/gabungan/data', [GabunganController::class, 'dataGabungan'])->name('manager.gabungan.data');
-Route::post('/manager/gabungan/data/ajax', [GabunganController::class, 'dataGabunganAjax'])->name('manager.gabungan.data.ajax');
-Route::get('/data/detail', [GabunganController::class, 'detail'])->name('manager.gabungan.data.detail');  
-Route::get('/in-transit', [GabunganController::class, 'inTransit'])->name('manager.gabungan.intransit');
+    Route::post('/manager/gabungan/data/ajax', [GabunganController::class, 'dataGabunganAjax'])->name('manager.gabungan.data.ajax');
+    Route::get('/data/detail', [GabunganController::class, 'detail'])->name('manager.gabungan.data.detail');
+    Route::get('/in-transit', [GabunganController::class, 'inTransit'])->name('manager.gabungan.intransit');
     Route::get('/list/{kpi}', [GabunganController::class, 'list'])->name('manager.gabungan.list');
 });
 Route::prefix('manager')->group(function () {
-         Route::get('/kpi/planner',    [KpiController::class, 'planner'])->name('manager.kpi.planner');
+    Route::get('/kpi/planner',    [KpiController::class, 'planner'])->name('manager.kpi.planner');
     Route::get('/kpi/monitoring', [KpiController::class, 'monitoring'])->name('manager.kpi.monitoring');
     Route::get('/dashboard', [ManagerController::class, 'dashboard'])
         ->name('manager.dashboard');
 
-        Route::get('/manager/pasuruan/detail', [ManagerController::class, 'dataLogistikDetailPasuruan'])
-    ->name('manager.pasuruan.detail');
-        Route::get('/sla-delay', [ManagerController::class, 'slaDelay'])
-    ->name('manager.sla-delay');
+    Route::get('/manager/pasuruan/detail', [ManagerController::class, 'dataLogistikDetailPasuruan'])
+        ->name('manager.pasuruan.detail');
+    Route::get('/sla-delay', [ManagerController::class, 'slaDelay'])
+        ->name('manager.sla-delay');
 
     Route::get('/manager/pasuruan/in-transit', [App\Http\Controllers\Manager\ManagerController::class, 'inTransitPasuruan'])
-    ->name('manager.pasuruan.intransit');
+        ->name('manager.pasuruan.intransit');
     Route::get('/pasuruan/gudang/ontime', [ManagerController::class, 'gudangOntimePasuruan'])->name('manager.pasuruan.gudang.ontime');
-Route::get('/pasuruan/gudang/delay',  [ManagerController::class, 'gudangDelayPasuruan'])->name('manager.pasuruan.gudang.delay');
-Route::get('/pasuruan/tujuan/ontime', [ManagerController::class, 'tujuanOntimePasuruan'])->name('manager.pasuruan.tujuan.ontime');
-Route::get('/pasuruan/tujuan/delay',  [ManagerController::class, 'tujuanDelayPasuruan'])->name('manager.pasuruan.tujuan.delay');
-Route::get('/pasuruan/bongkar/ontime', [ManagerController::class, 'bongkarOntimePasuruan'])->name('manager.pasuruan.bongkar.ontime');
-Route::get('/pasuruan/bongkar/delay',  [ManagerController::class, 'bongkarDelayPasuruan'])->name('manager.pasuruan.bongkar.delay');
+    Route::get('/pasuruan/gudang/delay',  [ManagerController::class, 'gudangDelayPasuruan'])->name('manager.pasuruan.gudang.delay');
+    Route::get('/pasuruan/tujuan/ontime', [ManagerController::class, 'tujuanOntimePasuruan'])->name('manager.pasuruan.tujuan.ontime');
+    Route::get('/pasuruan/tujuan/delay',  [ManagerController::class, 'tujuanDelayPasuruan'])->name('manager.pasuruan.tujuan.delay');
+    Route::get('/pasuruan/bongkar/ontime', [ManagerController::class, 'bongkarOntimePasuruan'])->name('manager.pasuruan.bongkar.ontime');
+    Route::get('/pasuruan/bongkar/delay',  [ManagerController::class, 'bongkarDelayPasuruan'])->name('manager.pasuruan.bongkar.delay');
 
     Route::match(['get', 'post'], '/manager/data-pasuruan/ajax', [
         \App\Http\Controllers\Manager\ManagerController::class,
@@ -312,8 +318,8 @@ Route::get('/pasuruan/bongkar/delay',  [ManagerController::class, 'bongkarDelayP
 
     Route::get('/gudang/delay', [ManagerController::class, 'gudangDelay'])
         ->name('manager.gudang.delay');
-        Route::get('/manager/in-transit', [ManagerController::class, 'inTransit'])
-    ->name('manager.intransit');
+    Route::get('/manager/in-transit', [ManagerController::class, 'inTransit'])
+        ->name('manager.intransit');
 
     // ================= CUSTOMER (TUJUAN) =================
     Route::get('/customer/ontime', [ManagerController::class, 'tujuanOnTime'])
@@ -346,11 +352,11 @@ Route::get('/pasuruan/bongkar/delay',  [ManagerController::class, 'bongkarDelayP
 Route::get('/pasuruan/gudang/ontime', [PasuruanController::class, 'gudangOntimePasuruan'])
     ->name('pasuruan.gudang.ontime');
 
-    Route::get('/pasuruan/in-transit', [PasuruanController::class, 'inTransit'])
+Route::get('/pasuruan/in-transit', [PasuruanController::class, 'inTransit'])
     ->name('pasuruan.intransit');
 
 Route::post('/pasuruan/update-qty-pgi', [PasuruanController::class, 'updateQtyPgi'])
-     ->name('pasuruan.updateQtyPgi');
+    ->name('pasuruan.updateQtyPgi');
 
 Route::get('/pasuruan/gudang/delay', [PasuruanController::class, 'gudangDelayPasuruan'])
     ->name('pasuruan.gudang.delay');
@@ -367,7 +373,7 @@ Route::match(['get', 'post'], '/pasuruan/data-logistik/ajax', [PasuruanControlle
 
 Route::get('/pasuruan/tujuan/delay', [PasuruanController::class, 'tujuanDelayPasuruan'])
     ->name('pasuruan.tujuan.delay');
-    Route::get('/pasuruan/data-logistik/detail', [PasuruanController::class, 'dataLogistikDetailPasuruan'])
+Route::get('/pasuruan/data-logistik/detail', [PasuruanController::class, 'dataLogistikDetailPasuruan'])
     ->name('pasuruan.detail');
 
 Route::get('/pasuruan/bongkar/ontime', [PasuruanController::class, 'bongkarOntimePasuruan'])
@@ -445,17 +451,24 @@ Route::prefix('sales')->name('sales.')->group(function () {
 });
 
 Route::middleware(['auth'])->prefix('spvplanner')->group(function () {
+    // ===== DASHBOARD GABUNGAN (Jakarta + Pasuruan) =====
+    Route::get('/gabungan', [SpvPlannerGabunganController::class, 'dashboard'])
+        ->name('spvplanner.gabungan.dashboard');
+    Route::get('/gabungan/in-transit', [SpvPlannerGabunganController::class, 'inTransit'])
+        ->name('spvplanner.gabungan.intransit');
+    Route::get('/gabungan/list/{kpi}', [SpvPlannerGabunganController::class, 'list'])
+        ->name('spvplanner.gabungan.list');
 
-     Route::get('/kpi/planner',    [KpiController::class, 'planner'])->name('spvplanner.kpi.planner');
+    Route::get('/kpi/planner',    [KpiController::class, 'planner'])->name('spvplanner.kpi.planner');
     Route::get('/kpi/monitoring', [KpiController::class, 'monitoring'])->name('spvplanner.kpi.monitoring');
     Route::post('/spvplanner/data-ajax', [App\Http\Controllers\Spv\SpvPlannerController::class, 'dataAjax'])
         ->name('spvplanner.data.ajax');
-        Route::get('/spvplanner/full-data-logistik/detail', [SpvPlannerController::class, 'fullDataDetail'])
-    ->name('spvplanner.full.detail');
-        Route::get('/belum-tiba-gudang', [SpvPlannerController::class, 'belumTibaGudang'])
-    ->name('spvplanner.belum.tiba.gudang');
-        Route::get('/spvplanner/pasuruan/in-transit', [App\Http\Controllers\Spv\SpvPlannerController::class, 'inTransitPasuruan'])
-    ->name('spvplanner.pasuruan.intransit');
+    Route::get('/spvplanner/full-data-logistik/detail', [SpvPlannerController::class, 'fullDataDetail'])
+        ->name('spvplanner.full.detail');
+    Route::get('/belum-tiba-gudang', [SpvPlannerController::class, 'belumTibaGudang'])
+        ->name('spvplanner.belum.tiba.gudang');
+    Route::get('/spvplanner/pasuruan/in-transit', [App\Http\Controllers\Spv\SpvPlannerController::class, 'inTransitPasuruan'])
+        ->name('spvplanner.pasuruan.intransit');
     Route::match(['get', 'post'], '/logistik/full-data/ajax', [SpvPlannerController::class, 'fullDataLogistikAjax'])
         ->name('full.data.logistik.ajax');
     Route::post('/logistik/import-qty-pgi', [SpvPlannerController::class, 'importQtyPgi'])
@@ -594,21 +607,28 @@ Route::middleware(['auth'])
     ->prefix('spvmonitoring')
     ->name('spvmonitoring.')
     ->group(function () {
+        // ===== DASHBOARD GABUNGAN (Jakarta + Pasuruan) =====
+        Route::get('/gabungan', [SpvMonitoringGabunganController::class, 'dashboard'])
+            ->name('gabungan.dashboard');
+        Route::get('/gabungan/in-transit', [SpvMonitoringGabunganController::class, 'inTransit'])
+            ->name('gabungan.intransit');
+        Route::get('/gabungan/list/{kpi}', [SpvMonitoringGabunganController::class, 'list'])
+            ->name('gabungan.list');
 
-       Route::get('/kpi/planner',    [KpiController::class, 'planner'])->name('kpi.planner');
-   Route::get('/kpi/monitoring', [KpiController::class, 'monitoring'])->name('kpi.monitoring');
+        Route::get('/kpi/planner',    [KpiController::class, 'planner'])->name('kpi.planner');
+        Route::get('/kpi/monitoring', [KpiController::class, 'monitoring'])->name('kpi.monitoring');
         Route::put(
             '/spvmonitoring/update/{id}',
             [SpvMonitoringController::class, 'update']
         )->name('spvmonitoring.update');
         Route::get('/dashboard', [SpvMonitoringController::class, 'dashboard'])
             ->name('dashboard');
-            Route::get('in-transit-pasuruan', [SpvMonitoringController::class, 'inTransitPasuruan'])
-    ->name('intransit.pasuruan');
-    Route::get('/belum-tiba-gudang', [SpvMonitoringController::class, 'belumTibaGudang'])
-    ->name('belum.tiba.gudang');
-    Route::put('/monitoring/update/{id}', [SpvMonitoringController::class, 'updateMonitoring'])
-    ->name('monitoring.update');
+        Route::get('in-transit-pasuruan', [SpvMonitoringController::class, 'inTransitPasuruan'])
+            ->name('intransit.pasuruan');
+        Route::get('/belum-tiba-gudang', [SpvMonitoringController::class, 'belumTibaGudang'])
+            ->name('belum.tiba.gudang');
+        Route::put('/monitoring/update/{id}', [SpvMonitoringController::class, 'updateMonitoring'])
+            ->name('monitoring.update');
 
 
 
@@ -639,10 +659,10 @@ Route::middleware(['auth'])
         Route::get('/summary-area', [SpvMonitoringController::class, 'summaryArea'])
             ->name('summary.area');
 
-         Route::post('/pasuruan/ajax', [SpvMonitoringController::class, 'dataLogistikPasuruanAjax'])
-    ->name('pasuruan.ajax');
-Route::get('/pasuruan/detail', [SpvMonitoringController::class, 'dataLogistikDetailPasuruan'])
-    ->name('pasuruan.detail'); 
+        Route::post('/pasuruan/ajax', [SpvMonitoringController::class, 'dataLogistikPasuruanAjax'])
+            ->name('pasuruan.ajax');
+        Route::get('/pasuruan/detail', [SpvMonitoringController::class, 'dataLogistikDetailPasuruan'])
+            ->name('pasuruan.detail');
         Route::get(
             '/full-data-logistik',
             [SpvMonitoringController::class, 'fullDataLogistik']
@@ -809,16 +829,16 @@ Route::prefix('sales')
         Route::get('/dashboard', [SalesController::class, 'dashboard'])
             ->name('dashboard');
 
-         Route::get('in-transit', [SalesController::class, 'inTransit'])
-    ->name('intransit');
+        Route::get('in-transit', [SalesController::class, 'inTransit'])
+            ->name('intransit');
 
-    Route::get('/sla-delay', [SalesController::class, 'slaDelay'])
-        ->name('sla-delay');   
+        Route::get('/sla-delay', [SalesController::class, 'slaDelay'])
+            ->name('sla-delay');
         Route::get('/belum-armada', [SalesController::class, 'belumArmada'])
-    ->name('belum.armada');
+            ->name('belum.armada');
 
-Route::get('in-transit-pasuruan', [SalesController::class, 'inTransitPasuruan'])
-    ->name('intransit.pasuruan');
+        Route::get('in-transit-pasuruan', [SalesController::class, 'inTransitPasuruan'])
+            ->name('intransit.pasuruan');
 
         // GUDANG
         Route::get('/gudang/ontime', [SalesController::class, 'gudangOntime'])
@@ -922,7 +942,7 @@ Route::prefix('pasuruan')->group(function () {
 
     Route::delete('/delete-filtered', [PasuruanController::class, 'deleteFiltered'])
         ->name('pasuruan.deleteFiltered');
-         Route::get('/export-full', [PasuruanController::class, 'exportFull'])
+    Route::get('/export-full', [PasuruanController::class, 'exportFull'])
         ->name('pasuruan.export.full');
 
     Route::post('/data-ajax-pasuruan', [PasuruanController::class, 'dataAjaxPasuruan'])
@@ -930,7 +950,7 @@ Route::prefix('pasuruan')->group(function () {
 
     Route::get('/list-no-shipment', [PasuruanController::class, 'listNoShipmentPasuruan'])
         ->name('pasuruan.listNoShipment');
-  
+
 
     Route::get('/data-logistik', [PasuruanController::class, 'dataLogistik'])
         ->name('pasuruan.dataLogistik');

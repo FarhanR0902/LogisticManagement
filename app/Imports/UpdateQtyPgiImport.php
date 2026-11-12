@@ -30,6 +30,13 @@ use Maatwebsite\Excel\Concerns\WithCalculatedFormulas;
  *
  * kirim_kontribusi per DO = biaya 1 mobil x total_kubik DO / SUM total_kubik shipment
  * biaya_kirim per tujuan  = SUM kirim_kontribusi DO di tujuan itu (ditulis ke semua baris DO tujuan tsb)
+ *
+ * UPDATE KIRIM_KONTRIBUSI SAJA:
+ *   Template cukup berisi kolom no_shipment + kirim_kontribusi (kolom tujuan TIDAK diperlukan).
+ *   Nilai = total biaya 1 mobil untuk shipment itu, dibagi ke semua DO shipment tsb
+ *   (lintas tujuan) sesuai total_kubik yang sudah ada di DB. Satu baris per shipment.
+ *   Kolom tujuan hanya dibutuhkan kalau Excel juga membawa data per DO
+ *   (no_do, total_kubik, total_tonase, nilai_muatan, dst).
  */
 class UpdateQtyPgiImport implements ToCollection, WithHeadingRow, WithEvents, WithCalculatedFormulas
 {
@@ -61,10 +68,19 @@ class UpdateQtyPgiImport implements ToCollection, WithHeadingRow, WithEvents, Wi
     // Excel menang kalau beda dengan DB (berlaku ke semua baris di shipment itu)
     private const OVERWRITE_SHIPMENT = ['ekpedisi', 'route', 'mobil'];
 
+    // kolom gudang: 1=KACS, 2=SENTUL, 3=CCIE, 4=P5, 5=FIFATEX
+    private const GUDANG_SUFFIX = ['', '_2', '_3', '_4', '_5'];
+    private const GUDANG_BASE   = ['planning_loading', 'tanggal_tiba_gudang', 'tanggal_keluar_gudang'];
+
     // hanya diisi kalau di DB masih kosong
     private const FILL_IF_EMPTY = [
-        'pulau', 'area', 'dist_channel', 'via_kirim',
-        'kategori_ekspedisi', 'nama_driver', 'no_pol',
+        'pulau',
+        'area',
+        'dist_channel',
+        'via_kirim',
+        'kategori_ekspedisi',
+        'nama_driver',
+        'no_pol',
     ];
 
     // header Excel alternatif (file pivot)
@@ -74,6 +90,23 @@ class UpdateQtyPgiImport implements ToCollection, WithHeadingRow, WithEvents, Wi
         'mobil'     => ['mobil', 'shipping_type'],
         'via_kirim' => ['via_kirim', 'via'],
         'no_pol'    => ['no_pol', 'nopol'],
+    ];
+
+    // header Excel yang membawa data per DO (butuh tujuan untuk menentukan barisnya)
+    private const PER_DO_HEADERS = [
+        'no_do',
+        'sales_document',
+        'customer_reference',
+        'contract_end_date',
+        'nilai_muatan_rp',
+        'nilai_muatan',
+        'sum_of_nilai_do',
+        'total_do_qty_car',
+        'sum_of_qty_do',
+        'total_kubik',
+        'sum_of_kubikasi2',
+        'total_tonase',
+        'sum_of_tonase3',
     ];
 
     private static $masterByTujuan = null;   // tujuan ternormalisasi => rows master
@@ -111,7 +144,9 @@ class UpdateQtyPgiImport implements ToCollection, WithHeadingRow, WithEvents, Wi
     private int $generalSkipped = 0;
 
     // ===== hasil recalc biaya =====
+    // ===== hasil recalc biaya =====
     private int $biayaKirimUpdated = 0;
+    private int $kontribusiRowsUpdated = 0;   // <-- TAMBAH
     private array $biayaSkipped = [];
     private array $tarifNotFound = [];
     private array $tarifAmbiguous = [];
@@ -128,6 +163,7 @@ class UpdateQtyPgiImport implements ToCollection, WithHeadingRow, WithEvents, Wi
     private array $kubikChanged = [];
 
     // no_shipment => [tujuan (huruf kecil) => true] yang ada di Excel
+    // (hanya terisi kalau Excel memang membawa kolom tujuan)
     private array $shipmentTujuan = [];
 
     // no_shipment => [ekpedisi/route/mobil] dari Excel
@@ -136,31 +172,107 @@ class UpdateQtyPgiImport implements ToCollection, WithHeadingRow, WithEvents, Wi
     // no_shipment yang kapasitasnya perlu diambil ulang dari tarif
     private array $capacityRefresh = [];
 
+    // kolom gudang yang benar-benar ada di tabel
+    private array $gudangCols = [];
+
+    // no_shipment => [kolom => datetime] dari Excel
+    private array $shipmentGudang = [];
+
+    private int $gudangUpdated = 0;
+
     // ================= GETTERS =================
-    public function getQtyUpdated(): int { return $this->qtyUpdated; }
-    public function getQtyNotFound(): array { return $this->qtyNotFound; }
-    public function getQtyAmbiguous(): array { return $this->qtyAmbiguous; }
-    public function getQtySkipped(): int { return $this->qtySkipped; }
+    public function getQtyUpdated(): int
+    {
+        return $this->qtyUpdated;
+    }
+    public function getQtyNotFound(): array
+    {
+        return $this->qtyNotFound;
+    }
+    public function getQtyAmbiguous(): array
+    {
+        return $this->qtyAmbiguous;
+    }
+    public function getQtySkipped(): int
+    {
+        return $this->qtySkipped;
+    }
 
-    public function getPgiUpdated(): int { return $this->pgiUpdated; }
-    public function getPgiNotFound(): array { return $this->pgiNotFound; }
-    public function getPgiSkipped(): int { return $this->pgiSkipped; }
+    public function getPgiUpdated(): int
+    {
+        return $this->pgiUpdated;
+    }
+    public function getPgiNotFound(): array
+    {
+        return $this->pgiNotFound;
+    }
+    public function getPgiSkipped(): int
+    {
+        return $this->pgiSkipped;
+    }
 
-    public function getKubikTonaseUpdated(): int { return $this->kubikTonaseUpdated; }
-    public function getKubikTonaseNotFound(): array { return $this->kubikTonaseNotFound; }
-    public function getKubikTonaseSkipped(): int { return $this->kubikTonaseSkipped; }
+    public function getKubikTonaseUpdated(): int
+    {
+        return $this->kubikTonaseUpdated;
+    }
+    public function getKubikTonaseNotFound(): array
+    {
+        return $this->kubikTonaseNotFound;
+    }
+    public function getKubikTonaseSkipped(): int
+    {
+        return $this->kubikTonaseSkipped;
+    }
 
-    public function getGeneralCreated(): int { return $this->generalCreated; }
-    public function getGeneralUpdated(): int { return $this->generalUpdated; }
-    public function getGeneralUnchanged(): int { return $this->generalUnchanged; }
-    public function getGeneralAmbiguous(): array { return $this->generalAmbiguous; }
-    public function getGeneralSkipped(): int { return $this->generalSkipped; }
+    public function getGeneralCreated(): int
+    {
+        return $this->generalCreated;
+    }
+    public function getGeneralUpdated(): int
+    {
+        return $this->generalUpdated;
+    }
+    public function getGeneralUnchanged(): int
+    {
+        return $this->generalUnchanged;
+    }
+    public function getGeneralAmbiguous(): array
+    {
+        return $this->generalAmbiguous;
+    }
+    public function getGeneralSkipped(): int
+    {
+        return $this->generalSkipped;
+    }
 
-    public function getBiayaKirimUpdated(): int { return $this->biayaKirimUpdated; }
-    public function getBiayaSkipped(): array { return $this->biayaSkipped; }
-    public function getTarifNotFound(): array { return $this->tarifNotFound; }
-    public function getTarifAmbiguous(): array { return $this->tarifAmbiguous; }
-    public function getTujuanNotInMaster(): array { return $this->tujuanNotInMaster; }
+    public function getBiayaKirimUpdated(): int
+    {
+        return $this->biayaKirimUpdated;
+    }
+    public function getKontribusiRowsUpdated(): int
+    {
+        return $this->kontribusiRowsUpdated;
+    }   // <-- TAMBAH
+    public function getBiayaSkipped(): array
+    {
+        return $this->biayaSkipped;
+    }
+    public function getTarifNotFound(): array
+    {
+        return $this->tarifNotFound;
+    }
+    public function getTarifAmbiguous(): array
+    {
+        return $this->tarifAmbiguous;
+    }
+    public function getTujuanNotInMaster(): array
+    {
+        return $this->tujuanNotInMaster;
+    }
+    public function getGudangUpdated(): int
+    {
+        return $this->gudangUpdated;
+    }
 
     public function __construct()
     {
@@ -169,6 +281,14 @@ class UpdateQtyPgiImport implements ToCollection, WithHeadingRow, WithEvents, Wi
         $this->hasKirimKontribusi       = Schema::hasColumn(self::TABLE, 'kirim_kontribusi');
         $this->hasCreatedAt             = Schema::hasColumn(self::TABLE, 'created_at');
         $this->hasUpdatedAt             = Schema::hasColumn(self::TABLE, 'updated_at');
+
+        foreach (self::GUDANG_BASE as $b) {
+            foreach (self::GUDANG_SUFFIX as $s) {
+                if (Schema::hasColumn(self::TABLE, $b . $s)) {
+                    $this->gudangCols[] = $b . $s;
+                }
+            }
+        }
 
         if (self::$tarifByRoute === null) {
             self::$tarifByRoute = DB::table(self::TARIF_TABLE)
@@ -180,7 +300,7 @@ class UpdateQtyPgiImport implements ToCollection, WithHeadingRow, WithEvents, Wi
         if (self::$masterByTujuan === null) {
             self::$masterByTujuan = Schema::hasTable(self::MASTER_TABLE)
                 ? DB::table(self::MASTER_TABLE)->get()
-                    ->groupBy(fn($r) => $this->normalizeTujuan($r->{self::MASTER_TUJUAN_COL}))
+                ->groupBy(fn($r) => $this->normalizeTujuan($r->{self::MASTER_TUJUAN_COL}))
                 : collect();
         }
     }
@@ -224,7 +344,8 @@ class UpdateQtyPgiImport implements ToCollection, WithHeadingRow, WithEvents, Wi
                     $shipments = array_map('strval', array_keys($this->touchedShipments));
 
                     $this->processShipmentFields();            // ekpedisi/route/mobil: Excel menang
-                    $this->recalcTarifCapacity($shipments);    // kubikasi & tonase dari tarif
+                    $this->processGudang();                    // planning / tiba / keluar gudang
+                    $this->recalcTarifCapacity($shipments);
                     $this->recalcBiayaKontribusi();            // kirim_kontribusi per DO + biaya_kirim per tujuan
                     $this->recalcShipments($shipments);        // cr, hasil_kubik, hasil_tonase, optimal
                 } catch (\Throwable $e) {
@@ -255,17 +376,27 @@ class UpdateQtyPgiImport implements ToCollection, WithHeadingRow, WithEvents, Wi
 
             $noShipment = (string) $noShipment;
             $this->touchedShipments[$noShipment] = true;
+            $this->collectGudang($row, $noShipment);
 
-            // biaya 1 mobil (diisi satu baris saja per shipment)
+            // biaya 1 mobil (kunci: no_shipment, tujuan tidak diperlukan)
             $pool = $this->parseNumber($this->pick($row, ['biaya_kirim', 'biaya_kirim_rp', 'kirim_kontribusi']));
             if ($pool !== null && $pool > 0) {
+                // nilai harus sama kalau shipment muncul di beberapa baris; yang terakhir dipakai
+                if (isset($this->groupBiaya[$noShipment]) && abs($this->groupBiaya[$noShipment] - $pool) > 0.005) {
+                    $this->biayaSkipped[] = "[peringatan] {$noShipment} (nilai kirim_kontribusi berbeda antar baris, dipakai yang terakhir: {$pool})";
+                }
                 $this->groupBiaya[$noShipment] = $pool;
             }
 
             $tujuan = $this->cleanText($this->pick($row, ['tujuan', 'sold_to_party_name']));
 
             if (empty($tujuan)) {
-                $this->generalSkipped++;
+                // Tanpa tujuan: baris ini cukup untuk update kirim_kontribusi (kunci: no_shipment).
+                // Baru dihitung dilewati kalau baris juga membawa data per DO yang butuh tujuan.
+                if ($this->hasPerDoData($row)) {
+                    $this->generalSkipped++;
+                    $this->generalAmbiguous[] = "{$noShipment} (tujuan kosong, data DO dilewati)";
+                }
             } else {
                 $this->shipmentTujuan[$noShipment][strtolower($tujuan)] = true;
                 $this->collectShared($row, $noShipment);
@@ -324,6 +455,12 @@ class UpdateQtyPgiImport implements ToCollection, WithHeadingRow, WithEvents, Wi
     private function isBlank($v): bool
     {
         return $v === null || trim((string) $v) === '';
+    }
+
+    /** apakah baris membawa data per DO yang butuh tujuan untuk menentukan barisnya */
+    private function hasPerDoData($row): bool
+    {
+        return $this->pick($row, self::PER_DO_HEADERS) !== null;
     }
 
     // ================= EKSPEDISI / ROUTE / MOBIL: Excel menang, per shipment =================
@@ -386,7 +523,7 @@ class UpdateQtyPgiImport implements ToCollection, WithHeadingRow, WithEvents, Wi
             $existing = (clone $base)->where('no_do', $noDo)->first()
                 // baris lama yang no_do-nya masih kosong dipakai untuk DO pertama
                 ?? (clone $base)->where(fn($q) => $q->whereNull('no_do')->orWhere('no_do', ''))
-                                ->orderBy('id')->first();
+                ->orderBy('id')->first();
         } else {
             if ((clone $base)->count() > 1) {
                 $this->generalAmbiguous[] = "{$noShipment} - {$tujuan} (no_do kosong, banyak baris)";
@@ -436,12 +573,25 @@ class UpdateQtyPgiImport implements ToCollection, WithHeadingRow, WithEvents, Wi
             // tujuan sudah ada -> salin data shipment (tanggal, gudang, driver, dst) dari baris saudara,
             // supaya grup shipment + tujuan tetap seragam, lalu timpa field per DO
             $new = (array) $sibling;
-            foreach ([
-                'id', 'created_at', 'updated_at',
-                'sales_document', 'customer_reference', 'contract_end_date', 'no_do',
-                'nilai_muatan', 'total_do_qty_car', 'total_kubik', 'total_tonase',
-                'kirim_kontribusi', 'hasil_kubik', 'hasil_tonase', 'cr',
-            ] as $k) {
+            foreach (
+                [
+                    'id',
+                    'created_at',
+                    'updated_at',
+                    'sales_document',
+                    'customer_reference',
+                    'contract_end_date',
+                    'no_do',
+                    'nilai_muatan',
+                    'total_do_qty_car',
+                    'total_kubik',
+                    'total_tonase',
+                    'kirim_kontribusi',
+                    'hasil_kubik',
+                    'hasil_tonase',
+                    'cr',
+                ] as $k
+            ) {
                 unset($new[$k]);
             }
 
@@ -468,6 +618,67 @@ class UpdateQtyPgiImport implements ToCollection, WithHeadingRow, WithEvents, Wi
         if ($perDo['total_kubik'] !== null || $perDo['total_tonase'] !== null) $this->kubikTonaseUpdated++;
 
         $this->generalCreated++;
+    }
+
+    // ================= GUDANG =================
+
+    /** planning / tiba / keluar gudang dari Excel per shipment (nilai terisi pertama) */
+    private function collectGudang($row, string $sh): void
+    {
+        foreach ($this->gudangCols as $col) {
+            $v = $this->convertDateTime($row[$col] ?? null);
+            if ($v !== null) {
+                $this->shipmentGudang[$sh][$col] ??= $v;
+            }
+        }
+    }
+
+    /** Excel menang kalau terisi; sel kosong tidak menimpa data lama. Berlaku ke semua baris shipment. */
+    private function processGudang(): void
+    {
+        foreach ($this->shipmentGudang as $sh => $vals) {
+            if (!$vals) continue;
+
+            $payload = $vals;
+            if ($this->hasUpdatedAt) $payload['updated_at'] = now();
+
+            $affected = DB::table(self::TABLE)
+                ->where('no_shipment', (string) $sh)
+                ->where(function ($q) use ($vals) {
+                    foreach ($vals as $col => $v) {
+                        $q->orWhereNull($col)->orWhere($col, '!=', $v);
+                    }
+                })
+                ->update($payload);
+
+            $this->gudangUpdated += $affected;
+        }
+    }
+
+    /** tanggal + jam (d/m/Y H:i, Y-m-d H:i:s, serial Excel) -> "Y-m-d H:i:s" */
+    private function convertDateTime($value): ?string
+    {
+        if ($value === null || $value === '' || $value == '-') return null;
+
+        if ($value instanceof \DateTimeInterface) {
+            return $value->format('Y-m-d H:i:s');
+        }
+
+        if (is_numeric($value)) {
+            if ((float) $value < 1) return null;
+            return Date::excelToDateTimeObject($value)->format('Y-m-d H:i:s');
+        }
+
+        $v = trim((string) $value);
+        if ($v === '' || stripos($v, 'blank') !== false) return null;
+
+        // d/m/Y atau d-m-Y (+ jam) -> Y-m-d
+        if (preg_match('#^(\d{1,2})[/-](\d{1,2})[/-](\d{4})(.*)$#', $v, $m)) {
+            $v = sprintf('%04d-%02d-%02d', $m[3], $m[2], $m[1]) . $m[4];
+        }
+
+        $ts = strtotime($v);
+        return $ts ? date('Y-m-d H:i:s', $ts) : null;
     }
 
     // ================= RECALC SETELAH IMPORT =================
@@ -508,7 +719,7 @@ class UpdateQtyPgiImport implements ToCollection, WithHeadingRow, WithEvents, Wi
      */
     private function recalcBiayaKontribusi(): void
     {
-        // A) Excel membawa biaya 1 mobil
+        // A) Excel membawa biaya 1 mobil (kunci: no_shipment)
         foreach ($this->groupBiaya as $sh => $pool) {
             $this->distributeBiaya((string) $sh, (float) $pool);
         }
@@ -548,16 +759,21 @@ class UpdateQtyPgiImport implements ToCollection, WithHeadingRow, WithEvents, Wi
             return;
         }
 
-        // pengaman: semua tujuan di DB harus ada di Excel. Kalau tidak, total_kubik lama
-        // (total shipment yang diulang per baris) ikut terhitung dan pembagiannya salah.
-        $excel   = $this->shipmentTujuan[$sh] ?? [];
-        $missing = $rows->pluck('tujuan')->unique()
-            ->filter(fn($t) => !isset($excel[strtolower((string) $t)]))
-            ->values()->all();
+        // Pengaman hanya berlaku kalau Excel membawa kolom tujuan (ikut mengupdate data DO shipment ini):
+        // semua tujuan di DB harus ada di Excel, kalau tidak total_kubik lama (total shipment yang
+        // diulang per baris) ikut terhitung dan pembagiannya salah.
+        // Kalau Excel hanya berisi no_shipment + kirim_kontribusi, total_kubik di DB dipakai apa adanya.
+        $excel = $this->shipmentTujuan[$sh] ?? null;
 
-        if ($missing) {
-            $this->biayaSkipped[] = $sh . ' (tujuan tidak ada di Excel: ' . implode('; ', array_map('strval', $missing)) . ')';
-            return;
+        if ($excel !== null) {
+            $missing = $rows->pluck('tujuan')->unique()
+                ->filter(fn($t) => !isset($excel[strtolower((string) $t)]))
+                ->values()->all();
+
+            if ($missing) {
+                $this->biayaSkipped[] = $sh . ' (tujuan tidak ada di Excel: ' . implode('; ', array_map('strval', $missing)) . ')';
+                return;
+            }
         }
 
         $totalKubik = (float) $rows->sum('total_kubik');
@@ -581,6 +797,7 @@ class UpdateQtyPgiImport implements ToCollection, WithHeadingRow, WithEvents, Wi
 
             if ($this->hasKirimKontribusi) {
                 DB::table(self::TABLE)->where('id', $r->id)->update(['kirim_kontribusi' => $val]);
+                $this->kontribusiRowsUpdated++;
             }
 
             $t = (string) $r->tujuan;
@@ -741,7 +958,9 @@ class UpdateQtyPgiImport implements ToCollection, WithHeadingRow, WithEvents, Wi
             return self::EKSPEDISI_ALIASES[$key];
         }
 
-        $best = null; $bestScore = 0.0; $second = 0.0;
+        $best = null;
+        $bestScore = 0.0;
+        $second = 0.0;
 
         foreach ($candidates->pluck('ekpedisi')->filter()->unique() as $master) {
             $mk = $this->ekspedisiKey($master);
@@ -752,13 +971,20 @@ class UpdateQtyPgiImport implements ToCollection, WithHeadingRow, WithEvents, Wi
             similar_text($key, $mk, $pct);
             $score = $pct / 100;
 
-            if (min(strlen($key), strlen($mk)) >= 6
-                && (str_contains($mk, $key) || str_contains($key, $mk))) {
+            if (
+                min(strlen($key), strlen($mk)) >= 6
+                && (str_contains($mk, $key) || str_contains($key, $mk))
+            ) {
                 $score = max($score, 0.9);
             }
 
-            if ($score > $bestScore)  { $second = $bestScore; $bestScore = $score; $best = $master; }
-            elseif ($score > $second) { $second = $score; }
+            if ($score > $bestScore) {
+                $second = $bestScore;
+                $bestScore = $score;
+                $best = $master;
+            } elseif ($score > $second) {
+                $second = $score;
+            }
         }
 
         return ($best !== null && $bestScore >= 0.85 && ($bestScore - $second) >= 0.05) ? $best : null;
@@ -783,9 +1009,10 @@ class UpdateQtyPgiImport implements ToCollection, WithHeadingRow, WithEvents, Wi
         $found  = null;
 
         if ($master !== null) {
-            $found = $candidates->first(fn($t) =>
+            $found = $candidates->first(
+                fn($t) =>
                 $t->ekpedisi === $master
-                && str_starts_with($this->normalizeMobil($t->mobil), $mobilKey)
+                    && str_starts_with($this->normalizeMobil($t->mobil), $mobilKey)
             );
         }
 

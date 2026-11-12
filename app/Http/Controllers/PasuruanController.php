@@ -715,51 +715,52 @@ class PasuruanController extends Controller
     // ============================================================
     // FILTER TERPUSAT
     // ============================================================
-    private function applyPeriod($query, Request $request, string $col = 'tanggal_terima_po_pasuruan')
-    {
-        $basis = $request->input('tgl_basis');
+    private function applyPeriod($query, Request $request)
+{
+    // default = periode shipment (juga untuk nilai tgl_basis yang kosong / tidak dikenal)
+    $basis = match ($request->input('tgl_basis')) {
+        'rencana_kirim_pasuruan'     => 'rencana_kirim_pasuruan',
+        'tanggal_terima_po_pasuruan' => 'tanggal_terima_po_pasuruan',
+        default                      => 'periode_shipment_pasuruan',
+    };
 
-        // default = periode shipment
-        if (!$basis || $basis === 'periode_shipment_pasuruan') {
-            $this->applyPeriodeShipmentPasuruan($query, $request);
-            return $query;
-        }
-
-        $col = match ($basis) {
-            'rencana_kirim_pasuruan' => 'rencana_kirim_pasuruan',
-            'create_tgl_pasuruan'    => 'create_tgl_pasuruan',
-            default                  => 'tanggal_terima_po_pasuruan',
-        };
-
-        if ($request->filled('date')) {
-            $query->whereDate($col, $request->date);
-        }
-
-        $from = $request->input('date_from');
-        $to   = $request->input('date_to');
-        if ($from && $to && $from > $to) {
-            [$from, $to] = [$to, $from];
-        }
-        if ($from) $query->whereDate($col, '>=', $from);
-        if ($to)   $query->whereDate($col, '<=', $to);
-
-        $month = (string) $request->input('month', '');
-        $year  = (string) $request->input('year', '');
-
-        if (preg_match('/^(\d{4})-(\d{2})$/', $month, $m)) {
-            $query->whereYear($col, $m[1])->whereMonth($col, $m[2]);
-        } else {
-            if (ctype_digit($month) && (int) $month >= 1 && (int) $month <= 12) {
-                $query->whereMonth($col, (int) $month);
-            }
-            if (ctype_digit($year)) {
-                $query->whereYear($col, (int) $year);
-            }
-        }
-
+    // periode: bulan/tahun -> periode_shipment_pasuruan, dari-sampai -> tanggal_shipment_pasuruan
+    if ($basis === 'periode_shipment_pasuruan') {
+        $this->applyPeriodeShipmentPasuruan($query, $request);
         return $query;
     }
 
+    // basis lain: kolom tanggal biasa
+    $col = $basis;
+
+    if ($request->filled('date')) {
+        $query->whereDate($col, $request->date);
+    }
+
+    $from = $request->input('date_from');
+    $to   = $request->input('date_to');
+    if ($from && $to && $from > $to) {
+        [$from, $to] = [$to, $from];
+    }
+    if ($from) $query->whereDate($col, '>=', $from);
+    if ($to)   $query->whereDate($col, '<=', $to);
+
+    $month = (string) $request->input('month', '');
+    $year  = (string) $request->input('year', '');
+
+    if (preg_match('/^(\d{4})-(\d{2})$/', $month, $m)) {
+        $query->whereYear($col, $m[1])->whereMonth($col, $m[2]);
+    } else {
+        if (ctype_digit($month) && (int) $month >= 1 && (int) $month <= 12) {
+            $query->whereMonth($col, (int) $month);
+        }
+        if (ctype_digit($year)) {
+            $query->whereYear($col, (int) $year);
+        }
+    }
+
+    return $query;
+}
     // filter dasar: dipakai dashboard, halaman list KPI, dan AJAX tabel data
     private function applyBaseFilter($query, Request $request)
     {
@@ -2184,10 +2185,22 @@ class PasuruanController extends Controller
             'biaya_kuli_pasuruan'            => 'nullable|string',
             'keterangan_pasuruan'            => 'nullable|string',
             'create_tgl_pasuruan'            => 'nullable|date',
+            'tanggal_shipment_pasuruan' => 'nullable|date',
+'periode_shipment_pasuruan' => 'nullable|string|max:7',
         ], array_fill_keys($this->gudangColsAll(), 'nullable|date')));
 
         $validated['nilai_muatan_pasuruan'] = $this->parseRupiah($validated['nilai_muatan_pasuruan'] ?? null);
         $validated['biaya_kuli_pasuruan']   = $this->parseRupiah($validated['biaya_kuli_pasuruan'] ?? null);
+        // periode: terima "YYYY-MM" (input month) atau "MM-YYYY", simpan "MM-YYYY"
+$p = trim((string) ($validated['periode_shipment_pasuruan'] ?? ''));
+if (preg_match('/^(\d{4})-(\d{2})$/', $p, $m)) {
+    $p = $m[2] . '-' . $m[1];
+}
+// kosong: isi otomatis dari tanggal shipment
+if ($p === '' && !empty($validated['tanggal_shipment_pasuruan'])) {
+    $p = date('m-Y', strtotime($validated['tanggal_shipment_pasuruan']));
+}
+$validated['periode_shipment_pasuruan'] = $p !== '' ? $p : null;
         $this->applyKubikTonasePasuruan($validated);
 
         // BIAYA KIRIM OTOMATIS (Route + Mobil + Ekspedisi), fallback ke input manual
@@ -2539,9 +2552,14 @@ public function autosaveRow(Request $request, $id)
         if ($request->filled('area_filter')) {
             $baseQuery->where('area_pasuruan', $request->input('area_filter'));
         }
-        if ($request->filled('create_tgl_filter')) {
-            $baseQuery->whereDate('created_at', $request->input('create_tgl_filter'));
-        }
+  // kompatibel dengan view lama yang masih kirim create_tgl_filter
+if ($request->filled('create_tgl_filter') && !$request->filled('date')) {
+    $request->merge(['date' => $request->input('create_tgl_filter')]);
+}
+// month  -> periode_shipment_pasuruan ("MM-YYYY")
+// year   -> periode_shipment_pasuruan
+// date / date_from / date_to -> tanggal_shipment_pasuruan
+$this->applyPeriodeShipmentPasuruan($baseQuery, $request);
 
         if ($searchValue !== '') {
             $baseQuery->where(function ($q) use ($searchValue) {
@@ -2716,6 +2734,7 @@ public function autosaveRow(Request $request, $id)
     }
     private function renderRowColumnsPasuruan($r, array $lists)
     {
+       
         $id       = $r->id;
         $formAttr = 'form="form-update-' . $id . '"';
 
@@ -2822,7 +2841,7 @@ public function autosaveRow(Request $request, $id)
             . csrf_field() . method_field('PUT') . '</form>';
 
         return [
-            $hiddenForm . ($r->created_at ? \Carbon\Carbon::parse($r->created_at)->format('d/m/Y') : '-'),
+          $hiddenForm . e($r->periode_shipment_pasuruan ?: '-'),
             $textInput('planner_pasuruan', $r->planner_pasuruan),
             '<span class="fw-medium">' . e($r->no_shipment_pasuruan) . '</span>'
                 . '<input type="hidden" ' . $formAttr . ' name="no_shipment_pasuruan" value="' . e($r->no_shipment_pasuruan) . '">',

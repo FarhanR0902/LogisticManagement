@@ -743,7 +743,7 @@ tbody tr:last-child td{ border-bottom:none; }
 <div class="filter-box">
     <form method="GET" action="{{ url()->current() }}" class="filter-form" id="filterForm">
 <div class="field">
-    <label for="f-basis">Dasar tanggal</label>
+    <label for="f-basis">Dasar filter</label>
     <select id="f-basis" name="tgl_basis">
         <option value="periode_shipment_pasuruan" {{ request('tgl_basis', 'periode_shipment_pasuruan') == 'periode_shipment_pasuruan' ? 'selected' : '' }}>Periode Shipment</option>
         <option value="rencana_kirim_pasuruan" {{ request('tgl_basis') == 'rencana_kirim_pasuruan' ? 'selected' : '' }}>Rencana Kirim</option>
@@ -752,31 +752,28 @@ tbody tr:last-child td{ border-bottom:none; }
 </div>
 
 <div class="field">
-    <label for="f-from">Dari tanggal</label>
+    <label for="f-month" id="lbl-month">Periode shipment (bulan)</label>
+    <input id="f-month" type="month" name="month" value="{{ request('month') }}">
+</div>
+
+<div class="field">
+    <label for="f-year" id="lbl-year">Periode shipment (tahun)</label>
+    <select id="f-year" name="year">
+        <option value="">Semua tahun</option>
+        @for($y = date('Y'); $y >= 2020; $y--)
+            <option value="{{ $y }}" {{ request('year') == $y ? 'selected' : '' }}>{{ $y }}</option>
+        @endfor
+    </select>
+</div>
+
+<div class="field">
+    <label for="f-from" id="lbl-from">Dari tanggal shipment</label>
     <input id="f-from" type="date" name="date_from" value="{{ request('date_from') }}">
 </div>
 <div class="field">
-    <label for="f-to">Sampai tanggal</label>
+    <label for="f-to" id="lbl-to">Sampai tanggal shipment</label>
     <input id="f-to" type="date" name="date_to" value="{{ request('date_to') }}">
 </div>
-
-        <div class="field">
-            <label for="f-month">Bulan</label>
-            <input id="f-month" type="month" name="month" value="{{ request('month') }}">
-        </div>
-
-        <div class="field">
-            <label for="f-year">Tahun</label>
-            <select id="f-year" name="year">
-                <option value="">Semua tahun</option>
-                @for($y = date('Y'); $y >= 2020; $y--)
-                    <option value="{{ $y }}" {{ request('year') == $y ? 'selected' : '' }}>
-                        {{ $y }}
-                    </option>
-                @endfor
-            </select>
-        </div>
-
         <div class="field">
             <label for="f-area">Area</label>
             <select id="f-area" name="area">
@@ -1434,7 +1431,23 @@ if (document.getElementById('shipmentMap')) {
         debugBox.innerHTML = html;
     }
 }
+// label ikut dasar filter, supaya jelas kolom mana yang difilter
+const labelBasis = {
+    periode_shipment_pasuruan:  { month: 'Periode shipment (bulan)', year: 'Periode shipment (tahun)', from: 'Dari tanggal shipment', to: 'Sampai tanggal shipment' },
+    rencana_kirim_pasuruan:     { month: 'Bulan rencana kirim',      year: 'Tahun rencana kirim',      from: 'Dari rencana kirim',    to: 'Sampai rencana kirim' },
+    tanggal_terima_po_pasuruan: { month: 'Bulan terima PO',          year: 'Tahun terima PO',          from: 'Dari tanggal terima PO', to: 'Sampai tanggal terima PO' },
+};
 
+function updateLabelBasis() {
+    const l = labelBasis[document.getElementById('f-basis').value] || labelBasis.periode_shipment_pasuruan;
+    document.getElementById('lbl-month').textContent = l.month;
+    document.getElementById('lbl-year').textContent  = l.year;
+    document.getElementById('lbl-from').textContent  = l.from;
+    document.getElementById('lbl-to').textContent    = l.to;
+}
+
+document.getElementById('f-basis').addEventListener('change', updateLabelBasis);
+updateLabelBasis();
 </script>
 
 </body>

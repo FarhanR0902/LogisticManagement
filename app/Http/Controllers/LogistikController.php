@@ -1,7 +1,9 @@
 <?php
 
 namespace App\Http\Controllers;
-
+use App\Exports\LogistikReportData;
+use App\Exports\XlsxSlicerInjector;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Http\Request;
 use App\Exports\LogistikExportFull;
@@ -11,6 +13,7 @@ use Illuminate\Support\Facades\Cache;
 use Maatwebsite\Excel\Facades\Excel;
 use App\Imports\LogistikImport;
 use App\Exports\LogistikExport;
+use App\Exports\LogistikReportSummary;
 use Carbon\Carbon;
 
 class LogistikController extends Controller
@@ -177,17 +180,25 @@ private function gudangSuffixes(): array
     /**
      * Filter tanggal dari dropdown halaman: periode + bulan + tahun.
      */
-    private function applyTanggalFilter($query, Request $request)
+     private function applyTanggalFilter($query, Request $request)
     {
-        $col = $this->resolveTanggalColumn($request->input('tgl_basis'));
+        $col   = $this->resolveTanggalColumn($request->input('tgl_basis'));
+        $month = $request->input('month');
+        $year  = $request->input('year');
+
+        // dukung "2026-11" (input type=month) maupun "11"
+        if ($month && preg_match('/^(\d{4})-(\d{2})$/', $month, $m)) {
+            $year  = $year ?: $m[1];
+            $month = $m[2];
+        }
 
         return $this->applyDateRange(
             $query,
             $col,
             $request->input('date_from'),
             $request->input('date_to'),
-            $request->filled('month') ? $request->month : null,
-            $request->filled('year') ? $request->year : null
+            $month ?: null,
+            $year ?: null
         );
     }
 
@@ -467,24 +478,39 @@ private function filterByDistChannel($query)
     /* =========================================================
      * EXPORT EXCEL
      * ========================================================= */
-    public function export(Request $request)
-    {
-        $query = LogistikPengiriman::query();
+  public function export(Request $request)
+{
+    set_time_limit(0);
+    ini_set('memory_limit', '1G');
 
-        $this->filterByDistChannel($query);
-        $this->applyTanggalFilter($query, $request);
+    $query = LogistikPengiriman::query();
+    $this->filterByDistChannel($query);   // hak akses user tetap berlaku
 
-        $areas = array_values(array_filter((array) $request->input('area', []), 'strlen'));
-        if (!empty($areas)) {
-            $query->whereIn('area', $areas);
-        }
+    $name = 'laporan_logistik_' . date('Ymd_His') . '.xlsx';
+    $rel  = 'exports/' . $name;
 
-        return Excel::download(
-            new LogistikExportFull($query),
-            'data_logistik_full_' . date('Ymd_His') . '.xlsx'
-        );
+    Excel::store(
+        new \App\Exports\LogistikReportExport($query, 'Data total - filter lewat Excel'),
+        $rel,
+        'local'
+    );
+    $path = Storage::disk('local')->path($rel);
+
+    // cocokkan nama slicer ke heading asli sheet Data (abaikan huruf besar/kecil, spasi, underscore)
+    $headings = (new LogistikReportData($query))->headings();
+    $norm     = fn($s) => preg_replace('/[^a-z0-9]/', '', mb_strtolower((string) $s));
+
+    $wanted = [];
+    foreach (['Tahun Naik Logistik', 'Bulan Naik Logistik', 'Area', 'Dist Channel', 'Planner', 'PIC Monitoring'] as $w) {
+        $found = collect($headings)->first(fn($h) => $norm($h) === $norm($w));
+        $found ? $wanted[] = $found : logger()->warning("Slicer: heading '{$w}' tidak ketemu di sheet Data");
     }
 
+    $ok = XlsxSlicerInjector::inject($path, 'Ringkasan', $wanted, LogistikReportSummary::slicerSlots());
+    logger()->info('Slicer inject: ' . ($ok ? 'OK' : 'GAGAL'), ['kolom' => $wanted]);
+
+    return response()->download($path, $name)->deleteFileAfterSend(true);
+}
     /* =========================================================
      * DATA LOGISTIK — HALAMAN
      * ========================================================= */

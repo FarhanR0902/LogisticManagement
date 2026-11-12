@@ -33,6 +33,8 @@ use PhpOffice\PhpSpreadsheet\Shared\Date;
  */
 class LogistikImport implements ToCollection, WithHeadingRow, WithEvents, WithCalculatedFormulas
 {
+
+
     private const TABLE       = 'logistik_pengiriman';
     private const TARIF_TABLE = 'tarif_pengiriman';
 
@@ -41,18 +43,56 @@ class LogistikImport implements ToCollection, WithHeadingRow, WithEvents, WithCa
 
     // pada baris yang SUDAH ada, hanya kolom ini yang boleh menimpa nilai lama
     private const ALWAYS_OVERWRITE = [
-        'no_shipment', 'tujuan', 'no_do',
-        'sales_document', 'customer_reference', 'contract_end_date',
-        'nilai_muatan', 'total_do_qty_car', 'total_kubik', 'total_tonase',
-        'tanggal_shipment', 'periode_shipment',
+        'no_shipment',
+        'tujuan',
+        'no_do',
+        'sales_document',
+        'customer_reference',
+        'contract_end_date',
+        'nilai_muatan',
+        'total_do_qty_car',
+        'total_kubik',
+        'total_tonase',
+        'tanggal_shipment',
+        'periode_shipment',
     ];
 
     // kolom hasil hitung ulang, tidak boleh diisi mentah dari Excel
     private const RECALC_COLUMNS = [
-        'kirim_kontribusi', 'biaya_kirim', 'cr', 'hasil_kubik', 'hasil_tonase',
-        'pengiriman_optimal', 'pengiriman_optimal_customer', 'reason_optimal_customer',
+        'kirim_kontribusi',
+        'biaya_kirim',
+        'cr',
+        'hasil_kubik',
+        'hasil_tonase',
+        'pengiriman_optimal',
+        'pengiriman_optimal_customer',
+        'reason_optimal_customer',
     ];
 
+    // area => PIC. Hanya area yang PIC-nya satu; dipakai kalau PIC masih kosong.
+    private const AREA_PIC = [
+        'ACEH'             => 'Bernard',
+        'BANTEN'           => 'Dani',
+        'BENGKULU'         => 'Rafly',
+        'JABODEBEK'        => 'Dani',
+        'JAWA_BARAT'       => 'Dani',
+        'JAWA_TENGAH'      => 'Emyr',
+        'JAWA_TIMUR'       => 'Emyr',
+        'KALIMANTAN_BARAT' => 'Emyr',
+        'KALIMANTAN_TIMUR' => 'Aldi',
+        'KEP._RIAU'        => 'Emyr',
+        'LAMPUNG'          => 'Rafly',
+        'SULAWESI_SELATAN' => 'Emyr',
+        'SULAWESI_UTARA'   => 'Emyr',
+        'SUMATERA_BARAT'   => 'Bernard',
+        'SUMATERA_SELATAN' => 'Rafly',
+        'YOGYAKARTA'       => 'Emyr',
+    ];
+
+    // nama PIC lama (huruf kecil) => nama baru
+    private const PIC_RENAME = [
+        'asti' => 'Emyr',
+    ];
     private const ROUTE_ALIASES = [
         'jabodetabek' => 'Sentul-Jabodetabek',
     ];
@@ -62,8 +102,13 @@ class LogistikImport implements ToCollection, WithHeadingRow, WithEvents, WithCa
 
     // kolom hasil lookup master tujuan yang boleh "ikut" baris lain di shipment yang sama
     private const SIBLING_FILL_COLUMNS = [
-        'area', 'pulau', 'transport_lead_time', 'planner', 'pic_monitoring',
-        'tanggal_shipment', 'periode_shipment',
+        'area',
+        'pulau',
+        'transport_lead_time',
+        'planner',
+        'pic_monitoring',
+        'tanggal_shipment',
+        'periode_shipment',
     ];
 
     // header Excel (sudah di-slug) -> kolom DB, hanya untuk yang namanya BEDA
@@ -71,6 +116,8 @@ class LogistikImport implements ToCollection, WithHeadingRow, WithEvents, WithCa
         'tgl_terima_dari_admin'  => 'tanggal_naik_logistik',
         'tgl_rencana_kirim'      => 'rencana_kirim',
         'tanggal_tiba_di_gudang' => 'tanggal_tiba_gudang',
+        'rute'  => 'route',
+        'rute_name' => 'route',
         'ac_turutan_bongkar'     => 'act_urutan_bongkar',
         'reason_waktu_tiba'      => 'reason_tiba',
         'reason_waktu_bongkar'   => 'reason_bongkar',
@@ -107,6 +154,7 @@ class LogistikImport implements ToCollection, WithHeadingRow, WithEvents, WithCa
     private ?array $map = null;            // [header => [kolom, kind]]
     private bool $hasCreatedAt = false;
     private bool $hasUpdatedAt = false;
+    private static $mobilMaster = null;   // semua nama mobil lengkap di master tarif
 
     // forward-fill (sel merge di Excel)
     private $lastNoShipmentRaw = null;
@@ -138,17 +186,52 @@ class LogistikImport implements ToCollection, WithHeadingRow, WithEvents, WithCa
     private array $missingColumns = [];
     private array $unknownPlannerCodes = [];
 
-    public function getInsertedCount(): int { return $this->inserted; }
-    public function getUpdatedCount(): int { return $this->updated; }
-    public function getImportedCount(): int { return $this->inserted + $this->updated; }
-    public function getSkippedCount(): int { return $this->skipped; }
-    public function getFailedCount(): int { return $this->failed; }
-    public function getFailedList(): array { return $this->failedList; }
-    public function getAllNoShipmentInFile(): array { return $this->allNoShipmentInFile; }
-    public function getIgnoredHeaders(): array { return array_values(array_unique($this->ignoredHeaders)); }
-    public function getMissingColumns(): array { return array_keys($this->missingColumns); }
-    public function getUnknownPlannerCodes(): array { return array_values(array_unique($this->unknownPlannerCodes)); }
-    public function getBiayaConflict(): array { return array_map('strval', array_keys($this->biayaConflict)); }
+    public function getInsertedCount(): int
+    {
+        return $this->inserted;
+    }
+    public function getUpdatedCount(): int
+    {
+        return $this->updated;
+    }
+    public function getImportedCount(): int
+    {
+        return $this->inserted + $this->updated;
+    }
+    public function getSkippedCount(): int
+    {
+        return $this->skipped;
+    }
+    public function getFailedCount(): int
+    {
+        return $this->failed;
+    }
+
+
+    public function getFailedList(): array
+    {
+        return $this->failedList;
+    }
+    public function getAllNoShipmentInFile(): array
+    {
+        return $this->allNoShipmentInFile;
+    }
+    public function getIgnoredHeaders(): array
+    {
+        return array_values(array_unique($this->ignoredHeaders));
+    }
+    public function getMissingColumns(): array
+    {
+        return array_keys($this->missingColumns);
+    }
+    public function getUnknownPlannerCodes(): array
+    {
+        return array_values(array_unique($this->unknownPlannerCodes));
+    }
+    public function getBiayaConflict(): array
+    {
+        return array_map('strval', array_keys($this->biayaConflict));
+    }
 
     public function __construct()
     {
@@ -165,8 +248,16 @@ class LogistikImport implements ToCollection, WithHeadingRow, WithEvents, WithCa
 
         if (self::$customerMap === null) {
             $rows = DB::table('tujuanfillterr')
-                ->select('tujuan', 'code_planner', 'Planner', 'pulau', 'area',
-                         'biaya_kuli', 'transport_lead_time', 'Monitoring')
+                ->select(
+                    'tujuan',
+                    'code_planner',
+                    'Planner',
+                    'pulau',
+                    'area',
+                    'biaya_kuli',
+                    'transport_lead_time',
+                    'Monitoring'
+                )
                 ->where('Div', 'HO Meruya')
                 ->get();
 
@@ -184,6 +275,12 @@ class LogistikImport implements ToCollection, WithHeadingRow, WithEvents, WithCa
                     self::$customerByCode[$code . '|' . $t] ??= $r;
                 }
             }
+            if (self::$mobilMaster === null) {
+                self::$mobilMaster = DB::table(self::TARIF_TABLE)
+                    ->whereNotNull('mobil')->where('mobil', '!=', '')
+                    ->distinct()->pluck('mobil')->all();
+            }
+
 
             // peta area -> planner & PIC (paling sering muncul di master)
             $tally = [];
@@ -205,6 +302,18 @@ class LogistikImport implements ToCollection, WithHeadingRow, WithEvents, WithCa
                     'pic'     => isset($t['m']) ? (string) array_search(max($t['m']), $t['m']) : null,
                 ];
             }
+            foreach (self::$areaMap as $a => $info) {
+                $pic = self::AREA_PIC[strtoupper($a)] ?? $info['pic'];
+                self::$areaMap[$a]['pic'] = $pic !== null ? (self::PIC_RENAME[strtolower($pic)] ?? $pic) : null;
+            }
+            foreach (self::AREA_PIC as $a => $pic) {
+                self::$areaMap[$a] ??= ['planner' => null, 'pic' => $pic];
+            }
+        }
+        if (self::$mobilMaster === null) {
+            self::$mobilMaster = DB::table(self::TARIF_TABLE)
+                ->whereNotNull('mobil')->where('mobil', '!=', '')
+                ->distinct()->pluck('mobil')->all();
         }
 
         if (self::$tarifByRoute === null) {
@@ -215,12 +324,48 @@ class LogistikImport implements ToCollection, WithHeadingRow, WithEvents, WithCa
         }
     }
 
+
+
     private function normTujuan(?string $value): string
     {
         $value = str_replace("\xC2\xA0", ' ', (string) $value);
         return preg_replace('/\s+/', ' ', strtolower(trim($value)));
     }
 
+    /** Lengkapi nama mobil yang terpotong. Hanya kalau cocok ke tepat 1 nama di master. */
+    /** Lengkapi nama mobil terpotong. Cari berurutan: ekspedisi+route -> route -> semua master. */
+    private function completeMobilName(?string $mobil, ?string $route = null, ?string $ekpedisi = null): ?string
+    {
+        if ($mobil === null || $mobil === '') return $mobil;
+
+        $key = $this->normalizeMobil($mobil);
+        if (strlen($key) < 8) return $mobil;   // terlalu pendek, jangan ditebak
+
+        $rows = self::$tarifByRoute[$this->normalize($route)] ?? null;
+        $eKey = $this->ekspedisiKey($ekpedisi);
+
+        $pools = [];
+        if ($rows) {
+            if ($eKey !== '') {
+                $pools[] = $rows->filter(fn($r) => $this->ekspedisiKey($r->ekpedisi) === $eKey)->pluck('mobil');
+            }
+            $pools[] = $rows->pluck('mobil');
+        }
+        $pools[] = collect(self::$mobilMaster);
+
+        foreach ($pools as $pool) {
+            $hits = [];
+            foreach ($pool->filter()->unique() as $full) {
+                $fk = $this->normalizeMobil($full);
+                if ($fk === $key) return $full;                 // sudah lengkap
+                if (str_starts_with($fk, $key)) $hits[$full] = true;
+            }
+            if (count($hits) === 1) return array_key_first($hits);
+            if (count($hits) > 1) return $mobil;                // ambigu, jangan ditebak
+        }
+
+        return $mobil;
+    }
     // =========================================================
     // IMPORT PER BARIS
     // =========================================================
@@ -333,11 +478,17 @@ class LogistikImport implements ToCollection, WithHeadingRow, WithEvents, WithCa
         foreach ($this->shipCache[$noShipment] as $i => $r) {
             if (mb_strtolower(trim((string) ($r['tujuan'] ?? ''))) !== $tKey) continue;
 
-            if ($doKey === null) { $idx = $i; break; }
+            if ($doKey === null) {
+                $idx = $i;
+                break;
+            }
 
             // 1) cocok persis no_do; 2) kalau tidak ada, pakai baris lama yang no_do-nya masih kosong
             $rd = mb_strtolower(trim((string) ($r['no_do'] ?? '')));
-            if ($rd === $doKey) { $idx = $i; break; }
+            if ($rd === $doKey) {
+                $idx = $i;
+                break;
+            }
             if ($rd === '' && $fallback === null) $fallback = $i;
         }
         $idx ??= $fallback;
@@ -490,7 +641,7 @@ class LogistikImport implements ToCollection, WithHeadingRow, WithEvents, WithCa
         $totalKubik  = $this->parseNumber($this->pick($row, ['total_kubik', 'total_kubik_m3', 'total_kubik_m_3', 'totalkubik']));
         $totalTonase = $this->parseNumber($this->pick($row, ['total_tonase', 'total_tonase_ton', 'totaltonase']));
         $nilaiMuatan = $this->parseNumber($this->pick($row, ['nilai_muatan', 'nilai_muatan_rp', 'nilai_muatan_rp_', 'nilai_muatan_pasuruan']));
-
+        $mobil = $this->completeMobilName($mobil, $route, $ekpedisi);
         // ================= KAPASITAS DARI TARIF =================
         $tarifRow = $this->findTarif($route, $ekpedisi, $mobil);
         $kubikasi = $tarifRow ? $this->parseNumber($tarifRow->kubikasi ?? null) : null;
@@ -501,8 +652,10 @@ class LogistikImport implements ToCollection, WithHeadingRow, WithEvents, WithCa
         $biayaExcel = $this->parseNumber($this->pick($row, ['kirim_kontribusi', 'biaya_kirim', 'biaya_kirim_rp']));
 
         if ($biayaExcel !== null && $biayaExcel > 0) {
-            if (isset($this->groupBiaya[$noShipment])
-                && abs($this->groupBiaya[$noShipment][1] - $biayaExcel) > 0.01) {
+            if (
+                isset($this->groupBiaya[$noShipment])
+                && abs($this->groupBiaya[$noShipment][1] - $biayaExcel) > 0.01
+            ) {
                 $this->biayaConflict[$noShipment] = true;
             }
             $this->groupBiaya[$noShipment] ??= [$noShipment, $biayaExcel];
@@ -524,12 +677,12 @@ class LogistikImport implements ToCollection, WithHeadingRow, WithEvents, WithCa
 
             $codePlanner   = $codeExcel;
             $planner       = $this->cleanText($plannerRow->Planner ?? null)
-                             ?: $this->cleanText($row['planner'] ?? null);
+                ?: $this->cleanText($row['planner'] ?? null);
             $picMonitoring = $this->cleanText($plannerRow->Monitoring ?? null);
         } else {
             $codePlanner   = $this->cleanText($customerData->code_planner ?? null);
             $planner       = $this->cleanText($customerData->Planner ?? null)
-                             ?: $this->cleanText($row['planner'] ?? null);
+                ?: $this->cleanText($row['planner'] ?? null);
             $picMonitoring = $this->cleanText($customerData->Monitoring ?? null);
         }
 
@@ -538,7 +691,7 @@ class LogistikImport implements ToCollection, WithHeadingRow, WithEvents, WithCa
         $biayaKuli           = $customerData->biaya_kuli ?? null;
         $transport_lead_time = $customerData->transport_lead_time ?? null;
         $pulau               = ($customerData->pulau ?? null) ?: $this->cleanText($row['pulau'] ?? null);
-
+        $picMonitoring = $this->fixPic($picMonitoring, $area);
         // ================= MONITORING =================
         $keluar = collect([$tanggalKeluarGudang, $tanggalKeluarGudang2, $tanggalKeluarGudang3])
             ->filter()->map(fn($d) => strtotime($d))->max();
@@ -593,7 +746,7 @@ class LogistikImport implements ToCollection, WithHeadingRow, WithEvents, WithCa
 
             'perubahan_mobil'    => $this->cleanText($row['perubahan_mobil'] ?? null),
             'kategori_ekspedisi' => $this->getKategoriEkspedisi($noShipment)
-                                    ?? $this->cleanText($row['kategori_ekspedisi'] ?? null),
+                ?? $this->cleanText($row['kategori_ekspedisi'] ?? null),
             'ekpedisi'           => $ekpedisi,
             'kubikasi'           => $kubikasi,
             'tonase'             => $tonase,
@@ -674,7 +827,7 @@ class LogistikImport implements ToCollection, WithHeadingRow, WithEvents, WithCa
             'contract_end_date'  => $this->convertDateUs($row['contract_end_date'] ?? null),   // format m/d/Y
             'no_do'              => $this->cleanText($row['no_do'] ?? null),
             'tanggal_shipment'   => $this->convertDateUs($row['tanggal_shipment'] ?? null),    // format m/d/Y
-       'periode_shipment'   => $this->convertPeriode($row['periode_shipment'] ?? null),   // format m/d/Y
+            'periode_shipment'   => $this->convertPeriode($row['periode_shipment'] ?? null),   // format m/d/Y
         ];
 
         // ================= SISA HEADER EXCEL (apa adanya) =================
@@ -763,6 +916,18 @@ class LogistikImport implements ToCollection, WithHeadingRow, WithEvents, WithCa
         return true;
     }
 
+    /** PIC kosong -> isi dari area; nama lama diganti (Asti -> Emyr) */
+    private function fixPic(?string $pic, ?string $area): ?string
+    {
+        $pic = $pic !== null ? trim($pic) : null;
+
+        if ($pic === null || $pic === '') {
+            $pic = self::AREA_PIC[strtoupper(trim((string) $area))] ?? null;
+        }
+
+        return $pic !== null ? (self::PIC_RENAME[strtolower($pic)] ?? $pic) : null;
+    }
+
     private function blank($value): bool
     {
         if ($value === null) return true;
@@ -824,32 +989,32 @@ class LogistikImport implements ToCollection, WithHeadingRow, WithEvents, WithCa
         return $this->toDate($value, 'Y-m-d H:i:s');
     }
     /** periode shipment = teks "MM-YYYY", bukan tanggal */
-private function convertPeriode($value): ?string
-{
-    if ($this->blank($value) || $value === '-' || stripos((string) $value, 'blank') !== false) return null;
+    private function convertPeriode($value): ?string
+    {
+        if ($this->blank($value) || $value === '-' || stripos((string) $value, 'blank') !== false) return null;
 
-    // kalau sel Excel bertipe tanggal (serial number)
-    if (is_numeric($value)) {
-        if ((float) $value <= 0) return null;
-        return Date::excelToDateTimeObject($value)->format('m-Y');
+        // kalau sel Excel bertipe tanggal (serial number)
+        if (is_numeric($value)) {
+            if ((float) $value <= 0) return null;
+            return Date::excelToDateTimeObject($value)->format('m-Y');
+        }
+
+        $v = trim((string) $value);
+
+        // 11-2026 / 11/2026
+        if (preg_match('#^(\d{1,2})[-/](\d{4})$#', $v, $m) && (int) $m[1] >= 1 && (int) $m[1] <= 12) {
+            return sprintf('%02d-%04d', (int) $m[1], (int) $m[2]);
+        }
+
+        // 2026-11
+        if (preg_match('#^(\d{4})[-/](\d{1,2})$#', $v, $m) && (int) $m[2] >= 1 && (int) $m[2] <= 12) {
+            return sprintf('%02d-%04d', (int) $m[2], (int) $m[1]);
+        }
+
+        // format lain (misal tanggal lengkap) -> ambil bulan & tahunnya
+        $ts = strtotime($v);
+        return $ts ? date('m-Y', $ts) : null;
     }
-
-    $v = trim((string) $value);
-
-    // 11-2026 / 11/2026
-    if (preg_match('#^(\d{1,2})[-/](\d{4})$#', $v, $m) && (int) $m[1] >= 1 && (int) $m[1] <= 12) {
-        return sprintf('%02d-%04d', (int) $m[1], (int) $m[2]);
-    }
-
-    // 2026-11
-    if (preg_match('#^(\d{4})[-/](\d{1,2})$#', $v, $m) && (int) $m[2] >= 1 && (int) $m[2] <= 12) {
-        return sprintf('%02d-%04d', (int) $m[2], (int) $m[1]);
-    }
-
-    // format lain (misal tanggal lengkap) -> ambil bulan & tahunnya
-    $ts = strtotime($v);
-    return $ts ? date('m-Y', $ts) : null;
-}
 
     /** tanggal format US m/d/Y (Contract End Date, Tanggal Shipment), "(blank)" -> null */
     private function convertDateUs($value): ?string
@@ -953,8 +1118,10 @@ private function convertPeriode($value): ?string
                     if (preg_match('/^waktu_/', $col)) {
                         return $this->toTime($value);
                     }
-                    if ($value > 20000 && $value < 80000
-                        && preg_match('/(^|_)(tanggal|date|etd|eta|atd|ata|estimasi)(_|$)|^planning|^rencana|^create_on/', $col)) {
+                    if (
+                        $value > 20000 && $value < 80000
+                        && preg_match('/(^|_)(tanggal|date|etd|eta|atd|ata|estimasi)(_|$)|^planning|^rencana|^create_on/', $col)
+                    ) {
                         return $this->toDate($value, 'Y-m-d');
                     }
                 }
@@ -995,7 +1162,9 @@ private function convertPeriode($value): ?string
             return self::EKSPEDISI_ALIASES[$key];
         }
 
-        $best = null; $bestScore = 0.0; $second = 0.0;
+        $best = null;
+        $bestScore = 0.0;
+        $second = 0.0;
 
         foreach ($candidates->pluck('ekpedisi')->filter()->unique() as $master) {
             $mk = $this->ekspedisiKey($master);
@@ -1006,13 +1175,20 @@ private function convertPeriode($value): ?string
             similar_text($key, $mk, $pct);
             $score = $pct / 100;
 
-            if (min(strlen($key), strlen($mk)) >= 6
-                && (str_contains($mk, $key) || str_contains($key, $mk))) {
+            if (
+                min(strlen($key), strlen($mk)) >= 6
+                && (str_contains($mk, $key) || str_contains($key, $mk))
+            ) {
                 $score = max($score, 0.9);
             }
 
-            if ($score > $bestScore)  { $second = $bestScore; $bestScore = $score; $best = $master; }
-            elseif ($score > $second) { $second = $score; }
+            if ($score > $bestScore) {
+                $second = $bestScore;
+                $bestScore = $score;
+                $best = $master;
+            } elseif ($score > $second) {
+                $second = $score;
+            }
         }
 
         return ($best !== null && $bestScore >= 0.85 && ($bestScore - $second) >= 0.05) ? $best : null;
@@ -1035,7 +1211,9 @@ private function convertPeriode($value): ?string
 
             if ($master !== null && $this->ekspedisiKey($master) !== $this->ekspedisiKey($ekpedisi)) {
                 logger()->info('LOGISTIK IMPORT: nama ekspedisi disamakan dengan master', [
-                    'route' => $route, 'excel' => $ekpedisi, 'master' => $master,
+                    'route' => $route,
+                    'excel' => $ekpedisi,
+                    'master' => $master,
                 ]);
             }
         }
@@ -1044,9 +1222,10 @@ private function convertPeriode($value): ?string
         $found  = null;
 
         if ($master !== null) {
-            $found = $candidates->first(fn($row) =>
+            $found = $candidates->first(
+                fn($row) =>
                 $row->ekpedisi === $master
-                && str_starts_with($this->normalizeMobil($row->mobil), $mobilExcel)
+                    && str_starts_with($this->normalizeMobil($row->mobil), $mobilExcel)
             );
         }
 
@@ -1056,7 +1235,9 @@ private function convertPeriode($value): ?string
             if (!isset($this->tarifWarned[$warnKey])) {
                 $this->tarifWarned[$warnKey] = true;
                 logger()->warning('LOGISTIK IMPORT: tarif tidak ditemukan', [
-                    'route' => $route, 'ekpedisi' => $ekpedisi, 'mobil' => $mobil,
+                    'route' => $route,
+                    'ekpedisi' => $ekpedisi,
+                    'mobil' => $mobil,
                 ]);
             }
         }
@@ -1080,6 +1261,7 @@ private function convertPeriode($value): ?string
                     $this->fillShipmentGaps($shipments);
                     $this->fillAreaAndPlannerGaps($shipments);
                     $this->fillMasterGapsFromSiblings($shipments);
+                    $this->applyJabodetabekPicRule($shipments);   // <-- baru
                     $this->recalcShipments($shipments);
                 } catch (\Throwable $e) {
                     logger()->error('LOGISTIK IMPORT AFTER-IMPORT GAGAL', [
@@ -1090,6 +1272,41 @@ private function convertPeriode($value): ?string
                 }
             },
         ];
+    }
+
+    /**
+     * Aturan khusus area JABODETABEK:
+     *  - no_shipment diawali 42000 -> pic_monitoring = 'Dani'
+     *  - no_shipment diawali 45000 -> pic_monitoring = planner
+     */
+    private function applyJabodetabekPicRule(array $shipments): void
+    {
+        if (!isset($this->dbColumns['pic_monitoring'])) return;
+
+        foreach (array_chunk($shipments, 500) as $chunk) {
+            $in = implode(',', array_fill(0, count($chunk), '?'));
+
+            // 42000xxxxx -> Dani
+            DB::update("
+            UPDATE logistik_pengiriman
+            SET pic_monitoring = 'Dani'
+            WHERE no_shipment IN ($in)
+              AND UPPER(TRIM(area)) = 'JABODETABEK'
+              AND no_shipment LIKE '42000%'
+        ", $chunk);
+
+            // 45000xxxxx -> sama dengan planner (hanya kalau planner terisi)
+            if (isset($this->dbColumns['planner'])) {
+                DB::update("
+                UPDATE logistik_pengiriman
+                SET pic_monitoring = TRIM(planner)
+                WHERE no_shipment IN ($in)
+                  AND UPPER(TRIM(area)) = 'JABODETABEK'
+                  AND no_shipment LIKE '45000%'
+                  AND NULLIF(TRIM(planner), '') IS NOT NULL
+            ", $chunk);
+            }
+        }
     }
 
     /**

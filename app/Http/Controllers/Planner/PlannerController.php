@@ -9,6 +9,9 @@ use Illuminate\Support\Facades\DB;
 use App\Models\LogistikPengiriman;
 use Maatwebsite\Excel\Facades\Excel;
 use App\Exports\PlannerExport;
+use App\Exports\{PlannerReportExport, XlsxSlicerInjector};
+use Illuminate\Support\Facades\Storage;
+
 
 class PlannerController extends Controller
 {
@@ -22,7 +25,8 @@ private const PULAU_MAP = [
         'MALUKU'     => ['PROV._MALUKU', 'PROV._MALUKU_UTARA'],
         'PAPUA'      => ['PROV._PAPUA', 'PAPUA_BARAT', 'PAPUA_BARAT_DAYA', 'PAPUA_SELATAN', 'PAPUA_TENGAH'],
     ];
-
+// kunci per shipment saja (tanpa tujuan). Baris tanpa no_shipment dianggap berdiri sendiri.
+private const SHIPMENT_KEY = "COALESCE(NULLIF(TRIM(no_shipment),''), CONCAT('id', id))";
     // BARU: kunci grup = no_shipment + tujuan (baris tanpa no_shipment dianggap grup sendiri)
     private const GROUP_KEY = "COALESCE(NULLIF(TRIM(no_shipment),''), CONCAT('id', id)), COALESCE(tujuan,'')";
     // suffix kolom => nama gudang. Tambah gudang baru cukup di sini.
@@ -67,6 +71,32 @@ private function gudangPayload(Request $request, array $rumus): array
     return $out;
 }
 
+public function exportPlannerReport(Request $request)
+{
+    $filters = array_filter([
+        'planner'          => $this->multiInput($request, 'planner_filter', 'planner'),
+        'area'             => $this->multiInput($request, 'area_filter', 'area'),
+        'dist_channel'     => $this->multiInput($request, 'dist_channel_filter', 'dist_channel'),
+        'tanggal_shipment' => $request->input('tanggal_shipment_filter'),
+    ]);
+
+    $name = 'Laporan_Planner_' . date('Ymd_His') . '.xlsx';
+    $rel  = 'exports/' . $name;
+
+    Excel::store(new PlannerReportExport($filters, 'Filter aktif: ' . json_encode($filters)), $rel, 'local');
+    $path = Storage::disk('local')->path($rel);
+
+    // 7 slicer: kolom yang ada di sheet Data
+    $wanted = ['Nama Planner', 'Area', 'Dist Channel', 'Periode Shipment', 'Pulau', 'Ekspedisi', 'Mobil'];
+    $slots = [];
+    foreach ($wanted as $i => $_) {
+        $slots[] = [23, 0, 26, 0, $i * 13, $i * 13 + 12];   // [kolom awal, off, kolom akhir, off, baris awal, baris akhir]
+    }
+
+    XlsxSlicerInjector::inject($path, 'Ringkasan', $wanted, $slots);   // kalau gagal, file tetap valid tanpa slicer
+
+    return response()->download($path, $name)->deleteFileAfterSend(true);
+}
     public function store(Request $request)
     {
 //         $data['total_kubik']  = $this->cleanDecimalPlanner($request->total_kubik);
@@ -391,9 +421,9 @@ public function inTransit(Request $request)
  public function update(Request $request, $id)
 {
     $old = DB::table('logistik_pengiriman')->where('id', $id)->first();
-    if (!$old) {
-        return $this->gagal($request, ['Data tidak ditemukan. Kemungkinan sudah dihapus user lain. Refresh halaman.'], 404);
-    }
+   if ($msg = $this->pesanUrutan($old)) {
+    return $this->gagal($request, [$msg], 422, 'Urutan shipment');
+}
     if ($err = $this->cekInput($request, true, $old)) {
         return $this->gagal($request, $err);
     }
@@ -568,7 +598,71 @@ private function plannerGroupAgg($rows): array
         ->keyBy(fn($g) => $g->no_shipment . '|' . $g->tujuan_key)
         ->all();
 }
+/** Aturan urutan hanya berlaku untuk tanggal_shipment >= ini (null = semua data). */
+private const URUTAN_MULAI = null;   // contoh: '2026-11-01'
 
+/** Sama dengan selesaiGudangSql(), tapi dicek di PHP untuk 1 baris */
+private function gudangSelesai($row): bool
+{
+    $ada = false;
+
+    foreach ($this->gudangCycles() as [$plan, $tiba, $keluar]) {
+        $started = trim((string) ($row->$plan ?? '')) !== '' || trim((string) ($row->$tiba ?? '')) !== '';
+        $done    = trim((string) ($row->$keluar ?? '')) !== '';
+
+        if ($done) {
+            $ada = true;
+        }
+        if ($started && !$done) {
+            return false;   // ada gudang yang menggantung
+        }
+    }
+
+    return $ada;
+}
+
+/** Shipment paling awal milik planner & periode yang sama yang belum selesai. Null = tidak terkunci. */
+/** true = blocker harus periode_shipment yang sama. false = semua tanggal sebelumnya ikut mengunci. */
+private const URUTAN_PAKAI_PERIODE = false;
+
+private function pemblokUrutan($row)
+{
+    if (trim((string) $row->planner) === '' || empty($row->tanggal_shipment)) {
+        return null;
+    }
+    if ($this->gudangSelesai($row)) {
+        return null;   // baris ini sudah selesai, boleh dikoreksi
+    }
+
+    $tgl = date('Y-m-d', strtotime($row->tanggal_shipment));
+
+    $q = $this->repQuery()
+        ->whereRaw('UPPER(TRIM(planner)) = ?', [strtoupper(trim($row->planner))])
+        ->whereDate('tanggal_shipment', '<', $tgl)
+        ->whereRaw($this->selesaiGudangSql() . ' = 0');
+
+    if (self::URUTAN_PAKAI_PERIODE) {
+        $q->whereRaw("COALESCE(periode_shipment,'') = ?", [(string) $row->periode_shipment]);
+    }
+
+    if (self::URUTAN_MULAI) {
+        $q->whereDate('tanggal_shipment', '>=', self::URUTAN_MULAI);
+    }
+
+    return $q->orderBy('tanggal_shipment')
+        ->orderByRaw('CAST(no_shipment AS UNSIGNED)')
+        ->first(['id', 'no_shipment', 'tujuan', 'tanggal_shipment']);
+}
+private function pesanUrutan($row): ?string
+{
+    $b = $this->pemblokUrutan($row);
+    if (!$b) return null;
+
+    return 'Selesaikan dulu shipment ' . $b->no_shipment . ' (' . $b->tujuan . ') tanggal '
+        . date('d-m-Y', strtotime($b->tanggal_shipment))
+        . ' sampai tanggal keluar gudang terakhir, sebelum mengisi shipment tanggal '
+        . date('d-m-Y', strtotime($row->tanggal_shipment)) . '.';
+}
 /** Scope semua DO dalam 1 grup (no_shipment + tujuan) */
 private function groupScope($row, ?string $shipment = null)
 {
@@ -589,9 +683,9 @@ private function groupScope($row, ?string $shipment = null)
    public function autosaveRow(Request $request, $id)
 {
     $old = DB::table('logistik_pengiriman')->where('id', $id)->first();
-    if (!$old) {
-        return $this->gagal($request, ['Data tidak ditemukan. Kemungkinan sudah dihapus user lain. Refresh halaman.'], 404);
-    }
+ if ($msg = $this->pesanUrutan($old)) {
+    return $this->gagal($request, [$msg], 422, 'Urutan shipment');
+}
     if ($err = $this->cekInput($request, false, $old)) {
         return $this->gagal($request, $err);
     }
@@ -968,9 +1062,9 @@ private function pesanDb(\Throwable $e): string
     if ($vals = $this->multiInput($request, 'dist_channel_filter')) {
         $baseQuery->whereIn('dist_channel', $vals);
     }
-    if ($request->filled('create_tgl_filter')) {
-        $baseQuery->whereDate('create_tgl', $request->input('create_tgl_filter'));
-    }
+ if ($request->filled('tanggal_shipment_filter')) {
+    $baseQuery->whereDate('tanggal_shipment', $request->input('tanggal_shipment_filter'));
+}
 
     if ($searchValue !== '') {
         $baseQuery->where(function ($q) use ($searchValue) {
@@ -989,8 +1083,9 @@ private function pesanDb(\Throwable $e): string
 
     $rows = LogistikPengiriman::query()
         ->whereIn('id', $this->groupIdsQuery($baseQuery))
-        ->orderByRaw($this->selesaiGudangSql() . ' ASC')
-        ->orderByRaw('CAST(no_shipment AS UNSIGNED) ASC')
+      ->orderByRaw($this->selesaiGudangSql() . ' ASC')
+->orderBy('tanggal_shipment', 'ASC')            // tambah ini
+->orderByRaw('CAST(no_shipment AS UNSIGNED) ASC')
         ->orderBy('id', 'ASC')
         ->skip($start)
         ->take($length)
@@ -1017,19 +1112,33 @@ $shipOpt  = $this->optimalPerShipment($groupAgg);   // BARU
     );
 
     // ===== bangun baris: totalan per shipment + tujuan =====
-    $data = [];
-    foreach ($rows as $r) {
-        $r->jml_do = 1;
-        $g = $groupAgg[$r->no_shipment . '|' . ($r->tujuan ?? '')] ?? null;
+   $data = [];
+$cacheBlok = [];
+foreach ($rows as $r) {
+    $r->jml_do = 1;
+    $g = $groupAgg[$r->no_shipment . '|' . ($r->tujuan ?? '')] ?? null;
 
-        if ($g && trim((string) $r->no_shipment) !== '') {
-            // GANTI: seluruh perhitungan totalan grup dipindah ke applyGroupTotals()
-            $this->applyGroupTotals($r, $g, $shipOpt);
-        }
-
-        $data[] = $this->renderRowColumns($r, $lists);
+    if ($g && trim((string) $r->no_shipment) !== '') {
+        $this->applyGroupTotals($r, $g, $shipOpt);
     }
 
+    $key = strtoupper(trim((string) $r->planner))
+        . '|' . ($r->tanggal_shipment ? date('Y-m-d', strtotime($r->tanggal_shipment)) : '')
+        . '|' . (int) $this->gudangSelesai($r);
+
+    $cacheBlok[$key] ??= $this->pesanUrutan($r) ?? false;
+
+    $cols = $this->renderRowColumns($r, $lists);
+
+    if ($cacheBlok[$key]) {
+        $cols = array_map(fn($c) => is_string($c)
+            ? str_replace(['<input ', '<select '], ['<input disabled ', '<select disabled '], $c)
+            : $c, $cols);
+        $cols[0] .= '<div class="badge red" title="' . e($cacheBlok[$key]) . '">🔒 Isi tanggal Shipment Sebelumnya</div>';
+    }
+
+    $data[] = $cols;
+}
     return response()->json([
         'draw'            => $draw,
         'recordsTotal'    => $totalRecords,
@@ -1224,7 +1333,9 @@ $roInput = fn($name, $value, $cls = '') =>
 // 2
 '<span class="fw-medium">' . e($r->no_shipment) . '</span>'
 . '<input type="hidden" ' . $formAttr . ' name="no_shipment" value="' . e($r->no_shipment) . '">',
-            // 3-14 tanggal
+// tanggal shipment (hanya tampil, tidak bisa diedit)
+'<span class="fw-medium">' . ($r->tanggal_shipment ? date('d-m-Y', strtotime($r->tanggal_shipment)) : '-') . '</span>',           
+// 3-14 tanggal
            // tanggal umum
 $dateInput('tanggal_naik_logistik', $r->tanggal_naik_logistik),
 $dateInput('rencana_kirim', $r->rencana_kirim),
@@ -2135,36 +2246,43 @@ foreach (self::GUDANG as $s => $nama) {
     ->distinct()->orderBy('dist_channel')->pluck('dist_channel');
     return view('planner.in_gudang', compact('list', 'summary', 'areaList', 'plannerList', 'channelList'));
 }
-
-public function importDates()
+public function importDates(Request $request)
 {
-    $rows = DB::table('logistik_pengiriman')
-        ->whereNotNull('create_tgl')
-        ->selectRaw('DATE(create_tgl) AS tgl, COUNT(*) AS total')
-        ->groupByRaw('DATE(create_tgl)')
-        ->orderByRaw('DATE(create_tgl) DESC')
+    // 1 baris wakil (MIN id) per no_shipment, tujuan tidak ikut dihitung
+    $q = DB::table('logistik_pengiriman')
+        ->whereIn('id', function ($sub) {
+            $sub->from('logistik_pengiriman')
+                ->selectRaw('MIN(id)')
+                ->groupByRaw(self::SHIPMENT_KEY);
+        })
+        ->whereNotNull('tanggal_shipment');
+
+    if ($vals = $this->multiInput($request, 'planner_filter')) {
+        $q->whereIn('planner', $vals);
+    }
+    if ($vals = $this->multiInput($request, 'area_filter')) {
+        $q->whereIn('area', $vals);
+    }
+    if ($vals = $this->multiInput($request, 'dist_channel_filter')) {
+        $q->whereIn('dist_channel', $vals);
+    }
+
+    $sel = $this->selesaiGudangSql();
+
+    $rows = $q->selectRaw(
+            "DATE(tanggal_shipment) AS tgl, COUNT(*) AS total, "
+            . "SUM(CASE WHEN {$sel} = 0 THEN 1 ELSE 0 END) AS belum"
+        )
+        ->groupByRaw('DATE(tanggal_shipment)')
+        ->orderByRaw('DATE(tanggal_shipment) DESC')
         ->get();
 
-    // hasil: { "2026-10-09": 120, "2026-10-05": 87, ... }
-    return response()->json($rows->pluck('total', 'tgl'));
-}
-public function exportPlanner(Request $request)
-{
-    $filters = [
-        'planner'      => $this->multiInput($request, 'planner', 'planner_filter'),
-        'area'         => $this->multiInput($request, 'area', 'area_filter'),
-        'dist_channel' => $this->multiInput($request, 'dist_channel', 'dist_channel_filter'),
-        'create_tgl'   => $request->input('create_tgl', $request->input('create_tgl_filter')),
-        'bulan'        => $request->input('bulan'),
-        'tahun'        => $request->input('tahun'),
-    ];
-
-    return Excel::download(
-        new PlannerExport(array_filter($filters)),
-        'Planner_' . date('Ymd_His') . '.xlsx'
+    return response()->json(
+        $rows->mapWithKeys(fn($r) => [
+            $r->tgl => ['total' => (int) $r->total, 'belum' => (int) $r->belum],
+        ])
     );
-}
-    public function armadaDelay(Request $request)
+}    public function armadaDelay(Request $request)
     {
         // GANTI: DB::table('logistik_pengiriman') -> 1 baris per no_shipment + tujuan
         $query = $this->repQuery()

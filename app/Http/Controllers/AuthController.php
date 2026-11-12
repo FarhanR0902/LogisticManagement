@@ -56,10 +56,9 @@ class AuthController extends Controller
          'manager' => redirect()->route('gabungan.dashboard'),
 'sales'   => redirect()->route('sales.gabungan.dashboard'),
 
-            'spvplanner' => redirect('/spvplanner/dashboard'),
+        'spvplanner'    => redirect()->route('spvplanner.gabungan.dashboard'),
 
-            'spvmonitoring' => redirect('/spvmonitoring/dashboard'),
-
+'spvmonitoring' => redirect()->route('spvmonitoring.gabungan.dashboard'),
             'developer' => redirect('/developer/dashboard'),
 
             'cmd' => redirect()->route('cmd.dashboard'),

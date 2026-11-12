@@ -15,6 +15,8 @@ class GabunganController extends Controller
     protected string $listRoute      = 'manager.gabungan.list';
     protected string $inTransitRoute = 'manager.gabungan.intransit';
     protected string $dataRoute      = 'manager.gabungan.data';
+    protected string $plannerRoute    = 'planner.datalogistik';
+protected string $monitoringRoute = 'monitoring.datalogistik';
 
     /**
      * Dipakai subclass: false = scope periode dimatikan (In Transit).
@@ -598,7 +600,46 @@ public function dataGabunganAjax(Request $request)
                 DB::raw("SUM(CASE WHEN NULLIF(TRIM(tanggal_tiba), '') IS NULL AND estimasi_tiba IS NOT NULL AND DATE(estimasi_tiba) < CURDATE() THEN 1 ELSE 0 END) as total_lewat_estimasi")
             )->whereNotNull('pic_monitoring')->where('pic_monitoring', '!=', '')
             ->groupBy('pic_monitoring')->orderByDesc('total')->get();
+         // ---- ALERT per periode_shipment ----
+$filled = fn($c) => "NULLIF(TRIM({$c}), '') IS NOT NULL";
+$empty  = fn($c) => "NULLIF(TRIM({$c}), '') IS NULL";
 
+// Gudang TERAKHIR = urutan tertinggi (_5 -> utama) yang sudah ada planning_loading / tanggal_tiba_gudang.
+// Hasil = 1 kalau tanggal_keluar_gudang di gudang itu masih kosong.
+// Kalau belum masuk gudang mana pun -> 0 (belum jadi tanggung jawab input keluar gudang).
+// Gudang TERAKHIR = urutan tertinggi (_5 -> utama) yang sudah ada isinya
+// (planning_loading / tanggal_tiba_gudang / tanggal_keluar_gudang).
+// Hasil = 1 kalau tanggal_keluar_gudang di gudang itu masih kosong.
+// Belum ada gudang terisi sama sekali = keluar gudang pasti belum diinput -> 1.
+$lastKeluarKosong = $this->lastKeluarKosongSql();
+$alertPerPeriode = function (string $kolom, callable $kondisi) use ($grouped) {
+    $q = (clone $grouped)
+        ->selectRaw("{$kolom} AS nama, periode_shipment, COUNT(*) AS total")
+        ->whereNotNull($kolom)->where($kolom, '!=', '');
+
+    return $kondisi($q)
+        ->groupBy($kolom, 'periode_shipment')
+        ->orderByRaw('RIGHT(periode_shipment, 4), LEFT(periode_shipment, 2)')
+        ->get()
+        ->groupBy('nama');
+};
+
+// PLANNER: keluar gudang terakhir belum diinput
+$alert_planner = $alertPerPeriode('planner', fn($q) => $q->whereRaw("({$lastKeluarKosong}) = 1"));
+
+// PIC MONITORING: tanggal_tiba belum diinput
+// PIC MONITORING (1): belum input sama sekali (belum keluar gudang & belum ada tgl tiba)
+$alert_pic_belum = $alertPerPeriode('pic_monitoring', fn($q) => $q
+    ->whereRaw($empty('tanggal_tiba'))
+    ->whereRaw("({$lastKeluarKosong}) = 1"));
+
+// PIC MONITORING (2): sudah ada tanggal_keluar_gudang terakhir, tapi tgl tiba belum diinput
+$alert_pic_sudah = $alertPerPeriode('pic_monitoring', fn($q) => $q
+    ->whereRaw($empty('tanggal_tiba'))
+    ->whereRaw("({$lastKeluarKosong}) = 0"));
+// kalau monitoring mau beda definisi, ganti argumen kedua, contoh:
+// $alert_pic = $alertPerPeriode('pic_monitoring', fn($q) => $q->whereRaw($empty('tanggal_tiba')));
+// $alert_pic = $alertPerPeriode('pic_monitoring', fn($q) => $q->whereRaw($empty('tanggal_tiba')));
         return view($this->dashboardView, compact(
             'total_data', 'summary_planner', 'summary_pic_monitoring',
             'gudang_ontime', 'gudang_delay', 'total_in_transit', 'total_sla_delay',
@@ -607,10 +648,12 @@ public function dataGabunganAjax(Request $request)
             'ekspedisi', 'label', 'value',
             'planner_ontime', 'planner_delay', 'planner_armada', 'planner_belum_armada',
             'ontime_rate', 'delay_rate', 'armada_rate', 'pending_rate',
-            'summary_monitoring', 'list_dist_channel', 'list_area'
+           'summary_monitoring', 'list_dist_channel', 'list_area', 'alert_planner', 'alert_pic_belum', 'alert_pic_sudah'
         ))->with([
             'listRoute'      => $this->listRoute,
             'inTransitRoute' => $this->inTransitRoute,
+            'plannerRoute'    => $this->plannerRoute,
+'monitoringRoute' => $this->monitoringRoute,
             'dataRoute'      => $this->dataRoute,
         ]);
     }
@@ -998,4 +1041,58 @@ public function detail(Request $request)
         return $this->src()->select('area')->whereNotNull('area')
             ->groupBy('area')->orderBy('area')->get();
     }
+    /** Rumus "keluar gudang di gudang terakhir belum diinput" (dipakai dashboard & halaman alert) */
+private function lastKeluarKosongSql(): string
+{
+    $filled = fn($c) => "NULLIF(TRIM({$c}), '') IS NOT NULL";
+    $empty  = fn($c) => "NULLIF(TRIM({$c}), '') IS NULL";
+
+    $sql = 'CASE ';
+    foreach (array_reverse(self::GUDANG) as $s) {
+        $sql .= 'WHEN (' . $filled('planning_loading' . $s)
+            . ' OR ' . $filled('tanggal_tiba_gudang' . $s)
+            . ' OR ' . $filled('tanggal_keluar_gudang' . $s)
+            . ') THEN (' . $empty('tanggal_keluar_gudang' . $s) . ') ';
+    }
+    return $sql . 'ELSE 1 END';
+}
+
+/** Daftar baris di balik badge alert (angka sama persis dengan dashboard) */
+public function alertList(Request $request, string $tipe)
+{
+  abort_unless(in_array($tipe, ['planner', 'monitoring_belum', 'monitoring_sudah'], true), 404);
+    $this->normalizeRequest($request);
+
+    $base    = $this->applyFilter($this->src(), $request);
+    $grouped = $this->src()->whereIn('id', $this->groupIdsQuery($base));
+
+  $kolom = $tipe === 'planner' ? 'planner' : 'pic_monitoring';
+    $nama  = (string) $request->input('nama');
+    $q     = $grouped->where($kolom, $nama);
+
+    $periode = (string) $request->input('periode_shipment');
+    if ($periode === 'KOSONG') {
+        $q->where(fn($x) => $x->whereNull('periode_shipment')->orWhere('periode_shipment', ''));
+    } elseif ($periode !== '') {
+        $q->where('periode_shipment', $periode);
+    }
+
+  $lk = $this->lastKeluarKosongSql();
+match ($tipe) {
+    'planner'          => $q->whereRaw("({$lk}) = 1"),
+    'monitoring_belum' => $q->whereRaw("NULLIF(TRIM(tanggal_tiba), '') IS NULL")->whereRaw("({$lk}) = 1"),
+    'monitoring_sudah' => $q->whereRaw("NULLIF(TRIM(tanggal_tiba), '') IS NULL")->whereRaw("({$lk}) = 0"),
+};
+
+    $rows = $q->orderBy('sumber')->orderBy('no_shipment')->orderBy('tujuan')
+        ->paginate(50)->withQueryString();
+
+    return view('gabungan.alert_list', [
+        'rows'    => $rows,
+        'tipe'    => $tipe,
+        'nama'    => $nama,
+        'periode' => $periode,
+        'gudang'  => self::GUDANG,
+    ]);
+}
 }

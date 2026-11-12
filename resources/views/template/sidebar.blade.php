@@ -77,85 +77,58 @@ $currentRoute = request()->route()->getName() ?? '';
         {{-- ================= SPV PLANNER ================= --}}
         @if($role === 'spvplanner' || $role === 'developer')
 
+<li>
+    <a href="{{ route('spvplanner.gabungan.dashboard') }}"
+        class="{{ request()->routeIs('spvplanner.gabungan.*') || request()->routeIs('spvplanner.dashboard*') ? 'active' : '' }}">
+        <span>📊 Dashboard Gabungan</span>
+    </a>
+</li>
 
+<li>
+    <a href="{{ route('spvplanner.tarif.index') }}"
+        class="{{ request()->routeIs('spvplanner.tarif.*') ? 'active' : '' }}">
+        <span>💰 Tarif Pengiriman</span>
+    </a>
+</li>
+
+<li>
+    <a href="{{ route('spvplanner.tujuan.index') }}"
+        class="{{ request()->routeIs('spvplanner.tujuan.*') ? 'active' : '' }}">
+        <span>📍 Tujuan Filter</span>
+    </a>
+</li>
+
+<li>
+    <a href="javascript:void(0)"
+        onclick="toggleSubmenu('dataLogistikSubmenu', this)"
+        class="submenu-toggle {{ request()->routeIs('spvplanner.data*') ? 'active' : '' }}">
+        <span>📋 Data Logistik</span>
+        <i class="arrow {{ request()->routeIs('spvplanner.data*') ? 'open' : '' }}">▾</i>
+    </a>
+
+    <ul class="submenu" id="dataLogistikSubmenu"
+        style="display: {{ request()->routeIs('spvplanner.data*') ? 'block' : 'none' }};">
+        <li><a href="{{ route('full.data.logistik') }}">📋 Full Data Logistik Jakarta</a></li>
         <li>
-            <a href="javascript:void(0)"
-                onclick="toggleSubmenu('dashboardSubmenu', this)"
-                class="submenu-toggle {{ request()->routeIs('spvplanner.dashboard*') ? 'active' : '' }}">
-                <span>📊 Dashboard</span>
-                <i class="arrow {{ request()->routeIs('spvplanner.dashboard*') ? 'open' : '' }}">▾</i>
-            </a>
-
-            <ul class="submenu" id="dashboardSubmenu"
-                style="display: {{ request()->routeIs('spvplanner.dashboard*') ? 'block' : 'none' }};">
-
-                <li>
-                    <a href="{{ route('spvplanner.full.dashboard') }}"
-                        class="{{ request()->routeIs('spvplanner.full.dashboard') ? 'active' : '' }}">
-                        🏢 Dashboard Jakarta
-                    </a>
-                </li>
-
-                <li>
-                    <a href="{{ route('spvplanner.dashboard.pasuruan') }}"
-                        class="{{ request()->routeIs('spvplanner.dashboard.pasuruan') ? 'active' : '' }}">
-                        🏭 Dashboard Pasuruan
-                    </a>
-                </li>
-
-            </ul>
-        </li>
-
-        <li class="nav-item">
-            <a href="{{ route('spvplanner.tarif.index') }}"
-                class="nav-link">
-
-                <i class="nav-icon fas fa-money-bill-wave"></i>
-
-                <p>
-                    Tarif Pengiriman
-                </p>
-
+            <a href="{{ route('spvplanner.data.pasuruan') }}"
+                class="{{ request()->routeIs('spvplanner.data.pasuruan') ? 'active' : '' }}">
+                🏭 Full Data Logistik Pasuruan
             </a>
         </li>
-        <li class="nav-item">
-            <a href="{{ route('spvplanner.tujuan.index') }}"
-                class="{{ request()->routeIs('spvplanner.tujuan.*') ? 'active' : '' }}">
-                <span>📍 Tujuan Filter</span>
-            </a>
-        </li>
-        <li>
-            <a href="javascript:void(0)"
-                onclick="toggleSubmenu('dataLogistikSubmenu', this)"
-                class="submenu-toggle {{ request()->routeIs('spvplanner.data*') ? 'active' : '' }}">
-                <span>📋 Data Logistik</span>
-                <i class="arrow {{ request()->routeIs('spvplanner.data*') ? 'open' : '' }}">▾</i>
-            </a>
+    </ul>
+</li>
 
-            <ul class="submenu" id="dataLogistikSubmenu"
-                style="display: {{ request()->routeIs('spvplanner.data*') ? 'block' : 'none' }};">
-                <li><a href="{{ route('full.data.logistik') }}">📋 Full Data Logistik Jakarta</a></li>
-                <li>
-                    <a href="{{ route('spvplanner.data.pasuruan') }}"
-                        class="{{ request()->routeIs('spvplanner.data.pasuruan') ? 'active' : '' }}">
-                        🏭 Full Data Logistik Pasuruan
-                    </a>
-                </li>
+<li>
+    <a href="{{ route('spvplanner.datalogistik', request()->query()) }}">
+        🗂️ Data Planner
+    </a>
+</li>
 
-            </ul>
-        </li>
-
-        <li>
-            <a href="{{ route('spvplanner.datalogistik', request()->query()) }}">
-                🗂️ Data Planner
-            </a>
-        </li>
-
-        <li>
-            <a href="{{ route('spvplanner.sla.ontime', request()->query()) }}">
-                ✅ Sudah Tiba Di Gudang
-            </a>
-        </li>
+<li>
+    <a href="{{ route('spvplanner.sla.ontime', request()->query()) }}">
+        ✅ Sudah Tiba Di Gudang
+    </a>
+</li>
 
         <li>
             <a href="{{ route('spvplanner.sla.delay', request()->query()) }}">
@@ -172,7 +145,7 @@ $currentRoute = request()->route()->getName() ?? '';
         <li>
             <a href="{{ route('spvplanner.belum.armada', request()->query()) }}">
                 ⏳ Belum Dapat Armada
-            </a>
+            </a>    
         </li>
         <li>
     <a href="{{ route('spvplanner.kpi.planner') }}"
@@ -238,19 +211,12 @@ $currentRoute = request()->route()->getName() ?? '';
                 style="display: {{ request()->routeIs('spvmonitoring.dashboard*') ? 'block' : 'none' }};">
 
 
-                <li>
-                    <a href="{{ route('spvmonitoring.full.dashboard') }}"
-                        class="{{ request()->routeIs('spvmonitoring.full.dashboard') ? 'active' : '' }}">
-                        🏢 Dashboard Jakarta
-                    </a>
-                </li>
-
-                <li>
-                    <a href="{{ route('spvmonitoring.dashboard.pasuruan') }}"
-                        class="{{ request()->routeIs('spvmonitoring.dashboard.pasuruan') ? 'active' : '' }}">
-                        🏭 Dashboard Pasuruan
-                    </a>
-                </li>
+                     <li>
+            <a href="{{ route('spvmonitoring.gabungan.dashboard') }}"
+                class="{{ request()->routeIs('spvmonitoring.gabungan.*') ? 'active' : '' }}">
+                📊 Dashboard Gabungan
+            </a>
+        </li>
 
             </ul>
         </li>
