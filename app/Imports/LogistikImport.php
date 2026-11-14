@@ -7,6 +7,7 @@ use Illuminate\Support\Collection;
 use Maatwebsite\Excel\Concerns\ToCollection;
 use Maatwebsite\Excel\Concerns\WithHeadingRow;
 use Maatwebsite\Excel\Concerns\WithCalculatedFormulas;
+use Maatwebsite\Excel\Concerns\WithChunkReading;
 use Maatwebsite\Excel\Concerns\WithEvents;
 use Maatwebsite\Excel\Events\AfterImport;
 use PhpOffice\PhpSpreadsheet\Shared\Date;
@@ -15,33 +16,42 @@ use PhpOffice\PhpSpreadsheet\Shared\Date;
  * Import data shipment (utamanya shipment BARU).
  *
  * Aturan:
- *  - 1 baris Excel = 1 DO. Kunci baris: no_shipment + tujuan + no_do.
- *  - Baris yang SUDAH ada di DB: kolom input user TIDAK ditimpa (hanya diisi kalau kosong),
- *    kecuali kolom di ALWAYS_OVERWRITE (data per DO + angka dari Excel).
+ *  - 1 baris Excel = 1 DO. Kunci baris: no_do (kalau kosong: no_shipment + tujuan).
+ *  - MODE DEFAULT (skipExisting = true):
+ *      * no_do yang SUDAH ada di DB dilewati total (tidak diproses, tidak diupdate, tidak dobel).
+ *      * no_do yang BELUM ada di DB di-insert (batch). Cocok untuk upload berulang tgl 1, 1-2, 1-2-3.
+ *      * Baris lama yang no_do-nya masih kosong (data lama) dicocokkan lewat no_shipment + tujuan,
+ *        lalu diisi lewat jalur update lama (supaya tidak jadi duplikat).
+ *  - MODE UPDATE (skipExisting = false): perilaku lama.
+ *      * Baris yang SUDAH ada: kolom input user TIDAK ditimpa (hanya diisi kalau kosong),
+ *        kecuali kolom di ALWAYS_OVERWRITE (data per DO + angka dari Excel).
  *  - Nilai kosong di Excel tidak pernah menimpa data lama.
  *  - kirim_kontribusi di Excel = biaya 1 mobil per no_shipment (diulang di banyak baris tidak masalah,
  *    dihitung 1x). Dibagi ke tiap DO berdasarkan total_kubik.
  *  - biaya_kirim per tujuan = SUM kirim_kontribusi DO di tujuan itu.
- *  - cr, hasil_kubik, hasil_tonase, pengiriman_optimal dihitung ulang setelah import.
+ *  - cr, hasil_kubik, hasil_tonase, pengiriman_optimal dihitung ulang setelah import,
+ *    HANYA untuk shipment yang kena baris baru / diubah.
  *
- * PERFORMA (target ~5000 baris):
- *  - save(): baris DB per no_shipment di-load SEKALI lalu dicocokkan di PHP ($shipCache),
- *    bukan 3-4 query per baris Excel.
- *  - fillAreaAndPlannerGaps(): UPDATE planner/pic digabung pakai CASE (bukan 2 UPDATE per area).
- *  - findTarif(): warning "tarif tidak ditemukan" cuma di-log 1x per kombinasi.
- *  - Wajib ada index di logistik_pengiriman(no_shipment) -> lihat migration add_shipment_index.
+ * PERFORMA (target 10.000 - 15.000 baris):
+ *  - File dibaca per 1000 baris (WithChunkReading), tidak dimuat sekaligus.
+ *  - no_do yang sudah ada dimuat 1x ke memori; baris duplikat dilewati sebelum diproses.
+ *  - Insert per batch (300 baris), bukan satu-satu.
+ *  - Hasil lookup tarif (nama mobil lengkap + kubikasi + tonase) di-cache per route|ekspedisi|mobil.
+ *  - Hitung ulang di AfterImport hanya untuk shipment yang tersentuh.
+ *  - Wajib ada index: logistik_pengiriman(no_shipment), (no_do), (periode_shipment).
  */
-class LogistikImport implements ToCollection, WithHeadingRow, WithEvents, WithCalculatedFormulas
+class LogistikImport implements ToCollection, WithHeadingRow, WithEvents, WithCalculatedFormulas, WithChunkReading
 {
-
-
     private const TABLE       = 'logistik_pengiriman';
     private const TARIF_TABLE = 'tarif_pengiriman';
+
+    // jumlah baris per batch insert
+    private const INSERT_BATCH = 300;
 
     // kolom yang tidak pernah diisi dari Excel
     private const SKIP_COLUMNS = ['id', 'created_at', 'updated_at'];
 
-    // pada baris yang SUDAH ada, hanya kolom ini yang boleh menimpa nilai lama
+    // pada baris yang SUDAH ada (mode update), hanya kolom ini yang boleh menimpa nilai lama
     private const ALWAYS_OVERWRITE = [
         'no_shipment',
         'tujuan',
@@ -148,13 +158,13 @@ class LogistikImport implements ToCollection, WithHeadingRow, WithEvents, WithCa
     private static $customerMap    = null;   // tujuan => row         (cadangan)
     private static $customerByCode = null;   // "code|tujuan" => row  (prioritas)
     private static $tarifByRoute   = null;   // route => rows tarif
+    private static $mobilMaster    = null;   // semua nama mobil lengkap di master tarif
 
     private array $allColumns = [];
     private array $dbColumns  = [];        // [kolom => tipe], tanpa SKIP_COLUMNS
     private ?array $map = null;            // [header => [kolom, kind]]
     private bool $hasCreatedAt = false;
     private bool $hasUpdatedAt = false;
-    private static $mobilMaster = null;   // semua nama mobil lengkap di master tarif
 
     // forward-fill (sel merge di Excel)
     private $lastNoShipmentRaw = null;
@@ -164,12 +174,27 @@ class LogistikImport implements ToCollection, WithHeadingRow, WithEvents, WithCa
     private $lastEkpedisi      = null;
     private array $ekspedisiResolved = [];
 
-    // cache baris DB per no_shipment (diisi 1x per shipment, dijaga tetap sinkron saat insert/update)
+    // cache baris DB per no_shipment (dipakai jalur update lama)
     private array $shipCache = [];
 
     // kombinasi route|ekspedisi|mobil yang tarifnya tidak ketemu (supaya log cuma 1x)
     private array $tarifWarned = [];
 
+    // cache hasil tarif: "route|ekspedisi|mobil" => [mobil lengkap, kubikasi, tonase]
+    private array $tarifMemo = [];
+
+    // ===== mode skip data yang sudah ada =====
+    private bool $skipExisting;
+    private array $doSet     = [];   // no_do (lowercase) yang sudah ada di DB / sudah muncul di file
+    private array $legacySet = [];   // "no_shipment|tujuan" baris lama yang no_do-nya KOSONG
+    private array $insertBuf = [];   // signature kolom => baris yang antre insert
+    private array $touched   = [];   // no_shipment yang ditambah / diubah (untuk hitung ulang)
+    private int $skippedExisting = 0;
+private array $shipSet      = [];   // no_shipment yang sudah ada di DB sebelum import (mode skip)
+private array $shipHadRows  = [];   // mode update: shipment yang sudah punya baris sebelum import
+private array $changeLog    = [];   // "shipment|tujuan" => detail perubahan
+private int $unchanged      = 0;
+private array $byDate = [];   // 'Y-m-d' => [baru, diperbarui, tidak_berubah, sudah_ada]
     // no_shipment => [no_shipment, biaya 1 mobil]  (diambil dari baris PERTAMA yang terisi)
     private array $groupBiaya    = [];
     // no_shipment => true kalau angka biaya di Excel beda-beda dalam 1 shipment
@@ -202,12 +227,15 @@ class LogistikImport implements ToCollection, WithHeadingRow, WithEvents, WithCa
     {
         return $this->skipped;
     }
+    /** jumlah baris yang dilewati karena no_do-nya sudah ada di DB */
+    public function getSkippedExistingCount(): int
+    {
+        return $this->skippedExisting;
+    }
     public function getFailedCount(): int
     {
         return $this->failed;
     }
-
-
     public function getFailedList(): array
     {
         return $this->failedList;
@@ -233,8 +261,65 @@ class LogistikImport implements ToCollection, WithHeadingRow, WithEvents, WithCa
         return array_map('strval', array_keys($this->biayaConflict));
     }
 
-    public function __construct()
+    // ===== TAMBAHAN BARU: mulai =====
+ public function getChangeLog(): array
+{
+    return array_values(array_map(function ($c) {
+        $alasan = [];
+
+        if (!empty($c['do_baru'])) {
+            $alasan[] = 'DO baru ditambah: ' . implode(', ', $c['do_baru']);
+        }
+
+        foreach ($c['kolom'] as $col => $pair) {
+            [$old, $new] = $pair;
+            $o = ($old === null || trim((string) $old) === '') ? 'kosong' : (string) $old;
+            $alasan[] = $col . ' (' . $o . ' → ' . (string) $new . ')';
+        }
+
+        $c['alasan'] = $alasan;
+        return $c;
+    }, $this->changeLog));
+}
+
+    public function getUnchangedCount(): int
     {
+        return $this->unchanged;
+    }
+    public function getByDate(): array
+{
+    ksort($this->byDate);
+
+    $out = [];
+    foreach ($this->byDate as $tgl => $c) {
+        $out[] = ['tanggal' => $tgl] + $c;
+    }
+    return $out;
+}
+
+private function countDate(string $type, ?string $tgl): void
+{
+    $tgl = $tgl ?: '(tanpa tanggal)';
+
+    $this->byDate[$tgl] ??= ['baru' => 0, 'diperbarui' => 0, 'tidak_berubah' => 0, 'sudah_ada' => 0];
+    $this->byDate[$tgl][$type]++;
+}
+    // ===== TAMBAHAN BARU: selesai =====
+
+    /** baca file per 1000 baris supaya memori aman untuk 10.000+ baris */
+    public function chunkSize(): int
+    {
+        return 1000;
+    }
+
+    /**
+     * @param bool $skipExisting true  = lewati no_do yang sudah ada di DB (default)
+     *                           false = mode update lama (isi kolom kosong + ALWAYS_OVERWRITE)
+     */
+    public function __construct(bool $skipExisting = true)
+    {
+        $this->skipExisting = $skipExisting;
+
         foreach (DB::select('SHOW COLUMNS FROM `' . self::TABLE . '`') as $c) {
             $this->allColumns[] = $c->Field;
 
@@ -245,6 +330,10 @@ class LogistikImport implements ToCollection, WithHeadingRow, WithEvents, WithCa
 
         $this->hasCreatedAt = in_array('created_at', $this->allColumns, true);
         $this->hasUpdatedAt = in_array('updated_at', $this->allColumns, true);
+
+        if ($this->skipExisting) {
+            $this->loadExisting();
+        }
 
         if (self::$customerMap === null) {
             $rows = DB::table('tujuanfillterr')
@@ -275,12 +364,6 @@ class LogistikImport implements ToCollection, WithHeadingRow, WithEvents, WithCa
                     self::$customerByCode[$code . '|' . $t] ??= $r;
                 }
             }
-            if (self::$mobilMaster === null) {
-                self::$mobilMaster = DB::table(self::TARIF_TABLE)
-                    ->whereNotNull('mobil')->where('mobil', '!=', '')
-                    ->distinct()->pluck('mobil')->all();
-            }
-
 
             // peta area -> planner & PIC (paling sering muncul di master)
             $tally = [];
@@ -310,6 +393,7 @@ class LogistikImport implements ToCollection, WithHeadingRow, WithEvents, WithCa
                 self::$areaMap[$a] ??= ['planner' => null, 'pic' => $pic];
             }
         }
+
         if (self::$mobilMaster === null) {
             self::$mobilMaster = DB::table(self::TARIF_TABLE)
                 ->whereNotNull('mobil')->where('mobil', '!=', '')
@@ -324,7 +408,46 @@ class LogistikImport implements ToCollection, WithHeadingRow, WithEvents, WithCa
         }
     }
 
+    // =========================================================
+    // DETEKSI DATA YANG SUDAH ADA
+    // =========================================================
 
+    /** muat semua no_do yang sudah ada di DB (sekali, per 5000 baris) */
+    private function loadExisting(): void
+    {
+        DB::table(self::TABLE)
+            ->select('id', 'no_do', 'no_shipment', 'tujuan')
+            ->chunkById(5000, function ($rows) {
+                foreach ($rows as $r) {
+                    $do = mb_strtolower(trim((string) $r->no_do));
+                    $this->shipSet[mb_strtolower(trim((string) $r->no_shipment))] = true;
+
+                    if ($do !== '') {
+                        $this->doSet[$do] = true;
+                    } else {
+                        $this->legacySet[$this->legacyKey($r->no_shipment, $r->tujuan)] = true;
+                    }
+                }
+            }, 'id');
+    }
+
+    private function legacyKey($shipment, $tujuan): string
+    {
+        return mb_strtolower(trim((string) $shipment)) . '|' . mb_strtolower(trim((string) $tujuan));
+    }
+
+    /** baris yang dilewati tetap harus mewariskan route/mobil/ekspedisi (sel merge di Excel) */
+    private function rememberForwardFill(array $row, string $noShipment): void
+    {
+        if ($noShipment !== $this->lastNoShipment) {
+            $this->lastRoute = $this->lastMobil = $this->lastEkpedisi = null;
+            $this->lastNoShipment = $noShipment;
+        }
+
+        if ($v = $this->cleanText($row['route'] ?? null))    $this->lastRoute    = $this->applyRouteAlias($v);
+        if ($v = $this->cleanText($row['mobil'] ?? null))    $this->lastMobil    = $v;
+        if ($v = $this->cleanText($row['ekpedisi'] ?? null)) $this->lastEkpedisi = $v;
+    }
 
     private function normTujuan(?string $value): string
     {
@@ -332,7 +455,6 @@ class LogistikImport implements ToCollection, WithHeadingRow, WithEvents, WithCa
         return preg_replace('/\s+/', ' ', strtolower(trim($value)));
     }
 
-    /** Lengkapi nama mobil yang terpotong. Hanya kalau cocok ke tepat 1 nama di master. */
     /** Lengkapi nama mobil terpotong. Cari berurutan: ekspedisi+route -> route -> semua master. */
     private function completeMobilName(?string $mobil, ?string $route = null, ?string $ekpedisi = null): ?string
     {
@@ -366,6 +488,7 @@ class LogistikImport implements ToCollection, WithHeadingRow, WithEvents, WithCa
 
         return $mobil;
     }
+
     // =========================================================
     // IMPORT PER BARIS
     // =========================================================
@@ -408,12 +531,40 @@ class LogistikImport implements ToCollection, WithHeadingRow, WithEvents, WithCa
                 continue;
             }
 
+            $noDo  = $this->cleanText($row['no_do'] ?? null);
+            $doKey = $noDo !== null ? mb_strtolower(trim($noDo)) : null;
+
+            // SUDAH ADA di DB (atau sudah muncul di file ini) -> lewati total
+// SUDAH ADA di DB (atau sudah muncul di file ini) -> lewati total
+if ($this->skipExisting && $doKey !== null && isset($this->doSet[$doKey])) {
+    $this->skippedExisting++;
+    $this->countDate('sudah_ada', $this->convertDateUs($row['tanggal_shipment'] ?? null));
+    $this->rememberForwardFill($row, $noShipment);
+    continue;
+}
+
             $this->allNoShipmentInFile[] = $noShipment;
 
             try {
-                $noDo  = $this->cleanText($row['no_do'] ?? null);
                 $attrs = $this->buildAttributes($row, $noShipment, $tujuan);
-                $this->save($noShipment, $tujuan, $noDo, $attrs);
+
+                $legacy = $this->skipExisting
+                    && isset($this->legacySet[$this->legacyKey($noShipment, $tujuan)]);
+
+                if (!$this->skipExisting || $legacy) {
+                    // mode update, atau baris lama yang no_do-nya masih kosong -> jalur lama
+                    $this->flushInsert();
+                    unset($this->shipCache[$noShipment]);
+                    $this->save($noShipment, $tujuan, $noDo, $attrs);
+                } else {
+                    $this->queueInsert($noShipment, $tujuan, $noDo, $attrs);
+                }
+
+                $this->touched[$noShipment] = true;
+
+                if ($doKey !== null) {
+                    $this->doSet[$doKey] = true;   // cegah duplikat di dalam file yang sama
+                }
             } catch (\Throwable $e) {
                 $this->failed++;
                 $this->failedList[] = [
@@ -433,6 +584,9 @@ class LogistikImport implements ToCollection, WithHeadingRow, WithEvents, WithCa
             }
         }
 
+        // tulis sisa antrian insert di akhir tiap chunk
+        $this->flushInsert();
+
         if (!empty($this->ignoredHeaders)) {
             logger()->info('LOGISTIK IMPORT: header Excel tanpa kolom DB (diabaikan)', $this->getIgnoredHeaders());
         }
@@ -448,10 +602,134 @@ class LogistikImport implements ToCollection, WithHeadingRow, WithEvents, WithCa
     }
 
     // =========================================================
-    // SIMPAN (insert / update berdasarkan no_shipment + tujuan + no_do)
+    // BATCH INSERT (baris baru)
+    // =========================================================
+
+    /** antre insert; dikelompokkan per kumpulan kolom supaya aman untuk batch insert */
+    private function queueInsert(string $noShipment, string $tujuan, ?string $noDo, array $attrs): void
+    {
+        $attrs = $this->filterToColumns($attrs);
+
+        if (isset($this->dbColumns['no_shipment'])) $attrs['no_shipment'] = $noShipment;
+        if (isset($this->dbColumns['tujuan']))      $attrs['tujuan']      = $tujuan;
+        if ($noDo !== null && isset($this->dbColumns['no_do'])) $attrs['no_do'] = $noDo;
+if (isset($this->shipSet[mb_strtolower(trim($noShipment))])) {
+    $this->logChange($noShipment, $tujuan, 'do_baru', $noDo);
+}
+        $now = now();
+
+        // default hanya untuk baris BARU
+        if (isset($this->dbColumns['create_tgl'])) {
+            $attrs['create_tgl'] ??= $now->format('Y-m-d H:i:s');
+        }
+        if (isset($this->dbColumns['ketersediaan_unit'])) {
+            $attrs['ketersediaan_unit'] ??= 'BELUM DAPAT';
+        }
+        if ($this->hasCreatedAt) $attrs['created_at'] = $now;
+        if ($this->hasUpdatedAt) $attrs['updated_at'] = $now;
+$this->countDate('baru', $attrs['tanggal_shipment'] ?? null);
+        $sig = implode(',', array_keys($attrs));
+        $this->insertBuf[$sig][] = $attrs;
+
+        if (count($this->insertBuf[$sig]) >= self::INSERT_BATCH) {
+            $this->flushInsert($sig);
+        }
+    }
+    private function logChange(string $sh, string $tj, string $type, ?string $noDo = null, array $cols = []): void
+{
+    $k = mb_strtolower(trim($sh)) . '|' . mb_strtolower(trim($tj));
+
+    $this->changeLog[$k] ??= [
+        'no_shipment' => $sh,
+        'tujuan'      => $tj,
+        'do_baru'     => [],
+        'kolom'       => [],
+    ];
+
+    if ($type === 'do_baru') {
+        $this->changeLog[$k]['do_baru'][] = $noDo ?? '(tanpa No DO)';
+    }
+foreach ($cols as $c => $pair) {
+    $this->changeLog[$k]['kolom'][$c] = $pair;
+}
+}
+private function sameValue($a, $b, string $col = ''): bool
+{
+    $a = $a === null ? '' : trim((string) $a);
+    $b = $b === null ? '' : trim((string) $b);
+
+    if ($a === $b) return true;
+
+    // tanggal: abaikan jam 00:00:00
+    if (preg_match('/^\d{4}-\d{2}-\d{2}/', $a) && preg_match('/^\d{4}-\d{2}-\d{2}/', $b)) {
+        if (substr($a, 0, 10) === substr($b, 0, 10)
+            && (strlen($a) <= 10 || strlen($b) <= 10
+                || substr($a, 11) === substr($b, 11)
+                || substr($a, 11) === '00:00:00' || substr($b, 11) === '00:00:00')) {
+            return true;
+        }
+    }
+
+    // angka: uang 2 desimal, lainnya dibandingkan teliti
+    if (is_numeric($a) && is_numeric($b)) {
+        $tol = $col === 'nilai_muatan' ? 0.005 : 0.000001;
+        return abs((float) $a - (float) $b) < $tol;
+    }
+
+    return false;
+}
+
+    private function flushInsert(?string $only = null): void
+    {
+        foreach ($this->insertBuf as $sig => $rows) {
+            if ($only !== null && $sig !== $only) continue;
+
+            foreach (array_chunk($rows, self::INSERT_BATCH) as $chunk) {
+                try {
+                    DB::table(self::TABLE)->insert($chunk);
+                    $this->inserted += count($chunk);
+                } catch (\Throwable $e) {
+                    // 1 batch gagal -> coba satu-satu supaya baris yang bermasalah ketahuan
+                    foreach ($chunk as $r) {
+                        try {
+                            DB::table(self::TABLE)->insert($r);
+                            $this->inserted++;
+                        } catch (\Throwable $e2) {
+                            $this->failed++;
+                            $this->failedList[] = [
+                                'no_shipment' => $r['no_shipment'] ?? null,
+                                'tujuan'      => $r['tujuan'] ?? null,
+                                'error'       => $e2->getMessage(),
+                                'line'        => $e2->getLine(),
+                            ];
+
+                            logger()->error('LOGISTIK IMPORT GAGAL INSERT', [
+                                'no_shipment' => $r['no_shipment'] ?? null,
+                                'tujuan'      => $r['tujuan'] ?? null,
+                                'no_do'       => $r['no_do'] ?? null,
+                                'error'       => $e2->getMessage(),
+                            ]);
+
+                            // no_do gagal insert -> lepas dari daftar "sudah ada" agar boleh dicoba lagi
+                            if (!empty($r['no_do'])) {
+                                unset($this->doSet[mb_strtolower(trim((string) $r['no_do']))]);
+                            }
+                        }
+                    }
+                }
+            }
+
+            unset($this->insertBuf[$sig]);
+        }
+    }
+
+    // =========================================================
+    // SIMPAN JALUR LAMA (insert / update berdasarkan no_shipment + tujuan + no_do)
+    // Dipakai di mode update, dan untuk baris lama yang no_do-nya masih kosong.
     // =========================================================
     private function save(string $noShipment, string $tujuan, ?string $noDo, array $attrs): void
     {
+        $tglShip = $attrs['tanggal_shipment'] ?? null;
         $attrs = $this->filterToColumns($attrs);
 
         if (isset($this->dbColumns['no_shipment'])) $attrs['no_shipment'] = $noShipment;
@@ -469,6 +747,9 @@ class LogistikImport implements ToCollection, WithHeadingRow, WithEvents, WithCa
                 ->map(fn($r) => (array) $r)
                 ->all();
         }
+        if (!$this->skipExisting && !isset($this->shipHadRows[$noShipment])) {
+    $this->shipHadRows[$noShipment] = !empty($this->shipCache[$noShipment]);
+}
 
         $tKey  = mb_strtolower(trim($tujuan));
         $doKey = $noDo !== null ? mb_strtolower(trim($noDo)) : null;
@@ -493,31 +774,41 @@ class LogistikImport implements ToCollection, WithHeadingRow, WithEvents, WithCa
         }
         $idx ??= $fallback;
 
-        if ($idx !== null) {
-            // data input user JANGAN ditimpa: hanya isi kolom yang masih kosong,
-            // kecuali kolom per DO / angka (ALWAYS_OVERWRITE)
-            $existing   = $this->shipCache[$noShipment][$idx];
-            $existingId = $existing['id'];
+if ($idx !== null) {
+    $existing   = $this->shipCache[$noShipment][$idx];
+    $existingId = $existing['id'];
+    $changed    = [];
 
-            foreach ($attrs as $col => $v) {
-                if (in_array($col, self::ALWAYS_OVERWRITE, true)) continue;
-
-                $cur = $existing[$col] ?? null;
-                if ($cur !== null && trim((string) $cur) !== '') {
-                    unset($attrs[$col]);
-                }
-            }
-
-            if (!empty($attrs)) {
-                if ($this->hasUpdatedAt) $attrs['updated_at'] = $now;
-                DB::table(self::TABLE)->where('id', $existingId)->update($attrs);
-                $this->shipCache[$noShipment][$idx] = array_merge($existing, $attrs);
-            }
-
-            $this->updated++;
-            return;
+   foreach ($attrs as $col => $v) {
+    if (in_array($col, self::ALWAYS_OVERWRITE, true)) {
+if (!$this->sameValue($existing[$col] ?? null, $v, $col)) {
+            $changed[$col] = [$existing[$col] ?? null, $v];   // [lama, baru]
         }
+        continue;
+    }
 
+    $cur = $existing[$col] ?? null;
+    if ($cur !== null && trim((string) $cur) !== '') {
+        unset($attrs[$col]);                // sudah terisi, jangan ditimpa
+    } else {
+        $changed[$col] = [null, $v];        // tadinya kosong, sekarang diisi
+    }
+}
+if (empty($changed)) {
+    $this->unchanged++;
+    $this->countDate('tidak_berubah', $tglShip);
+    return;
+}
+
+    if ($this->hasUpdatedAt) $attrs['updated_at'] = $now;
+    DB::table(self::TABLE)->where('id', $existingId)->update($attrs);
+    $this->shipCache[$noShipment][$idx] = array_merge($existing, $attrs);
+
+    $this->logChange($noShipment, $tujuan, 'update', $noDo, $changed);
+    $this->countDate('diperbarui', $tglShip);
+    $this->updated++;
+    return;
+}
         // default hanya untuk baris BARU
         if (isset($this->dbColumns['create_tgl'])) {
             $attrs['create_tgl'] ??= $now->format('Y-m-d H:i:s');
@@ -527,7 +818,15 @@ class LogistikImport implements ToCollection, WithHeadingRow, WithEvents, WithCa
         }
         if ($this->hasCreatedAt) $attrs['created_at'] = $now;
         if ($this->hasUpdatedAt) $attrs['updated_at'] = $now;
+        $shipmentLama = isset($this->shipSet[mb_strtolower(trim($noShipment))])
+    || ($this->shipHadRows[$noShipment] ?? false);
 
+if ($shipmentLama) {
+    $this->logChange($noShipment, $tujuan, 'do_baru', $noDo);
+}
+
+
+$this->countDate('baru', $tglShip);
         $newId = DB::table(self::TABLE)->insertGetId($attrs);
         $this->shipCache[$noShipment][] = array_merge($attrs, ['id' => $newId]);
         $this->inserted++;
@@ -641,11 +940,20 @@ class LogistikImport implements ToCollection, WithHeadingRow, WithEvents, WithCa
         $totalKubik  = $this->parseNumber($this->pick($row, ['total_kubik', 'total_kubik_m3', 'total_kubik_m_3', 'totalkubik']));
         $totalTonase = $this->parseNumber($this->pick($row, ['total_tonase', 'total_tonase_ton', 'totaltonase']));
         $nilaiMuatan = $this->parseNumber($this->pick($row, ['nilai_muatan', 'nilai_muatan_rp', 'nilai_muatan_rp_', 'nilai_muatan_pasuruan']));
-        $mobil = $this->completeMobilName($mobil, $route, $ekpedisi);
-        // ================= KAPASITAS DARI TARIF =================
-        $tarifRow = $this->findTarif($route, $ekpedisi, $mobil);
-        $kubikasi = $tarifRow ? $this->parseNumber($tarifRow->kubikasi ?? null) : null;
-        $tonase   = $tarifRow ? $this->parseNumber($tarifRow->tonase ?? null)   : null;
+
+        // ================= NAMA MOBIL LENGKAP + KAPASITAS DARI TARIF (di-cache per kombinasi) =================
+        $memoKey = $route . '|' . $ekpedisi . '|' . $mobil;
+        if (!isset($this->tarifMemo[$memoKey])) {
+            $mobilFull = $this->completeMobilName($mobil, $route, $ekpedisi);
+            $tarifRow  = $this->findTarif($route, $ekpedisi, $mobilFull);
+
+            $this->tarifMemo[$memoKey] = [
+                $mobilFull,
+                $tarifRow ? $this->parseNumber($tarifRow->kubikasi ?? null) : null,
+                $tarifRow ? $this->parseNumber($tarifRow->tonase ?? null)   : null,
+            ];
+        }
+        [$mobil, $kubikasi, $tonase] = $this->tarifMemo[$memoKey];
 
         // ================= BIAYA 1 MOBIL DARI EXCEL (1 per no_shipment) =================
         // angka bisa diulang di banyak baris atau cuma di 1 baris; yang dipakai baris PERTAMA yang terisi
@@ -691,7 +999,8 @@ class LogistikImport implements ToCollection, WithHeadingRow, WithEvents, WithCa
         $biayaKuli           = $customerData->biaya_kuli ?? null;
         $transport_lead_time = $customerData->transport_lead_time ?? null;
         $pulau               = ($customerData->pulau ?? null) ?: $this->cleanText($row['pulau'] ?? null);
-        $picMonitoring = $this->fixPic($picMonitoring, $area);
+        $picMonitoring       = $this->fixPic($picMonitoring, $area);
+
         // ================= MONITORING =================
         $keluar = collect([$tanggalKeluarGudang, $tanggalKeluarGudang2, $tanggalKeluarGudang3])
             ->filter()->map(fn($d) => strtotime($d))->max();
@@ -827,7 +1136,7 @@ class LogistikImport implements ToCollection, WithHeadingRow, WithEvents, WithCa
             'contract_end_date'  => $this->convertDateUs($row['contract_end_date'] ?? null),   // format m/d/Y
             'no_do'              => $this->cleanText($row['no_do'] ?? null),
             'tanggal_shipment'   => $this->convertDateUs($row['tanggal_shipment'] ?? null),    // format m/d/Y
-            'periode_shipment'   => $this->convertPeriode($row['periode_shipment'] ?? null),   // format m/d/Y
+            'periode_shipment'   => $this->convertPeriode($row['periode_shipment'] ?? null),   // teks MM-YYYY
         ];
 
         // ================= SISA HEADER EXCEL (apa adanya) =================
@@ -988,6 +1297,7 @@ class LogistikImport implements ToCollection, WithHeadingRow, WithEvents, WithCa
     {
         return $this->toDate($value, 'Y-m-d H:i:s');
     }
+
     /** periode shipment = teks "MM-YYYY", bukan tanggal */
     private function convertPeriode($value): ?string
     {
@@ -1211,8 +1521,8 @@ class LogistikImport implements ToCollection, WithHeadingRow, WithEvents, WithCa
 
             if ($master !== null && $this->ekspedisiKey($master) !== $this->ekspedisiKey($ekpedisi)) {
                 logger()->info('LOGISTIK IMPORT: nama ekspedisi disamakan dengan master', [
-                    'route' => $route,
-                    'excel' => $ekpedisi,
+                    'route'  => $route,
+                    'excel'  => $ekpedisi,
                     'master' => $master,
                 ]);
             }
@@ -1235,9 +1545,9 @@ class LogistikImport implements ToCollection, WithHeadingRow, WithEvents, WithCa
             if (!isset($this->tarifWarned[$warnKey])) {
                 $this->tarifWarned[$warnKey] = true;
                 logger()->warning('LOGISTIK IMPORT: tarif tidak ditemukan', [
-                    'route' => $route,
+                    'route'    => $route,
                     'ekpedisi' => $ekpedisi,
-                    'mobil' => $mobil,
+                    'mobil'    => $mobil,
                 ]);
             }
         }
@@ -1253,15 +1563,22 @@ class LogistikImport implements ToCollection, WithHeadingRow, WithEvents, WithCa
         return [
             AfterImport::class => function () {
                 try {
-                    $shipments = array_map('strval', array_values(array_unique($this->allNoShipmentInFile)));
+                    // hanya shipment yang benar-benar ditambah / diubah
+                    $shipments = array_map('strval', array_keys($this->touched));
 
                     // cache sudah tidak dipakai, bebaskan memori
                     $this->shipCache = [];
+                    $this->doSet     = [];
+                    $this->legacySet = [];
+
+                    if (empty($shipments)) {
+                        return;   // tidak ada baris baru, tidak ada yang perlu dihitung ulang
+                    }
 
                     $this->fillShipmentGaps($shipments);
                     $this->fillAreaAndPlannerGaps($shipments);
                     $this->fillMasterGapsFromSiblings($shipments);
-                    $this->applyJabodetabekPicRule($shipments);   // <-- baru
+                    $this->applyJabodetabekPicRule($shipments);
                     $this->recalcShipments($shipments);
                 } catch (\Throwable $e) {
                     logger()->error('LOGISTIK IMPORT AFTER-IMPORT GAGAL', [
@@ -1288,23 +1605,23 @@ class LogistikImport implements ToCollection, WithHeadingRow, WithEvents, WithCa
 
             // 42000xxxxx -> Dani
             DB::update("
-            UPDATE logistik_pengiriman
-            SET pic_monitoring = 'Dani'
-            WHERE no_shipment IN ($in)
-              AND UPPER(TRIM(area)) = 'JABODETABEK'
-              AND no_shipment LIKE '42000%'
-        ", $chunk);
+                UPDATE logistik_pengiriman
+                SET pic_monitoring = 'Dani'
+                WHERE no_shipment IN ($in)
+                  AND UPPER(TRIM(area)) = 'JABODETABEK'
+                  AND no_shipment LIKE '42000%'
+            ", $chunk);
 
             // 45000xxxxx -> sama dengan planner (hanya kalau planner terisi)
             if (isset($this->dbColumns['planner'])) {
                 DB::update("
-                UPDATE logistik_pengiriman
-                SET pic_monitoring = TRIM(planner)
-                WHERE no_shipment IN ($in)
-                  AND UPPER(TRIM(area)) = 'JABODETABEK'
-                  AND no_shipment LIKE '45000%'
-                  AND NULLIF(TRIM(planner), '') IS NOT NULL
-            ", $chunk);
+                    UPDATE logistik_pengiriman
+                    SET pic_monitoring = TRIM(planner)
+                    WHERE no_shipment IN ($in)
+                      AND UPPER(TRIM(area)) = 'JABODETABEK'
+                      AND no_shipment LIKE '45000%'
+                      AND NULLIF(TRIM(planner), '') IS NOT NULL
+                ", $chunk);
             }
         }
     }
@@ -1367,8 +1684,8 @@ class LogistikImport implements ToCollection, WithHeadingRow, WithEvents, WithCa
             foreach (['planner' => 'planner', 'pic_monitoring' => 'pic'] as $col => $key) {
                 if (!isset($this->dbColumns[$col])) continue;
 
-                $cases = [];
-                $caseBind = [];
+                $cases     = [];
+                $caseBind  = [];
                 $areasUsed = [];
 
                 foreach ((self::$areaMap ?? []) as $area => $info) {

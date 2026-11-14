@@ -267,7 +267,7 @@ class LogistikReportData extends LogistikExportFull implements WithEvents, WithT
             ))
             ->groupByRaw("COALESCE(NULLIF(TRIM(no_shipment),''), CONCAT('id', id)), COALESCE(tujuan,'')");
 
-        return DB::table('logistik_pengiriman AS lp')->joinSub($agg, 'g', 'g.id', '=', 'lp.id');
+       return $this->source('lp')->joinSub($agg, 'g', 'g.id', '=', 'lp.id');
     }
 
     /** ekspresi SQL: tanggal keluar gudang terakhir dari semua gudang */

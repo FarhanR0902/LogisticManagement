@@ -23,8 +23,11 @@
 </head>
 <body>
 <div class="container">
-    <a class="back" href="{{ url()->previous() }}">← Kembali ke dashboard</a>
-
+<a class="back" href="{{ $backUrl }}">← Kembali ke dashboard</a>
+<a href="{{ route('manager.gabungan.alert.export', array_merge(['tipe' => $tipe], request()->query())) }}"
+   class="btn btn-success">
+    ⬇ Export Excel
+</a>
     <div class="box">
      <h2>{{ $tipe === 'planner' ? 'Planner' : 'PIC Monitoring' }}: {{ $nama }}</h2>
      <div class="sub">

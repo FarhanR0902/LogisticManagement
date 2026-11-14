@@ -437,17 +437,79 @@
             <span class="badge green">✅ {{ number_format($r['success']) }} data berhasil</span>
             <span class="badge blue">➕ {{ number_format($r['inserted']) }} baru</span>
             <span class="badge orange">🔄 {{ number_format($r['updated']) }} diperbarui</span>
-            <span class="badge gray">⏭ {{ number_format($r['skipped']) }} dilewati</span>
+                      <span class="badge gray">⏭ {{ number_format($r['skipped']) }} dilewati</span>
+            <span class="badge badge-default">♻️ {{ number_format($r['skipped_existing'] ?? 0) }} sudah ada</span>
             @if($r['failed'] > 0)
                 <span class="badge red">❌ {{ number_format($r['failed']) }} gagal</span>
             @endif
             <span class="badge badge-default">📦 {{ number_format($r['shipments']) }} no shipment</span>
         </div>
-
         <div style="font-size:14px;color:#64748b;">
-            Dilewati = baris kosong, atau No Shipment / Tujuan-nya kosong.
+            Dilewati = baris kosong, atau No Shipment / Tujuan-nya kosong.<br>
+            Sudah ada = No DO-nya sudah ada di database, jadi tidak diimport ulang.
         </div>
-
+<div style="font-size:14px;color:#64748b;margin-top:6px;">
+    Tidak ada perubahan (data sama persis): <b>{{ number_format($r['unchanged'] ?? 0) }}</b>
+</div>
+@if(collect($r['by_date'] ?? [])->contains(fn($d) => $d['baru'] > 0 || $d['diperbarui'] > 0))
+    <div style="margin-top:14px;font-weight:600;color:#2563eb;">Ringkasan per Tanggal Shipment:</div>
+    <div style="max-height:260px;overflow:auto;margin-top:6px;">
+        <table style="font-size:14px;">
+            <thead>
+                <tr>
+                    <th>Tanggal Shipment</th>
+                    <th>➕ Baru</th>
+                    <th>🔄 Diperbarui</th>
+                    <th>🟰 Tidak Berubah</th>
+                    <th>♻️ Sudah Ada (dilewati)</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach($r['by_date'] as $d)
+                    @if($d['baru'] > 0 || $d['diperbarui'] > 0)
+                        <tr>
+                            <td>{{ $d['tanggal'] }}</td>
+                            <td>{{ number_format($d['baru']) }}</td>
+                            <td>{{ number_format($d['diperbarui']) }}</td>
+                            <td>{{ number_format($d['tidak_berubah']) }}</td>
+                            <td>{{ number_format($d['sudah_ada']) }}</td>
+                        </tr>
+                    @endif
+                @endforeach
+            </tbody>
+        </table>
+    </div>
+@endif
+@if(!empty($r['changes']))
+    <div style="margin-top:14px;font-weight:600;color:#2563eb;">
+        Perubahan pada data yang sudah ada ({{ number_format($r['changes_total']) }} shipment/tujuan):
+    </div>
+    <div style="max-height:300px;overflow:auto;margin-top:6px;">
+      <table style="font-size:14px;">
+    <thead>
+        <tr><th>No Shipment</th><th>Tujuan</th><th>Alasan Diupdate</th></tr>
+    </thead>
+    <tbody>
+        @foreach($r['changes'] as $c)
+            <tr>
+                <td>{{ $c['no_shipment'] }}</td>
+                <td>{{ $c['tujuan'] }}</td>
+                <td style="white-space:normal;">
+                    @foreach($c['alasan'] as $a)
+                        <div>• {{ \Illuminate\Support\Str::limit($a, 120) }}</div>
+                    @endforeach
+                </td>
+            </tr>
+        @endforeach
+    </tbody>
+</table>
+    </div>
+    @if($r['changes_total'] > count($r['changes']))
+        <div style="font-size:13px;color:#64748b;margin-top:6px;">
+            Menampilkan {{ count($r['changes']) }} dari {{ $r['changes_total'] }}.
+        </div>
+    @endif
+@endif
         @if($r['failed'] > 0)
             <div style="margin-top:14px;font-weight:600;color:#dc2626;">Baris yang gagal:</div>
             <div style="max-height:260px;overflow:auto;margin-top:6px;">
@@ -494,11 +556,21 @@
     </div>
 @endif
         <div class="import-box">
-            <form action="{{ url('/logistik/import') }}" method="POST" enctype="multipart/form-data">
+            <form action="{{ url('/logistik/import') }}" method="POST" enctype="multipart/form-data" id="formImport">
                 @csrf
-                <input type="file" name="file" required>
-                <button type="submit">📤 Import Excel</button>
+                <input type="file" name="file" accept=".xlsx,.xls,.csv" required>
+
+                <label style="display:flex;align-items:center;gap:8px;font-size:15px;cursor:pointer;">
+                    <input type="checkbox" name="update_existing" value="1" style="min-width:auto;width:auto;">
+                    Timpa data yang sudah ada
+                </label>
+
+                <button type="submit" id="btnImport">📤 Import Excel</button>
             </form>
+            <div style="font-size:13px;color:#64748b;margin-top:10px;">
+                Default: DO (<b>No DO</b>) yang sudah ada di database dilewati, hanya DO baru yang masuk.
+                Centang "Timpa" hanya kalau memang mau memperbarui data lama.
+            </div>
         </div>
         <div class="import-box">
             <form action="{{ route('logistik.importQtyPgi') }}" method="POST" enctype="multipart/form-data" class="d-flex align-items-center gap-2">
@@ -696,6 +768,9 @@
 $(document).ready(function () {
 
     const $overlay = $('#dtLoadingOverlay');
+        $('#formImport').on('submit', function () {
+        $('#btnImport').prop('disabled', true).text('⏳ Mengimpor... jangan tutup halaman');
+    });
     const qs       = new URLSearchParams(window.location.search);   // filter dari dashboard
     const totalTh  = $('#tableLogistik thead th').length;
     const IDX_SHIPMENT = 6;   // kolom "No Shipment"

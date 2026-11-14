@@ -69,7 +69,7 @@
         #tableMonitoring input[type=number] { width: 70px; }
         #tableMonitoring .dt-pair { display: flex; gap: 6px; }
         #tableMonitoring td > input.flatpickr-date,
-#tableMonitoring td > input.flatpickr-date + input { width: 120px; }
+        #tableMonitoring td > input.flatpickr-date + input { width: 120px; }
         #tableMonitoring .dt-pair input[type=text].flatpickr-date { width: 100px; }
         #tableMonitoring .dt-pair input[type=text].flatpickr-time { width: 75px; }
         #tableMonitoring .save-btn { width: 70px; }
@@ -134,6 +134,17 @@
         }
         .kel-btn:hover { background: #e5e7eb; }
 
+        /* ===== KALENDER TANGGAL SHIPMENT (badge status per tanggal) ===== */
+        .flatpickr-day.ship-done { background:#dcfce7; border-color:#22c55e; color:#166534; font-weight:700; position:relative; }
+        .flatpickr-day.ship-pending { background:#fee2e2; border-color:#ef4444; color:#991b1b; font-weight:700; position:relative; }
+        .flatpickr-day.ship-done.selected { background:#16a34a; border-color:#16a34a; color:#fff; }
+        .flatpickr-day.ship-pending.selected { background:#dc2626; border-color:#dc2626; color:#fff; }
+        .ship-badge {
+            position:absolute; top:-3px; right:-3px; min-width:20px; height:20px; line-height:20px;
+            padding:0 5px; border-radius:10px; background:#dc2626; color:#fff;
+            font-size:12px; font-weight:700; text-align:center; z-index:2; box-shadow:0 0 0 1.5px #fff;
+        }
+
         .summary-row { display: flex; gap: 15px; flex-wrap: wrap; margin-bottom: 15px; align-items: flex-start; }
         .missing-field-box { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 
@@ -148,9 +159,9 @@
             padding: 10px 12px; margin-bottom: 8px; cursor: pointer; transition: all .15s ease;
         }
         #tableMonitoring .dt-pair input.input-jam { width: 75px; text-align: center; }
-#tableMonitoring .dt-pair .flatpickr-date,
-#tableMonitoring .dt-pair input.form-control { width: 100px; }
-.input-jam.is-invalid { border-color: #ef4444 !important; background: #fee2e2; }
+        #tableMonitoring .dt-pair .flatpickr-date,
+        #tableMonitoring .dt-pair input.form-control { width: 100px; }
+        .input-jam.is-invalid { border-color: #ef4444 !important; background: #fee2e2; }
         .kel-check { display: flex; align-items: center; gap: 8px; font-size: 13px; padding: 4px 6px; cursor: pointer; margin: 0; }
         .kel-check:hover { background: #f3f4f6; border-radius: 6px; }
         .kel-check input[type=checkbox] { width: auto; padding: 0; margin: 0; }
@@ -168,27 +179,27 @@
             vertical-align: middle;
             line-height: 1.4;
         }
-.ms-dd { position: relative; width: 200px; flex: 0 0 200px; }
-.ms-dd-sm { width: 130px; flex: 0 0 130px; }
-.ms-dd-btn {
-    width: 100%; height: 38px; display: flex; justify-content: space-between; align-items: center;
-    background: #fff; border: 1px solid #d1d5db; border-radius: 5px; padding: 0 10px;
-    font-size: 14px; cursor: pointer;
-}
-.ms-dd-btn .ms-dd-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ms-dd-panel {
-    position: absolute; top: 42px; left: 0; z-index: 9999; width: 260px;
-    background: #fff; border: 1px solid #d1d5db; border-radius: 8px;
-    box-shadow: 0 10px 25px rgba(0,0,0,.2); padding: 8px;
-}
-/* sel yang sedang aktif diberi garis biru, mirip Excel */
-#tableMonitoring tbody td:focus-within { outline: 2px solid #2563eb; outline-offset: -2px; }
-.ms-dd-search { margin-bottom: 4px; }
-.ms-dd-actions { display: flex; justify-content: space-between; font-size: 12px; margin: 6px 2px; }
-.ms-dd-list { max-height: 260px; overflow-y: auto; }
-.ms-dd-item { display: flex; align-items: center; gap: 8px; padding: 4px 6px; margin: 0; font-size: 13px; cursor: pointer; }
-.ms-dd-item:hover { background: #f3f4f6; border-radius: 6px; }
-.ms-dd-item input { width: auto; padding: 0; margin: 0; }
+        .ms-dd { position: relative; width: 200px; flex: 0 0 200px; }
+        .ms-dd-sm { width: 130px; flex: 0 0 130px; }
+        .ms-dd-btn {
+            width: 100%; height: 38px; display: flex; justify-content: space-between; align-items: center;
+            background: #fff; border: 1px solid #d1d5db; border-radius: 5px; padding: 0 10px;
+            font-size: 14px; cursor: pointer;
+        }
+        .ms-dd-btn .ms-dd-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .ms-dd-panel {
+            position: absolute; top: 42px; left: 0; z-index: 9999; width: 260px;
+            background: #fff; border: 1px solid #d1d5db; border-radius: 8px;
+            box-shadow: 0 10px 25px rgba(0,0,0,.2); padding: 8px;
+        }
+        /* sel yang sedang aktif diberi garis biru, mirip Excel */
+        #tableMonitoring tbody td:focus-within { outline: 2px solid #2563eb; outline-offset: -2px; }
+        .ms-dd-search { margin-bottom: 4px; }
+        .ms-dd-actions { display: flex; justify-content: space-between; font-size: 12px; margin: 6px 2px; }
+        .ms-dd-list { max-height: 260px; overflow-y: auto; }
+        .ms-dd-item { display: flex; align-items: center; gap: 8px; padding: 4px 6px; margin: 0; font-size: 13px; cursor: pointer; }
+        .ms-dd-item:hover { background: #f3f4f6; border-radius: 6px; }
+        .ms-dd-item input { width: auto; padding: 0; margin: 0; }
         /* ===== AREA DROPDOWN (checklist + search) ===== */
         .area-dd { position: relative; width: 220px; flex: 0 0 220px; }
         .area-dd-btn {
@@ -223,7 +234,7 @@
 
 <body>
 
-    <!-- MODAL -->
+    <!-- MODAL SHIPMENT LAUT (daftar shipment dimuat saat modal dibuka) -->
     <div class="modal fade" id="shipModal" tabindex="-1">
         <div class="modal-dialog modal-lg">
             <div class="modal-content">
@@ -238,17 +249,7 @@
                             <div class="col-md-6 mb-2">
                                 <label>No Shipment</label>
                                 <select name="no_shipment" id="shipNoShipment" class="form-select searchable">
-                                    <option value="">Pilih Shipment</option>
-                                    @foreach($shipmentList as $s)
-                                    <option value="{{ $s->no_shipment }}"
-                                        data-nama-kapal="{{ $s->nama_kapal }}"
-                                        data-etd="{{ $s->etd ? date('Y-m-d', strtotime($s->etd)) : '' }}"
-                                        data-eta="{{ $s->eta ? date('Y-m-d', strtotime($s->eta)) : '' }}"
-                                        data-atd="{{ $s->atd ? date('Y-m-d', strtotime($s->atd)) : '' }}"
-                                        data-ata="{{ $s->ata ? date('Y-m-d', strtotime($s->ata)) : '' }}">
-                                        {{ $s->no_shipment }} - {{ $s->tujuan }}
-                                    </option>
-                                    @endforeach
+                                    <option value="">Memuat daftar shipment...</option>
                                 </select>
                             </div>
                             <div class="col-md-6 mb-2">
@@ -274,7 +275,7 @@
                         </div>
                     </div>
                     <div class="modal-footer">
-                        <button class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
                         <button class="btn btn-success">Save</button>
                     </div>
                 </form>
@@ -283,38 +284,6 @@
     </div>
 
     <div class="toast-container" id="toastContainer"></div>
-    <div class="modal fade" id="periodeModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Pilih Periode Shipment</h5>
-            </div>
-            <div class="modal-body">
-                <p class="text-muted" style="font-size:13px;">
-                    Pilih periode yang mau ditampilkan. Data di luar pilihan tidak dimuat.
-                </p>
-                <div class="d-flex justify-content-between mb-2" style="font-size:13px;">
-                    <a href="#" id="periodeAll">Pilih semua</a>
-                    <a href="#" id="periodeClear">Hapus</a>
-                </div>
-                <div style="max-height:320px; overflow-y:auto;">
-                    @foreach($periodeList as $p)
-                    <label class="ms-dd-item" style="font-size:15px;">
-                        <input type="checkbox" class="periode-chk"
-                               value="{{ $p->periode === '' ? '__kosong__' : $p->periode }}">
-                        <span>{{ $p->periode === '' ? '(Tanpa periode)' : $p->periode }}</span>
-                        <span class="badge gray ms-auto">{{ number_format($p->total, 0, ',', '.') }} baris</span>
-                    </label>
-                    @endforeach
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary d-none" id="btnPeriodeBatal">Batal</button>
-                <button type="button" class="btn btn-primary" id="btnPeriodeOk" disabled>Tampilkan</button>
-            </div>
-        </div>
-    </div>
-</div>
 
     <div id="kelengkapanMenu" style="display:none;">
         <button type="button" id="btnKelSort" class="kel-btn">↕ Sort</button>
@@ -346,98 +315,109 @@
                 <span class="badge bg-light" id="dirtyCount">0</span>
                 <small class="ms-1">(<span id="editedCount">0</span> data diedit)</small>
             </button>
-            
+
+            {{-- Ganti periode = balik ke halaman pilih periode --}}
+            <a href="{{ route('monitoring.periode') }}" class="btn btn-outline-primary">📅 Ganti Periode</a>
+            <span id="periodeLabel" class="fw-bold"></span>
         </div>
 
-    <div class="filter-box">
+        <div class="filter-box">
 
-    {{-- PIC --}}
-    <div class="ms-dd" data-key="pic_monitoring" data-label="PIC Monitoring">
-        <button type="button" class="ms-dd-btn"><span class="ms-dd-label">PIC Monitoring</span><span>▾</span></button>
-        <div class="ms-dd-panel" style="display:none;">
-            <input type="text" class="ms-dd-search" placeholder="Cari..." autocomplete="off">
-            <div class="ms-dd-actions"><a href="#" class="ms-dd-all">Pilih semua</a><a href="#" class="ms-dd-clear">Hapus</a></div>
-            <div class="ms-dd-list">
-                @foreach($picList as $pic)
-                <label class="ms-dd-item"><input type="checkbox" class="ms-chk" value="{{ $pic }}"><span>{{ $pic }}</span></label>
-                @endforeach
+            {{-- PIC --}}
+            <div class="ms-dd" data-key="pic_monitoring" data-label="PIC Monitoring">
+                <button type="button" class="ms-dd-btn"><span class="ms-dd-label">PIC Monitoring</span><span>▾</span></button>
+                <div class="ms-dd-panel" style="display:none;">
+                    <input type="text" class="ms-dd-search" placeholder="Cari..." autocomplete="off">
+                    <div class="ms-dd-actions"><a href="#" class="ms-dd-all">Pilih semua</a><a href="#" class="ms-dd-clear">Hapus</a></div>
+                    <div class="ms-dd-list">
+                        @foreach($picList as $pic)
+                        <label class="ms-dd-item"><input type="checkbox" class="ms-chk" value="{{ $pic }}"><span>{{ $pic }}</span></label>
+                        @endforeach
+                    </div>
+                </div>
             </div>
+
+            {{-- DIST CHANNEL --}}
+            <div class="ms-dd" data-key="dist_channel" data-label="DIST CHANNEL">
+                <button type="button" class="ms-dd-btn"><span class="ms-dd-label">DIST CHANNEL</span><span>▾</span></button>
+                <div class="ms-dd-panel" style="display:none;">
+                    <input type="text" class="ms-dd-search" placeholder="Cari..." autocomplete="off">
+                    <div class="ms-dd-actions"><a href="#" class="ms-dd-all">Pilih semua</a><a href="#" class="ms-dd-clear">Hapus</a></div>
+                    <div class="ms-dd-list">
+                        @foreach($distChannelList as $dc)
+                        <label class="ms-dd-item"><input type="checkbox" class="ms-chk" value="{{ $dc }}"><span>{{ $dc }}</span></label>
+                        @endforeach
+                    </div>
+                </div>
+            </div>
+
+            {{-- AREA --}}
+            <div class="area-dd" id="areaDD">
+                <button type="button" class="area-dd-btn" id="areaDDBtn">
+                    <span id="areaDDLabel">AREA</span> <span>▾</span>
+                </button>
+                <div class="area-dd-panel" id="areaDDPanel" style="display:none;">
+                    <input type="text" id="areaDDSearch" placeholder="Cari area..." autocomplete="off">
+                    <div class="area-dd-actions">
+                        <a href="#" id="areaDDAll">Pilih semua</a>
+                        <a href="#" id="areaDDClear">Hapus</a>
+                    </div>
+                    <div class="area-dd-list" id="areaDDList">
+                        @foreach($areaList as $area)
+                        <label class="area-dd-item">
+                            <input type="checkbox" class="area-chk" value="{{ $area }}">
+                            <span>{{ $area }}</span>
+                        </label>
+                        @endforeach
+                    </div>
+                </div>
+            </div>
+
+            {{-- BULAN --}}
+            <div class="ms-dd ms-dd-sm" data-key="bulan" data-label="BULAN">
+                <button type="button" class="ms-dd-btn"><span class="ms-dd-label">BULAN</span><span>▾</span></button>
+                <div class="ms-dd-panel" style="display:none;">
+                    <div class="ms-dd-actions"><a href="#" class="ms-dd-all">Pilih semua</a><a href="#" class="ms-dd-clear">Hapus</a></div>
+                    <div class="ms-dd-list">
+                        @for($i=1; $i<=12; $i++)
+                        <label class="ms-dd-item"><input type="checkbox" class="ms-chk" value="{{ $i }}"><span>{{ $i }}</span></label>
+                        @endfor
+                    </div>
+                </div>
+            </div>
+
+            {{-- TAHUN --}}
+            <div class="ms-dd ms-dd-sm" data-key="tahun" data-label="TAHUN">
+                <button type="button" class="ms-dd-btn"><span class="ms-dd-label">TAHUN</span><span>▾</span></button>
+                <div class="ms-dd-panel" style="display:none;">
+                    <div class="ms-dd-actions"><a href="#" class="ms-dd-all">Pilih semua</a><a href="#" class="ms-dd-clear">Hapus</a></div>
+                    <div class="ms-dd-list">
+                        @for($i=2023; $i<=2030; $i++)
+                        <label class="ms-dd-item"><input type="checkbox" class="ms-chk" value="{{ $i }}"><span>{{ $i }}</span></label>
+                        @endfor
+                    </div>
+                </div>
+            </div>
+
+            {{-- RESET --}}
+            <button type="button" class="btn btn-secondary btn-sm" id="btnResetFilter" style="height:38px;">
+                🔄 Reset Filter
+            </button>
         </div>
-    </div>
 
-    {{-- DIST CHANNEL --}}
-    <div class="ms-dd" data-key="dist_channel" data-label="DIST CHANNEL">
-        <button type="button" class="ms-dd-btn"><span class="ms-dd-label">DIST CHANNEL</span><span>▾</span></button>
-        <div class="ms-dd-panel" style="display:none;">
-            <input type="text" class="ms-dd-search" placeholder="Cari..." autocomplete="off">
-            <div class="ms-dd-actions"><a href="#" class="ms-dd-all">Pilih semua</a><a href="#" class="ms-dd-clear">Hapus</a></div>
-            <div class="ms-dd-list">
-                @foreach($distChannelList as $dc)
-                <label class="ms-dd-item"><input type="checkbox" class="ms-chk" value="{{ $dc }}"><span>{{ $dc }}</span></label>
-                @endforeach
-            </div>
-        </div>
-    </div>
-
-    {{-- AREA (ini yang hilang di file kamu) --}}
-    <div class="area-dd" id="areaDD">
-        <button type="button" class="area-dd-btn" id="areaDDBtn">
-            <span id="areaDDLabel">AREA</span> <span>▾</span>
-        </button>
-        <div class="area-dd-panel" id="areaDDPanel" style="display:none;">
-            <input type="text" id="areaDDSearch" placeholder="Cari area..." autocomplete="off">
-            <div class="area-dd-actions">
-                <a href="#" id="areaDDAll">Pilih semua</a>
-                <a href="#" id="areaDDClear">Hapus</a>
-            </div>
-            <div class="area-dd-list" id="areaDDList">
-                @foreach($areaList as $area)
-                <label class="area-dd-item">
-                    <input type="checkbox" class="area-chk" value="{{ $area }}">
-                    <span>{{ $area }}</span>
-                </label>
-                @endforeach
-            </div>
-        </div>
-    </div>
-
-    {{-- BULAN --}}
-    <div class="ms-dd ms-dd-sm" data-key="bulan" data-label="BULAN">
-        <button type="button" class="ms-dd-btn"><span class="ms-dd-label">BULAN</span><span>▾</span></button>
-        <div class="ms-dd-panel" style="display:none;">
-            <div class="ms-dd-actions"><a href="#" class="ms-dd-all">Pilih semua</a><a href="#" class="ms-dd-clear">Hapus</a></div>
-            <div class="ms-dd-list">
-                @for($i=1; $i<=12; $i++)
-                <label class="ms-dd-item"><input type="checkbox" class="ms-chk" value="{{ $i }}"><span>{{ $i }}</span></label>
-                @endfor
-            </div>
-        </div>
-    </div>
-
-    {{-- TAHUN --}}
-    <div class="ms-dd ms-dd-sm" data-key="tahun" data-label="TAHUN">
-        <button type="button" class="ms-dd-btn"><span class="ms-dd-label">TAHUN</span><span>▾</span></button>
-        <div class="ms-dd-panel" style="display:none;">
-            <div class="ms-dd-actions"><a href="#" class="ms-dd-all">Pilih semua</a><a href="#" class="ms-dd-clear">Hapus</a></div>
-            <div class="ms-dd-list">
-                @for($i=2023; $i<=2030; $i++)
-                <label class="ms-dd-item"><input type="checkbox" class="ms-chk" value="{{ $i }}"><span>{{ $i }}</span></label>
-                @endfor
-            </div>
-        </div>
-    </div>
-
-    {{-- RESET (ini juga hilang) --}}
-    <button type="button" class="btn btn-secondary btn-sm" id="btnResetFilter" style="height:38px;">
-        🔄 Reset Filter
-    </button>
-</div>
         <div class="d-flex gap-3 mb-3 align-items-end">
-<div>
-    <label class="form-label fw-bold">Filter Tanggal Keluar Gudang</label>
-    <input type="text" id="filterKeluarGudangTgl" class="form-control"
-           placeholder="Pilih rentang tanggal" style="min-width:260px;">
-</div>
+            <div>
+                <label class="form-label fw-bold">Filter Tanggal Shipment</label>
+                <div class="input-group" style="min-width:260px;">
+                    <input type="text" id="filterTglShipment" class="form-control" placeholder="Pilih tanggal shipment">
+                    <button type="button" class="btn btn-outline-secondary" id="btnResetTglShipment" title="Hapus filter">X</button>
+                </div>
+            </div>
+            <div>
+                <label class="form-label fw-bold">Filter Tanggal Keluar Gudang</label>
+                <input type="text" id="filterKeluarGudangTgl" class="form-control"
+                       placeholder="Pilih rentang tanggal" style="min-width:260px;">
+            </div>
             <div>
                 <label class="form-label fw-bold">Export: Dari Tanggal</label>
                 <input type="date" id="exportTglDari" class="form-control">
@@ -516,6 +496,17 @@
             <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 
             <script>
+                // periode dipilih di halaman "Pilih Periode" lalu dikirim lewat URL (?periode[]=11-2026)
+                let periodeAktif = @json($periode);
+
+                function updatePeriodeLabel() {
+                    $('#periodeLabel').text(
+                        periodeAktif.length
+                            ? 'Periode: ' + periodeAktif.map(v => v === '__kosong__' ? '(Tanpa periode)' : v).join(', ')
+                            : ''
+                    );
+                }
+
                 let table;
                 let keluarFp = null;
                 let kelSort = '';     // '', 'desc', 'asc'
@@ -523,72 +514,125 @@
                 let lastOrderStr = null;
                 let editedRowIds = new Set(); // id baris yang PERNAH diedit selama sesi ini
 
+                // ================= FILTER TANGGAL SHIPMENT (kalender + badge) =================
+                let tglShipmentFilter = '';
+                let shipmentDates = {};   // { 'YYYY-MM-DD': {total, belum} }
+                let fpShip = null;
+
+                // "10-2026" -> 1 Okt 2026; '__kosong__' diabaikan. Kalau multi periode, ambil yang paling awal.
+                function periodeAwal() {
+                    const list = periodeAktif
+                        .map(p => /^(\d{2})-(\d{4})$/.exec(p))
+                        .filter(Boolean)
+                        .map(m => new Date(+m[2], +m[1] - 1, 1))
+                        .sort((a, b) => a - b);
+                    return list[0] || null;
+                }
+
+                function jumpKePeriode(instance) {
+                    const d = periodeAwal();
+                    if (d && instance.selectedDates.length === 0) instance.jumpToDate(d, true);
+                }
+
+                // ---- Data kalender diambil LAZY: hanya saat kalender dibuka, dan hanya kalau filter berubah ----
+                let shipmentDatesStale = true;
+                let shipmentDatesReq = null;
+
+                function markShipmentDatesStale() {
+                    shipmentDatesStale = true;
+                    if (fpShip && fpShip.isOpen) fetchShipmentDates();   // kalau kebetulan sedang terbuka
+                }
+
+                function fetchShipmentDates() {
+                    if (!periodeAktif.length) { shipmentDates = {}; shipmentDatesStale = false; if (fpShip) fpShip.redraw(); return; }
+                    shipmentDatesStale = false;
+                    if (shipmentDatesReq) shipmentDatesReq.abort();
+
+                    // tanggal_shipment sengaja TIDAK dikirim, supaya kalender tetap menampilkan semua tanggal di periode
+                    shipmentDatesReq = $.getJSON("{{ route('monitoring.shipmentDates') }}", {
+                        periode: periodeAktif,
+                        pic_monitoring: getMulti('pic_monitoring'),
+                        dist_channel: getMulti('dist_channel'),
+                        area: getSelectedAreas(),
+                        bulan: getMulti('bulan'),
+                        tahun: getMulti('tahun'),
+                        keluar_gudang_dari: getKeluarRange().dari,
+                        keluar_gudang_sampai: getKeluarRange().sampai
+                    }, function (res) {
+                        shipmentDates = res || {};
+                        if (fpShip) { fpShip.redraw(); jumpKePeriode(fpShip); }
+                    }).fail(function (xhr, st) {
+                        if (st !== 'abort') shipmentDatesStale = true;
+                    });
+                }
+
                 // ================= MULTI-SELECT GENERIK (PIC, Dist Channel, Bulan, Tahun) =================
-function getMulti(key) {
-    return $('.ms-dd[data-key="' + key + '"] .ms-chk:checked').map(function() { return this.value; }).get();
-}
-function getKeluarRange() {
-    if (!keluarFp || !keluarFp.selectedDates.length) return { dari: '', sampai: '' };
-    const s = keluarFp.selectedDates;
-    const fmt = d => keluarFp.formatDate(d, 'Y-m-d');
-    return { dari: fmt(s[0]), sampai: fmt(s[s.length - 1]) };
-}
+                function getMulti(key) {
+                    return $('.ms-dd[data-key="' + key + '"] .ms-chk:checked').map(function() { return this.value; }).get();
+                }
+                function getKeluarRange() {
+                    if (!keluarFp || !keluarFp.selectedDates.length) return { dari: '', sampai: '' };
+                    const s = keluarFp.selectedDates;
+                    const fmt = d => keluarFp.formatDate(d, 'Y-m-d');
+                    return { dari: fmt(s[0]), sampai: fmt(s[s.length - 1]) };
+                }
 
-function updateMultiLabel($dd) {
-    const vals = $dd.find('.ms-chk:checked').map(function() { return this.value; }).get();
-    let label = $dd.data('label');
-    if (vals.length === 1) label = vals[0];
-    else if (vals.length === 2) label = vals.join(', ');
-    else if (vals.length > 2) label = vals.length + ' dipilih';
-    $dd.find('.ms-dd-label').text(label).css('font-weight', vals.length ? '600' : '400');
-}
+                function updateMultiLabel($dd) {
+                    const vals = $dd.find('.ms-chk:checked').map(function() { return this.value; }).get();
+                    let label = $dd.data('label');
+                    if (vals.length === 1) label = vals[0];
+                    else if (vals.length === 2) label = vals.join(', ');
+                    else if (vals.length > 2) label = vals.length + ' dipilih';
+                    $dd.find('.ms-dd-label').text(label).css('font-weight', vals.length ? '600' : '400');
+                }
 
-let msTimer = null;
-function applyMultiFilter($dd) {
-    updateMultiLabel($dd);
-    clearTimeout(msTimer);
-    msTimer = setTimeout(function() {
-        table.draw();
-        loadAlertControl(false);
-    }, 300);
-}
+                let msTimer = null;
+                function applyMultiFilter($dd) {
+                    updateMultiLabel($dd);
+                    clearTimeout(msTimer);
+                    msTimer = setTimeout(function() {
+                        table.draw();
+                        loadAlertControl(false);
+                    }, 300);
+                }
 
-// buka/tutup panel (tutup panel lain)
-$(document).on('click', '.ms-dd-btn', function(e) {
-    e.stopPropagation();
-    const $panel = $(this).siblings('.ms-dd-panel');
-    $('.ms-dd-panel').not($panel).hide();
-    $('#areaDDPanel').hide();
-    $panel.toggle();
-    if ($panel.is(':visible')) $panel.find('.ms-dd-search').trigger('focus');
-});
-$(document).on('click', '.ms-dd-panel', function(e) { e.stopPropagation(); });
-$(document).on('click', function(e) {
-    if (!$(e.target).closest('.ms-dd').length) $('.ms-dd-panel').hide();
-});
+                // buka/tutup panel (tutup panel lain)
+                $(document).on('click', '.ms-dd-btn', function(e) {
+                    e.stopPropagation();
+                    const $panel = $(this).siblings('.ms-dd-panel');
+                    $('.ms-dd-panel').not($panel).hide();
+                    $('#areaDDPanel').hide();
+                    $panel.toggle();
+                    if ($panel.is(':visible')) $panel.find('.ms-dd-search').trigger('focus');
+                });
+                $(document).on('click', '.ms-dd-panel', function(e) { e.stopPropagation(); });
+                $(document).on('click', function(e) {
+                    if (!$(e.target).closest('.ms-dd').length) $('.ms-dd-panel').hide();
+                });
 
-// search dalam panel
-$(document).on('input', '.ms-dd-search', function() {
-    const q = $(this).val().toLowerCase().trim();
-    $(this).closest('.ms-dd-panel').find('.ms-dd-item').each(function() {
-        $(this).toggle($(this).text().toLowerCase().indexOf(q) !== -1);
-    });
-});
+                // search dalam panel
+                $(document).on('input', '.ms-dd-search', function() {
+                    const q = $(this).val().toLowerCase().trim();
+                    $(this).closest('.ms-dd-panel').find('.ms-dd-item').each(function() {
+                        $(this).toggle($(this).text().toLowerCase().indexOf(q) !== -1);
+                    });
+                });
 
-$(document).on('change', '.ms-chk', function() { applyMultiFilter($(this).closest('.ms-dd')); });
+                $(document).on('change', '.ms-chk', function() { applyMultiFilter($(this).closest('.ms-dd')); });
 
-$(document).on('click', '.ms-dd-all', function(e) {
-    e.preventDefault();
-    const $dd = $(this).closest('.ms-dd');
-    $dd.find('.ms-dd-item:visible .ms-chk').prop('checked', true);
-    applyMultiFilter($dd);
-});
-$(document).on('click', '.ms-dd-clear', function(e) {
-    e.preventDefault();
-    const $dd = $(this).closest('.ms-dd');
-    $dd.find('.ms-chk').prop('checked', false);
-    applyMultiFilter($dd);
-});
+                $(document).on('click', '.ms-dd-all', function(e) {
+                    e.preventDefault();
+                    const $dd = $(this).closest('.ms-dd');
+                    $dd.find('.ms-dd-item:visible .ms-chk').prop('checked', true);
+                    applyMultiFilter($dd);
+                });
+                $(document).on('click', '.ms-dd-clear', function(e) {
+                    e.preventDefault();
+                    const $dd = $(this).closest('.ms-dd');
+                    $dd.find('.ms-chk').prop('checked', false);
+                    applyMultiFilter($dd);
+                });
+
                 // ================= AREA DROPDOWN (checklist + search) =================
                 function getSelectedAreas() {
                     return $('.area-chk:checked').map(function() { return this.value; }).get();
@@ -653,6 +697,50 @@ $(document).on('click', '.ms-dd-clear', function(e) {
                     applyAreaFilter();
                 });
 
+                // ================= MODAL SHIPMENT LAUT: daftar shipment dimuat saat modal dibuka =================
+                let shipListLoaded = false;
+
+                function loadShipmentList() {
+                    $('#shipNoShipment').html('<option value="">Memuat daftar shipment...</option>');
+                    $.getJSON("{{ route('monitoring.shipmentList') }}", { periode: periodeAktif }, function(res) {
+                        let html = '<option value="">Pilih Shipment</option>';
+                        (res || []).forEach(function(s) {
+                            html += '<option value="' + esc(s.no_shipment) + '"'
+                                + ' data-nama-kapal="' + esc(s.nama_kapal) + '"'
+                                + ' data-etd="' + esc(s.etd) + '"'
+                                + ' data-eta="' + esc(s.eta) + '"'
+                                + ' data-atd="' + esc(s.atd) + '"'
+                                + ' data-ata="' + esc(s.ata) + '">'
+                                + esc(s.no_shipment) + ' - ' + esc(s.tujuan) + '</option>';
+                        });
+                        $('#shipNoShipment').html(html).val('').trigger('change');
+                        shipListLoaded = true;
+                    }).fail(function() {
+                        $('#shipNoShipment').html('<option value="">Gagal memuat, tutup lalu buka lagi</option>');
+                    });
+                }
+
+                // Bootstrap 5 memicu event native (bukan event jQuery), jadi pakai addEventListener
+                document.addEventListener('DOMContentLoaded', function() {
+                    const el = document.getElementById('shipModal');
+                    if (el) el.addEventListener('show.bs.modal', function() {
+                        if (!shipListLoaded) loadShipmentList();
+                    });
+                });
+
+                // ================= PENGINIT BERTAHAP (supaya tabel langsung tampil, plugin menyusul) =================
+                let pickerToken = 0;   // dinaikkan tiap draw -> loop lama otomatis berhenti
+
+                function runChunked(items, size, fn, token) {
+                    let i = 0;
+                    (function step() {
+                        if (token !== pickerToken) return;
+                        const end = Math.min(i + size, items.length);
+                        for (; i < end; i++) fn(items[i]);
+                        if (i < items.length) setTimeout(step, 0);
+                    })();
+                }
+
                 $(document).ready(function() {
 
                     // failsafe: paksa tombol Simpan Semua selalu bisa diklik
@@ -667,14 +755,16 @@ $(document).on('click', '.ms-dd-clear', function(e) {
                         ajax: {
                             url: "{{ route('monitoring.datalogistik.ajax') }}",
                             data: function(d) {
-d.pic_monitoring = getMulti('pic_monitoring');
-d.dist_channel   = getMulti('dist_channel');
-d.area           = getSelectedAreas();
-d.bulan          = getMulti('bulan');
-d.tahun          = getMulti('tahun');
-const kg = getKeluarRange();
-d.keluar_gudang_dari   = kg.dari;
-d.keluar_gudang_sampai = kg.sampai;
+                                d.periode        = periodeAktif;
+                                d.pic_monitoring = getMulti('pic_monitoring');
+                                d.dist_channel   = getMulti('dist_channel');
+                                d.area           = getSelectedAreas();
+                                d.bulan          = getMulti('bulan');
+                                d.tahun          = getMulti('tahun');
+                                const kg = getKeluarRange();
+                                d.keluar_gudang_dari   = kg.dari;
+                                d.keluar_gudang_sampai = kg.sampai;
+                                d.tanggal_shipment = tglShipmentFilter;
 
                                 // kalau user klik sort kolom lain, sort kelengkapan otomatis dilepas
                                 let curOrder = JSON.stringify(d.order);
@@ -691,8 +781,8 @@ d.keluar_gudang_sampai = kg.sampai;
                         scrollX: true,
                         scrollY: 'calc(100vh - 220px)',
                         scrollCollapse: true,
-                        pageLength: 50,
-                        lengthMenu: [200, 300, 400, 500],
+                        pageLength: 25,
+                        lengthMenu: [25, 50, 100, 200],
                         ordering: true,
                         order: [[4, 'asc']], // default: No Shipment ascending
                         deferRender: true,
@@ -720,20 +810,56 @@ d.keluar_gudang_sampai = kg.sampai;
                             $(row).attr('data-id', $btn.data('id'));
                         }
                     });
+
                     keluarFp = flatpickr('#filterKeluarGudangTgl', {
-    mode: 'range',
-    dateFormat: 'Y-m-d',
-    altInput: true,
-    altFormat: 'd-m-Y',
-    locale: { rangeSeparator: ' s/d ' },
-    onChange: function(selectedDates) {
-        // reload hanya kalau rentang sudah lengkap (2 tanggal) atau dikosongkan
-        if (selectedDates.length === 2 || selectedDates.length === 0) {
-            table.draw();
-            loadAlertControl(false);
-        }
-    }
-});
+                        mode: 'range',
+                        dateFormat: 'Y-m-d',
+                        altInput: true,
+                        altFormat: 'd-m-Y',
+                        locale: { rangeSeparator: ' s/d ' },
+                        onChange: function(selectedDates) {
+                            // reload hanya kalau rentang sudah lengkap (2 tanggal) atau dikosongkan
+                            if (selectedDates.length === 2 || selectedDates.length === 0) {
+                                table.draw();
+                                loadAlertControl(false);
+                            }
+                        }
+                    });
+
+                    // kalender tanggal shipment (badge merah = masih ada yang belum bongkar)
+                    fpShip = flatpickr('#filterTglShipment', {
+                        dateFormat: 'Y-m-d',
+                        altInput: true,
+                        altFormat: 'd/m/Y',
+                        onReady: (s, d, inst) => jumpKePeriode(inst),
+                        onOpen: (s, d, inst) => {
+                            jumpKePeriode(inst);
+                            if (shipmentDatesStale) fetchShipmentDates();   // baru request saat kalender dibuka
+                        },
+                        onDayCreate: function (dObj, dStr, instance, dayElem) {
+                            const info = shipmentDates[instance.formatDate(dayElem.dateObj, 'Y-m-d')];
+                            if (!info) return;
+
+                            if (info.belum > 0) {
+                                dayElem.classList.add('ship-pending');
+                                dayElem.title = info.belum + ' dari ' + info.total + ' shipment belum bongkar';
+                                const b = document.createElement('span');
+                                b.className = 'ship-badge';
+                                b.textContent = info.belum;
+                                dayElem.appendChild(b);
+                            } else {
+                                dayElem.classList.add('ship-done');
+                                dayElem.title = 'Semua ' + info.total + ' shipment sudah selesai';
+                            }
+                        },
+                        onChange: function (sel, dateStr) {
+                            tglShipmentFilter = dateStr;      // '' kalau dihapus
+                            table.draw();
+                            loadAlertControl(false);
+                        }
+                    });
+
+                    $('#btnResetTglShipment').on('click', function () { fpShip.clear(); });
 
                     $('#shipNoShipment').on('change', function() {
                         let opt = $(this).find('option:selected');
@@ -744,25 +870,26 @@ d.keluar_gudang_sampai = kg.sampai;
                         $('#shipAta').val(opt.data('ata') || '');
                     });
 
-                    // filter berubah -> reload dari server (area ditangani handler area sendiri)
+                    $('#btnResetFilter').on('click', function() {
+                        $('.ms-chk').prop('checked', false);
+                        $('.ms-dd').each(function() { updateMultiLabel($(this)); });
+                        $('.ms-dd-search').val('');
+                        $('.ms-dd-item').show();
+                        $('.area-chk').prop('checked', false);
+                        $('#areaDDSearch').val('');
+                        $('.area-dd-item').show();
+                        updateAreaLabel();
 
+                        keluarFp.clear(false);
+                        fpShip.clear(false);
+                        tglShipmentFilter = '';
 
-             $('#btnResetFilter').on('click', function() {
-    $('.ms-chk').prop('checked', false);
-    $('.ms-dd').each(function() { updateMultiLabel($(this)); });
-    $('.ms-dd-search').val('');
-    $('.ms-dd-item').show();
-    $('.area-chk').prop('checked', false);
-    $('#areaDDSearch').val('');
-    $('.area-dd-item').show();
-    updateAreaLabel();
-keluarFp.clear(false);
-    kelSort = ''; kelFilter = [];
-    $('.kel-chk').prop('checked', false);
-    updateKelIndicator();
-    table.draw();
-    loadAlertControl(false);
-});
+                        kelSort = ''; kelFilter = [];
+                        $('.kel-chk').prop('checked', false);
+                        updateKelIndicator();
+                        table.draw();
+                        loadAlertControl(false);
+                    });
 
                     $('.filter-box .searchable').select2({ width: '180px' });
                     $('#shipModal .searchable').select2({ width: '100%', dropdownParent: $('#shipModal') });
@@ -774,19 +901,22 @@ keluarFp.clear(false);
                             type: 'POST',
                             data: $(this).serialize(),
                             success: function(res) {
-                                $('#shipModal').modal('hide');
+                                // bootstrap 5: plugin jQuery .modal() tidak ada (bootstrap dimuat sebelum jQuery)
+                                bootstrap.Modal.getOrCreateInstance(document.getElementById('shipModal')).hide();
                                 $('#shipModal form')[0].reset();
+                                shipListLoaded = false;   // data kapal berubah -> muat ulang saat modal dibuka lagi
                                 alert(res.message);
-                                table.draw();
+                                table.draw(false);
                             },
                             error: function() { alert('Gagal update data'); }
                         });
                     });
 
-                    // init select2 & flatpickr tiap kali draw (hanya baris yang tampil)
+                    // setelah tiap draw: plugin diinisialisasi BERTAHAP supaya browser tidak freeze
                     table.on('draw.dt', function() {
-                        initReasonSelect();
-                        initDateTimePickers();
+                        pickerToken++;
+                        initReasonSelect(pickerToken);
+                        initDateTimePickers(pickerToken);
                         setTimeout(function() {
                             table.columns.adjust();
                         }, 0);
@@ -799,9 +929,15 @@ keluarFp.clear(false);
                         }
                     });
 
-                    // ================= ALERT CONTROL =================
-                    loadAlertControl(true);
-                });
+                    // ================= INIT HALAMAN =================
+                    updatePeriodeLabel();
+
+                    // Alert Control dimuat SETELAH tabel utama tampil (tidak berebut dengan request tabel).
+                    // Kalender tanggal shipment tidak dimuat di sini, baru saat kalender dibuka.
+                    table.one('draw.dt', function() {
+                        setTimeout(function() { loadAlertControl(true); }, 300);
+                    });
+                });   // <-- penutup $(document).ready
 
                 function esc(s) {
                     return String(s ?? '')
@@ -812,19 +948,28 @@ keluarFp.clear(false);
                         .replace(/'/g, '&#39;');
                 }
 
-                function loadAlertControl(showToastIfAny) {
-                    $.ajax({
+                // ================= ALERT CONTROL =================
+                // fromSave = true -> dipanggil setelah simpan (kalender hanya ditandai kedaluwarsa)
+                let alertReq = null;
+                function loadAlertControl(showToastIfAny, fromSave) {
+                    markShipmentDatesStale();
+
+                    if (alertReq) alertReq.abort();   // request lama dibatalkan kalau filter berubah cepat
+
+                    alertReq = $.ajax({
                         url: "{{ route('monitoring.alerts') }}",
                         type: 'GET',
-                       data: {
-    pic_monitoring: getMulti('pic_monitoring'),
-    dist_channel: getMulti('dist_channel'),
-    area: getSelectedAreas(),
-    bulan: getMulti('bulan'),
-    tahun: getMulti('tahun'),
-   keluar_gudang_dari:   getKeluarRange().dari,
-keluar_gudang_sampai: getKeluarRange().sampai,
-},
+                        data: {
+                            periode: periodeAktif,
+                            tanggal_shipment: tglShipmentFilter,
+                            pic_monitoring: getMulti('pic_monitoring'),
+                            dist_channel: getMulti('dist_channel'),
+                            area: getSelectedAreas(),
+                            bulan: getMulti('bulan'),
+                            tahun: getMulti('tahun'),
+                            keluar_gudang_dari:   getKeluarRange().dari,
+                            keluar_gudang_sampai: getKeluarRange().sampai,
+                        },
                         success: function(res) {
                             renderMissingFieldSummary(res.missingSummary);
                             renderAlertControl(res.alerts, res.totalAlert);
@@ -834,6 +979,13 @@ keluar_gudang_sampai: getKeluarRange().sampai,
                             }
                         }
                     });
+                }
+
+                // setelah SAVE: alert control di-refresh dengan debounce supaya tidak tiap edit memicu query berat
+                let alertSaveTimer = null;
+                function loadAlertControlDebounced() {
+                    clearTimeout(alertSaveTimer);
+                    alertSaveTimer = setTimeout(function() { loadAlertControl(false, true); }, 1500);
                 }
 
                 function renderMissingFieldSummary(missingSummary) {
@@ -1024,7 +1176,7 @@ keluar_gudang_sampai: getKeluarRange().sampai,
                             row.removeClass('row-dirty');
                             updateDirtyCount();
                             setTimeout(function() { row.find('.save-status').html(''); }, 2000);
-                            loadAlertControl(false);
+                            loadAlertControlDebounced();
                         },
                         error: function() {
                             row.find('.save-btn').prop('disabled', false).text('SAVE');
@@ -1034,385 +1186,397 @@ keluar_gudang_sampai: getKeluarRange().sampai,
                 }
 
                 // ================= Simpan Semua (batch) =================
-          $(document).on('click', '#btnSaveAll', function() {
-    let $btn = $(this);
-    let $dirtyRows = $('#tableMonitoring tbody tr.row-dirty');
+                $(document).on('click', '#btnSaveAll', function() {
+                    let $btn = $(this);
+                    let $dirtyRows = $('#tableMonitoring tbody tr.row-dirty');
 
-    if ($dirtyRows.length === 0) {
-        $dirtyRows = $('#tableMonitoring tbody tr');
-    }
-    if ($dirtyRows.length === 0) {
-        showToastMsg('Tidak ada data untuk disimpan.');
-        return;
-    }
+                    if ($dirtyRows.length === 0) {
+                        $dirtyRows = $('#tableMonitoring tbody tr');
+                    }
+                    if ($dirtyRows.length === 0) {
+                        showToastMsg('Tidak ada data untuk disimpan.');
+                        return;
+                    }
 
-    let rows = [];
-    $dirtyRows.each(function() { rows.push(getRowData($(this))); });
+                    let rows = [];
+                    $dirtyRows.each(function() { rows.push(getRowData($(this))); });
 
-    $btn.prop('disabled', true);
-    $('#btnSaveAllLabel').text('Menyimpan...');
-    $dirtyRows.find('.save-status').html('⏳ Saving...');
+                    $btn.prop('disabled', true);
+                    $('#btnSaveAllLabel').text('Menyimpan...');
+                    $dirtyRows.find('.save-status').html('⏳ Saving...');
 
-    $.ajax({
-        url: "{{ route('monitoring.update.batch') }}",
-        type: 'POST',
-        data: { _token: '{{ csrf_token() }}', rows: rows },
-        success: function(res) {
-            (res.results || []).forEach(function(r) {
-                let row = $dirtyRows.filter('[data-id="' + r.id + '"]');
-                if (r.status === 'success') {
-                    row.removeClass('row-dirty');
-                    row.find('.save-status').html('✅ Saved');
-                    setTimeout(function() { row.find('.save-status').html(''); }, 2000);
-                } else {
-                    row.find('.save-status').html('❌ Gagal');
-                }
-            });
-            tampilHasilBatch(res);
-            updateDirtyCount();
-            loadAlertControl(false);
-        },
-        error: function(xhr, textStatus) {
-            $dirtyRows.find('.save-status').html('❌ Error');
-            popupGagal('Data gagal disimpan', pesanXhr(xhr, textStatus));
-        },
-        complete: function() {
-            $btn.prop('disabled', false);
-            $('#btnSaveAllLabel').text('💾 Simpan Semua');
-        }
-    });
-});
+                    $.ajax({
+                        url: "{{ route('monitoring.update.batch') }}",
+                        type: 'POST',
+                        data: { _token: '{{ csrf_token() }}', rows: rows },
+                        success: function(res) {
+                            (res.results || []).forEach(function(r) {
+                                let row = $dirtyRows.filter('[data-id="' + r.id + '"]');
+                                if (r.status === 'success') {
+                                    row.removeClass('row-dirty');
+                                    row.find('.save-status').html('✅ Saved');
+                                    setTimeout(function() { row.find('.save-status').html(''); }, 2000);
+                                } else {
+                                    row.find('.save-status').html('❌ Gagal');
+                                }
+                            });
+                            tampilHasilBatch(res);
+                            updateDirtyCount();
+                            loadAlertControlDebounced();
+                        },
+                        error: function(xhr, textStatus) {
+                            $dirtyRows.find('.save-status').html('❌ Error');
+                            popupGagal('Data gagal disimpan', pesanXhr(xhr, textStatus));
+                        },
+                        complete: function() {
+                            $btn.prop('disabled', false);
+                            $('#btnSaveAllLabel').text('💾 Simpan Semua');
+                        }
+                    });
+                });
 
                 // ================= input/select berubah -> LANGSUNG save =================
-               $(document).on('change', '#tableMonitoring input, #tableMonitoring select', function() {
-    // abaikan altInput flatpickr & kotak search select2 (keduanya tidak punya atribut name)
-    if (!$(this).attr('name')) return;
+                $(document).on('change', '#tableMonitoring input, #tableMonitoring select', function() {
+                    // abaikan altInput flatpickr & kotak search select2 (keduanya tidak punya atribut name)
+                    if (!$(this).attr('name')) return;
 
-    let row = $(this).closest('tr');
-    row.addClass('row-dirty');
+                    let row = $(this).closest('tr');
+                    row.addClass('row-dirty');
 
-    let id = row.attr('data-id');
-    if (id) {
-        editedRowIds.add(id);
-    }
-    updateEditedCount();
+                    let id = row.attr('data-id');
+                    if (id) {
+                        editedRowIds.add(id);
+                    }
+                    updateEditedCount();
 
-    updateDirtyCount();
-    saveRow(row.find('.save-btn')[0]);
-});
-                function initReasonSelect() {
-                    $('.searchable-select').each(function() {
-                        if ($(this).hasClass('select2-hidden-accessible')) {
-                            $(this).select2('destroy');
-                        }
-                        $(this).select2({
+                    updateDirtyCount();
+                    saveRow(row.find('.save-btn')[0]);
+                });
+
+                // select2 diinisialisasi per potongan (10 select per tick), bukan semuanya sekaligus
+                function initReasonSelect(token) {
+                    const els = $('#tableMonitoring tbody .searchable-select')
+                        .filter(function() { return !$(this).hasClass('select2-hidden-accessible'); })
+                        .get();
+
+                    runChunked(els, 10, function(el) {
+                        const $el = $(el);
+                        if ($el.hasClass('select2-hidden-accessible')) return;
+                        $el.select2({
                             width: 'resolve',
-                            placeholder: $(this).data('placeholder') || 'Pilih...',
+                            placeholder: $el.data('placeholder') || 'Pilih...',
                             allowClear: true,
                             dropdownParent: $('body')
                         });
+                    }, token);
+                }
+
+                // "07102026" / "071026" / "2026-10-07" -> Date (null kalau tidak valid)
+                function parseTypedDate(str) {
+                    if (!str) return null;
+                    str = String(str).trim();
+
+                    if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
+                        const [y, m, d] = str.split('-').map(Number);
+                        return new Date(y, m - 1, d);
+                    }
+
+                    const digits = str.replace(/\D/g, '');
+                    let d, m, y;
+                    if (digits.length === 8)      { d = +digits.slice(0, 2); m = +digits.slice(2, 4); y = +digits.slice(4); }
+                    else if (digits.length === 6) { d = +digits.slice(0, 2); m = +digits.slice(2, 4); y = 2000 + +digits.slice(4); }
+                    else return null;
+
+                    const dt = new Date(y, m - 1, d);
+                    return (dt.getFullYear() === y && dt.getMonth() === m - 1 && dt.getDate() === d) ? dt : null;
+                }
+
+                // "1435" -> "14:35", "935" -> "09:35", "9" -> "09:00", tidak valid -> ""
+                function normalizeJam(raw) {
+                    const d = String(raw || '').replace(/\D/g, '');
+                    if (d === '') return '';
+                    let h, m;
+                    if (d.length <= 2)       { h = +d; m = 0; }
+                    else if (d.length === 3) { h = +d.slice(0, 1); m = +d.slice(1); }
+                    else                     { h = +d.slice(0, 2); m = +d.slice(2, 4); }
+                    if (h > 23 || m > 59) return '';
+                    return String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0');
+                }
+
+                function initDateTimePickers(token) {
+
+                    // input type=date bawaan -> jadi text bertipe flatpickr (murah, sinkron)
+                    $('#tableMonitoring tbody input[type="date"]').each(function () {
+                        this.type = 'text';
+                        this.placeholder = 'ddmmyyyy';
+                        $(this).addClass('flatpickr-date');
+                    });
+
+                    // ---- JAM: ketik 1435 -> 14:35 (murah, sinkron) ----
+                    $('#tableMonitoring tbody .input-jam').each(function () {
+                        if (this.dataset.jamInit) return;
+                        this.dataset.jamInit = '1';
+                        const el = this;
+
+                        // saat mengetik: sisipkan ":" otomatis
+                        el.addEventListener('input', function () {
+                            const d = el.value.replace(/\D/g, '').slice(0, 4);
+                            el.value = d.length > 2 ? d.slice(0, 2) + ':' + d.slice(2) : d;
+                        });
+
+                        el.dataset.lastOk = el.value;   // nilai valid terakhir
+
+                        // normalisasi SEBELUM handler auto-save (change terpicu lebih dulu daripada blur)
+                        el.addEventListener('change', function (e) {
+                            const hasil = normalizeJam(el.value);
+
+                            if (el.value !== '' && hasil === '') {
+                                // jam salah: tampilkan popup, kembalikan nilai lama, JANGAN auto-save
+                                e.stopPropagation();
+                                const salah = el.value;
+                                el.value = el.dataset.lastOk || '';
+                                el.classList.add('is-invalid');
+                                setTimeout(function () { el.classList.remove('is-invalid'); }, 1500);
+                                popupGagal('Jam tidak valid', ['Jam "' + salah + '" tidak valid. Isi format HH:MM (00:00 sampai 23:59), contoh 14:35.'], 'warning');
+                                return;
+                            }
+
+                            el.value = hasil;
+                            el.dataset.lastOk = hasil;
+                        });
+
+                        // Enter = keluar dari input supaya tersimpan
+                        el.addEventListener('keydown', function (e) { if (e.key === 'Enter') el.blur(); });
+                    });
+
+                    // ---- TANGGAL: flatpickr (mahal) -> bertahap, 20 input per tick ----
+                    const els = $('#tableMonitoring tbody .flatpickr-date')
+                        .filter(function () { return !this._flatpickr; })
+                        .get();
+
+                    runChunked(els, 20, function (el) {
+                        if (el._flatpickr) return;
+                        flatpickr(el, {
+                            dateFormat: 'Y-m-d',          // nilai yang dikirim ke server
+                            altInput: true,
+                            altFormat: 'd-m-Y',           // tampilan
+                            allowInput: true,
+                            parseDate: function (str) { return parseTypedDate(str); },
+                            onReady: function (sel, val, fp) {
+                                fp.altInput.placeholder = 'ddmmyyyy';
+                                fp.altInput.setAttribute('inputmode', 'numeric');
+                            }
+                        });
+                    }, token);
+                }
+
+                // ================= EXPORT =================
+                $(document).on('click', '#btnExport', function() {
+                    const params = new URLSearchParams();
+                    const add = (k, v) => { if (v) params.append(k, v); };
+
+                    ['pic_monitoring', 'dist_channel', 'bulan', 'tahun'].forEach(function(k) {
+                        getMulti(k).forEach(v => params.append(k + '[]', v));
+                    });
+                    getSelectedAreas().forEach(a => params.append('area[]', a));
+
+                    const kg = getKeluarRange();
+                    add('keluar_gudang_dari',   kg.dari);
+                    add('keluar_gudang_sampai', kg.sampai);
+                    add('tgl_dari',             $('#exportTglDari').val());
+                    add('tgl_sampai',           $('#exportTglSampai').val());
+
+                    window.location.href = "{{ route('monitoring.export') }}" +
+                        (params.toString() ? '?' + params.toString() : '');
+                });
+
+                // ================= NAVIGASI PANAH ALA EXCEL =================
+                (function () {
+                    let editableCols = null;
+                    function getEditableCols() {
+                        if (editableCols) return editableCols;
+                        const set = new Set();
+                        table.columns().every(function (i) {
+                            if ($(this.header()).hasClass('editable')) set.add(i);
+                        });
+                        editableCols = set;
+                        return set;
+                    }
+
+                    function rowFields(tr) {
+                        const out = [];
+                        const editable = getEditableCols();
+
+                        $(tr).children('td').each(function (ti) {
+                            if (!editable.has(ti)) return;
+
+                            let fi = 0;
+                            $(this).find('input, select').each(function () {
+                                const $el = $(this);
+                                let el = this, kind;
+
+                                if ($el.is('.select2-search__field')) return;
+
+                                if ($el.is('select.select2-hidden-accessible')) {
+                                    el = $el.next('.select2-container').find('.select2-selection')[0];
+                                    kind = 'select2';
+                                    if (!el) return;
+                                } else if ($el.is('select')) {
+                                    kind = 'select';
+                                } else {
+                                    if (this.type === 'hidden' || this.readOnly || this.disabled || !$el.is(':visible')) return;
+                                    const prev = this.previousElementSibling;
+                                    if (prev && prev._flatpickr) {
+                                        kind = 'fdate';   // input tampilan flatpickr
+                                    } else {
+                                        kind = this.type === 'number' ? 'number' : (this.type === 'date' ? 'date' : 'text');
+                                    }
+                                }
+                                out.push({ el: el, td: ti, fi: fi++, kind: kind });
+                            });
+                        });
+                        return out;
+                    }
+
+                    function goTo(f) {
+                        f.el.focus();
+                        if ((f.kind === 'text' || f.kind === 'number' || f.kind === 'fdate') && f.el.select) {
+                            try { f.el.select(); } catch (e) {}
+                        }
+                    }
+
+                    document.addEventListener('keydown', function (e) {
+                        if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Enter'].includes(e.key)) return;
+                        if (e.shiftKey || e.altKey || e.metaKey || e.isComposing) return;
+
+                        const tr = e.target.closest && e.target.closest('#tableMonitoring tbody tr');
+                        if (!tr) return;
+
+                        const fields = rowFields(tr);
+                        const cur = fields.find(f => f.el === e.target);
+                        if (!cur) return;
+
+                        const ctrl = e.ctrlKey;
+                        const el = cur.el;
+                        const isTextLike = cur.kind === 'text' || cur.kind === 'number' || cur.kind === 'fdate';
+                        let dir = null;
+
+                        if (e.key === 'Enter') {
+                            if (ctrl) return;
+                            if (cur.kind === 'select2') {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                $(cur.el).closest('.select2-container').prev('select').select2('open');
+                                return;
+                            }
+                            if (!isTextLike) return;
+                            dir = 'down';
+                        }
+                        else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+                            const left = e.key === 'ArrowLeft';
+                            let ok = ctrl || ['select2', 'select', 'number', 'fdate'].includes(cur.kind);
+                            if (!ok && cur.kind === 'text') {
+                                const s = el.selectionStart, en = el.selectionEnd, len = el.value.length;
+                                const allSelected = s === 0 && en === len;
+                                ok = allSelected || (s === en && (left ? s === 0 : en === len));
+                            }
+                            if (!ok) return;
+                            dir = left ? 'left' : 'right';
+                        } else {
+                            if (!(ctrl || isTextLike || cur.kind === 'select2')) return;
+                            dir = e.key === 'ArrowUp' ? 'up' : 'down';
+                        }
+
+                        let target = null;
+
+                        if (dir === 'left' || dir === 'right') {
+                            target = fields[fields.indexOf(cur) + (dir === 'left' ? -1 : 1)];
+                        } else {
+                            let r = dir === 'up' ? tr.previousElementSibling : tr.nextElementSibling;
+                            while (r && !target) {
+                                const f2 = rowFields(r);
+                                target = f2.find(f => f.td === cur.td && f.fi === cur.fi) ||
+                                         f2.find(f => f.td === cur.td);
+                                r = dir === 'up' ? r.previousElementSibling : r.nextElementSibling;
+                            }
+                        }
+
+                        if (!target) return;
+
+                        e.preventDefault();
+                        e.stopPropagation();
+                        goTo(target);
+                    }, true);
+                })();
+            </script>
+            <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+            <script>
+                function popupGagal(title, errors, icon) {
+                    var li = (errors || []).map(function (e) {
+                        return '<li>' + $('<div>').text(e).html() + '</li>';
+                    }).join('');
+                    Swal.fire({
+                        icon: icon || 'error',
+                        title: title || 'Data gagal disimpan',
+                        html: '<ul style="text-align:left;margin:0;padding-left:20px;max-height:300px;overflow:auto">' + li + '</ul>',
+                        confirmButtonText: 'Mengerti'
                     });
                 }
 
-              // "07102026" / "071026" / "2026-10-07" -> Date (null kalau tidak valid)
-function parseTypedDate(str) {
-    if (!str) return null;
-    str = String(str).trim();
-
-    if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
-        const [y, m, d] = str.split('-').map(Number);
-        return new Date(y, m - 1, d);
-    }
-
-    const digits = str.replace(/\D/g, '');
-    let d, m, y;
-    if (digits.length === 8)      { d = +digits.slice(0, 2); m = +digits.slice(2, 4); y = +digits.slice(4); }
-    else if (digits.length === 6) { d = +digits.slice(0, 2); m = +digits.slice(2, 4); y = 2000 + +digits.slice(4); }
-    else return null;
-
-    const dt = new Date(y, m - 1, d);
-    return (dt.getFullYear() === y && dt.getMonth() === m - 1 && dt.getDate() === d) ? dt : null;
-}
-
-// "1435" -> "14:35", "935" -> "09:35", "9" -> "09:00", tidak valid -> ""
-function normalizeJam(raw) {
-    const d = String(raw || '').replace(/\D/g, '');
-    if (d === '') return '';
-    let h, m;
-    if (d.length <= 2)       { h = +d; m = 0; }
-    else if (d.length === 3) { h = +d.slice(0, 1); m = +d.slice(1); }
-    else                     { h = +d.slice(0, 2); m = +d.slice(2, 4); }
-    if (h > 23 || m > 59) return '';
-    return String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0');
-}
-
-function initDateTimePickers() {
-
-$('#tableMonitoring tbody input[type="date"]').each(function () {
-        this.type = 'text';
-        this.placeholder = 'ddmmyyyy';
-        $(this).addClass('flatpickr-date');
-    });
-    // ---- TANGGAL: bisa diketik ddmmyyyy, kalender tetap bisa diklik ----
-    $('.flatpickr-date').each(function () {
-        if (this._flatpickr) return;
-        flatpickr(this, {
-            dateFormat: 'Y-m-d',          // nilai yang dikirim ke server
-            altInput: true,
-            altFormat: 'd-m-Y',           // tampilan
-            allowInput: true,
-            parseDate: function (str) { return parseTypedDate(str); },
-            onReady: function (sel, val, fp) {
-                fp.altInput.placeholder = 'ddmmyyyy';
-                fp.altInput.setAttribute('inputmode', 'numeric');
-            }
-        });
-    });
-
-    // ---- JAM: ketik 1435 -> 14:35 ----
-    $('.input-jam').each(function () {
-        if (this.dataset.jamInit) return;
-        this.dataset.jamInit = '1';
-        const el = this;
-
-        // saat mengetik: sisipkan ":" otomatis
-        el.addEventListener('input', function () {
-            const d = el.value.replace(/\D/g, '').slice(0, 4);
-            el.value = d.length > 2 ? d.slice(0, 2) + ':' + d.slice(2) : d;
-        });
-
-        // normalisasi SEBELUM handler auto-save (change terpicu lebih dulu daripada blur)
-     el.dataset.lastOk = el.value;   // nilai valid terakhir
-
-el.dataset.lastOk = el.value;   // nilai valid terakhir
-
-el.addEventListener('change', function (e) {
-    const hasil = normalizeJam(el.value);
-
-    if (el.value !== '' && hasil === '') {
-        // jam salah: tampilkan popup, kembalikan nilai lama, JANGAN auto-save
-        e.stopPropagation();
-        const salah = el.value;
-        el.value = el.dataset.lastOk || '';
-        el.classList.add('is-invalid');
-        setTimeout(function () { el.classList.remove('is-invalid'); }, 1500);
-        popupGagal('Jam tidak valid', ['Jam "' + salah + '" tidak valid. Isi format HH:MM (00:00 sampai 23:59), contoh 14:35.'], 'warning');
-        return;
-    }
-
-    el.value = hasil;
-    el.dataset.lastOk = hasil;
-});
-        // Enter = keluar dari input supaya tersimpan
-        el.addEventListener('keydown', function (e) { if (e.key === 'Enter') el.blur(); });
-    });
-}
-
-                // ================= EXPORT =================
-$(document).on('click', '#btnExport', function() {
-    const params = new URLSearchParams();
-    const add = (k, v) => { if (v) params.append(k, v); };
-
-    ['pic_monitoring', 'dist_channel', 'bulan', 'tahun'].forEach(function(k) {
-        getMulti(k).forEach(v => params.append(k + '[]', v));
-    });
-    getSelectedAreas().forEach(a => params.append('area[]', a));
-
-    const kg = getKeluarRange();
-    add('keluar_gudang_dari',   kg.dari);
-    add('keluar_gudang_sampai', kg.sampai);
-    add('tgl_dari',             $('#exportTglDari').val());
-    add('tgl_sampai',           $('#exportTglSampai').val());
-
-    window.location.href = "{{ route('monitoring.export') }}" +
-        (params.toString() ? '?' + params.toString() : '');
-});
-// ================= NAVIGASI PANAH ALA EXCEL =================
-(function () {
-    let editableCols = null;
-    function getEditableCols() {
-        if (editableCols) return editableCols;
-        const set = new Set();
-        table.columns().every(function (i) {
-            if ($(this.header()).hasClass('editable')) set.add(i);
-        });
-        editableCols = set;
-        return set;
-    }
-
-    function rowFields(tr) {
-        const out = [];
-        const editable = getEditableCols();
-
-        $(tr).children('td').each(function (ti) {
-            if (!editable.has(ti)) return;
-
-            let fi = 0;
-            $(this).find('input, select').each(function () {
-                const $el = $(this);
-                let el = this, kind;
-
-                if ($el.is('.select2-search__field')) return;
-
-                if ($el.is('select.select2-hidden-accessible')) {
-                    el = $el.next('.select2-container').find('.select2-selection')[0];
-                    kind = 'select2';
-                    if (!el) return;
-                } else if ($el.is('select')) {
-                    kind = 'select';
-                } else {
-                    if (this.type === 'hidden' || this.readOnly || this.disabled || !$el.is(':visible')) return;
-                    const prev = this.previousElementSibling;
-                    if (prev && prev._flatpickr) {
-                        kind = 'fdate';   // input tampilan flatpickr
-                    } else {
-                        kind = this.type === 'number' ? 'number' : (this.type === 'date' ? 'date' : 'text');
-                    }
+                // satu request gagal (xhr) -> daftar kalimat
+                function pesanXhr(xhr, textStatus) {
+                    var j = xhr.responseJSON;
+                    if (j && j.errors && j.errors.length) return j.errors;
+                    if (j && j.message) return [j.message];
+                    if (textStatus === 'timeout') return ['Server terlalu lama merespons (30 detik). Isian belum tentu tersimpan, simpan ulang.'];
+                    if (xhr.status === 0)   return ['Koneksi terputus. Cek jaringan, lalu simpan ulang.'];
+                    if (xhr.status === 419) return ['Sesi habis. Refresh halaman, lalu ulangi input.'];
+                    if (xhr.status === 401) return ['Anda sudah logout. Login ulang dulu.'];
+                    if (xhr.status === 403) return ['Akun ini tidak boleh mengubah data monitoring.'];
+                    return ['Kesalahan server (kode ' + xhr.status + '). Hubungi admin.'];
                 }
-                out.push({ el: el, td: ti, fi: fi++, kind: kind });
-            });
-        });
-        return out;
-    }
-function goTo(f) {
-    f.el.focus();
-    if ((f.kind === 'text' || f.kind === 'number' || f.kind === 'fdate') && f.el.select) {
-        try { f.el.select(); } catch (e) {}
-    }
-}
 
-    document.addEventListener('keydown', function (e) {
-        if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Enter'].includes(e.key)) return;
-        if (e.shiftKey || e.altKey || e.metaKey || e.isComposing) return;
+                // hasil batch: kumpulkan semua baris gagal jadi SATU popup
+                function tampilHasilBatch(res) {
+                    var gagal = [];
+                    (res.results || []).forEach(function (r) {
+                        if (r.status !== 'error') return;
+                        (r.errors || [r.message]).forEach(function (m) {
+                            gagal.push((r.no_shipment || '(tanpa no shipment)') + ' : ' + m);
+                            // tandai baris gagal
+                            $('tr[data-id="' + r.id + '"]').addClass('highlight-row');
+                        });
+                    });
+                    if (gagal.length) {
+                        popupGagal(gagal.length + ' pesan kesalahan, baris ini TIDAK tersimpan', gagal);
+                        setTimeout(function () { $('.highlight-row').removeClass('highlight-row'); }, 8000);
+                        return false;
+                    }
+                    Swal.fire({ icon: 'success', title: 'Tersimpan', text: (res.success_count || 0) + ' baris berhasil disimpan.', timer: 1800, showConfirmButton: false });
+                    return true;
+                }
 
-        const tr = e.target.closest && e.target.closest('#tableMonitoring tbody tr');
-        if (!tr) return;
+                $.ajaxSetup({ timeout: 30000 });   // batas 30 detik
 
-        const fields = rowFields(tr);
-        const cur = fields.find(f => f.el === e.target);
-        if (!cur) return;
+                // tahun ngawur di input tanggal (flatpickr-date menyimpan Y-m-d)
+                $(document).on('change', 'input.flatpickr-date, input[type=date]', function () {
+                    var y = parseInt((this.value || '').split('-')[0], 10);
+                    if (this.value && (y < 2020 || y > 2100)) {
+                        popupGagal('Tanggal tidak valid', ['Tahun "' + y + '" tidak masuk akal. Isi 4 digit, contoh 2026.'], 'warning');
+                        this.value = '';
+                        $(this).trigger('change');
+                    }
+                });
 
-        const ctrl = e.ctrlKey;
-        const el = cur.el;
-        const isTextLike = cur.kind === 'text' || cur.kind === 'number' || cur.kind === 'fdate';
-        let dir = null;
-
-        if (e.key === 'Enter') {
-    if (ctrl) return;
-    if (cur.kind === 'select2') {
-        e.preventDefault();
-        e.stopPropagation();
-        $(cur.el).closest('.select2-container').prev('select').select2('open');
-        return;
-    }
-    if (!isTextLike) return;
-    dir = 'down';
-}
- else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
-            const left = e.key === 'ArrowLeft';
-            let ok = ctrl || ['select2', 'select', 'number', 'fdate'].includes(cur.kind);
-            if (!ok && cur.kind === 'text') {
-                const s = el.selectionStart, en = el.selectionEnd, len = el.value.length;
-                const allSelected = s === 0 && en === len;
-                ok = allSelected || (s === en && (left ? s === 0 : en === len));
-            }
-            if (!ok) return;
-            dir = left ? 'left' : 'right';
-      } else {
-    if (!(ctrl || isTextLike || cur.kind === 'select2')) return;
-    dir = e.key === 'ArrowUp' ? 'up' : 'down';
-}
-
-        let target = null;
-
-        if (dir === 'left' || dir === 'right') {
-            target = fields[fields.indexOf(cur) + (dir === 'left' ? -1 : 1)];
-        } else {
-            let r = dir === 'up' ? tr.previousElementSibling : tr.nextElementSibling;
-            while (r && !target) {
-                const f2 = rowFields(r);
-                target = f2.find(f => f.td === cur.td && f.fi === cur.fi) ||
-                         f2.find(f => f.td === cur.td);
-                r = dir === 'up' ? r.previousElementSibling : r.nextElementSibling;
-            }
-        }
-
-        if (!target) return;
-
-        e.preventDefault();
-        e.stopPropagation();
-        goTo(target);
-    }, true);
-})();
+                // bongkar lebih awal dari tiba (satu baris)
+                $(document).on('change', 'input[name=tanggal_tiba], input[name=tanggal_bongkar]', function () {
+                    var $tr = $(this).closest('tr');
+                    var t = $tr.find('[name=tanggal_tiba]').val(), b = $tr.find('[name=tanggal_bongkar]').val();
+                    if (t && b && b < t) {
+                        popupGagal('Tanggal tidak masuk akal', ['Tanggal Bongkar (' + b + ') lebih awal dari Tanggal Tiba (' + t + ').'], 'warning');
+                    }
+                });
             </script>
-            <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-<script>
-function popupGagal(title, errors, icon) {
-    var li = (errors || []).map(function (e) {
-        return '<li>' + $('<div>').text(e).html() + '</li>';
-    }).join('');
-    Swal.fire({
-        icon: icon || 'error',
-        title: title || 'Data gagal disimpan',
-        html: '<ul style="text-align:left;margin:0;padding-left:20px;max-height:300px;overflow:auto">' + li + '</ul>',
-        confirmButtonText: 'Mengerti'
-    });
-}
-
-// satu request gagal (xhr) -> daftar kalimat
-function pesanXhr(xhr, textStatus) {
-    var j = xhr.responseJSON;
-    if (j && j.errors && j.errors.length) return j.errors;
-    if (j && j.message) return [j.message];
-    if (textStatus === 'timeout') return ['Server terlalu lama merespons (30 detik). Isian belum tentu tersimpan, simpan ulang.'];
-    if (xhr.status === 0)   return ['Koneksi terputus. Cek jaringan, lalu simpan ulang.'];
-    if (xhr.status === 419) return ['Sesi habis. Refresh halaman, lalu ulangi input.'];
-    if (xhr.status === 401) return ['Anda sudah logout. Login ulang dulu.'];
-    if (xhr.status === 403) return ['Akun ini tidak boleh mengubah data monitoring.'];
-    return ['Kesalahan server (kode ' + xhr.status + '). Hubungi admin.'];
-}
-
-// hasil batch: kumpulkan semua baris gagal jadi SATU popup
-function tampilHasilBatch(res) {
-    var gagal = [];
-    (res.results || []).forEach(function (r) {
-        if (r.status !== 'error') return;
-        (r.errors || [r.message]).forEach(function (m) {
-            gagal.push((r.no_shipment || '(tanpa no shipment)') + ' : ' + m);
-            // tandai baris gagal
-            $('tr[data-id="' + r.id + '"]').addClass('highlight-row');
-        });
-    });
-    if (gagal.length) {
-        popupGagal(gagal.length + ' pesan kesalahan, baris ini TIDAK tersimpan', gagal);
-        setTimeout(function () { $('.highlight-row').removeClass('highlight-row'); }, 8000);
-        return false;
-    }
-    Swal.fire({ icon: 'success', title: 'Tersimpan', text: (res.success_count || 0) + ' baris berhasil disimpan.', timer: 1800, showConfirmButton: false });
-    return true;
-}
-
-$.ajaxSetup({ timeout: 30000 });   // batas 30 detik
-
-// tahun ngawur di input tanggal (flatpickr-date menyimpan Y-m-d)
-$(document).on('change', 'input.flatpickr-date, input[type=date]', function () {
-    var y = parseInt((this.value || '').split('-')[0], 10);
-    if (this.value && (y < 2020 || y > 2100)) {
-        popupGagal('Tanggal tidak valid', ['Tahun "' + y + '" tidak masuk akal. Isi 4 digit, contoh 2026.'], 'warning');
-        this.value = '';
-        $(this).trigger('change');
-    }
-});
-
-// bongkar lebih awal dari tiba (satu baris)
-$(document).on('change', 'input[name=tanggal_tiba], input[name=tanggal_bongkar]', function () {
-    var $tr = $(this).closest('tr');
-    var t = $tr.find('[name=tanggal_tiba]').val(), b = $tr.find('[name=tanggal_bongkar]').val();
-    if (t && b && b < t) {
-        popupGagal('Tanggal tidak masuk akal', ['Tanggal Bongkar (' + b + ') lebih awal dari Tanggal Tiba (' + t + ').'], 'warning');
-    }
-});
-</script>
         </div>
     </div>
 

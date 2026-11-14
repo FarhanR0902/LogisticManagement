@@ -70,9 +70,18 @@ table.dataTable tbody td{font-size:12px;text-align:center;white-space:nowrap;max
         <button type="submit">Filter</button>
     </form>
 </div>
-
 <div class="actions">
-    <a class="btn btn-green" href="{{ url('/storage/export?' . http_build_query(request()->all())) }}">Export Excel</a>
+    <a class="btn btn-green" href="{{ url('/storage/export?' . http_build_query(request()->all())) }}">Export Storage</a>
+
+    <a class="btn" style="background:#16a34a"
+       href="{{ route('storage.export.gabungan.cepat', request()->all()) }}">
+        Export Cepat (Aktif + Storage, CSV)
+    </a>
+
+    <a class="btn" style="background:#2563eb"
+       href="{{ route('storage.export.gabungan', request()->all()) }}">
+        Export Gabungan (Laporan Lengkap)
+    </a>
 
     <form action="{{ url('/storage/delete-all') }}" method="POST"
           onsubmit="return confirm('Yakin ingin menghapus SEMUA data archive?')">

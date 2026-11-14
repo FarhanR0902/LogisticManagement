@@ -112,7 +112,11 @@ Route::get('/chart/status', [LogistikController::class, 'chartStatus']);
 Route::get('/storage',        [StorageController::class, 'index'])->name('storage.index');
 Route::get('/storage/data',   [StorageController::class, 'data'])->name('storage.data');
 Route::get('/storage/export', [StorageController::class, 'export']);
+
 Route::delete('/storage/delete-all', [StorageController::class, 'deleteAll']);
+Route::get('/storage/export-gabungan', [StorageController::class, 'exportGabungan'])->name('storage.export.gabungan');
+Route::get('/storage/export-gabungan-cepat', [StorageController::class, 'exportGabunganCepat'])->name('storage.export.gabungan.cepat');
+
 /*
 |--------------------------------------------------------------------------
 | PLANNER (FIXED + CLEAN PREFIX)
@@ -126,6 +130,8 @@ Route::prefix('planner')->group(function () {
     Route::get('/import-dates', [PlannerController::class, 'importDates'])->name('planner.importDates');
     Route::get('/planner/alerts', [App\Http\Controllers\Planner\PlannerController::class, 'alerts'])
         ->name('planner.alerts');
+        // taruh sebelum route planner lain
+Route::get('/planner/pilih-periode', [PlannerController::class, 'pilihPeriode'])->name('planner.periode');
     Route::get('/planner/export-report', [PlannerController::class, 'exportPlannerReport'])
         ->name('planner.export.report');
 
@@ -229,6 +235,8 @@ Route::get(
     '/monitoring/data-logistik',
     [MonitoringController::class, 'dataLogistik']
 )->name('monitoring.datalogistik');
+Route::get('/monitoring/periode', [MonitoringController::class, 'pilihPeriode'])
+    ->name('monitoring.periode');
 
 Route::post('/monitoring/fill-pic', [MonitoringController::class, 'fillPic'])->name('monitoring.fill.pic');
 Route::post('/monitoring/fill-pic', [MonitoringController::class, 'fillPic'])->name('monitoring.fill.pic');
@@ -237,7 +245,10 @@ Route::get('/monitoring/intransit/export', [MonitoringController::class, 'export
 
 Route::get('/monitoring/data-ajax', [MonitoringController::class, 'dataAjax'])->name('monitoring.datalogistik.ajax');
 Route::get('/monitoring/alerts', [MonitoringController::class, 'alerts'])->name('monitoring.alerts');
-
+Route::get('/monitoring/shipment-dates', [MonitoringController::class, 'shipmentDates'])
+    ->name('monitoring.shipmentDates');
+Route::get('/monitoring/shipment-list', [MonitoringController::class, 'shipmentList'])
+    ->name('monitoring.shipmentList');
 Route::put('/monitoring/update/{id}', [MonitoringController::class, 'updateMonitoring'])->name('monitoring.update');
 Route::post('/monitoring/update-batch', [MonitoringController::class, 'updateMonitoringBatch'])->name('monitoring.update.batch');
 
@@ -286,6 +297,8 @@ Route::prefix('manager/gabungan')->group(function () {
     Route::get('/data/detail', [GabunganController::class, 'detail'])->name('manager.gabungan.data.detail');
     Route::get('/in-transit', [GabunganController::class, 'inTransit'])->name('manager.gabungan.intransit');
     Route::get('/list/{kpi}', [GabunganController::class, 'list'])->name('manager.gabungan.list');
+    Route::get('gabungan/alert/{tipe}/export', [GabunganController::class, 'alertExport'])
+    ->name('manager.gabungan.alert.export');
 });
 Route::prefix('manager')->group(function () {
     Route::get('/kpi/planner',    [KpiController::class, 'planner'])->name('manager.kpi.planner');
@@ -407,7 +420,9 @@ Route::prefix('sales')->name('sales.')->group(function () {
     Route::get('/gabungan', [SalesGabunganController::class, 'dashboard'])->name('gabungan.dashboard');
     Route::get('/gabungan/in-transit', [SalesGabunganController::class, 'inTransit'])->name('gabungan.intransit');
     Route::get('/gabungan/list/{kpi}', [SalesGabunganController::class, 'list'])->name('gabungan.list');
-
+Route::get('/data-logistik', [SalesController::class, 'dataLogistik'])->name('sales.data.logistik');
+Route::post('/data-logistik/ajax', [SalesController::class, 'dataLogistikAjax'])->name('sales.data.logistik.ajax');
+Route::post('/data-logistik/detail', [SalesController::class, 'dataLogistikDetail'])->name('sales.data.logistik.detail');
     // ===== DATA GABUNGAN (dipakai kartu "Total Shipment") =====
     Route::get('/data-gabungan', [SalesController::class, 'dataGabungan'])->name('data.gabungan');
     Route::post('/data-gabungan/ajax', [SalesController::class, 'dataGabunganAjax'])->name('data.gabungan.ajax');
@@ -623,6 +638,8 @@ Route::middleware(['auth'])
         )->name('spvmonitoring.update');
         Route::get('/dashboard', [SpvMonitoringController::class, 'dashboard'])
             ->name('dashboard');
+          Route::get('/monitoring/shipment-list', [MonitoringController::class, 'shipmentList'])
+    ->name('monitoring.shipmentList');
         Route::get('in-transit-pasuruan', [SpvMonitoringController::class, 'inTransitPasuruan'])
             ->name('intransit.pasuruan');
         Route::get('/belum-tiba-gudang', [SpvMonitoringController::class, 'belumTibaGudang'])

@@ -443,16 +443,19 @@ private function filterByDistChannel($query)
         ));
     }
 
-    /* =========================================================
-     * IMPORT EXCEL
-     * ========================================================= */
+
     public function import(Request $request)
     {
+        set_time_limit(0);
+        ini_set('memory_limit', '1G');
+
         $request->validate([
             'file' => 'required|mimes:xlsx,xls,csv',
         ]);
 
-        $import = new LogistikImport();
+        // default: lewati no_do yang sudah ada di DB.
+        // centang "update_existing" di form kalau mau menimpa data lama (mode update).
+        $import = new LogistikImport(!$request->boolean('update_existing'));
 
         try {
             Excel::import($import, $request->file('file'));
@@ -461,19 +464,65 @@ private function filterByDistChannel($query)
             return back()->with('import_error', 'Import gagal total: ' . mb_substr($e->getMessage(), 0, 200));
         }
 
+        // data baru bisa mengubah agregat & daftar dropdown, jadi cache-nya dibuang
+        Cache::forget('logistik_shipment_agg');
+        foreach (['area', 'dist_channel', 'pic_monitoring'] as $c) {
+            Cache::forget("list_{$c}");
+        }
+
         return back()->with('import_result', [
-            'inserted'        => $import->getInsertedCount(),
-            'updated'         => $import->getUpdatedCount(),
-            'success'         => $import->getImportedCount(),
-            'skipped'         => $import->getSkippedCount(),
-            'failed'          => $import->getFailedCount(),
-            'failed_list'     => array_slice($import->getFailedList(), 0, 100),
-            'shipments'       => count(array_unique($import->getAllNoShipmentInFile())),
-            'ignored_headers' => $import->getIgnoredHeaders(),
-            'missing_columns' => $import->getMissingColumns(),
-            'unknown_planner' => $import->getUnknownPlannerCodes(),
+            'inserted'         => $import->getInsertedCount(),
+            'changes'       => array_slice($import->getChangeLog(), 0, 300),
+'changes_total' => count($import->getChangeLog()),
+'unchanged'     => $import->getUnchangedCount(),
+    'by_date'          => $import->getByDate(),   
+            'updated'          => $import->getUpdatedCount(),
+            'success'          => $import->getImportedCount(),
+            'skipped'          => $import->getSkippedCount(),
+            'skipped_existing' => $import->getSkippedExistingCount(),
+            'failed'           => $import->getFailedCount(),
+            'failed_list'      => array_slice($import->getFailedList(), 0, 100),
+            'shipments'        => count(array_unique($import->getAllNoShipmentInFile())),
+            'ignored_headers'  => $import->getIgnoredHeaders(),
+            'missing_columns'  => $import->getMissingColumns(),
+            'unknown_planner'  => $import->getUnknownPlannerCodes(),
         ]);
     }
+
+
+/// IMport lama
+
+    /* =========================================================
+     * IMPORT EXCEL
+     * ========================================================= */
+    // public function import(Request $request)
+    // {
+    //     $request->validate([
+    //         'file' => 'required|mimes:xlsx,xls,csv',
+    //     ]);
+
+    //     $import = new LogistikImport();
+
+    //     try {
+    //         Excel::import($import, $request->file('file'));
+    //     } catch (\Throwable $e) {
+    //         logger()->error('LOGISTIK IMPORT GAGAL TOTAL', ['error' => $e->getMessage()]);
+    //         return back()->with('import_error', 'Import gagal total: ' . mb_substr($e->getMessage(), 0, 200));
+    //     }
+
+    //     return back()->with('import_result', [
+    //         'inserted'        => $import->getInsertedCount(),
+    //         'updated'         => $import->getUpdatedCount(),
+    //         'success'         => $import->getImportedCount(),
+    //         'skipped'         => $import->getSkippedCount(),
+    //         'failed'          => $import->getFailedCount(),
+    //         'failed_list'     => array_slice($import->getFailedList(), 0, 100),
+    //         'shipments'       => count(array_unique($import->getAllNoShipmentInFile())),
+    //         'ignored_headers' => $import->getIgnoredHeaders(),
+    //         'missing_columns' => $import->getMissingColumns(),
+    //         'unknown_planner' => $import->getUnknownPlannerCodes(),
+    //     ]);
+    // }
 
     /* =========================================================
      * EXPORT EXCEL

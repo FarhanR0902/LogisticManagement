@@ -493,7 +493,13 @@
     <div class="container-fluid-custom">
 
         <div class="page-header">
-            <div class="title">Data Planner</div>
+         <div class="title">
+    Data Planner
+    <span class="badge bg-primary ms-2" style="font-size:13px;">
+        {{ $periode === '__KOSONG__' ? 'Periode kosong' : $periode }}
+    </span>
+    <a href="{{ route('planner.periode') }}" class="btn btn-sm btn-outline-secondary ms-2">Ganti Periode</a>
+</div>
 
             <div class="d-flex align-items-center gap-2">
                 <a href="#" id="btnExport" class="btn btn-success">Export</a>
@@ -857,7 +863,7 @@
             // MASTER TARIF (preload sekali saat halaman dibuka)
             // ==========================================================
             const tarifList = @json($tarifPengiriman);
-
+const periodeAktif = @json($periode);
             function normalizeStr(v) {
                 if (!v) return '';
                 v = String(v).replace(/\u00A0/g, ' ');
@@ -940,8 +946,9 @@
                 $('#btnExport').on('click', function(e) {
                     e.preventDefault();
 
-                    const params = $.param({
-                        planner_filter: plannerFilter,
+                 const params = $.param({
+    periode: periodeAktif,
+    planner_filter: plannerFilter,
                         area_filter: areaFilter,
                         dist_channel_filter: distChannelFilter,
                         tanggal_shipment_filter: createTglFilter
@@ -1038,6 +1045,7 @@
                             d.area_filter = areaFilter;
                             d.dist_channel_filter = distChannelFilter;
                             d.tanggal_shipment_filter = createTglFilter;
+                            d.periode = periodeAktif;
                             d._token = '{{ csrf_token() }}';
                         },
                         beforeSend: function() {
@@ -1261,12 +1269,31 @@
                     loadAlertControl();
                     loadImportDates(); // tambah
                 });
-                let importDates = {}; // { 'YYYY-MM-DD': {total, belum} }
+                             let importDates = {}; // { 'YYYY-MM-DD': {total, belum} }
+
+                // "10-2026" -> 1 Okt 2026. '__KOSONG__' / format lain -> null (pakai hari ini)
+                function parsePeriode(p) {
+                    const m = /^(\d{2})-(\d{4})$/.exec(p || '');
+                    return m ? new Date(+m[2], +m[1] - 1, 1) : null;
+                }
+                const periodeDate = parsePeriode(periodeAktif);
+
+                function jumpKePeriode(instance) {
+                    if (periodeDate && instance.selectedDates.length === 0) {
+                        instance.jumpToDate(periodeDate, true);
+                    }
+                }
 
                 const fpImport = flatpickr('#filterCreateTgl', {
                     dateFormat: 'Y-m-d',
                     altInput: true,
                     altFormat: 'd/m/Y',
+                    onReady: function(selectedDates, dateStr, instance) {
+                        jumpKePeriode(instance);
+                    },
+                    onOpen: function(selectedDates, dateStr, instance) {
+                        jumpKePeriode(instance); // setelah klik X, buka lagi tetap ke bulan periode
+                    },
                     onDayCreate: function(dObj, dStr, instance, dayElem) {
                         const key = instance.formatDate(dayElem.dateObj, 'Y-m-d');
                         const info = importDates[key];
@@ -1295,6 +1322,7 @@
                     $.getJSON("{{ route('planner.importDates') }}", {
                         planner_filter: plannerFilter,
                         area_filter: areaFilter,
+                        periode: periodeAktif,
                         dist_channel_filter: distChannelFilter
                     }, function(res) {
                         importDates = res || {};
@@ -1545,6 +1573,7 @@
                 function loadAlertControl() {
                     $.getJSON("{{ route('planner.alerts') }}", {
                         planner_filter: plannerFilter,
+                        periode: periodeAktif,
                         area_filter: areaFilter,
                         dist_channel_filter: distChannelFilter
                     }, function(res) {

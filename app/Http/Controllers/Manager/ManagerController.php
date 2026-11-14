@@ -20,6 +20,17 @@ class ManagerController extends Controller
         'PAPUA'      => ['PROV._PAPUA','PAPUA_BARAT','PAPUA_BARAT_DAYA','PAPUA_SELATAN','PAPUA_TENGAH'],
     ];
 
+    /** kunci grup Jakarta = no_shipment + tujuan (baris tanpa no_shipment dianggap grup sendiri) */
+    private const GROUP_KEY = "COALESCE(NULLIF(TRIM(no_shipment),''), CONCAT('id', id)), COALESCE(tujuan,'')";
+
+    /** kunci grup Pasuruan */
+    private const GROUP_KEY_PASURUAN = "COALESCE(NULLIF(TRIM(no_shipment_pasuruan),''), CONCAT('id', id)), COALESCE(tujuan_pasuruan,'')";
+
+    /** lama cache dashboard (detik) */
+    private const CACHE_DASHBOARD = 120;
+    /** lama cache dropdown (detik) */
+    private const CACHE_LIST = 3600;
+
     /**
      * SATU-SATUNYA daftar gudang Pasuruan.
      * URUTAN = urutan alur mobil. 'key' = suffix key output AJAX.
@@ -44,141 +55,128 @@ class ManagerController extends Controller
     |--------------------------------------------------------------------------
     | DASHBOARD (JAKARTA)
     |--------------------------------------------------------------------------
+    | Di-cache 2 menit per kombinasi filter. Hitungan KPI digabung jadi 1 query.
     */
     public function dashboard(Request $request)
+    {
+        $key  = 'mgr.dashboard.' . md5(json_encode($request->query()));
+        $data = Cache::remember($key, self::CACHE_DASHBOARD, fn() => $this->dashboardData($request));
+
+        return view('dashboard', $data);
+    }
+
+    /** kondisi KPI dashboard (Jakarta) sebagai potongan SQL. Sama persis dengan query halaman list. */
+    private function kpiFlagsSql(): array
+    {
+        $f = fn($c) => "NULLIF(TRIM({$c}), '') IS NOT NULL";
+        $e = fn($c) => "NULLIF(TRIM({$c}), '') IS NULL";
+
+        $tiba3   = ['tanggal_tiba_gudang', 'tanggal_tiba_gudang_2', 'tanggal_tiba_gudang_3'];
+        $keluar3 = ['tanggal_keluar_gudang', 'tanggal_keluar_gudang_2', 'tanggal_keluar_gudang_3'];
+        $plan3   = ['planning_loading', 'planning_loading_2', 'planning_loading_3'];
+
+        $belumArmada = '(' . $e('rencana_kirim') . ' OR ' . $e('tanggal_dpt_unit') . ')';
+
+        $menggantung = [];
+        foreach ($plan3 as $i => $p) {
+            $menggantung[] = 'NOT ((' . $f($p) . ' OR ' . $f($tiba3[$i]) . ') AND ' . $e($keluar3[$i]) . ')';
+        }
+        $inTransit = $e('tanggal_tiba')
+            . ' AND (' . implode(' OR ', array_map($f, $keluar3)) . ')'
+            . ' AND ' . implode(' AND ', $menggantung);
+
+        $tibaCust = 'tanggal_tiba IS NOT NULL AND estimasi_tiba IS NOT NULL';
+        $bongkar  = "tanggal_bongkar IS NOT NULL AND tanggal_bongkar != '1899-12-31 00:00:00'";
+
+        return [
+            'gudang_ontime'        => '(' . implode(' OR ', array_map(fn($c) => "{$c} IS NOT NULL", $tiba3)) . ')',
+            'planner_belum_armada' => $belumArmada,
+            'planner_armada'       => 'NOT ' . $belumArmada,
+            'sla_delay'            => $f('rencana_kirim') . ' AND ' . $f('tanggal_dpt_unit') . ' AND '
+                                      . implode(' AND ', array_map($e, $tiba3)),
+            'customer_ontime'      => "{$tibaCust} AND DATEDIFF(DATE(tanggal_tiba), DATE(estimasi_tiba)) <= 0",
+            'customer_delay'       => "{$tibaCust} AND DATEDIFF(DATE(tanggal_tiba), DATE(estimasi_tiba)) > 0",
+            'bongkar_ontime'       => "{$bongkar} AND (overstay_days IS NULL OR overstay_days = 0)",
+            'bongkar_delay'        => "{$bongkar} AND overstay_days > 0",
+            'planner_ontime'       => 'rencana_kirim IS NOT NULL AND tanggal_dpt_unit IS NOT NULL AND DATE(tanggal_dpt_unit) <= DATE(rencana_kirim)',
+            'planner_delay'        => 'rencana_kirim IS NOT NULL AND tanggal_dpt_unit IS NOT NULL AND DATE(tanggal_dpt_unit) > DATE(rencana_kirim)',
+            'in_transit'           => $inTransit,
+        ];
+    }
+
+    private function dashboardData(Request $request): array
     {
         $base = DB::table('logistik_pengiriman');
         $this->applyFilter($base, $request);
 
-        $grouped = DB::table('logistik_pengiriman')
-            ->whereIn('id', $this->groupIdsQuery($base));
+        // 1 baris wakil per shipment + tujuan (JOIN, bukan IN-subquery)
+        $grouped = DB::table('logistik_pengiriman as l')
+            ->joinSub($this->groupIdsQuery($base), 'r', 'r.id', '=', 'l.id');
 
-        $total_data = $this->countGroups($base);
+        // ===== semua hitungan KPI dalam 1 query =====
+        $flags = $this->kpiFlagsSql();
 
-        $gudang_ontime = $this->countGroups(
-            (clone $base)->where(function ($q) {
-                $q->whereNotNull('tanggal_tiba_gudang')
-                  ->orWhereNotNull('tanggal_tiba_gudang_2')
-                  ->orWhereNotNull('tanggal_tiba_gudang_3');
-            })
-        );
+        $groupFlags = (clone $base)->selectRaw(
+            'MIN(id) AS id, ' . implode(', ', array_map(
+                fn($k, $c) => "MAX(CASE WHEN {$c} THEN 1 ELSE 0 END) AS f_{$k}",
+                array_keys($flags), $flags
+            ))
+        )->groupByRaw(self::GROUP_KEY);
 
-        $gudang_delay = $this->countGroups(
-            (clone $base)->where(function ($q) {
-                $q->whereNull('rencana_kirim')
-                  ->orWhere('rencana_kirim', '')
-                  ->orWhereNull('tanggal_dpt_unit')
-                  ->orWhere('tanggal_dpt_unit', '');
-            })
-        );
+        $c = DB::query()->fromSub($groupFlags, 'g')->selectRaw(
+            'COUNT(*) AS total_data, ' . implode(', ', array_map(
+                fn($k) => "COALESCE(SUM(f_{$k}),0) AS {$k}", array_keys($flags)
+            ))
+        )->first();
 
-        $total_sla_delay = $this->countGroups(
-            $this->applyFilter($this->slaDelayQuery(), $request)
-        );
+        $total_data           = (int) $c->total_data;
+        $gudang_ontime        = (int) $c->gudang_ontime;
+        $gudang_delay         = (int) $c->planner_belum_armada;   // kondisinya sama
+        $total_sla_delay      = (int) $c->sla_delay;
+        $customer_ontime      = (int) $c->customer_ontime;
+        $customer_delay       = (int) $c->customer_delay;
+        $bongkar_ontime       = (int) $c->bongkar_ontime;
+        $bongkar_delay        = (int) $c->bongkar_delay;
+        $planner_armada       = (int) $c->planner_armada;
+        $planner_belum_armada = (int) $c->planner_belum_armada;
+        $planner_ontime       = (int) $c->planner_ontime;
+        $planner_delay        = (int) $c->planner_delay;
+        $total_in_transit     = (int) $c->in_transit;
 
-        $customer_ontime = $this->countGroups(
-            (clone $base)
-                ->whereNotNull('tanggal_tiba')
-                ->whereNotNull('estimasi_tiba')
-                ->whereRaw("DATEDIFF(DATE(tanggal_tiba), DATE(estimasi_tiba)) <= 0")
-        );
+        // ===== dropdown (cache) =====
+        $list_dist_channel = Cache::remember('mgr.dist_channel', self::CACHE_LIST, fn() =>
+            DB::table('logistik_pengiriman')
+                ->select('dist_channel')
+                ->whereNotNull('dist_channel')
+                ->distinct()->orderBy('dist_channel')->get());
 
-        $customer_delay = $this->countGroups(
-            (clone $base)
-                ->whereNotNull('tanggal_tiba')
-                ->whereNotNull('estimasi_tiba')
-                ->whereRaw("DATEDIFF(DATE(tanggal_tiba), DATE(estimasi_tiba)) > 0")
-        );
+        $list_area = Cache::remember('mgr.area', self::CACHE_LIST, fn() => $this->getArea());
 
-        $bongkar_ontime = $this->countGroups(
-            (clone $base)
-                ->whereNotNull('tanggal_bongkar')
-                ->where('tanggal_bongkar', '!=', '1899-12-31 00:00:00')
-                ->where(function ($q) {
-                    $q->whereNull('overstay_days')->orWhere('overstay_days', 0);
-                })
-        );
+        // ===== biaya & muatan: 1 query, agregasi di PHP =====
+        $grpRows = $this->grupBiayaQuery($base)->get();
 
-        $bongkar_delay = $this->countGroups(
-            (clone $base)
-                ->whereNotNull('tanggal_bongkar')
-                ->where('tanggal_bongkar', '!=', '1899-12-31 00:00:00')
-                ->where('overstay_days', '>', 0)
-        );
+        $totalBiayaKirim  = (float) $grpRows->sum('biaya');
+        $totalNilaiMuatan = (float) $grpRows->sum('nilai');
 
-        $planner_armada = $this->countGroups(
-            (clone $base)
-                ->whereNotNull('rencana_kirim')
-                ->whereRaw("TRIM(rencana_kirim) <> ''")
-                ->whereNotNull('tanggal_dpt_unit')
-                ->whereRaw("TRIM(tanggal_dpt_unit) <> ''")
-        );
-
-        $planner_belum_armada = $this->countGroups(
-            (clone $base)->where(function ($q) {
-                $q->whereNull('rencana_kirim')
-                  ->orWhere('rencana_kirim', '')
-                  ->orWhereNull('tanggal_dpt_unit')
-                  ->orWhere('tanggal_dpt_unit', '');
-            })
-        );
-
-        $planner_ontime = $this->countGroups(
-            (clone $base)
-                ->whereNotNull('rencana_kirim')
-                ->whereNotNull('tanggal_dpt_unit')
-                ->whereRaw('DATE(tanggal_dpt_unit) <= DATE(rencana_kirim)')
-        );
-
-        $planner_delay = $this->countGroups(
-            (clone $base)
-                ->whereNotNull('rencana_kirim')
-                ->whereNotNull('tanggal_dpt_unit')
-                ->whereRaw('DATE(tanggal_dpt_unit) > DATE(rencana_kirim)')
-        );
-
-        $total_in_transit = $this->countGroups(
-            $this->applyFilter($this->inTransitQuery(), $request)
-        );
-
-        $list_dist_channel = DB::table('logistik_pengiriman')
-            ->select('dist_channel')
-            ->whereNotNull('dist_channel')
-            ->distinct()
-            ->orderBy('dist_channel')
-            ->get();
-
-        $list_area = $this->getArea();
-
-        $grp = $this->grupBiayaQuery($base);
-
-        $tot = DB::query()->fromSub($grp, 'g')
-            ->selectRaw('COALESCE(SUM(biaya),0) AS total_biaya, COALESCE(SUM(nilai),0) AS total_nilai')
-            ->first();
-
-        $totalBiayaKirim  = (float) $tot->total_biaya;
-        $totalNilaiMuatan = (float) $tot->total_nilai;
-
-        $summary_area = DB::query()->fromSub($grp, 'g')
-            ->selectRaw('area,
-                         COUNT(*)   AS total_shipment,
-                         SUM(biaya) AS total_biaya,
-                         SUM(nilai) AS total_muatan')
-            ->whereNotNull('area')
+        $summary_area = $grpRows->filter(fn($g) => $g->area !== null)
             ->groupBy('area')
-            ->orderByDesc('total_shipment')
-            ->get();
+            ->map(fn($g, $area) => (object) [
+                'area'           => $area,
+                'total_shipment' => $g->count(),
+                'total_biaya'    => $g->sum('biaya'),
+                'total_muatan'   => $g->sum('nilai'),
+            ])->sortByDesc('total_shipment')->values();
 
-        $summary_tujuan = DB::query()->fromSub($grp, 'g')
-            ->selectRaw('tj AS tujuan,
-                         COUNT(*)   AS total_shipment,
-                         SUM(biaya) AS total_biaya,
-                         SUM(nilai) AS total_muatan')
-            ->where('tj', '<>', '')
+        $summary_tujuan = $grpRows->filter(fn($g) => $g->tj !== '')
             ->groupBy('tj')
-            ->orderByDesc('total_shipment')
-            ->get();
+            ->map(fn($g, $tj) => (object) [
+                'tujuan'         => $tj,
+                'total_shipment' => $g->count(),
+                'total_biaya'    => $g->sum('biaya'),
+                'total_muatan'   => $g->sum('nilai'),
+            ])->sortByDesc('total_shipment')->values();
 
+        // pulau: basenya tanpa filter pulau, jadi query sendiri
         $reqTanpaPulau = $request->duplicate($request->except('pulau'));
         $basePulau     = $this->applyFilter(DB::table('logistik_pengiriman'), $reqTanpaPulau);
         $grpPulau      = $this->grupBiayaQuery($basePulau);
@@ -277,7 +275,7 @@ class ManagerController extends Controller
             ->orderByDesc('total')
             ->get();
 
-        return view('dashboard', compact(
+        return compact(
             'total_data',
             'summary_planner',
             'summary_pic_monitoring',
@@ -311,7 +309,7 @@ class ManagerController extends Controller
             'label_pulau',
             'value_muatan_pulau',
             'value_biaya_pulau'
-        ));
+        );
     }
 
     public function slaDelay(Request $request)
@@ -327,13 +325,12 @@ class ManagerController extends Controller
             ->paginate(10)
             ->withQueryString();
 
-        $list_area = DB::table('logistik_pengiriman')
-            ->select('area')->whereNotNull('area')
-            ->groupBy('area')->orderBy('area')->get();
+        $list_area = Cache::remember('mgr.area', self::CACHE_LIST, fn() => $this->getArea());
 
-        $list_dist_channel = DB::table('logistik_pengiriman')
-            ->select('dist_channel')->whereNotNull('dist_channel')
-            ->distinct()->orderBy('dist_channel')->get();
+        $list_dist_channel = Cache::remember('mgr.dist_channel', self::CACHE_LIST, fn() =>
+            DB::table('logistik_pengiriman')
+                ->select('dist_channel')->whereNotNull('dist_channel')
+                ->distinct()->orderBy('dist_channel')->get());
 
         return view('manager.sla_delay', [
             'title'             => 'SLA DELAY',
@@ -513,11 +510,13 @@ class ManagerController extends Controller
             return $r;
         });
 
-        $areaList = DB::table('logistik_pengiriman')
-            ->whereNotNull('area')->distinct()->orderBy('area')->pluck('area');
+        $areaList = Cache::remember('mgr.area_list', self::CACHE_LIST, fn() =>
+            DB::table('logistik_pengiriman')
+                ->whereNotNull('area')->distinct()->orderBy('area')->pluck('area'));
 
-        $picList = DB::table('logistik_pengiriman')
-            ->whereNotNull('pic_monitoring')->distinct()->orderBy('pic_monitoring')->pluck('pic_monitoring');
+        $picList = Cache::remember('mgr.pic_list', self::CACHE_LIST, fn() =>
+            DB::table('logistik_pengiriman')
+                ->whereNotNull('pic_monitoring')->distinct()->orderBy('pic_monitoring')->pluck('pic_monitoring'));
 
         $formRoute = route('manager.intransit');
 
@@ -621,7 +620,7 @@ class ManagerController extends Controller
     {
         return (clone $query)
             ->select(DB::raw('MIN(id) as id'))
-            ->groupByRaw("COALESCE(NULLIF(TRIM(no_shipment),''), CONCAT('id', id)), COALESCE(tujuan,'')");
+            ->groupByRaw(self::GROUP_KEY);
     }
 
     private function countGroups($query): int
@@ -736,7 +735,7 @@ class ManagerController extends Controller
         }
 
         // 2-4. GUDANG 1..3
-        foreach (['' => '', '_2' => '_2', '_3' => '_3'] as $s) {
+        foreach (['', '_2', '_3'] as $s) {
             $tiba   = $request->{"tanggal_tiba_gudang{$s}"};
             $keluar = $request->{"tanggal_keluar_gudang{$s}"};
 
@@ -744,15 +743,14 @@ class ManagerController extends Controller
                 $diff = $hitungSelisih($tiba, $keluar);
 
                 if ($diff) {
-                    $suffix = $s === '' ? '' : $s;
-                    $data["lama_digudang{$suffix}"] = $diff['text'];
+                    $data["lama_digudang{$s}"] = $diff['text'];
 
                     if ($diff['days'] > 0) {
-                        $data["status_gudang{$suffix}"] = 'Delay';
-                        $data["sla_loading{$suffix}"]   = 'H+' . $diff['days'];
+                        $data["status_gudang{$s}"] = 'Delay';
+                        $data["sla_loading{$s}"]   = 'H+' . $diff['days'];
                     } else {
-                        $data["status_gudang{$suffix}"] = 'On Time';
-                        $data["sla_loading{$suffix}"]   = 'Sesuai SLA';
+                        $data["status_gudang{$s}"] = 'On Time';
+                        $data["sla_loading{$s}"]   = 'Sesuai SLA';
                     }
                 }
             }
@@ -814,9 +812,7 @@ class ManagerController extends Controller
             })
             ->values();
 
-        $list_area = DB::table('logistik_pengiriman')
-            ->select('area')->whereNotNull('area')
-            ->groupBy('area')->orderBy('area')->get();
+        $list_area = Cache::remember('mgr.area', self::CACHE_LIST, fn() => $this->getArea());
 
         return view('manager.sla_ontime', compact('list', 'list_area'));
     }
@@ -1013,17 +1009,24 @@ class ManagerController extends Controller
         return $sql . " ELSE '{$nama[0]}' END";
     }
 
+    /** potongan SQL "in transit" Pasuruan: belum tiba tujuan, ada gudang yg sudah keluar, tidak ada yg menggantung */
+    private function inTransitConditionSqlPasuruan(): string
+    {
+        $parts = [
+            $this->sqlEmpty('tanggal_tiba_pasuruan'),
+            $this->sqlAnyFilled('keluar'),
+        ];
+        foreach (self::GUDANG_PASURUAN as $g) {
+            $parts[] = 'NOT ((' . $this->sqlFilled($g['planning']) . ' OR ' . $this->sqlFilled($g['tiba'])
+                . ') AND ' . $this->sqlEmpty($g['keluar']) . ')';
+        }
+        return implode(' AND ', $parts);
+    }
+
     /** in transit: belum tiba tujuan, ada gudang yg sudah keluar, tidak ada gudang yg menggantung */
     private function whereInTransitPasuruan($q)
     {
-        $q->whereRaw($this->sqlEmpty('tanggal_tiba_pasuruan'))
-          ->whereRaw($this->sqlAnyFilled('keluar'));
-
-        foreach (self::GUDANG_PASURUAN as $g) {
-            $q->whereRaw('NOT ((' . $this->sqlFilled($g['planning']) . ' OR ' . $this->sqlFilled($g['tiba'])
-                . ') AND ' . $this->sqlEmpty($g['keluar']) . ')');
-        }
-        return $q;
+        return $q->whereRaw($this->inTransitConditionSqlPasuruan());
     }
 
     private function inTransitQueryPasuruan()
@@ -1105,7 +1108,7 @@ class ManagerController extends Controller
     {
         return (clone $query)
             ->select(DB::raw('MIN(id) as id'))
-            ->groupByRaw("COALESCE(NULLIF(TRIM(no_shipment_pasuruan),''), CONCAT('id', id)), COALESCE(tujuan_pasuruan,'')");
+            ->groupByRaw(self::GROUP_KEY_PASURUAN);
     }
 
     private function countGroupsPasuruan($query): int
@@ -1134,11 +1137,12 @@ class ManagerController extends Controller
 
     private function listAreaPasuruan()
     {
-        return DB::table('logistik_pengiriman_pasuruan')
-            ->select('area_pasuruan as area')
-            ->whereNotNull('area_pasuruan')
-            ->where('area_pasuruan', '!=', '')
-            ->distinct()->orderBy('area_pasuruan')->get();
+        return Cache::remember('mgr.pas.area_list', self::CACHE_LIST, fn() =>
+            DB::table('logistik_pengiriman_pasuruan')
+                ->select('area_pasuruan as area')
+                ->whereNotNull('area_pasuruan')
+                ->where('area_pasuruan', '!=', '')
+                ->distinct()->orderBy('area_pasuruan')->get());
     }
 
     private function applyFilterPasuruan($query, $request)
@@ -1217,45 +1221,38 @@ class ManagerController extends Controller
         return new Request(array_filter($params, fn($v) => is_scalar($v) || is_array($v)));
     }
 
-    /** Query dasar tiap KPI. Dipakai kartu dashboard DAN halaman list, jadi angkanya selalu sama. */
+    /**
+     * Kondisi tiap KPI Pasuruan dalam bentuk potongan SQL.
+     * SATU sumber untuk kartu dashboard (flag) dan halaman list (kpiQueryPasuruan),
+     * jadi angkanya selalu sama.
+     */
+    private function kpiConditionsPasuruan(): array
+    {
+        $tibaCust = 'tanggal_tiba_pasuruan IS NOT NULL AND estimasi_tiba_pasuruan IS NOT NULL';
+        $bongkar  = "tanggal_bongkar_pasuruan IS NOT NULL AND tanggal_bongkar_pasuruan != '1899-12-31 00:00:00'";
+
+        return [
+            // sudah tiba di minimal 1 gudang
+            'gudang_ontime'  => $this->sqlAnyFilled('tiba'),
+            // sudah dapat unit, belum tiba di gudang manapun
+            'gudang_delay'   => $this->sqlFilled('rencana_kirim_pasuruan') . ' AND '
+                              . $this->sqlFilled('tanggal_dpt_unit_pasuruan') . ' AND '
+                              . $this->sqlAllEmpty('tiba'),
+            'tujuan_ontime'  => "{$tibaCust} AND DATEDIFF(DATE(tanggal_tiba_pasuruan), DATE(estimasi_tiba_pasuruan)) <= 0",
+            'tujuan_delay'   => "{$tibaCust} AND DATEDIFF(DATE(tanggal_tiba_pasuruan), DATE(estimasi_tiba_pasuruan)) > 0",
+            'bongkar_ontime' => "{$bongkar} AND (overstay_days_pasuruan IS NULL OR overstay_days_pasuruan = 0)",
+            'bongkar_delay'  => "{$bongkar} AND overstay_days_pasuruan > 0",
+        ];
+    }
+
+    /** Query dasar tiap KPI. Dipakai halaman list. */
     private function kpiQueryPasuruan(string $kpi)
     {
         $q = DB::table('logistik_pengiriman_pasuruan');
+        $c = $this->kpiConditionsPasuruan();
 
-        switch ($kpi) {
-            case 'gudang_ontime':   // sudah tiba di minimal 1 gudang
-                $q->whereRaw($this->sqlAnyFilled('tiba'));
-                break;
-
-            case 'gudang_delay':    // sudah dapat unit, belum tiba di gudang manapun
-                $q->whereRaw($this->sqlFilled('rencana_kirim_pasuruan'))
-                  ->whereRaw($this->sqlFilled('tanggal_dpt_unit_pasuruan'))
-                  ->whereRaw($this->sqlAllEmpty('tiba'));
-                break;
-
-            case 'tujuan_ontime':
-                $q->whereNotNull('tanggal_tiba_pasuruan')
-                  ->whereNotNull('estimasi_tiba_pasuruan')
-                  ->whereRaw('DATEDIFF(DATE(tanggal_tiba_pasuruan), DATE(estimasi_tiba_pasuruan)) <= 0');
-                break;
-
-            case 'tujuan_delay':
-                $q->whereNotNull('tanggal_tiba_pasuruan')
-                  ->whereNotNull('estimasi_tiba_pasuruan')
-                  ->whereRaw('DATEDIFF(DATE(tanggal_tiba_pasuruan), DATE(estimasi_tiba_pasuruan)) > 0');
-                break;
-
-            case 'bongkar_ontime':
-                $q->whereNotNull('tanggal_bongkar_pasuruan')
-                  ->where('tanggal_bongkar_pasuruan', '!=', '1899-12-31 00:00:00')
-                  ->where(fn($w) => $w->whereNull('overstay_days_pasuruan')->orWhere('overstay_days_pasuruan', 0));
-                break;
-
-            case 'bongkar_delay':
-                $q->whereNotNull('tanggal_bongkar_pasuruan')
-                  ->where('tanggal_bongkar_pasuruan', '!=', '1899-12-31 00:00:00')
-                  ->where('overstay_days_pasuruan', '>', 0);
-                break;
+        if (isset($c[$kpi])) {
+            $q->whereRaw($c[$kpi]);
         }
 
         return $q;
@@ -1358,81 +1355,93 @@ class ManagerController extends Controller
     }
 
     /* =========================================================================
-     *  PASURUAN — DASHBOARD
+     *  PASURUAN — DASHBOARD (di-cache 2 menit, KPI digabung jadi 1 query)
      * ========================================================================= */
     public function dashboardPasuruan(Request $request)
+    {
+        $key  = 'mgr.pas.dashboard.' . md5(json_encode($request->query()));
+        $data = Cache::remember($key, self::CACHE_DASHBOARD, fn() => $this->dashboardPasuruanData($request));
+
+        return view('manager.dashboard_pasuruan', $data);
+    }
+
+    private function dashboardPasuruanData(Request $request): array
     {
         $base = DB::table('logistik_pengiriman_pasuruan');
         $this->applyFilterPasuruan($base, $request);
 
-        $grouped = DB::table('logistik_pengiriman_pasuruan')
-            ->whereIn('id', $this->groupIdsQueryPasuruan($base));
+        $grouped = DB::table('logistik_pengiriman_pasuruan as l')
+            ->joinSub($this->groupIdsQueryPasuruan($base), 'r', 'r.id', '=', 'l.id');
 
-        $total_data = $this->countGroupsPasuruan($base);
+        // ===== semua hitungan KPI dalam 1 query =====
+        $flags = $this->kpiConditionsPasuruan();
+        $flags['in_transit']           = $this->inTransitConditionSqlPasuruan();
+        $flags['planner_belum_armada'] = '(' . $this->sqlEmpty('rencana_kirim_pasuruan') . ' OR '
+                                       . $this->sqlEmpty('tanggal_dpt_unit_pasuruan') . ')';
+        $flags['planner_armada']       = 'NOT ' . $flags['planner_belum_armada'];
+        $flags['planner_ontime']       = 'rencana_kirim_pasuruan IS NOT NULL AND tanggal_dpt_unit_pasuruan IS NOT NULL '
+                                       . 'AND DATE(tanggal_dpt_unit_pasuruan) <= DATE(rencana_kirim_pasuruan)';
+        $flags['planner_delay']        = 'rencana_kirim_pasuruan IS NOT NULL AND tanggal_dpt_unit_pasuruan IS NOT NULL '
+                                       . 'AND DATE(tanggal_dpt_unit_pasuruan) > DATE(rencana_kirim_pasuruan)';
 
-        $kpi = fn(string $k) => $this->countGroupsPasuruan(
-            $this->applyFilterPasuruan($this->kpiQueryPasuruan($k), $request)
-        );
+        $groupFlags = (clone $base)->selectRaw(
+            'MIN(id) AS id, ' . implode(', ', array_map(
+                fn($k, $c) => "MAX(CASE WHEN {$c} THEN 1 ELSE 0 END) AS f_{$k}",
+                array_keys($flags), $flags
+            ))
+        )->groupByRaw(self::GROUP_KEY_PASURUAN);
 
-        $gudang_ontime   = $kpi('gudang_ontime');
-        $gudang_delay    = $kpi('gudang_delay');
-        $customer_ontime = $kpi('tujuan_ontime');
-        $customer_delay  = $kpi('tujuan_delay');
-        $bongkar_ontime  = $kpi('bongkar_ontime');
-        $bongkar_delay   = $kpi('bongkar_delay');
+        $c = DB::query()->fromSub($groupFlags, 'g')->selectRaw(
+            'COUNT(*) AS total_data, ' . implode(', ', array_map(
+                fn($k) => "COALESCE(SUM(f_{$k}),0) AS {$k}", array_keys($flags)
+            ))
+        )->first();
 
-        $total_in_transit = $this->countGroupsPasuruan(
-            $this->applyFilterPasuruan($this->inTransitQueryPasuruan(), $request)
-        );
+        $total_data           = (int) $c->total_data;
+        $gudang_ontime        = (int) $c->gudang_ontime;
+        $gudang_delay         = (int) $c->gudang_delay;
+        $customer_ontime      = (int) $c->tujuan_ontime;
+        $customer_delay       = (int) $c->tujuan_delay;
+        $bongkar_ontime       = (int) $c->bongkar_ontime;
+        $bongkar_delay        = (int) $c->bongkar_delay;
+        $total_in_transit     = (int) $c->in_transit;
+        $planner_armada       = (int) $c->planner_armada;
+        $planner_belum_armada = (int) $c->planner_belum_armada;
+        $planner_ontime       = (int) $c->planner_ontime;
+        $planner_delay        = (int) $c->planner_delay;
 
-        $list_dist_channel = DB::table('logistik_pengiriman_pasuruan')
-            ->select('dist_channel_pasuruan')
-            ->whereNotNull('dist_channel_pasuruan')
-            ->distinct()->orderBy('dist_channel_pasuruan')->get();
+        // ===== dropdown (cache) =====
+        $list_dist_channel = Cache::remember('mgr.pas.dist_channel', self::CACHE_LIST, fn() =>
+            DB::table('logistik_pengiriman_pasuruan')
+                ->select('dist_channel_pasuruan')
+                ->whereNotNull('dist_channel_pasuruan')
+                ->distinct()->orderBy('dist_channel_pasuruan')->get());
 
         $list_area = $this->listAreaPasuruan();
 
-        $planner_armada = $this->countGroupsPasuruan(
-            (clone $base)
-                ->whereNotNull('rencana_kirim_pasuruan')->whereRaw("TRIM(rencana_kirim_pasuruan) <> ''")
-                ->whereNotNull('tanggal_dpt_unit_pasuruan')->whereRaw("TRIM(tanggal_dpt_unit_pasuruan) <> ''")
-        );
-        $planner_belum_armada = $this->countGroupsPasuruan(
-            (clone $base)->where(function ($q) {
-                $q->whereNull('rencana_kirim_pasuruan')->orWhere('rencana_kirim_pasuruan', '')
-                  ->orWhereNull('tanggal_dpt_unit_pasuruan')->orWhere('tanggal_dpt_unit_pasuruan', '');
-            })
-        );
+        // ===== biaya & muatan: 1 query, agregasi di PHP =====
+        $grpRows = $this->grupBiayaQueryPasuruan($base)->get();
 
-        $planner_ontime = $this->countGroupsPasuruan(
-            (clone $base)
-                ->whereNotNull('rencana_kirim_pasuruan')->whereNotNull('tanggal_dpt_unit_pasuruan')
-                ->whereRaw('DATE(tanggal_dpt_unit_pasuruan) <= DATE(rencana_kirim_pasuruan)')
-        );
-        $planner_delay = $this->countGroupsPasuruan(
-            (clone $base)
-                ->whereNotNull('rencana_kirim_pasuruan')->whereNotNull('tanggal_dpt_unit_pasuruan')
-                ->whereRaw('DATE(tanggal_dpt_unit_pasuruan) > DATE(rencana_kirim_pasuruan)')
-        );
+        $totalBiayaKirim  = (float) $grpRows->sum('biaya');
+        $totalNilaiMuatan = (float) $grpRows->sum('nilai');
 
-        $grp = $this->grupBiayaQueryPasuruan($base);
+        $summary_area = $grpRows->filter(fn($g) => $g->area_pasuruan !== null)
+            ->groupBy('area_pasuruan')
+            ->map(fn($g, $area) => (object) [
+                'area_pasuruan'  => $area,
+                'total_shipment' => $g->count(),
+                'total_biaya'    => $g->sum('biaya'),
+                'total_muatan'   => $g->sum('nilai'),
+            ])->sortByDesc('total_shipment')->values();
 
-        $tot = DB::query()->fromSub($grp, 'g')
-            ->selectRaw('COALESCE(SUM(biaya),0) AS total_biaya, COALESCE(SUM(nilai),0) AS total_nilai')
-            ->first();
-
-        $totalBiayaKirim  = (float) $tot->total_biaya;
-        $totalNilaiMuatan = (float) $tot->total_nilai;
-
-        $summary_area = DB::query()->fromSub($grp, 'g')
-            ->selectRaw('area_pasuruan, COUNT(*) AS total_shipment, SUM(biaya) AS total_biaya, SUM(nilai) AS total_muatan')
-            ->whereNotNull('area_pasuruan')
-            ->groupBy('area_pasuruan')->orderByDesc('total_shipment')->get();
-
-        $summary_tujuan = DB::query()->fromSub($grp, 'g')
-            ->selectRaw('tj AS tujuan_pasuruan, COUNT(*) AS total_shipment, SUM(biaya) AS total_biaya, SUM(nilai) AS total_muatan')
-            ->where('tj', '<>', '')
-            ->groupBy('tj')->orderByDesc('total_shipment')->get();
+        $summary_tujuan = $grpRows->filter(fn($g) => $g->tj !== '')
+            ->groupBy('tj')
+            ->map(fn($g, $tj) => (object) [
+                'tujuan_pasuruan' => $tj,
+                'total_shipment'  => $g->count(),
+                'total_biaya'     => $g->sum('biaya'),
+                'total_muatan'    => $g->sum('nilai'),
+            ])->sortByDesc('total_shipment')->values();
 
         $ekspedisi = (clone $grouped)
             ->select('kategori_ekspedisi_pasuruan', DB::raw('COUNT(*) as total'))
@@ -1457,7 +1466,7 @@ class ManagerController extends Controller
             'bongkar_delay'  => $total_data > 0 ? ($bongkar_delay / $total_data) * 100 : 0,
         ];
 
-        return view('manager.dashboard_pasuruan', compact(
+        return compact(
             'total_data',
             'gudang_ontime', 'gudang_delay',
             'customer_ontime', 'customer_delay',
@@ -1471,7 +1480,7 @@ class ManagerController extends Controller
             'total_in_transit',
             'armada_rate', 'pending_rate',
             'summary_monitoring', 'list_dist_channel', 'list_area'
-        ));
+        );
     }
 
     /* =========================================================================
@@ -1573,11 +1582,13 @@ class ManagerController extends Controller
             ];
         });
 
-        $areaList = DB::table('logistik_pengiriman_pasuruan')
-            ->whereNotNull('area_pasuruan')->distinct()->orderBy('area_pasuruan')->pluck('area_pasuruan');
+        $areaList = Cache::remember('mgr.pas.area_plain', self::CACHE_LIST, fn() =>
+            DB::table('logistik_pengiriman_pasuruan')
+                ->whereNotNull('area_pasuruan')->distinct()->orderBy('area_pasuruan')->pluck('area_pasuruan'));
 
-        $picList = DB::table('logistik_pengiriman_pasuruan')
-            ->whereNotNull('pic_monitoring_pasuruan')->distinct()->orderBy('pic_monitoring_pasuruan')->pluck('pic_monitoring_pasuruan');
+        $picList = Cache::remember('mgr.pas.pic_list', self::CACHE_LIST, fn() =>
+            DB::table('logistik_pengiriman_pasuruan')
+                ->whereNotNull('pic_monitoring_pasuruan')->distinct()->orderBy('pic_monitoring_pasuruan')->pluck('pic_monitoring_pasuruan'));
 
         return view('monitoring.in_transit', [
             'list'           => $list,
@@ -1606,10 +1617,11 @@ class ManagerController extends Controller
             'title'             => 'SLA DELAY',
             'list'              => $list,
             'list_area'         => $this->listAreaPasuruan(),
-            'list_dist_channel' => DB::table('logistik_pengiriman_pasuruan')
-                ->select('dist_channel_pasuruan as dist_channel')
-                ->whereNotNull('dist_channel_pasuruan')
-                ->distinct()->orderBy('dist_channel_pasuruan')->get(),
+            'list_dist_channel' => Cache::remember('mgr.pas.dist_channel_generic', self::CACHE_LIST, fn() =>
+                DB::table('logistik_pengiriman_pasuruan')
+                    ->select('dist_channel_pasuruan as dist_channel')
+                    ->whereNotNull('dist_channel_pasuruan')
+                    ->distinct()->orderBy('dist_channel_pasuruan')->get()),
         ]);
     }
 
@@ -1682,15 +1694,17 @@ class ManagerController extends Controller
                     $q->orWhere($col, 'like', "%{$searchValue}%");
                 }
             });
+            // hanya hitung ulang kalau memang ada pencarian
+            $recordsFiltered = $this->countGroupsPasuruan($query);
+        } else {
+            // tanpa pencarian, hasilnya identik dengan recordsTotal -> hemat 1 query berat
+            $recordsFiltered = $recordsTotal;
         }
-
-        $recordsFiltered = $this->countGroupsPasuruan($query);
 
         $query = LogistikPengirimanPasuruan::query()
             ->whereIn('id', $this->groupIdsQueryPasuruan($query));
 
         // sorting: pakai columns[i][name] (whitelist), fallback ke index
-            // sorting: pakai columns[i][name] (whitelist), fallback ke index
         $indexMap = [
             0  => 'tanggal_terima_po_pasuruan',
             1  => 'rencana_kirim_pasuruan',
@@ -1878,7 +1892,8 @@ class ManagerController extends Controller
             'data'            => $data,
         ]);
     }
-        private function formatDesimalPasuruanManager($value): string
+
+    private function formatDesimalPasuruanManager($value): string
     {
         if ($value === null || $value === '' || !is_numeric($value)) return '-';
         return number_format((float) $value, 2, ',', '.');
@@ -1926,10 +1941,10 @@ class ManagerController extends Controller
                 'no_shipment_pasuruan',
                 DB::raw("COALESCE(tujuan_pasuruan,'') as tujuan_key"),
                 DB::raw('COUNT(*) as jml_do'),
-               DB::raw('SUM(' . $n('nilai_muatan_pasuruan') . ') as sum_nilai'),
-DB::raw('SUM(' . $n('total_kubik_pasuruan') . ') as sum_kubik'),     // BARU
-DB::raw('SUM(' . $n('total_tonase_pasuruan') . ') as sum_tonase'),   // BARU
-DB::raw('SUM(' . $n('total_do_pasuruan') . ') as sum_qty'),
+                DB::raw('SUM(' . $n('nilai_muatan_pasuruan') . ') as sum_nilai'),
+                DB::raw('SUM(' . $n('total_kubik_pasuruan') . ') as sum_kubik'),
+                DB::raw('SUM(' . $n('total_tonase_pasuruan') . ') as sum_tonase'),
+                DB::raw('SUM(' . $n('total_do_pasuruan') . ') as sum_qty'),
                 DB::raw('SUM(' . $n('kirim_kontribusi_pasuruan') . ') as sum_kontribusi'),
                 DB::raw('SUM(' . $n('selisih_quantity_pasuruan') . ') as sum_selisih'),
                 DB::raw("SUM(CASE WHEN NULLIF(TRIM(selisih_quantity_pasuruan),'') IS NOT NULL THEN 1 ELSE 0 END) as jml_selisih"),

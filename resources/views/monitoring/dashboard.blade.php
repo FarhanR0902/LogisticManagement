@@ -16,6 +16,11 @@
     box-sizing:border-box;
     font-family:'Segoe UI',sans-serif;
 }
+.badge{display:inline-block;padding:3px 10px;border-radius:999px;font-size:12px;font-weight:600;text-decoration:none;margin:2px 2px 2px 0}
+.badge-green{background:#dcfce7;color:#16a34a}
+.badge-red{background:#fee2e2;color:#dc2626}
+.td-left{text-align:left}
+.mt{margin-top:25px}
 
 body{
     background:#eef2f7;
@@ -380,7 +385,91 @@ tr:hover{
 </table>
 
 </div>
+@php
+    $bulanId = ['01'=>'Jan','02'=>'Feb','03'=>'Mar','04'=>'Apr','05'=>'Mei','06'=>'Jun',
+                '07'=>'Jul','08'=>'Agu','09'=>'Sep','10'=>'Okt','11'=>'Nov','12'=>'Des'];
+    $fmtPeriode = function ($p) use ($bulanId) {
+        $p = trim((string) $p);
+        if ($p === '' || !str_contains($p, '-')) return 'Tanpa periode';
+        [$m, $y] = explode('-', $p, 2);
+        return ($bulanId[$m] ?? $m) . ' ' . $y;
+    };
+    $alertBelum = $alert_pic_belum ?? collect();
+    $alertSudah = $alert_pic_sudah ?? collect();
+    $punyaRoute = \Illuminate\Support\Facades\Route::has('manager.gabungan.alert');
+@endphp
 
+<div class="table-box mt">
+    <h3>🕵️ Summary PIC Monitoring</h3>
+    <div style="overflow-x:auto">
+    <table>
+        <thead>
+            <tr>
+                <th>PIC Monitoring</th>
+                <th>Jumlah</th>
+                <th>On Time</th>
+                <th>Delay</th>
+                <th>Belum Input Tgl Tiba</th>
+                <th>Belum Tiba &amp; Lewat Estimasi</th>
+                <th>Belum Input Sama Sekali</th>
+                <th>Sudah Keluar Gudang, Belum Input Tiba</th>
+            </tr>
+        </thead>
+        <tbody>
+        @forelse(($summary_pic_monitoring ?? collect()) as $m)
+            @php
+                $nama  = $m->pic_monitoring;
+                $belum = $alertBelum[$nama] ?? collect();
+                $sudah = $alertSudah[$nama] ?? collect();
+                $link  = fn($tipe, $periode) => $punyaRoute
+                    ? route('manager.gabungan.alert', ['tipe' => $tipe, 'nama' => $nama,
+                        'periode_shipment' => $periode ?: 'KOSONG', 'sumber' => 'JAKARTA'])
+                    : null;
+                    $link  = fn($tipe, $periode) => $punyaRoute
+    ? route('manager.gabungan.alert', [
+        'tipe' => $tipe,
+        'nama' => $nama,
+        'periode_shipment' => $periode ?: 'KOSONG',
+        'sumber' => 'JAKARTA',
+        'back' => route('monitoring.dashboard', [], false),
+    ])
+    : null;
+            @endphp
+            <tr>
+                <td>{{ $nama }}</td>
+                <td>{{ number_format($m->total) }}</td>
+                <td><span class="badge badge-green">{{ number_format($m->total_ontime) }}</span></td>
+                <td><span class="badge badge-red">{{ number_format($m->total_delay) }}</span></td>
+                <td><span class="badge {{ $m->total_belum_tiba > 0 ? 'badge-red' : 'badge-green' }}">{{ number_format($m->total_belum_tiba) }}</span></td>
+                <td><span class="badge {{ $m->total_lewat_estimasi > 0 ? 'badge-red' : 'badge-green' }}">{{ number_format($m->total_lewat_estimasi) }}</span></td>
+
+                <td class="td-left">
+                    @forelse($belum as $r)
+                        <a @if($u = $link('monitoring_belum', $r->periode_shipment)) href="{{ $u }}" @endif class="badge badge-red">
+                            ⚠️ {{ $fmtPeriode($r->periode_shipment) }}: {{ number_format($r->total) }}
+                        </a>
+                    @empty
+                        <span class="badge badge-green">✓ Aman</span>
+                    @endforelse
+                </td>
+
+                <td class="td-left">
+                    @forelse($sudah as $r)
+                        <a @if($u = $link('monitoring_sudah', $r->periode_shipment)) href="{{ $u }}" @endif class="badge badge-red">
+                            ⚠️ {{ $fmtPeriode($r->periode_shipment) }}: {{ number_format($r->total) }}
+                        </a>
+                    @empty
+                        <span class="badge badge-green">✓ Aman</span>
+                    @endforelse
+                </td>
+            </tr>
+        @empty
+            <tr><td colspan="8">Belum ada data PIC monitoring</td></tr>
+        @endforelse
+        </tbody>
+    </table>
+    </div>
+</div>
 <script>
 
 /* ================= SLA CHART ================= */

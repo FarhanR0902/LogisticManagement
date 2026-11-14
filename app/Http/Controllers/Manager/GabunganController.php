@@ -1,14 +1,19 @@
 <?php
 
+
 namespace App\Http\Controllers\Manager;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Str;
+use App\Exports\AlertExport;
+use Maatwebsite\Excel\Facades\Excel;
 
 class GabunganController extends Controller
 {
+
     /** View & nama route: bisa ditimpa subclass (mis. Sales\SalesGabunganController). */
     protected string $dashboardView  = 'gabungan.dashboard';
     protected string $dataView       = 'manager.data_gabungan';
@@ -1058,15 +1063,18 @@ private function lastKeluarKosongSql(): string
 }
 
 /** Daftar baris di balik badge alert (angka sama persis dengan dashboard) */
-public function alertList(Request $request, string $tipe)
+
+
+/** Query dasar alert (dipakai halaman & export, supaya angkanya sama persis) */
+private function alertQuery(Request $request, string $tipe): array
 {
-  abort_unless(in_array($tipe, ['planner', 'monitoring_belum', 'monitoring_sudah'], true), 404);
+    abort_unless(in_array($tipe, ['planner', 'monitoring_belum', 'monitoring_sudah'], true), 404);
     $this->normalizeRequest($request);
 
     $base    = $this->applyFilter($this->src(), $request);
     $grouped = $this->src()->whereIn('id', $this->groupIdsQuery($base));
 
-  $kolom = $tipe === 'planner' ? 'planner' : 'pic_monitoring';
+    $kolom = $tipe === 'planner' ? 'planner' : 'pic_monitoring';
     $nama  = (string) $request->input('nama');
     $q     = $grouped->where($kolom, $nama);
 
@@ -1077,22 +1085,43 @@ public function alertList(Request $request, string $tipe)
         $q->where('periode_shipment', $periode);
     }
 
-  $lk = $this->lastKeluarKosongSql();
-match ($tipe) {
-    'planner'          => $q->whereRaw("({$lk}) = 1"),
-    'monitoring_belum' => $q->whereRaw("NULLIF(TRIM(tanggal_tiba), '') IS NULL")->whereRaw("({$lk}) = 1"),
-    'monitoring_sudah' => $q->whereRaw("NULLIF(TRIM(tanggal_tiba), '') IS NULL")->whereRaw("({$lk}) = 0"),
-};
+    $lk = $this->lastKeluarKosongSql();
+    match ($tipe) {
+        'planner'          => $q->whereRaw("({$lk}) = 1"),
+        'monitoring_belum' => $q->whereRaw("NULLIF(TRIM(tanggal_tiba), '') IS NULL")->whereRaw("({$lk}) = 1"),
+        'monitoring_sudah' => $q->whereRaw("NULLIF(TRIM(tanggal_tiba), '') IS NULL")->whereRaw("({$lk}) = 0"),
+    };
 
-    $rows = $q->orderBy('sumber')->orderBy('no_shipment')->orderBy('tujuan')
-        ->paginate(50)->withQueryString();
+    $q->orderBy('sumber')->orderBy('no_shipment')->orderBy('tujuan');
+
+    return [$q, $nama, $periode];
+}
+public function alertList(Request $request, string $tipe)
+{
+    [$q, $nama, $periode] = $this->alertQuery($request, $tipe);
+
+    // tombol kembali: hanya terima path internal (cegah open redirect)
+    $back    = (string) $request->input('back');
+    $backUrl = (str_starts_with($back, '/') && !str_starts_with($back, '//'))
+        ? $back
+        : url('/manager/gabungan');
 
     return view('gabungan.alert_list', [
-        'rows'    => $rows,
+        'rows'    => $q->paginate(50)->withQueryString(),
         'tipe'    => $tipe,
         'nama'    => $nama,
         'periode' => $periode,
         'gudang'  => self::GUDANG,
+        'backUrl' => $backUrl,
     ]);
+}
+
+public function alertExport(Request $request, string $tipe)
+{
+    [$q, $nama, $periode] = $this->alertQuery($request, $tipe);
+
+    $file = 'alert_' . $tipe . '_' . Str::slug($nama) . '_' . ($periode ?: 'semua') . '.xlsx';
+
+    return Excel::download(new AlertExport($q->get(), self::GUDANG), $file);
 }
 }

@@ -47,6 +47,22 @@ class MonitoringController extends Controller
         return '(' . implode(' OR ', $parts) . ')';
     }
 
+    /** 1 = keluar gudang di gudang terakhir yang terisi masih kosong */
+    private function lastKeluarKosongSql(): string
+    {
+        $filled = fn($c) => "NULLIF(TRIM({$c}), '') IS NOT NULL";
+        $empty  = fn($c) => "NULLIF(TRIM({$c}), '') IS NULL";
+
+        $sql = 'CASE ';
+        foreach (array_reverse($this->gudangSuffixes()) as $s) {
+            $sql .= 'WHEN (' . $filled("planning_loading{$s}")
+                . ' OR ' . $filled("tanggal_tiba_gudang{$s}")
+                . ' OR ' . $filled("tanggal_keluar_gudang{$s}")
+                . ') THEN (' . $empty("tanggal_keluar_gudang{$s}") . ') ';
+        }
+        return $sql . 'ELSE 1 END';
+    }
+
     private function gudangSuffixes(): array
     {
         return array_keys(self::GUDANG);
@@ -88,6 +104,48 @@ class MonitoringController extends Controller
             ->orderByDesc('total')
             ->get();
 
+        $grouped = DB::table('logistik_pengiriman')
+            ->whereIn('id', $this->groupIdsQuery(DB::table('logistik_pengiriman')));
+
+        $summary_pic_monitoring = (clone $grouped)
+            ->select(
+                'pic_monitoring',
+                DB::raw('COUNT(*) as total'),
+                DB::raw("SUM(CASE WHEN tanggal_tiba IS NOT NULL AND estimasi_tiba IS NOT NULL AND DATEDIFF(DATE(tanggal_tiba), DATE(estimasi_tiba)) <= 0 THEN 1 ELSE 0 END) as total_ontime"),
+                DB::raw("SUM(CASE WHEN tanggal_tiba IS NOT NULL AND estimasi_tiba IS NOT NULL AND DATEDIFF(DATE(tanggal_tiba), DATE(estimasi_tiba)) > 0 THEN 1 ELSE 0 END) as total_delay"),
+                DB::raw("SUM(CASE WHEN NULLIF(TRIM(tanggal_tiba), '') IS NULL THEN 1 ELSE 0 END) as total_belum_tiba"),
+                DB::raw("SUM(CASE WHEN NULLIF(TRIM(tanggal_tiba), '') IS NULL AND estimasi_tiba IS NOT NULL AND DATE(estimasi_tiba) < CURDATE() THEN 1 ELSE 0 END) as total_lewat_estimasi")
+            )
+            ->whereNotNull('pic_monitoring')
+            ->where('pic_monitoring', '!=', '')
+            ->groupBy('pic_monitoring')
+            ->orderByDesc('total')
+            ->get();
+
+        $emptyTiba        = "NULLIF(TRIM(tanggal_tiba), '') IS NULL";
+        $lastKeluarKosong = $this->lastKeluarKosongSql();
+
+        $alertPerPeriode = function (callable $kondisi) use ($grouped) {
+            $q = (clone $grouped)
+                ->selectRaw('pic_monitoring AS nama, periode_shipment, COUNT(*) AS total')
+                ->whereNotNull('pic_monitoring')
+                ->where('pic_monitoring', '!=', '');
+
+            return $kondisi($q)
+                ->groupBy('pic_monitoring', 'periode_shipment')
+                ->orderByRaw('RIGHT(periode_shipment, 4), LEFT(periode_shipment, 2)')
+                ->get()
+                ->groupBy('nama');
+        };
+
+        $alert_pic_belum = $alertPerPeriode(fn($q) => $q
+            ->whereRaw($emptyTiba)
+            ->whereRaw("({$lastKeluarKosong}) = 1"));
+
+        $alert_pic_sudah = $alertPerPeriode(fn($q) => $q
+            ->whereRaw($emptyTiba)
+            ->whereRaw("({$lastKeluarKosong}) = 0"));
+
         return view('monitoring.dashboard', compact(
             'total_data',
             'total_tiba_ontime',
@@ -103,7 +161,10 @@ class MonitoringController extends Controller
             'delivered_delay',
             'belum_tiba',
             'belum_bongkar',
-            'summary_area'
+            'summary_area',
+            'summary_pic_monitoring',
+            'alert_pic_belum',
+            'alert_pic_sudah'
         ));
     }
 
@@ -324,83 +385,64 @@ class MonitoringController extends Controller
     // =====================================================
     // HALAMAN DATA MONITORING
     // View ambil data lewat DataTables server-side (dataAjax()).
-    // Di sini hanya kirim dropdown list (di-cache 1 jam) + modal shipment laut.
+    // Di sini hanya kirim dropdown list (di-cache 1 jam).
+    // Daftar shipment untuk modal laut diambil lazy lewat shipmentList().
     // =====================================================
     public function dataLogistik(Request $request)
     {
-        // isi otomatis PIC yang masih kosong (maks. 1x per 10 menit, jadi data hasil import ikut terisi)
-        Cache::remember('monitoring_pic_autofill', 600, function () {
-            if ($this->fillPicMonitoring() > 0) {
-                Cache::forget('monitoring_pic_list');
-            }
-            return true;
-        });
+        // belum pilih periode -> ke halaman pilih periode
+        $periode = $this->multiInput($request, 'periode');
+        if (empty($periode)) {
+            return redirect()->route('monitoring.periode');
+        }
 
-        $areaList = Cache::remember('monitoring_area_list', 3600, function () {
-            return LogistikPengiriman::whereNotNull('area')
-                ->distinct()->orderBy('area')->pluck('area');
-        });
+        $areaList = Cache::remember('monitoring_area_list', 3600, fn() =>
+            LogistikPengiriman::whereNotNull('area')->distinct()->orderBy('area')->pluck('area'));
 
-        $distChannelList = Cache::remember('monitoring_dist_channel_list', 3600, function () {
-            return LogistikPengiriman::whereNotNull('dist_channel')
-                ->where('dist_channel', '!=', '')
-                ->distinct()->orderBy('dist_channel')->pluck('dist_channel');
-        });
+        $distChannelList = Cache::remember('monitoring_dist_channel_list', 3600, fn() =>
+            LogistikPengiriman::whereNotNull('dist_channel')->where('dist_channel', '!=', '')
+                ->distinct()->orderBy('dist_channel')->pluck('dist_channel'));
 
-        $picList = Cache::remember('monitoring_pic_list', 3600, function () {
-            return LogistikPengiriman::whereNotNull('pic_monitoring')
-                ->distinct()->orderBy('pic_monitoring')->pluck('pic_monitoring');
-        });
+        $picList = Cache::remember('monitoring_pic_list', 3600, fn() =>
+            LogistikPengiriman::whereNotNull('pic_monitoring')
+                ->distinct()->orderBy('pic_monitoring')->pluck('pic_monitoring'));
 
-        $tujuanList = Cache::remember('monitoring_tujuan_list', 3600, function () {
-            return DB::table('tujuanfillterr')
-                ->whereNotNull('tujuan')->where('tujuan', '!=', '')
-                ->distinct()->orderBy('tujuan')->pluck('tujuan');
-        });
+        return view('monitoring.data_monitoring', compact(
+            'periode',
+            'areaList',
+            'picList',
+            'distChannelList'
+        ));
+    }
 
-        $shipmentList = LogistikPengiriman::selectRaw('
-                no_shipment,
-                MAX(tujuan) as tujuan,
-                MAX(nama_kapal) as nama_kapal,
-                MAX(etd) as etd,
-                MAX(eta) as eta,
-                MAX(atd) as atd,
-                MAX(ata) as ata
-            ')
-            ->whereNotNull('no_shipment')
+    /** Daftar shipment (periode terpilih) untuk modal Shipment Laut. Dipanggil saat modal dibuka. */
+    public function shipmentList(Request $request)
+    {
+        if (empty($this->multiInput($request, 'periode'))) {
+            return response()->json([]);
+        }
+
+        $q = LogistikPengiriman::query()->whereNotNull('no_shipment');
+        $this->applyCommonFilters($q, $request);
+
+        $rows = $q
+            ->selectRaw('no_shipment, MAX(tujuan) as tujuan, MAX(nama_kapal) as nama_kapal,
+                         MAX(etd) as etd, MAX(eta) as eta, MAX(atd) as atd, MAX(ata) as ata')
             ->groupBy('no_shipment')
             ->orderBy('no_shipment')
             ->get();
 
-        $akurasiTiba = Cache::remember('monitoring_akurasi_tiba', 3600, function () {
-            return DB::table('akurasi3')->distinct()->pluck('akurasi_waktu_tiba');
-        });
+        $d = fn($v) => $v ? date('Y-m-d', strtotime($v)) : '';
 
-        $akurasiBongkar = Cache::remember('monitoring_akurasi_bongkar', 3600, function () {
-            return DB::table('akurasi3')->distinct()->pluck('akurasi_waktu_bongkar');
-        });
-
-        $akurasiQty = Cache::remember('monitoring_akurasi_qty', 3600, function () {
-            return DB::table('akurasi3')->distinct()->pluck('remarks_qty');
-        });
-
-        $periodeList = DB::table('logistik_pengiriman')
-    ->selectRaw("COALESCE(NULLIF(TRIM(periode_shipment),''),'') AS periode, COUNT(*) AS total")
-    ->groupBy('periode')
-    ->orderByRaw('RIGHT(periode,4) DESC, LEFT(periode,2) DESC')
-    ->get();
-
-        return view('monitoring.data_monitoring', compact(
-            'areaList',
-            'picList',
-            'tujuanList',
-            'periodeList',
-            'distChannelList',
-            'akurasiTiba',
-            'akurasiBongkar',
-            'akurasiQty',
-            'shipmentList'
-        ));
+        return response()->json($rows->map(fn($s) => [
+            'no_shipment' => $s->no_shipment,
+            'tujuan'      => $s->tujuan,
+            'nama_kapal'  => $s->nama_kapal,
+            'etd'         => $d($s->etd),
+            'eta'         => $d($s->eta),
+            'atd'         => $d($s->atd),
+            'ata'         => $d($s->ata),
+        ])->values());
     }
 
     public function updateTransportLaut(Request $request)
@@ -498,19 +540,22 @@ class MonitoringController extends Controller
     private function applyCommonFilters($query, Request $request): void
     {
         $periode = $this->multiInput($request, 'periode');
-if (!empty($periode)) {
-    $kosong = in_array('__kosong__', $periode, true);
-    $vals   = array_values(array_filter($periode, fn($v) => $v !== '__kosong__'));
+        if ($request->filled('tanggal_shipment')) {
+            $query->whereDate('tanggal_shipment', $request->input('tanggal_shipment'));
+        }
+        if (!empty($periode)) {
+            $kosong = in_array('__kosong__', $periode, true);
+            $vals   = array_values(array_filter($periode, fn($v) => $v !== '__kosong__'));
 
-    $query->where(function ($q) use ($vals, $kosong) {
-        if ($vals) {
-            $q->whereIn('periode_shipment', $vals);
+            $query->where(function ($q) use ($vals, $kosong) {
+                if ($vals) {
+                    $q->whereIn('periode_shipment', $vals);
+                }
+                if ($kosong) {
+                    $q->orWhereNull('periode_shipment')->orWhere('periode_shipment', '');
+                }
+            });
         }
-        if ($kosong) {
-            $q->orWhereNull('periode_shipment')->orWhere('periode_shipment', '');
-        }
-    });
-}
         if ($request->filled('jenis')) {
             $query->where('transportasi', strtoupper($request->input('jenis')));
         }
@@ -587,9 +632,12 @@ if (!empty($periode)) {
                     $q->orWhere($col, 'like', "%{$searchValue}%");
                 }
             });
-        }
 
-        $recordsFiltered = $this->countGroups($baseQuery);
+            $recordsFiltered = $this->countGroups($baseQuery);
+        } else {
+            // tanpa search -> sama dengan total, hemat 1 query GROUP BY berat
+            $recordsFiltered = $totalRecords;
+        }
 
         // 1 baris wakil per shipment + tujuan.
         $query = LogistikPengiriman::query()
@@ -693,13 +741,21 @@ if (!empty($periode)) {
         $akurasiTiba    = Cache::remember('monitoring_akurasi_tiba', 3600, fn() => DB::table('akurasi3')->distinct()->pluck('akurasi_waktu_tiba'));
         $akurasiBongkar = Cache::remember('monitoring_akurasi_bongkar', 3600, fn() => DB::table('akurasi3')->distinct()->pluck('akurasi_waktu_bongkar'));
         $akurasiQty     = Cache::remember('monitoring_akurasi_qty', 3600, fn() => DB::table('akurasi3')->distinct()->pluck('remarks_qty'));
-        $tujuanList     = Cache::remember('monitoring_tujuan_list', 3600, function () {
-            return DB::table('tujuanfillterr')
-                ->whereNotNull('tujuan')->where('tujuan', '!=', '')
-                ->distinct()->orderBy('tujuan')->pluck('tujuan');
-        });
 
-        $lists = compact('akurasiTiba', 'akurasiBongkar', 'akurasiQty', 'tujuanList');
+        // HTML <option> dibuat SEKALI per request, bukan per baris
+        $buildOptions = function ($list, $placeholder) {
+            $html = '<option value="">' . e($placeholder) . '</option>';
+            foreach ($list as $opt) {
+                $html .= '<option value="' . e($opt) . '">' . e($opt) . '</option>';
+            }
+            return $html;
+        };
+
+        $lists = [
+            'optQty'      => $buildOptions($akurasiQty, 'Pilih Reason Qty'),
+            'optTiba'     => $buildOptions($akurasiTiba, 'Pilih Reason Tiba'),
+            'optBongkar'  => $buildOptions($akurasiBongkar, 'Pilih Reason Bongkar'),
+        ];
 
         $data = [];
         foreach ($rows as $r) {
@@ -730,15 +786,21 @@ if (!empty($periode)) {
             return '<input type="number" name="' . $name . '" value="' . e($value) . '">';
         };
 
-        $selectBox = function ($name, $selected, $options, $placeholder) {
-            $html = '<select name="' . $name . '" class="reason-select searchable-select" data-placeholder="' . e($placeholder) . '">';
-            $html .= '<option value="">' . e($placeholder) . '</option>';
-            foreach ($options as $opt) {
-                $sel = ((string) $selected === (string) $opt) ? ' selected' : '';
-                $html .= '<option value="' . e($opt) . '"' . $sel . '>' . e($opt) . '</option>';
+        // $optionsHtml sudah jadi (lihat dataAjax); cukup tandai option yang terpilih
+        $selectBox = function ($name, $selected, $optionsHtml, $placeholder) {
+            $selected = (string) $selected;
+            if ($selected !== '') {
+                $needle = 'value="' . e($selected) . '"';
+                $pos = strpos($optionsHtml, $needle);
+                if ($pos !== false) {
+                    $optionsHtml = substr_replace($optionsHtml, $needle . ' selected', $pos, strlen($needle));
+                } else {
+                    // nilai lama yang tidak ada di daftar tetap ditampilkan
+                    $optionsHtml .= '<option value="' . e($selected) . '" selected>' . e($selected) . '</option>';
+                }
             }
-            $html .= '</select>';
-            return $html;
+            return '<select name="' . $name . '" class="reason-select searchable-select" data-placeholder="' . e($placeholder) . '">'
+                . $optionsHtml . '</select>';
         };
 
         $keluar        = $r->_keluar ?? null;
@@ -890,7 +952,7 @@ if (!empty($periode)) {
             // 14 Qty Actual Do
             '<input type="number" name="qty_monitoring" class="row-qty-monitoring" value="' . e($r->qty_monitoring) . '" readonly style="background:#f1f5f9;color:#0284c7;font-weight:600;">',
             // 15 Reason Qty (editable select)
-            $selectBox('remarks_qty', $r->remarks_qty, $lists['akurasiQty'], 'Pilih Reason Qty'),
+            $selectBox('remarks_qty', $r->remarks_qty, $lists['optQty'], 'Pilih Reason Qty'),
             // 16 Urutan Bongkar (editable)
             $numberInput('act_urutan_bongkar', $r->act_urutan_bongkar),
             // 17 Estimasi Tiba
@@ -916,9 +978,9 @@ if (!empty($periode)) {
             // 24 SLA Bongkar
             $sla_bongkar_html,
             // 25 Reason Tiba (editable select)
-            $selectBox('reason_tiba', $r->reason_tiba, $lists['akurasiTiba'], 'Pilih Reason Tiba'),
+            $selectBox('reason_tiba', $r->reason_tiba, $lists['optTiba'], 'Pilih Reason Tiba'),
             // 26 Reason Bongkar (editable select)
-            $selectBox('reason_bongkar', $r->reason_bongkar, $lists['akurasiBongkar'], 'Pilih Reason Bongkar'),
+            $selectBox('reason_bongkar', $r->reason_bongkar, $lists['optBongkar'], 'Pilih Reason Bongkar'),
             // 27 Remarks (editable)
             $textInput('remarks', $r->remarks),
             // 28 Nama Kapal (editable)
@@ -1185,38 +1247,35 @@ if (!empty($periode)) {
 
         $this->propagateToGroup($logistik, $data);
 
-        // propagasi estimasi ke baris lain dalam shipment yang sama (belum tiba)
-        $shipment = LogistikPengiriman::where('no_shipment', $logistik->no_shipment)->get();
-
+        // propagasi estimasi ke baris lain dalam shipment yang sama (belum tiba): 1 query, bukan save() per baris
         $baseEstimasi = (!$blocked && $keluar)
             ? strtotime("+{$leadtime} days", $keluar)
             : null;
 
-        $lastBongkar = $shipment->whereNotNull('tanggal_bongkar')->max('tanggal_bongkar');
+        $lastBongkar = LogistikPengiriman::where('no_shipment', $logistik->no_shipment)
+            ->whereNotNull('tanggal_bongkar')
+            ->max('tanggal_bongkar');
 
         $nextEstimasi = $lastBongkar
             ? date('Y-m-d', strtotime($lastBongkar . ' +1 day'))
             : ($baseEstimasi ? date('Y-m-d', $baseEstimasi) : null);
 
-        foreach ($shipment as $item) {
-            if (!empty($item->tanggal_tiba)) {
-                continue;
-            }
-            $item->estimasi_tiba = $nextEstimasi;
-            $item->save();
-        }
+        LogistikPengiriman::where('no_shipment', $logistik->no_shipment)
+            ->whereRaw("NULLIF(TRIM(tanggal_tiba), '') IS NULL")
+            ->update(['estimasi_tiba' => $nextEstimasi]);
     }
 
+    /**
+     * Sebarkan hasil ke semua DO dalam grup (shipment + tujuan) dengan 3 query UPDATE,
+     * bukan fill()+save() per baris.
+     */
     private function propagateToGroup(LogistikPengiriman $logistik, array $data): void
     {
-        $rows = LogistikPengiriman::where('no_shipment', $logistik->no_shipment)
-            ->whereRaw("COALESCE(tujuan,'') = ?", [(string) $logistik->tujuan])
-            ->orderBy('id')
-            ->get();
+        $group = fn() => LogistikPengiriman::where('no_shipment', $logistik->no_shipment)
+            ->whereRaw("COALESCE(tujuan,'') = ?", [(string) $logistik->tujuan]);
 
-        if ($rows->isEmpty()) return;
-
-        $repId = $rows->first()->id;   // selisih qty ditaruh di 1 baris saja
+        $repId = $group()->orderBy('id')->value('id');   // selisih qty ditaruh di 1 baris saja
+        if (!$repId) return;
 
         $shared = $logistik->only([
             'tanggal_tiba', 'waktu_tiba', 'tanggal_bongkar', 'waktu_bongkar',
@@ -1227,13 +1286,21 @@ if (!empty($periode)) {
             'act_pgi_date', 'biaya_kuli', 'action_required',
         ]);
 
-        foreach ($rows as $row) {
-            $row->fill($shared);
-            $row->selisih_qty      = $row->id === $repId ? ($data['selisih_qty'] ?? null) : null;
-            $row->qty_monitoring   = ($row->total_do_qty_car ?? 0) - ($row->selisih_qty ?? 0);
-            $row->total_biaya_kuli = $row->qty_monitoring * ($row->biaya_kuli ?? 0);
-            $row->save();
-        }
+        $selisih = (isset($data['selisih_qty']) && is_numeric($data['selisih_qty']))
+            ? $data['selisih_qty']
+            : null;
+
+        // 1) kolom bersama; selisih dikosongkan dulu
+        $group()->update($shared + ['selisih_qty' => null]);
+
+        // 2) selisih hanya di baris wakil
+        $group()->where('id', $repId)->update(['selisih_qty' => $selisih]);
+
+        // 3) hitung ulang qty & biaya kuli per baris langsung di SQL
+        $group()->update([
+            'qty_monitoring'   => DB::raw('COALESCE(total_do_qty_car,0) - COALESCE(selisih_qty,0)'),
+            'total_biaya_kuli' => DB::raw('(COALESCE(total_do_qty_car,0) - COALESCE(selisih_qty,0)) * COALESCE(biaya_kuli,0)'),
+        ]);
     }
 
     /**
@@ -1242,6 +1309,9 @@ if (!empty($periode)) {
      *
      * Route::post('/monitoring/update-batch', [MonitoringController::class, 'updateMonitoringBatch'])
      *     ->name('monitoring.update.batch');
+     *
+     * Route::get('/monitoring/shipment-list', [MonitoringController::class, 'shipmentList'])
+     *     ->name('monitoring.shipmentList');
      * ===========================================================================
      */
 
@@ -1249,6 +1319,51 @@ if (!empty($periode)) {
     // ALERT CONTROL — hanya shipment yang sudah lewat/sama dengan estimasi_tiba
     // dan Tgl Tiba/Tgl Bongkar belum diisi.
     // =====================================================
+
+    // status per tanggal_shipment untuk kalender (ikut periode + filter lain)
+    public function shipmentDates(Request $request)
+    {
+        // belum pilih periode -> jangan load apa pun
+        if (empty($this->multiInput($request, 'periode'))) {
+            return response()->json((object) []);
+        }
+
+        $filter = DB::table('logistik_pengiriman')->whereNotNull('tanggal_shipment');
+        $this->applyCommonFilters($filter, $request);
+
+        // 1 baris wakil per shipment + tujuan
+        $rows = DB::table('logistik_pengiriman')
+            ->whereIn('id', $this->groupIdsQuery($filter))
+            ->selectRaw("DATE(tanggal_shipment) AS tgl,
+                         COUNT(*) AS total,
+                         SUM(CASE WHEN NULLIF(TRIM(tanggal_bongkar),'') IS NULL THEN 1 ELSE 0 END) AS belum")
+            ->groupByRaw('DATE(tanggal_shipment)')
+            ->get();
+
+        return response()->json(
+            $rows->mapWithKeys(fn($r) => [
+                $r->tgl => ['total' => (int) $r->total, 'belum' => (int) $r->belum],
+            ])
+        );
+    }
+
+    public function pilihPeriode()
+    {
+        $kunci = "COALESCE(NULLIF(TRIM(periode_shipment),''),'__kosong__')";
+
+        $periodes = DB::table('logistik_pengiriman')
+            ->whereIn('id', $this->groupIdsQuery(DB::table('logistik_pengiriman')))
+            ->selectRaw("{$kunci} AS periode,
+                         COUNT(*) AS total,
+                         SUM(CASE WHEN NULLIF(TRIM(tanggal_bongkar),'') IS NULL THEN 1 ELSE 0 END) AS belum,
+                         MAX(tanggal_shipment) AS terakhir")
+            ->groupByRaw($kunci)
+            ->orderByDesc('terakhir')
+            ->get();
+
+        return view('monitoring.pilih_periode', compact('periodes'));
+    }
+
     public function alerts(Request $request)
     {
         $today = date('Y-m-d');
@@ -1263,11 +1378,13 @@ if (!empty($periode)) {
 
         $groupIds = $this->groupIdsQuery($filter);
 
+        $limit = 200;
+
         $rows = DB::table('logistik_pengiriman')
             ->select('id', 'no_shipment', 'pic_monitoring', 'area', 'tujuan', 'estimasi_tiba', 'tanggal_tiba', 'tanggal_bongkar')
             ->whereIn('id', $groupIds)
             ->orderBy('estimasi_tiba')
-            ->limit(200)
+            ->limit($limit)
             ->get();
 
         $alertList = [];
@@ -1290,10 +1407,15 @@ if (!empty($periode)) {
             ];
         }
 
+        // kalau hasil belum mencapai limit, jumlahnya sudah pasti -> tidak perlu COUNT ulang
+        $totalAlert = $rows->count() < $limit
+            ? $rows->count()
+            : $this->countGroups($filter);
+
         return response()->json([
             'alerts'         => $alertList,
             'missingSummary' => $missingSummary,
-            'totalAlert'     => $this->countGroups($filter),
+            'totalAlert'     => $totalAlert,
         ]);
     }
 

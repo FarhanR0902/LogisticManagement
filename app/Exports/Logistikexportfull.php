@@ -26,10 +26,16 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 class LogistikExportFull implements
     FromQuery, WithHeadings, WithMapping, WithColumnFormatting, WithStyles
 {
-    protected $builder;
+     protected $builder;
     private ?array $cols = null;
     private ?array $agg = null;
 
+    public ?string $tabel = null;   // nama tabel kerja, null = logistik_pengiriman
+
+    protected function source(string $alias)
+    {
+        return DB::table(($this->tabel ?: 'logistik_pengiriman') . " AS {$alias}");
+    }
     /** kolom level shipment: kalau DO ini kosong, ambil dari DO lain di shipment yang sama */
     private const SHIPMENT_FIELDS = ['nama_kapal', 'etd', 'eta', 'atd', 'ata', 'act_pgi_date'];
 
@@ -304,8 +310,8 @@ class LogistikExportFull implements
     {
         if ($this->agg !== null) return $this->agg;
 
-        $q = DB::table('logistik_pengiriman')
-            ->select(
+     $q = $this->source('t')
+    ->select(
                 'no_shipment',
                 DB::raw('SUM(COALESCE(total_kubik,0)) as sum_kubik'),
                 DB::raw('SUM(COALESCE(total_tonase,0)) as sum_tonase'),
