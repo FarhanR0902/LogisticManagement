@@ -39,7 +39,7 @@ class AlertExport implements FromCollection, WithHeadings, WithMapping, ShouldAu
         $row = [
             $no, $r->sumber, $r->no_shipment, $r->tujuan, $r->area, $r->periode_shipment,
             $r->planner, $r->pic_monitoring, $r->ekpedisi, $r->mobil, $r->no_pol, $r->nama_driver,
-            $r->rencana_kirim, $r->tanggal_dpt_unit,
+            $r->rencana_kirim, $r->tanggal_dpt_unit, $r->tanggal_shipment,
         ];
 
         foreach ($this->gudang as $s) {

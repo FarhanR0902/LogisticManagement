@@ -47,7 +47,7 @@ select,input[type=month],input[type=text]{padding:8px;margin-right:10px;border:1
         <option value="PASURUAN" {{ request('sumber')=='PASURUAN' ? 'selected' : '' }}>Pasuruan</option>
     </select>
 
-    <input type="month" name="month" value="{{ request('month') }}">
+   <input type="month" name="month" value="{{ is_array(request('month')) ? (request('month')[0] ?? '') : request('month') }}">
 
     <select name="area">
         <option value="">Semua Area</option>

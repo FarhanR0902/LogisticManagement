@@ -21,7 +21,12 @@ class PlannerReportData extends PlannerExport implements WithEvents, WithTitle
      * Kunci bantu (kolom Rk Periode + label di Ringkasan) diberi awalan supaya selalu teks.
      */
     private const PERIODE_PREFIX = 'Periode ';
+    /** batas hari tanggal_naik_logistik -> tanggal_dpt_unit per planner (kunci HURUF BESAR) */
+    private const NAIK_UNIT_SLA = ['ADIT' => 2, 'YERE' => 2, 'NOVA' => 0, 'DEVIN' => 0];
+    private const NAIK_UNIT_DEFAULT = 2;   // planner lain di luar daftar
+    private const OPTIMAL_MIN = 85;
 
+    private ?array $ship = null;
     private ?array $extraCols = null;
     private ?array $tblCols = null;
     private ?array $grp = null;
@@ -29,7 +34,10 @@ class PlannerReportData extends PlannerExport implements WithEvents, WithTitle
     private ?array $letters = null;
     private array $keysCache = [];
 
-    public function title(): string { return 'Data'; }
+    public function title(): string
+    {
+        return 'Data';
+    }
 
     public function hasColumn(string $c): bool
     {
@@ -63,6 +71,56 @@ class PlannerReportData extends PlannerExport implements WithEvents, WithTitle
             $out[(int) $x->id] = [(float) $x->g_nilai, (float) $x->g_biaya];
         }
         return $this->grp = $out;
+    }
+    public function batasNaikUnit(string $planner): int
+    {
+        return self::NAIK_UNIT_SLA[strtoupper(trim($planner))] ?? self::NAIK_UNIT_DEFAULT;
+    }
+
+    /** selisih hari (tanpa jam), null kalau salah satu kosong, minimal 0 */
+    private function hariBeda($a, $b): ?int
+    {
+        if (trim((string) $a) === '' || trim((string) $b) === '') return null;
+        $x = strtotime(date('Y-m-d', strtotime((string) $a)));
+        $y = strtotime(date('Y-m-d', strtotime((string) $b)));
+        if (!$x || !$y) return null;
+        return max(0, (int) floor(($y - $x) / 86400));
+    }
+
+    /**
+     * Wakil per no_shipment (MIN id) => status optimal SHIPMENT.
+     * Hasil kubik/tonase tiap tujuan dijumlah dulu (sama dengan optimalPerShipment di controller).
+     * Nilai: 'OPTIMAL' | 'TIDAK OPTIMAL' | '-' (tidak ada kapasitas)
+     */
+    private function shipInfo(): array
+    {
+        if ($this->ship !== null) return $this->ship;
+
+        $rows = (clone $this->query())->toBase()->reorder()
+            ->selectRaw("COALESCE(NULLIF(TRIM(no_shipment),''), CONCAT('id', id)) AS sk,
+                     COALESCE(tujuan,'') AS tj,
+                     MIN(id) AS mid,
+                     SUM(COALESCE(total_kubik,0))  AS s_kubik, MAX(kubikasi) AS k_kap,
+                     SUM(COALESCE(total_tonase,0)) AS s_ton,   MAX(tonase)   AS t_kap")
+            ->groupByRaw('sk, tj')
+            ->get();
+
+        $agg = [];
+        foreach ($rows as $x) {
+            $a = $agg[$x->sk] ?? ['mid' => PHP_INT_MAX, 'k' => null, 't' => null];
+            $a['mid'] = min($a['mid'], (int) $x->mid);
+            if ((float) $x->k_kap > 0) $a['k'] = ($a['k'] ?? 0) + round((float) $x->s_kubik / (float) $x->k_kap * 100, 2);
+            if ((float) $x->t_kap > 0) $a['t'] = ($a['t'] ?? 0) + round((float) $x->s_ton   / (float) $x->t_kap * 100, 2);
+            $agg[$x->sk] = $a;
+        }
+
+        $out = [];
+        foreach ($agg as $a) {
+            $out[$a['mid']] = ($a['k'] === null && $a['t'] === null)
+                ? '-'
+                : ((($a['k'] ?? 0) >= self::OPTIMAL_MIN || ($a['t'] ?? 0) >= self::OPTIMAL_MIN) ? 'OPTIMAL' : 'TIDAK OPTIMAL');
+        }
+        return $this->ship = $out;
     }
 
     public function groupRows()
@@ -112,7 +170,9 @@ class PlannerReportData extends PlannerExport implements WithEvents, WithTitle
 
         // gudang: selesai = ada keluar & tidak ada siklus menggantung
         $status = function ($r) use ($sfx, $fl) {
-            $any = false; $dangling = false; $anyFilled = false;
+            $any = false;
+            $dangling = false;
+            $anyFilled = false;
             foreach ($sfx as $s) {
                 $k = $fl($r, "tanggal_keluar_gudang{$s}");
                 $started = $fl($r, "planning_loading{$s}") || $fl($r, "tanggal_tiba_gudang{$s}");
@@ -131,6 +191,12 @@ class PlannerReportData extends PlannerExport implements WithEvents, WithTitle
             }
             return false;
         };
+        $sw  = fn($r) => isset($this->shipInfo()[(int) $r->id]);          // baris wakil per no_shipment
+        $sf  = fn(callable $cond) => fn($r) => ($sw($r) && $cond($r)) ? 1 : 0;
+        $st  = fn($r) => $this->shipInfo()[(int) $r->id] ?? null;
+        $cari = fn($r) => $this->hariBeda($r->rencana_kirim, $r->tanggal_dpt_unit);
+        $naik = fn($r) => $this->hariBeda($r->tanggal_naik_logistik, $r->tanggal_dpt_unit);
+        $naikDelay = fn($r) => ($h = $naik($r)) !== null && $h > $this->batasNaikUnit((string) $r->planner);
 
         $cols = [
             ['Rk Tampil',            'raw', fn($r) => ''],   // diisi rumus SUBTOTAL
@@ -142,16 +208,38 @@ class PlannerReportData extends PlannerExport implements WithEvents, WithTitle
             ['Rk Armada Delay',      'raw', $flag(fn($r) => str_starts_with($this->slaDapatMobil($r), 'H+'))],
             ['Rk Gudang Selesai',    'raw', $flag(fn($r) => $status($r)['selesai'])],
             ['Rk Di Gudang',         'raw', $flag(fn($r) => !$status($r)['selesai'])],
-            ['Rk Belum Input Gudang','raw', $flag(fn($r) => $status($r)['belum'])],
+            ['Rk Belum Input Gudang', 'raw', $flag(fn($r) => $status($r)['belum'])],
             ['Rk Gudang Delay',      'raw', $flag($gudangDelay)],
             ['Rk Optimal',           'raw', $flag(fn($r) => strtoupper(trim((string) $r->pengiriman_optimal)) === 'OPTIMAL')],
             ['Rk Tidak Optimal',     'raw', $flag(fn($r) => strtoupper(trim((string) $r->pengiriman_optimal)) === 'TIDAK OPTIMAL')],
             ['Rk In Transit',        'raw', $flag(fn($r) => $status($r)['selesai'] && !$fl($r, 'tanggal_tiba'))],
             ['Rk Data Lengkap',      'raw', $flag(fn($r) => $this->kelengkapan($r) === 'Lengkap')],
+            ['Rk Ship Wakil',         'raw', fn($r) => $sw($r) ? 1 : 0],
+            ['Rk Ship Optimal',       'raw', $sf(fn($r) => $st($r) === 'OPTIMAL')],
+            ['Rk Ship Tidak Optimal', 'raw', $sf(fn($r) => $st($r) === 'TIDAK OPTIMAL')],
+
+            // rencana_kirim -> tanggal_dpt_unit (lead time cari mobil)
+            ['Rk Ship Cari Ada',      'raw', $sf(fn($r) => $cari($r) !== null)],
+            ['Rk Ship Cari Hari',     'raw', fn($r) => $sw($r) ? ($cari($r) ?? 0) : 0],
+            ['Rk Ship Cari OT',       'raw', $sf(fn($r) => $cari($r) !== null && !str_starts_with($this->slaDapatMobil($r), 'H+'))],
+            ['Rk Ship Cari Delay',    'raw', $sf(fn($r) => $cari($r) !== null && str_starts_with($this->slaDapatMobil($r), 'H+'))],
+
+            // tanggal_naik_logistik -> tanggal_dpt_unit (batas beda per planner)
+            ['Rk Ship Naik Ada',      'raw', $sf(fn($r) => $naik($r) !== null)],
+            ['Rk Ship Naik Hari',     'raw', fn($r) => $sw($r) ? ($naik($r) ?? 0) : 0],
+            ['Rk Ship Naik OT',       'raw', $sf(fn($r) => $naik($r) !== null && !$naikDelay($r))],
+            ['Rk Ship Naik Delay',    'raw', $sf(fn($r) => $naik($r) !== null && $naikDelay($r))],
         ];
 
-        foreach ([['Rk Planner', 'planner'], ['Rk Area', 'area'], ['Rk Dist Channel', 'dist_channel'],
-                  ['Rk Periode', 'periode_shipment'], ['Rk Pulau', 'pulau']] as [$h, $c]) {
+        foreach (
+            [
+                ['Rk Planner', 'planner'],
+                ['Rk Area', 'area'],
+                ['Rk Dist Channel', 'dist_channel'],
+                ['Rk Periode', 'periode_shipment'],
+                ['Rk Pulau', 'pulau']
+            ] as [$h, $c]
+        ) {
             if ($this->hasColumn($c)) {
                 $cols[] = [$h, 'raw', fn($r) => $this->keyValue($c, $r->{$c} ?? '')];
             }
@@ -162,10 +250,17 @@ class PlannerReportData extends PlannerExport implements WithEvents, WithTitle
     /** heading unik (syarat Excel Table) */
     public function headings(): array
     {
-        $seen = []; $out = [];
+        $seen = [];
+        $out = [];
         foreach ($this->columns() as $col) {
-            $h = (string) $col[0]; $k = mb_strtolower($h);
-            if (isset($seen[$k])) { $seen[$k]++; $h .= ' (' . $seen[$k] . ')'; } else { $seen[$k] = 1; }
+            $h = (string) $col[0];
+            $k = mb_strtolower($h);
+            if (isset($seen[$k])) {
+                $seen[$k]++;
+                $h .= ' (' . $seen[$k] . ')';
+            } else {
+                $seen[$k] = 1;
+            }
             $out[] = $h;
         }
         return $out;

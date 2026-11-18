@@ -556,11 +556,13 @@
     <div class="container">
 
         <h2>📦 DATA LOGISTIK</h2>
+<a href="#" id="btnExportExcel" class="btn-export" data-mode="">
+    <i class="fa fa-file-excel"></i> Export Data (cepat)
+</a>
 
-        <a href="#" id="btnExportExcel" class="btn-export">
-            <i class="fa fa-file-excel"></i> Export Excel
-        </a>
-
+<a href="#" id="btnExportLaporan" class="btn-export" data-mode="laporan">
+    <i class="fa fa-chart-column"></i> Laporan + Dashboard + Slicer
+</a>
      
      
         <div class="filter-box">
@@ -1442,28 +1444,42 @@ function gudangCols(s, n) {
             // ==========================================
             // EXPORT EXCEL SESUAI FILTER AKTIF
             // ==========================================
-            $('#btnExportExcel').on('click', function(e) {
-                e.preventDefault();
+          // ==========================================
+// EXPORT EXCEL SESUAI FILTER AKTIF
+// (#btnExportExcel = cepat, #btnExportLaporan = dashboard + slicer)
+// ==========================================
+$('#btnExportExcel, #btnExportLaporan').on('click', function(e) {
+    e.preventDefault();
 
-                let params = new URLSearchParams();
+    let params = new URLSearchParams();
 
-                getAreas().forEach(a => params.append('area[]', a));
+    getAreas().forEach(a => params.append('area[]', a));
 
-                let basis = $('#filterTglBasis').val();
-                let from = $('#filterDateFrom').val();
-                let to = $('#filterDateTo').val();
-                let month = $('#filterMonth').val();
-                let year = $('#filterYear').val();
+    let basis = $('#filterTglBasis').val();
+    let from  = $('#filterDateFrom').val();
+    let to    = $('#filterDateTo').val();
+    let month = $('#filterMonth').val();
+    let year  = $('#filterYear').val();
 
-                if (basis) params.append('tgl_basis', basis);
-                if (from) params.append('date_from', from);
-                if (to) params.append('date_to', to);
-                if (month) params.append('month', month);
-                if (year) params.append('year', year);
+    if (basis) params.append('tgl_basis', basis);
+    if (from)  params.append('date_from', from);
+    if (to)    params.append('date_to', to);
+    if (month) params.append('month', month);
+    if (year)  params.append('year', year);
 
-                let baseUrl = "{{ route('logistik.export') }}";
-                window.location.href = params.toString() ? (baseUrl + '?' + params.toString()) : baseUrl;
-            });
+    // tombol laporan membawa mode=laporan
+    let mode = $(this).data('mode');
+    if (mode) params.append('mode', mode);
+
+    // cegah klik dobel selama laporan dibuat (lama)
+    if (mode === 'laporan') {
+        let $b = $(this).css({ pointerEvents: 'none', opacity: .6 });
+        setTimeout(() => $b.css({ pointerEvents: '', opacity: '' }), 120000);
+    }
+
+    let baseUrl = "{{ route('logistik.export') }}";
+    window.location.href = params.toString() ? (baseUrl + '?' + params.toString()) : baseUrl;
+});
         });
     </script>
 

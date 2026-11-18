@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Planner;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
+use App\Exports\PlannerSlicerExport;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
@@ -12,6 +13,7 @@ use Maatwebsite\Excel\Facades\Excel;
 use App\Exports\PlannerExport;
 use App\Exports\{PlannerReportExport, XlsxSlicerInjector};
 use Illuminate\Support\Facades\Storage;
+use App\Exports\PlannerFastExport;
 
 
 class PlannerController extends Controller
@@ -90,17 +92,34 @@ class PlannerController extends Controller
     private function forgetCaches(?string $periode = null): void
     {
         Cache::forget('planner.bloker');
+        Cache::forget('planner.periodes');
         Cache::forget($this->totalKey($periode));
+    }
+
+    public function pilihPeriode()
+    {
+        $periodes = Cache::remember('planner.periodes', 60, function () {
+            $kunci = "COALESCE(NULLIF(TRIM(periode_shipment),''),'__KOSONG__')";
+            return $this->repQuery()
+                ->selectRaw("{$kunci} AS periode, COUNT(*) AS total,
+                         SUM(CASE WHEN selesai_gudang = 0 THEN 1 ELSE 0 END) AS belum,
+                         MAX(tanggal_shipment) AS terakhir")
+                ->groupByRaw($kunci)
+                ->orderByDesc('terakhir')
+                ->get();
+        });
+
+        return view('planner.pilih_periode', compact('periodes'));
     }
 
     private function totalKey(?string $periode): string
     {
         return 'planner.total.' . md5((string) $periode);
     }
-
     public function exportPlannerReport(Request $request)
     {
         $filters = array_filter([
+            'periode'          => $request->input('periode'),
             'planner'          => $this->multiInput($request, 'planner_filter', 'planner'),
             'area'             => $this->multiInput($request, 'area_filter', 'area'),
             'dist_channel'     => $this->multiInput($request, 'dist_channel_filter', 'dist_channel'),
@@ -108,23 +127,18 @@ class PlannerController extends Controller
         ]);
 
         $name = 'Laporan_Planner_' . date('Ymd_His') . '.xlsx';
-        $rel  = 'exports/' . $name;
+        $path = storage_path('app/private/' . $name);
+        @mkdir(dirname($path), 0775, true);
 
-        Excel::store(new PlannerReportExport($filters, 'Filter aktif: ' . json_encode($filters)), $rel, 'local');
-        $path = Storage::disk('local')->path($rel);
+        // build() sudah membuat tabel tblLogistik + chart di Ringkasan
+        (new PlannerSlicerExport($filters))->build($path);
 
-        // 7 slicer: kolom yang ada di sheet Data
+        // slicer di sheet Ringkasan, mengontrol tabel tblLogistik (sheet Data)
         $wanted = ['Nama Planner', 'Area', 'Dist Channel', 'Periode Shipment', 'Pulau', 'Ekspedisi', 'Mobil'];
-        $slots = [];
-        foreach ($wanted as $i => $_) {
-            $slots[] = [23, 0, 26, 0, $i * 13, $i * 13 + 12];   // [kolom awal, off, kolom akhir, off, baris awal, baris akhir]
-        }
-
-        XlsxSlicerInjector::inject($path, 'Ringkasan', $wanted, $slots);   // kalau gagal, file tetap valid tanpa slicer
+        XlsxSlicerInjector::inject($path, 'Ringkasan', $wanted, PlannerSlicerExport::slicerSlots(count($wanted)));
 
         return response()->download($path, $name)->deleteFileAfterSend(true);
     }
-
     public function store(Request $request)
     {
         $rumus = $this->hitungSla($request);
@@ -134,11 +148,20 @@ class PlannerController extends Controller
             'no_shipment',
             'kubikasi',
             'planner',
-            'waktu_tiba_gudang', 'waktu_keluar_gudang',
-            'waktu_tiba_gudang_2', 'waktu_keluar_gudang_2',
-            'waktu_tiba_gudang_3', 'waktu_keluar_gudang_3',
-            'planning_loading_4', 'tanggal_tiba_gudang_4', 'tanggal_keluar_gudang_4', 'reason_gudang_4',
-            'planning_loading_5', 'tanggal_tiba_gudang_5', 'tanggal_keluar_gudang_5', 'reason_gudang_5',
+            'waktu_tiba_gudang',
+            'waktu_keluar_gudang',
+            'waktu_tiba_gudang_2',
+            'waktu_keluar_gudang_2',
+            'waktu_tiba_gudang_3',
+            'waktu_keluar_gudang_3',
+            'planning_loading_4',
+            'tanggal_tiba_gudang_4',
+            'tanggal_keluar_gudang_4',
+            'reason_gudang_4',
+            'planning_loading_5',
+            'tanggal_tiba_gudang_5',
+            'tanggal_keluar_gudang_5',
+            'reason_gudang_5',
             'dist_channel',
             'transport_lead_time',
             'tujuan',
@@ -197,6 +220,7 @@ class PlannerController extends Controller
 
         try {
             LogistikPengiriman::create($payload);
+            LogistikPengiriman::syncRep([$payload['no_shipment'] ?? null]);
         } catch (\Throwable $e) {
             report($e);
             return $this->gagal($request, [$this->pesanDb($e)], 500, 'Gagal menyimpan ke database');
@@ -227,7 +251,10 @@ class PlannerController extends Controller
             DB::table('logistik_pengiriman')
                 ->selectRaw('MIN(id) AS id')
                 ->groupByRaw("COALESCE(no_shipment,'')"),
-            'r', 'r.id', '=', 'l.id'
+            'r',
+            'r.id',
+            '=',
+            'l.id'
         );
     }
 
@@ -237,7 +264,8 @@ class PlannerController extends Controller
         $filled = fn($c) => "NULLIF(TRIM(l.{$c}), '') IS NOT NULL";
 
         $adaTiba = '(' . implode(' OR ', array_map(
-            fn($s) => $filled("tanggal_tiba_gudang{$s}"), $this->gudangSuffixes()
+            fn($s) => $filled("tanggal_tiba_gudang{$s}"),
+            $this->gudangSuffixes()
         )) . ')';
 
         $agg = $this->repShipment()->selectRaw("
@@ -315,7 +343,8 @@ class PlannerController extends Controller
         $q = $this->repQuery()->whereRaw($empty('tanggal_tiba'));
 
         $q->whereRaw('(' . implode(' OR ', array_map(
-            fn($s) => $filled("tanggal_keluar_gudang{$s}"), $this->gudangSuffixes()
+            fn($s) => $filled("tanggal_keluar_gudang{$s}"),
+            $this->gudangSuffixes()
         )) . ')');
 
         foreach ($this->gudangCycles() as [$planning, $tiba, $keluar]) {
@@ -328,7 +357,8 @@ class PlannerController extends Controller
     private function inTransitEstimasiSql(): string
     {
         $keluar = implode(",\n", array_map(
-            fn($s) => "COALESCE(tanggal_keluar_gudang{$s},'1900-01-01')", $this->gudangSuffixes()
+            fn($s) => "COALESCE(tanggal_keluar_gudang{$s},'1900-01-01')",
+            $this->gudangSuffixes()
         ));
 
         return "COALESCE(estimasi_tiba, DATE_ADD(
@@ -392,7 +422,10 @@ class PlannerController extends Controller
                 $tgl = $r->{"tanggal_keluar_gudang{$s}"};
                 if (!empty($tgl)) {
                     $ts = strtotime($tgl);
-                    if ($keluar === null || $ts >= $keluar) { $keluar = $ts; $asal = $nama; }
+                    if ($keluar === null || $ts >= $keluar) {
+                        $keluar = $ts;
+                        $asal = $nama;
+                    }
                 }
             }
 
@@ -406,11 +439,22 @@ class PlannerController extends Controller
             $cls   = 'gray';
             if ($estimasi) {
                 $sisa = floor(($estimasi - $todayTs) / 86400);
-                if     ($sisa < 0)  { $alert = 'Pending Tiba H+' . abs($sisa); $cls = 'red'; }
-                elseif ($sisa <= 1) { $alert = 'H-' . $sisa;                    $cls = 'red'; }
-                elseif ($sisa <= 3) { $alert = 'H-' . $sisa;                    $cls = 'orange'; }
-                elseif ($sisa <= 7) { $alert = 'H-' . $sisa;                    $cls = 'blue'; }
-                else                { $alert = 'ON TRACK';                      $cls = 'green'; }
+                if ($sisa < 0) {
+                    $alert = 'Pending Tiba H+' . abs($sisa);
+                    $cls = 'red';
+                } elseif ($sisa <= 1) {
+                    $alert = 'H-' . $sisa;
+                    $cls = 'red';
+                } elseif ($sisa <= 3) {
+                    $alert = 'H-' . $sisa;
+                    $cls = 'orange';
+                } elseif ($sisa <= 7) {
+                    $alert = 'H-' . $sisa;
+                    $cls = 'blue';
+                } else {
+                    $alert = 'ON TRACK';
+                    $cls = 'green';
+                }
             }
 
             $r->gudang_asal    = $asal;
@@ -427,12 +471,12 @@ class PlannerController extends Controller
         $this->withGroupTotals($list->getCollection());
 
         $areaList = Cache::remember('planner.area_list', 600, fn() =>
-            DB::table('logistik_pengiriman')
-                ->whereNotNull('area')->distinct()->orderBy('area')->pluck('area'));
+        DB::table('logistik_pengiriman')
+            ->whereNotNull('area')->distinct()->orderBy('area')->pluck('area'));
 
         $picList = Cache::remember('planner.pic_list', 600, fn() =>
-            DB::table('logistik_pengiriman')
-                ->whereNotNull('pic_monitoring')->distinct()->orderBy('pic_monitoring')->pluck('pic_monitoring'));
+        DB::table('logistik_pengiriman')
+            ->whereNotNull('pic_monitoring')->distinct()->orderBy('pic_monitoring')->pluck('pic_monitoring'));
 
         $formRoute = route('planner.intransit');
 
@@ -535,8 +579,9 @@ class PlannerController extends Controller
 
         try {
             DB::transaction(function () use ($updateShipment, $old, $newNoShipment, $shipment, $request) {
+                LogistikPengiriman::syncRep([$old->no_shipment, $newNoShipment]);
                 $this->shipmentScope(DB::table('logistik_pengiriman'), $old, $newNoShipment)
-                     ->update($updateShipment);
+                    ->update($updateShipment);
 
                 $this->groupScope($old, $shipment)->update([
                     'pulau'                   => $request->pulau,
@@ -572,14 +617,14 @@ class PlannerController extends Controller
      * Query dasar 1 baris wakil (MIN id) per no_shipment + tujuan.
      * Dipakai semua halaman supaya hitungannya per grup, bukan per rincian DO.
      */
-    private function repQuery()
-    {
-        return DB::table('logistik_pengiriman')->whereIn('id', function ($sub) {
-            $sub->from('logistik_pengiriman')
-                ->selectRaw('MIN(id)')
-                ->groupByRaw(self::GROUP_KEY);
-        });
-    }
+    // private function repQuery()
+    // {
+    //     return DB::table('logistik_pengiriman')->whereIn('id', function ($sub) {
+    //         $sub->from('logistik_pengiriman')
+    //             ->selectRaw('MIN(id)')
+    //             ->groupByRaw(self::GROUP_KEY);
+    //     });
+    // }
 
     /** isi totalan grup (no_shipment + tujuan) ke 1 baris wakil */
     private function applyGroupTotals($r, $g, array $shipOpt = []): void
@@ -697,6 +742,7 @@ class PlannerController extends Controller
 
         $q = $this->repQuery()
             ->whereRaw('UPPER(TRIM(planner)) = ?', [strtoupper(trim($row->planner))])
+            ->whereRaw("UPPER(TRIM(COALESCE(dist_channel,''))) = ?", [strtoupper(trim((string) $row->dist_channel))])
             ->whereDate('tanggal_shipment', '<', $tgl)
             ->whereRaw($this->selesaiGudangSql() . ' = 0');
 
@@ -713,18 +759,52 @@ class PlannerController extends Controller
             ->first(['id', 'no_shipment', 'tujuan', 'tanggal_shipment']);
     }
 
+    // private function pemblokUrutan($row)
+    // {
+    //     if (trim((string) $row->planner) === '' || empty($row->tanggal_shipment)) {
+    //         return null;
+    //     }
+    //     if ($this->gudangSelesai($row)) {
+    //         return null;   // baris ini sudah selesai, boleh dikoreksi
+    //     }
+
+    //     $tgl = date('Y-m-d', strtotime($row->tanggal_shipment));
+
+    //     $q = $this->repQuery()
+    //         ->whereRaw('UPPER(TRIM(planner)) = ?', [strtoupper(trim($row->planner))])
+    //         ->whereRaw("UPPER(TRIM(COALESCE(dist_channel,''))) = ?", [strtoupper(trim((string) $row->dist_channel))])
+    //         ->whereDate('tanggal_shipment', '<', $tgl)
+    //         ->whereRaw($this->selesaiGudangSql() . ' = 0');
+
+    //     if (self::URUTAN_PAKAI_PERIODE) {
+    //         $q->whereRaw("COALESCE(periode_shipment,'') = ?", [(string) $row->periode_shipment]);
+    //     }
+
+    //     if (self::URUTAN_MULAI) {
+    //         $q->whereDate('tanggal_shipment', '>=', self::URUTAN_MULAI);
+    //     }
+
+    //     return $q->orderBy('tanggal_shipment')
+    //         ->orderByRaw('CAST(no_shipment AS UNSIGNED)')
+    //         ->first(['id', 'no_shipment', 'tujuan', 'tanggal_shipment']);
+    // }
+
     private function pesanUrutan($row): ?string
     {
         $b = $this->pemblokUrutan($row);
         if (!$b) return null;
 
+        $dc = trim((string) $row->dist_channel);
+
         return 'Selesaikan dulu shipment ' . $b->no_shipment . ' (' . $b->tujuan . ') tanggal '
             . date('d-m-Y', strtotime($b->tanggal_shipment))
+            . ' untuk planner ' . trim($row->planner) . ($dc !== '' ? ' / channel ' . $dc : '')
             . ' sampai tanggal keluar gudang terakhir, sebelum mengisi shipment tanggal '
             . date('d-m-Y', strtotime($row->tanggal_shipment)) . '.';
     }
 
     /** [PLANNER_UPPER => [periode => tanggal_shipment paling awal yang belum selesai]] */
+    /** [PLANNER_UPPER => [CHANNEL_UPPER => [periode => tanggal_shipment paling awal yang belum selesai]]] */
     private function blokerMap(): array
     {
         return Cache::remember('planner.bloker', self::CACHE_BLOKER, function () {
@@ -738,40 +818,43 @@ class PlannerController extends Controller
             }
 
             $rows = $q->selectRaw("UPPER(TRIM(planner)) AS p,
-                                   COALESCE(periode_shipment,'') AS per,
-                                   MIN(DATE(tanggal_shipment)) AS tgl")
-                ->groupByRaw("UPPER(TRIM(planner)), COALESCE(periode_shipment,'')")
+                               UPPER(TRIM(COALESCE(dist_channel,''))) AS dc,
+                               COALESCE(periode_shipment,'') AS per,
+                               MIN(DATE(tanggal_shipment)) AS tgl")
+                ->groupByRaw("UPPER(TRIM(planner)), UPPER(TRIM(COALESCE(dist_channel,''))), COALESCE(periode_shipment,'')")
                 ->get();
 
             $map = [];
             foreach ($rows as $r) {
-                $map[$r->p][$r->per] = $r->tgl;
+                $map[$r->p][$r->dc][$r->per] = $r->tgl;
             }
             return $map;
         });
     }
-
-    /** Pesan kunci untuk 1 baris tabel, dihitung dari blokerMap (tanpa query). */
     private function pesanBlokirBaris($r, array $map): ?string
     {
-        $p = strtoupper(trim((string) $r->planner));
-        if ($p === '' || empty($r->tanggal_shipment) || !isset($map[$p])) return null;
+        $p  = strtoupper(trim((string) $r->planner));
+        $dc = strtoupper(trim((string) $r->dist_channel));
+
+        if ($p === '' || empty($r->tanggal_shipment) || !isset($map[$p][$dc])) return null;
         if ($this->gudangSelesai($r)) return null;
 
         $tglR = date('Y-m-d', strtotime($r->tanggal_shipment));
 
         $vals = self::URUTAN_PAKAI_PERIODE
-            ? array_filter([$map[$p][(string) $r->periode_shipment] ?? null])
-            : array_values($map[$p]);
+            ? array_filter([$map[$p][$dc][(string) $r->periode_shipment] ?? null])
+            : array_values($map[$p][$dc]);
 
         $min = $vals ? min($vals) : null;
         if (!$min || $min >= $tglR) return null;
 
+        $dcLabel = trim((string) $r->dist_channel);
+
         return 'Selesaikan dulu shipment tanggal ' . date('d-m-Y', strtotime($min))
+            . ($dcLabel !== '' ? ' (channel ' . $dcLabel . ')' : '')
             . ' sampai tanggal keluar gudang terakhir, sebelum mengisi shipment tanggal '
             . date('d-m-Y', strtotime($tglR)) . '.';
     }
-
     /** Scope semua DO dalam 1 grup (no_shipment + tujuan) */
     private function groupScope($row, ?string $shipment = null)
     {
@@ -782,7 +865,7 @@ class PlannerController extends Controller
             return $q->where('id', $row->id);
         }
         return $q->where('no_shipment', $shipment)
-                 ->whereRaw("COALESCE(tujuan,'') = ?", [(string) $row->tujuan]);
+            ->whereRaw("COALESCE(tujuan,'') = ?", [(string) $row->tujuan]);
     }
 
     /**
@@ -848,8 +931,9 @@ class PlannerController extends Controller
 
         try {
             DB::transaction(function () use ($updateShipment, $old, $newNoShipment, $shipment, $request) {
+                LogistikPengiriman::syncRep([$old->no_shipment, $newNoShipment]);
                 $this->shipmentScope(DB::table('logistik_pengiriman'), $old, $newNoShipment)
-                     ->update($updateShipment);
+                    ->update($updateShipment);
 
                 $this->groupScope($old, $shipment)->update([
                     'pulau'                   => $request->pulau,
@@ -875,6 +959,21 @@ class PlannerController extends Controller
             'sla'           => $rumus,
         ]);
     }
+
+    public function exportCepat(Request $request)
+    {
+        $filters = array_filter([
+            'periode'          => $request->input('periode'),
+            'planner'          => $this->multiInput($request, 'planner_filter', 'planner'),
+            'area'             => $this->multiInput($request, 'area_filter', 'area'),
+            'dist_channel'     => $this->multiInput($request, 'dist_channel_filter', 'dist_channel'),
+            'tanggal_shipment' => $request->input('tanggal_shipment_filter'),
+        ]);
+
+        return (new PlannerFastExport($filters))
+            ->download('Data_Planner_' . date('Ymd_His') . '.xlsx');
+    }
+
 
     public function searchReasonOptimal(Request $request)
     {
@@ -942,20 +1041,18 @@ class PlannerController extends Controller
         $periode = $request->input('periode');
 
         // list planner cuma dari periode yang dipilih
-        $planners = $this->filterPeriode(LogistikPengiriman::query(), $request)
-            ->whereNotNull('planner')
-            ->where('planner', '!=', '')
-            ->distinct()
-            ->orderBy('planner')
-            ->pluck('planner');
+        $planners = Cache::remember('planner.planners.' . md5($periode), 300, fn() =>
+        $this->filterPeriode(DB::table('logistik_pengiriman')->where('is_rep', 1), $request)
+            ->whereNotNull('planner')->where('planner', '!=', '')
+            ->distinct()->orderBy('planner')->pluck('planner'));
 
         // tarif dipakai JS untuk auto biaya kirim (di-cache, jarang berubah)
         $tarifPengiriman = Cache::remember('planner.tarif', 600, fn() =>
-            DB::table('tarif_pengiriman')
-                ->select('route', 'mobil', 'ekpedisi', 'biaya_kirim')
-                ->whereNotNull('route')
-                ->whereNotNull('mobil')
-                ->get());
+        DB::table('tarif_pengiriman')
+            ->select('route', 'mobil', 'ekpedisi', 'biaya_kirim')
+            ->whereNotNull('route')
+            ->whereNotNull('mobil')
+            ->get());
 
         // 9 list dropdown master diambil dari cache
         return view(
@@ -1042,8 +1139,10 @@ class PlannerController extends Controller
 
                 if ($b < $a) {                                                          // #2
                     $err[] = "Gudang {$nama}: waktu keluar lebih awal dari waktu tiba.";
-                } elseif ($ketat && ($b - $a) > 86400
-                    && trim((string) $request->input("reason_gudang{$s}")) === '') {    // #4
+                } elseif (
+                    $ketat && ($b - $a) > 86400
+                    && trim((string) $request->input("reason_gudang{$s}")) === ''
+                ) {    // #4
                     $err[] = "Gudang {$nama}: Delay (lebih dari 24 jam), Reason Gudang wajib diisi.";
                 }
             }
@@ -1089,7 +1188,8 @@ class PlannerController extends Controller
     private function shipmentScope($q, $old, $newNoShipment)
     {
         $ships = array_values(array_unique(array_filter(
-            [trim((string) $old->no_shipment), trim((string) $newNoShipment)], 'strlen'
+            [trim((string) $old->no_shipment), trim((string) $newNoShipment)],
+            'strlen'
         )));
 
         return $ships ? $q->whereIn('no_shipment', $ships) : $q->where('id', $old->id);
@@ -1134,22 +1234,24 @@ class PlannerController extends Controller
      */
     public function dataAjax(Request $request)
     {
-        $draw   = (int) $request->input('draw', 1);
-        $start  = max(0, (int) $request->input('start', 0));
-        $length = (int) $request->input('length', 10);
-        $length = $length > 0 ? min($length, 200) : 25;
+        $draw        = (int) $request->input('draw', 1);
+        $start       = max(0, (int) $request->input('start', 0));
+        $length      = (int) $request->input('length', 10);
+        $length      = $length > 0 ? min($length, 200) : 25;
         $searchValue = trim((string) $request->input('search.value', ''));
-        $periode = (string) $request->input('periode', '');
+        $periode     = (string) $request->input('periode', '');
 
-        $baseQuery = LogistikPengiriman::query();
+        $baseQuery = LogistikPengiriman::query()->where('is_rep', 1);
         $this->filterPeriode($baseQuery, $request);
 
-        // total (tanpa filter lain) di-cache sebentar; dihapus tiap ada simpan
-        $totalRecords = Cache::remember($this->totalKey($periode), self::CACHE_TOTAL, fn() =>
-            $this->countGroups($this->filterPeriode(LogistikPengiriman::query(), $request))
+        $totalRecords = Cache::remember(
+            $this->totalKey($periode),
+            self::CACHE_TOTAL,
+            fn() =>
+            $this->filterPeriode(LogistikPengiriman::query()->where('is_rep', 1), $request)->count()
         );
 
-        $adaFilter = $searchValue !== '';
+        $adaFilter = false;
 
         if ($vals = $this->multiInput($request, 'planner_filter')) {
             $baseQuery->whereIn('planner', $vals);
@@ -1167,26 +1269,31 @@ class PlannerController extends Controller
             $baseQuery->whereDate('tanggal_shipment', $request->input('tanggal_shipment_filter'));
             $adaFilter = true;
         }
-
         if ($searchValue !== '') {
             $baseQuery->where(function ($q) use ($searchValue) {
-                $cols = [
-                    'planner', 'no_shipment', 'tujuan', 'route', 'pulau', 'area',
-                    'via_kirim', 'dist_channel', 'kategori_ekspedisi', 'ekpedisi',
-                    'nama_driver', 'no_pol', 'mobil', 'transport_lead_time',
-                ];
-                foreach ($cols as $col) {
+                foreach (
+                    [
+                        'no_shipment',
+                        'tujuan',
+                        'planner',
+                        'area',
+                        'dist_channel',
+                        'ekpedisi',
+                        'nama_driver',
+                        'no_pol',
+                        'mobil'
+                    ] as $col
+                ) {
                     $q->orWhere($col, 'like', "%{$searchValue}%");
                 }
             });
+            $adaFilter = true;
         }
 
-        // tanpa filter/pencarian, hasilnya sama dengan total -> hemat 1 query berat
-        $recordsFiltered = $adaFilter ? $this->countGroups($baseQuery) : $totalRecords;
+        $recordsFiltered = $adaFilter ? (clone $baseQuery)->count() : $totalRecords;
 
-        $rows = LogistikPengiriman::query()
-            ->whereIn('id', $this->groupIdsQuery($baseQuery))
-            ->orderByRaw($this->selesaiGudangSql() . ' ASC')
+        $rows = (clone $baseQuery)
+            ->orderBy('selesai_gudang', 'ASC')
             ->orderBy('tanggal_shipment', 'ASC')
             ->orderByRaw('CAST(no_shipment AS UNSIGNED) ASC')
             ->orderBy('id', 'ASC')
@@ -1197,10 +1304,18 @@ class PlannerController extends Controller
         $groupAgg = $this->plannerGroupAgg($rows);
         $shipOpt  = $this->optimalPerShipment($groupAgg);
 
-        $lists  = $this->masterLists();
-        $bloker = $this->blokerMap();   // 1 query (cache) untuk semua baris
+        $lists  = array_fill_keys([
+            'reasonGudangList',
+            'routeList',
+            'pulauList',
+            'areas',
+            'distChannelList',
+            'ekpedisiList',
+            'mobilList',
+            'reasonOptimalList',
+        ], []);
+        $bloker = $this->blokerMap();   // global, tidak ikut filter, jadi lock tetap benar
 
-        // ===== bangun baris: totalan per shipment + tujuan =====
         $data = [];
         foreach ($rows as $r) {
             $r->jml_do = 1;
@@ -1211,7 +1326,6 @@ class PlannerController extends Controller
             }
 
             $pesanKunci = $this->pesanBlokirBaris($r, $bloker);
-
             $cols = $this->renderRowColumns($r, $lists);
 
             if ($pesanKunci) {
@@ -1231,7 +1345,6 @@ class PlannerController extends Controller
             'data'            => $data,
         ]);
     }
-
     /** 1 = keluar gudang di gudang terakhir yang terisi masih kosong */
     private function lastKeluarKosongSql(): string
     {
@@ -1256,7 +1369,9 @@ class PlannerController extends Controller
         $plan   = array_map(fn($s) => "planning_loading{$s}", $suffix);
 
         $greatest = 'GREATEST(' . implode(',', array_map(
-            fn($c) => "COALESCE({$c},'1900-01-01')", $tiba)) . ')';
+            fn($c) => "COALESCE({$c},'1900-01-01')",
+            $tiba
+        )) . ')';
 
         $whenT = $whenP = '';
         foreach (array_reverse(array_keys($tiba)) as $i) {
@@ -1270,22 +1385,28 @@ class PlannerController extends Controller
         return ["CASE {$whenT} ELSE NULL END", "CASE {$whenP} ELSE NULL END"];
     }
 
-    private function selesaiGudangSql(): string
+
+    private function repQuery()
     {
-        $f = fn($c) => "NULLIF(TRIM({$c}), '') IS NOT NULL";
-        $e = fn($c) => "NULLIF(TRIM({$c}), '') IS NULL";
-
-        $menggantung = [];
-        foreach ($this->gudangCycles() as [$p, $t, $k]) {
-            $menggantung[] = '((' . $f($p) . ' OR ' . $f($t) . ') AND ' . $e($k) . ')';
-        }
-
-        $adaKeluar = '(' . implode(' OR ', array_map(
-            fn($s) => $f("tanggal_keluar_gudang{$s}"), $this->gudangSuffixes()
-        )) . ')';
-
-        return "CASE WHEN {$adaKeluar} AND NOT (" . implode(' OR ', $menggantung) . ") THEN 1 ELSE 0 END";
+        return DB::table('logistik_pengiriman')->where('is_rep', 1);
     }
+
+    // private function selesaiGudangSql(): string
+    // {
+    //     $f = fn($c) => "NULLIF(TRIM({$c}), '') IS NOT NULL";
+    //     $e = fn($c) => "NULLIF(TRIM({$c}), '') IS NULL";
+
+    //     $menggantung = [];
+    //     foreach ($this->gudangCycles() as [$p, $t, $k]) {
+    //         $menggantung[] = '((' . $f($p) . ' OR ' . $f($t) . ') AND ' . $e($k) . ')';
+    //     }
+
+    //     $adaKeluar = '(' . implode(' OR ', array_map(
+    //         fn($s) => $f("tanggal_keluar_gudang{$s}"), $this->gudangSuffixes()
+    //     )) . ')';
+
+    //     return "CASE WHEN {$adaKeluar} AND NOT (" . implode(' OR ', $menggantung) . ") THEN 1 ELSE 0 END";
+    // }
 
     /**
      * Bangun 1 baris (array kolom, index harus sinkron dengan
@@ -1308,7 +1429,7 @@ class PlannerController extends Controller
         $timeInput = function ($name, $value) use ($formAttr) {
             $val = $value ? substr($value, 0, 5) : '';   // 08:30:00 -> 08:30
             return '<input type="text" ' . $formAttr . ' name="' . $name . '" class="input-jam" '
-                 . 'placeholder="HH:MM" maxlength="5" inputmode="numeric" autocomplete="off" value="' . e($val) . '">';
+                . 'placeholder="HH:MM" maxlength="5" inputmode="numeric" autocomplete="off" value="' . e($val) . '">';
         };
 
         $dateTimeInput = function ($dateName, $dateVal, $timeName, $timeVal) use ($dateInput, $timeInput) {
@@ -1328,7 +1449,7 @@ class PlannerController extends Controller
             ? '' : rtrim(rtrim(number_format((float) $v, 4, ',', ''), '0'), ',');
 
         $roInput = fn($name, $value, $cls = '') =>
-            '<input type="text" ' . $formAttr . ' name="' . $name . '" class="' . $cls . '" readonly '
+        '<input type="text" ' . $formAttr . ' name="' . $name . '" class="' . $cls . '" readonly '
             . 'style="background:#f1f5f9;" value="' . e($value) . '">';
 
         // select ringan: hanya option terpilih. $options sengaja tidak dipakai (diisi lazy di browser).
@@ -1412,7 +1533,7 @@ class PlannerController extends Controller
             $textInput('planner', $r->planner),
             // 2 no shipment
             '<span class="fw-medium">' . e($r->no_shipment) . '</span>'
-            . '<input type="hidden" ' . $formAttr . ' name="no_shipment" value="' . e($r->no_shipment) . '">',
+                . '<input type="hidden" ' . $formAttr . ' name="no_shipment" value="' . e($r->no_shipment) . '">',
             // 3 tanggal shipment (hanya tampil, tidak bisa diedit)
             '<span class="fw-medium">' . ($r->tanggal_shipment ? date('d-m-Y', strtotime($r->tanggal_shipment)) : '-') . '</span>',
 
@@ -1453,7 +1574,7 @@ class PlannerController extends Controller
 
             // tujuan
             '<span class="fw-medium">' . e($r->tujuan) . '</span>'
-            . '<input type="hidden" ' . $formAttr . ' name="tujuan" value="' . e($r->tujuan) . '">',
+                . '<input type="hidden" ' . $formAttr . ' name="tujuan" value="' . e($r->tujuan) . '">',
             // route (required)
             $buildSelect('route', $r->route, $lists['routeList'], 'row-route'),
             // pulau
@@ -1548,29 +1669,29 @@ class PlannerController extends Controller
     }
 
     /** Halaman pilih periode: ringkasan per periode */
-    public function pilihPeriode()
-    {
-        $sel = $this->selesaiGudangSql();
-        $kunci = "COALESCE(NULLIF(TRIM(periode_shipment),''),'__KOSONG__')";
+    // public function pilihPeriode()
+    // {
+    //     $sel = $this->selesaiGudangSql();
+    //     $kunci = "COALESCE(NULLIF(TRIM(periode_shipment),''),'__KOSONG__')";
 
-        $periodes = $this->repQuery()
-            ->selectRaw("{$kunci} AS periode,
-                         COUNT(*) AS total,
-                         SUM(CASE WHEN {$sel} = 0 THEN 1 ELSE 0 END) AS belum,
-                         MAX(tanggal_shipment) AS terakhir")
-            ->groupByRaw($kunci)
-            ->orderByDesc('terakhir')
-            ->get();
+    //     $periodes = $this->repQuery()
+    //         ->selectRaw("{$kunci} AS periode,
+    //                      COUNT(*) AS total,
+    //                      SUM(CASE WHEN {$sel} = 0 THEN 1 ELSE 0 END) AS belum,
+    //                      MAX(tanggal_shipment) AS terakhir")
+    //         ->groupByRaw($kunci)
+    //         ->orderByDesc('terakhir')
+    //         ->get();
 
-        return view('planner.pilih_periode', compact('periodes'));
-    }
+    //     return view('planner.pilih_periode', compact('periodes'));
+    // }
 
     /** Dropdown master: jarang berubah, cache 10 menit */
     private function masterLists(): array
     {
         return Cache::remember('planner.master_lists', 600, function () {
             $d = fn($t, $c) => DB::table($t)->whereNotNull($c)->where($c, '!=', '')
-                                 ->distinct()->orderBy($c)->pluck($c);
+                ->distinct()->orderBy($c)->pluck($c);
             return [
                 'tujuanList'        => $d('tujuanfillterr', 'tujuan'),
                 'pulauList'         => $d('tujuanfillterr', 'pulau'),
@@ -1589,8 +1710,10 @@ class PlannerController extends Controller
     {
         $n    = $s === '' ? 1 : (int) ltrim($s, '_');
         $info = $this->hitungGudang(
-            $r->{'tanggal_tiba_gudang' . $s},   $r->{'waktu_tiba_gudang' . $s},
-            $r->{'tanggal_keluar_gudang' . $s}, $r->{'waktu_keluar_gudang' . $s}
+            $r->{'tanggal_tiba_gudang' . $s},
+            $r->{'waktu_tiba_gudang' . $s},
+            $r->{'tanggal_keluar_gudang' . $s},
+            $r->{'waktu_keluar_gudang' . $s}
         );
 
         if (!$info) {
@@ -1735,71 +1858,123 @@ class PlannerController extends Controller
      * ALERT CONTROL (ringkasan field kosong)
      * =====================================================
      */
+    /**
+     * =====================================================
+     * ALERT CONTROL
+     * Shipment yang belum diinput sampai tanggal keluar gudang terakhir.
+     * Gudang dianggap terpakai kalau planning / tiba / keluar-nya terisi,
+     * dan setiap gudang terpakai wajib punya tanggal tiba + keluar.
+     * =====================================================
+     */
     public function alerts(Request $request)
     {
-        $fieldsMap = [
-            'mobil'       => 'Mobil',
-            'ekpedisi'    => 'Ekspedisi',
-            'route'       => 'Route',
-            'kubikasi'    => 'Kubikasi',
-            'nama_driver' => 'Nama Driver',
-            'no_pol'      => 'No Pol',
-        ];
+        $q = DB::table('logistik_pengiriman')
+            ->whereRaw("TRIM(COALESCE(no_shipment,'')) <> ''");
 
-        // 1 alert per no_shipment + tujuan (bukan per rincian DO)
-        $query = $this->repQuery()
-            ->select('id', 'no_shipment', 'mobil', 'ekpedisi', 'route', 'kubikasi', 'nama_driver', 'no_pol');
+        $this->filterPeriode($q, $request);
 
-        // filter ikut sama seperti dataAjax()
         if ($vals = $this->multiInput($request, 'planner_filter')) {
-            $query->whereIn('planner', $vals);
+            $q->whereIn('planner', $vals);
         }
         if ($vals = $this->multiInput($request, 'area_filter')) {
-            $query->whereIn('area', $vals);
+            $q->whereIn('area', $vals);
         }
         if ($vals = $this->multiInput($request, 'dist_channel_filter')) {
-            $query->whereIn('dist_channel', $vals);
+            $q->whereIn('dist_channel', $vals);
         }
 
-        $this->filterPeriode($query, $request);
+        $kolom = ['id', 'no_shipment', 'tujuan', 'tanggal_shipment'];
+        foreach ($this->gudangCycles() as $cycle) {
+            $kolom = array_merge($kolom, $cycle);
+        }
 
-        $rows = $query->where(function ($q) {
-                $q->whereNull('mobil')->orWhere('mobil', '')
-                  ->orWhereNull('ekpedisi')->orWhere('ekpedisi', '')
-                  ->orWhereNull('route')->orWhere('route', '')
-                  ->orWhereNull('kubikasi')->orWhere('kubikasi', '')
-                  ->orWhereNull('nama_driver')->orWhere('nama_driver', '')
-                  ->orWhereNull('no_pol')->orWhere('no_pol', '');
-            })
-            ->get();
+        $filled = fn($v) => trim((string) $v) !== '';
 
-        $alertList = [];
+        $alerts         = [];
         $missingSummary = [];
 
-        foreach ($rows as $r) {
-            $missing = [];
-            foreach ($fieldsMap as $col => $label) {
-                if (trim((string) $r->$col) === '') {
-                    $missing[] = $label;
-                    $missingSummary[$label] = ($missingSummary[$label] ?? 0) + 1;
+        // grup per no_shipment + tujuan
+        $groups = $q->get($kolom)->groupBy(
+            fn($r) => trim((string) $r->no_shipment) . '|' . trim((string) ($r->tujuan ?? ''))
+        );
+
+        foreach ($groups as $group) {
+            $first = $group->first();
+
+            // gudang terakhir yang terpakai (planning / tiba / keluar terisi)
+            $terakhir = null;
+            foreach (self::GUDANG as $s => $nama) {
+                $dipakai = $group->contains(
+                    fn($r) =>
+                    $filled($r->{"planning_loading{$s}"})
+                        || $filled($r->{"tanggal_tiba_gudang{$s}"})
+                        || $filled($r->{"tanggal_keluar_gudang{$s}"})
+                );
+                if ($dipakai) {
+                    $terakhir = [$s, $nama];
                 }
             }
-            $alertList[] = [
-                'id'         => $r->id,
-                'shipment'   => $r->no_shipment ?: '(tanpa no shipment)',
-                'missing'    => $missing,
-                'emptyCount' => count($missing),
+
+            if ($terakhir === null) {
+                $label = 'Belum input gudang';
+            } else {
+                [$s, $nama] = $terakhir;
+                $sudahKeluar = $group->contains(fn($r) => $filled($r->{"tanggal_keluar_gudang{$s}"}));
+                if ($sudahKeluar) continue;   // gudang terakhir sudah keluar -> lengkap
+                $label = "Belum keluar {$nama}";
+            }
+
+            $tglRaw = $group->pluck('tanggal_shipment')->filter()->min();
+
+            $missingSummary[$label] = ($missingSummary[$label] ?? 0) + 1;
+            $alerts[] = [
+                'id'               => $group->min('id'),   // sama dengan baris wakil di tabel
+                'shipment'         => trim((string) $first->no_shipment),
+                'tujuan'           => trim((string) ($first->tujuan ?? '')) ?: '-',
+                'tanggal_shipment' => $tglRaw ? date('d-m-Y', strtotime($tglRaw)) : '-',
+                'tgl_sort'         => $tglRaw ? date('Y-m-d', strtotime($tglRaw)) : '9999-12-31',
+                'emptyCount'       => 1,
+                'missing'          => [$label],
             ];
         }
 
-        usort($alertList, fn ($a, $b) => $b['emptyCount'] <=> $a['emptyCount']);
+        // paling lama (tanggal shipment paling awal) di atas
+        usort(
+            $alerts,
+            fn($a, $b) =>
+            [$a['tgl_sort'], (int) $a['shipment']] <=> [$b['tgl_sort'], (int) $b['shipment']]
+        );
+        arsort($missingSummary);
 
         return response()->json([
-            'alerts'         => $alertList,
             'missingSummary' => $missingSummary,
+            'alerts'         => $alerts,
         ]);
     }
 
+    /** Dipakai migration untuk generated column */
+    public function selesaiGudangExpr(): string
+    {
+        $f = fn($c) => "NULLIF(TRIM({$c}), '') IS NOT NULL";
+        $e = fn($c) => "NULLIF(TRIM({$c}), '') IS NULL";
+
+        $menggantung = [];
+        foreach ($this->gudangCycles() as [$p, $t, $k]) {
+            $menggantung[] = '((' . $f($p) . ' OR ' . $f($t) . ') AND ' . $e($k) . ')';
+        }
+        $adaKeluar = '(' . implode(' OR ', array_map(
+            fn($s) => $f("tanggal_keluar_gudang{$s}"),
+            $this->gudangSuffixes()
+        )) . ')';
+
+        return "CASE WHEN {$adaKeluar} AND NOT (" . implode(' OR ', $menggantung) . ") THEN 1 ELSE 0 END";
+    }
+
+    /** Sekarang cukup baca kolom (bisa pakai index) */
+    private function selesaiGudangSql(): string
+    {
+        return 'selesai_gudang';
+    }
     private function hitungBiayaKirimRow($totalKubik, $kubikasi, $biayaTarif): float
     {
         $biayaTarif = (float) $biayaTarif;
@@ -1832,7 +2007,7 @@ class PlannerController extends Controller
             ->whereNotNull('route')
             ->whereNotNull('mobil')
             ->get()
-            ->filter(fn ($t) => $normalize($t->route) === $routeKey);
+            ->filter(fn($t) => $normalize($t->route) === $routeKey);
 
         if ($candidates->isEmpty()) {
             return null;
@@ -1849,7 +2024,7 @@ class PlannerController extends Controller
             }
         }
 
-        $fallback = $candidates->first(fn ($t) => str_starts_with($normalize($t->mobil), $mobilKey));
+        $fallback = $candidates->first(fn($t) => str_starts_with($normalize($t->mobil), $mobilKey));
 
         return $fallback->biaya_kirim ?? null;
     }
@@ -1857,7 +2032,8 @@ class PlannerController extends Controller
     private function getTibaGudangTerdekatRequest($request)
     {
         return collect(array_map(
-            fn($s) => $request->{"tanggal_tiba_gudang{$s}"}, $this->gudangSuffixes()
+            fn($s) => $request->{"tanggal_tiba_gudang{$s}"},
+            $this->gudangSuffixes()
         ))->filter()->sort()->first();
     }
 
@@ -1904,8 +2080,12 @@ class PlannerController extends Controller
             'lama_digudang'        => null,
             'status_gudang'        => null,
             'sla_loading'          => null,
-            'lama_digudang_4' => null, 'status_gudang_4' => null, 'sla_loading_4' => null,
-            'lama_digudang_5' => null, 'status_gudang_5' => null, 'sla_loading_5' => null,
+            'lama_digudang_4' => null,
+            'status_gudang_4' => null,
+            'sla_loading_4' => null,
+            'lama_digudang_5' => null,
+            'status_gudang_5' => null,
+            'sla_loading_5' => null,
 
             'lama_digudang_2'      => null,
             'status_gudang_2'      => null,
@@ -2000,7 +2180,6 @@ class PlannerController extends Controller
                 $data['sla_dapat_mobil']   = 'On Time';
                 $data['status_pengiriman'] = 'Sudah Dapat';
             }
-
         } else {
             $data['sla_dapat_mobil']   = null;
             $data['status_pengiriman'] = null;
@@ -2055,7 +2234,8 @@ class PlannerController extends Controller
                 $row->sla_dapat_mobil      = $sla['sla_dapat_mobil'];
                 $row->status_pengiriman    = $sla['status_pengiriman'];
 
-                $gudang = []; $keluar = [];
+                $gudang = [];
+                $keluar = [];
                 foreach ($this->gudangSuffixes() as $s) {
                     $n = $s === '' ? 1 : (int) ltrim($s, '_');
                     $row->{"lama_digudang{$s}"} = $sla["lama_digudang{$s}"];
@@ -2071,12 +2251,12 @@ class PlannerController extends Controller
             ->values();
 
         $list_area = Cache::remember('planner.area_group', 600, fn() =>
-            DB::table('logistik_pengiriman')
-                ->select('area')
-                ->whereNotNull('area')
-                ->groupBy('area')
-                ->orderBy('area')
-                ->get());
+        DB::table('logistik_pengiriman')
+            ->select('area')
+            ->whereNotNull('area')
+            ->groupBy('area')
+            ->orderBy('area')
+            ->get());
 
         return view('planner.sla_ontime', compact('list', 'list_area'));
     }
@@ -2108,12 +2288,12 @@ class PlannerController extends Controller
             ->withQueryString();
 
         $list_area = Cache::remember('planner.area_group', 600, fn() =>
-            DB::table('logistik_pengiriman')
-                ->select('area')
-                ->whereNotNull('area')
-                ->groupBy('area')
-                ->orderBy('area')
-                ->get());
+        DB::table('logistik_pengiriman')
+            ->select('area')
+            ->whereNotNull('area')
+            ->groupBy('area')
+            ->orderBy('area')
+            ->get());
 
         return view('planner.sla_delay', [
             'title' => 'SLA DELAY',
@@ -2177,7 +2357,8 @@ class PlannerController extends Controller
     private function getTibaGudangTerdekat($row)
     {
         return collect(array_map(
-            fn($s) => $row->{"tanggal_tiba_gudang{$s}"}, $this->gudangSuffixes()
+            fn($s) => $row->{"tanggal_tiba_gudang{$s}"},
+            $this->gudangSuffixes()
         ))->filter()->sort()->values()->first();
     }
 
@@ -2356,16 +2537,16 @@ class PlannerController extends Controller
         $this->withGroupTotals($list->getCollection());
 
         $areaList = Cache::remember('planner.area_list', 600, fn() =>
-            DB::table('logistik_pengiriman')->whereNotNull('area')->distinct()->orderBy('area')->pluck('area'));
+        DB::table('logistik_pengiriman')->whereNotNull('area')->distinct()->orderBy('area')->pluck('area'));
 
         $plannerList = Cache::remember('planner.planner_list', 600, fn() =>
-            DB::table('logistik_pengiriman')->whereNotNull('planner')->where('planner', '!=', '')
-                ->distinct()->orderBy('planner')->pluck('planner'));
+        DB::table('logistik_pengiriman')->whereNotNull('planner')->where('planner', '!=', '')
+            ->distinct()->orderBy('planner')->pluck('planner'));
 
         $channelList = Cache::remember('planner.channel_list', 600, fn() =>
-            DB::table('logistik_pengiriman')
-                ->whereNotNull('dist_channel')->where('dist_channel', '!=', '')
-                ->distinct()->orderBy('dist_channel')->pluck('dist_channel'));
+        DB::table('logistik_pengiriman')
+            ->whereNotNull('dist_channel')->where('dist_channel', '!=', '')
+            ->distinct()->orderBy('dist_channel')->pluck('dist_channel'));
 
         return view('planner.in_gudang', compact('list', 'summary', 'areaList', 'plannerList', 'channelList'));
     }
@@ -2396,9 +2577,9 @@ class PlannerController extends Controller
         $sel = $this->selesaiGudangSql();
 
         $rows = $q->selectRaw(
-                "DATE(tanggal_shipment) AS tgl, COUNT(*) AS total, "
+            "DATE(tanggal_shipment) AS tgl, COUNT(*) AS total, "
                 . "SUM(CASE WHEN {$sel} = 0 THEN 1 ELSE 0 END) AS belum"
-            )
+        )
             ->groupByRaw('DATE(tanggal_shipment)')
             ->orderByRaw('DATE(tanggal_shipment) DESC')
             ->get();
@@ -2482,9 +2663,9 @@ class PlannerController extends Controller
         $query = $this->repQuery()
             ->where(function ($q) {
                 $q->whereNull('rencana_kirim')
-                  ->orWhere('rencana_kirim', '')
-                  ->orWhereNull('tanggal_dpt_unit')
-                  ->orWhere('tanggal_dpt_unit', '');
+                    ->orWhere('rencana_kirim', '')
+                    ->orWhereNull('tanggal_dpt_unit')
+                    ->orWhere('tanggal_dpt_unit', '');
             });
 
         if ($request->filled('bulan')) {
@@ -2507,7 +2688,7 @@ class PlannerController extends Controller
         $query = DB::table('logistik_pengiriman')
             ->where(function ($q) {
                 $q->whereIn('status_pengiriman', ['Belum Dapat', 'Pending', 'PENDING'])
-                  ->orWhereIn('status_kendaraan', ['Belum Dapat', 'Pending', 'PENDING']);
+                    ->orWhereIn('status_kendaraan', ['Belum Dapat', 'Pending', 'PENDING']);
             });
 
         if ($request->filled('bulan')) {
@@ -2556,8 +2737,8 @@ class PlannerController extends Controller
 
         return [
             'text'  => $text,
-            'delay' => $menit > 1440,   // lebih dari 24 jam
-            'hari'  => $hari,           // dipakai untuk label H+
+            'delay' => $menit > 1440, 
+            'hari'  => $hari,         
         ];
     }
 }

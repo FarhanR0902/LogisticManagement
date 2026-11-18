@@ -58,6 +58,11 @@ select,input[type=month],input[type=text]{padding:8px;margin-right:10px;border:1
         $s = max(0, ($b - $a) - 86400);
         return intdiv($s, 3600) . ' jam ' . intdiv($s % 3600, 60) . ' mnt';
     };
+
+    // month[] / area[] bisa berupa array dari dashboard
+    $monthSel = array_values(array_filter((array) request('month', []), 'strlen'));
+    $areaSel  = array_values(array_filter((array) request('area', []), 'strlen'));
+    $qVal     = is_array(request('q')) ? '' : (string) request('q');
 @endphp
 
 <div class="filter-box">
@@ -68,16 +73,22 @@ select,input[type=month],input[type=text]{padding:8px;margin-right:10px;border:1
         <option value="PASURUAN" {{ request('sumber')=='PASURUAN' ? 'selected' : '' }}>Pasuruan</option>
     </select>
 
-    <input type="month" name="month" value="{{ request('month') }}">
+    {{-- month[] dari dashboard dipertahankan lewat hidden input --}}
+    @foreach($monthSel as $m)
+        <input type="hidden" name="month[]" value="{{ $m }}">
+    @endforeach
+    @if(count($monthSel))
+        <span class="tag tag-jkt">Bulan: {{ implode(', ', $monthSel) }}</span>
+    @endif
 
-    <select name="area">
+    <select name="area[]">
         <option value="">Semua Area</option>
         @foreach($list_area as $a)
-            <option value="{{ $a->area }}" {{ request('area')==$a->area ? 'selected' : '' }}>{{ $a->area }}</option>
+            <option value="{{ $a->area }}" {{ in_array($a->area, $areaSel) ? 'selected' : '' }}>{{ $a->area }}</option>
         @endforeach
     </select>
 
-    <input type="text" name="q" value="{{ request('q') }}" placeholder="Cari shipment / tujuan / ekspedisi...">
+    <input type="text" name="q" value="{{ $qVal }}" placeholder="Cari shipment / tujuan / ekspedisi...">
 
     @foreach(['tgl_basis','pulau','dist_channel','year','date','date_from','date_to'] as $k)
         @php $v = request($k); @endphp

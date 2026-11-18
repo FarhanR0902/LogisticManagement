@@ -7,6 +7,7 @@ use Maatwebsite\Excel\Concerns\FromQuery;
 use Maatwebsite\Excel\Concerns\WithColumnFormatting;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithMapping;
+ use App\Exports\LogistikStreamExport;
 use Maatwebsite\Excel\Concerns\WithStyles;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\Shared\Date as XlDate;
@@ -31,7 +32,18 @@ class LogistikExportFull implements
     private ?array $agg = null;
 
     public ?string $tabel = null;   // nama tabel kerja, null = logistik_pengiriman
+private ?array $aggScope = null;
 
+public function scopeAggregates(?array $noShipments): void
+{
+    $this->aggScope = $noShipments;
+    $this->agg = null;
+}
+
+public function rawCount(): int
+{
+    return count(self::RAW);
+}
     protected function source(string $alias)
     {
         return DB::table(($this->tabel ?: 'logistik_pengiriman') . " AS {$alias}");
@@ -45,8 +57,8 @@ class LogistikExportFull implements
      *       money | dt (tanggal+jam) | date | time
      */
     private const RAW = [
-        ['id', 'num'],
-        ['no', 'text'],
+      
+       
         ['tanggal_naik_logistik', 'dt'],
         ['rencana_kirim', 'dt'],
         ['transport_lead_time', 'text'],
@@ -322,6 +334,9 @@ class LogistikExportFull implements
         foreach (self::SHIPMENT_FIELDS as $f) {
             $q->addSelect(DB::raw("MAX(NULLIF(TRIM({$f}),'')) as f_{$f}"));
         }
+        if ($this->aggScope !== null) {
+    $q->whereIn('no_shipment', $this->aggScope);
+}
 
         return $this->agg = $q
             ->whereNotNull('no_shipment')

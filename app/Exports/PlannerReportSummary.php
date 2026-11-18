@@ -129,6 +129,64 @@ class PlannerReportSummary implements FromArray, WithTitle, WithEvents, WithChar
 
                 $r += 2;
             }
+            // ---------- OPTIMAL (PER SHIPMENT) & SLA ARMADA PER PLANNER ----------
+$plannerKeys = $this->data->distinctKeys('planner');
+if ($plannerKeys) {
+    $ws->setCellValue("A{$r}", 'OPTIMAL PER SHIPMENT & SLA ARMADA PER PLANNER');
+    $ws->getStyle("A{$r}")->getFont()->setBold(true)->setSize(13);
+    $r++;
+
+    $ws->fromArray([
+        'Planner', 'Batas Naik→Unit (hari)', 'Total Shipment', 'Optimal', 'Tidak Optimal', '% Optimal',
+        'Cari Mobil Tercatat', 'Rata² Hari Cari Mobil', 'Cari Mobil On Time', 'Cari Mobil Delay',
+        'Naik→Unit Tercatat', 'Rata² Hari Naik→Unit', 'Naik→Unit On Time', 'Naik→Unit Delay', '% On Time Naik→Unit',
+    ], null, "A{$r}");
+    $ws->getStyle("A{$r}:O{$r}")->applyFromArray([
+        'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF']],
+        'fill' => ['fillType' => 'solid', 'startColor' => ['rgb' => '7C3AED']],
+    ]);
+    $ws->getStyle("A{$r}:O{$r}")->getAlignment()->setWrapText(true);
+    $r++;
+    $first = $r;
+
+    foreach (array_merge($plannerKeys, [null]) as $k) {
+        $sum = fn(string $flag) => $k === null
+            ? $this->f($flag)
+            : $this->f($flag, 'Rk Planner', "\$A{$r}");
+
+        if ($k === null) {
+            $ws->setCellValue("A{$r}", 'TOTAL');
+            $ws->setCellValue("B{$r}", '-');
+            $ws->getStyle("A{$r}:O{$r}")->getFont()->setBold(true);
+        } else {
+            $ws->setCellValueExplicit("A{$r}", (string) $k, DataType::TYPE_STRING);
+            $ws->setCellValue("B{$r}", $this->data->batasNaikUnit((string) $k));
+        }
+
+        $put("C{$r}", $sum('Rk Ship Wakil'));
+        $put("D{$r}", $sum('Rk Ship Optimal'));
+        $put("E{$r}", $sum('Rk Ship Tidak Optimal'));
+        $put("F{$r}", "IF((D{$r}+E{$r})>0,D{$r}/(D{$r}+E{$r})*100,0)");
+
+        $put("G{$r}", $sum('Rk Ship Cari Ada'));
+        $put("H{$r}", "IF(G{$r}>0," . $sum('Rk Ship Cari Hari') . "/G{$r},0)");
+        $put("I{$r}", $sum('Rk Ship Cari OT'));
+        $put("J{$r}", $sum('Rk Ship Cari Delay'));
+
+        $put("K{$r}", $sum('Rk Ship Naik Ada'));
+        $put("L{$r}", "IF(K{$r}>0," . $sum('Rk Ship Naik Hari') . "/K{$r},0)");
+        $put("M{$r}", $sum('Rk Ship Naik OT'));
+        $put("N{$r}", $sum('Rk Ship Naik Delay'));
+        $put("O{$r}", "IF(K{$r}>0,M{$r}/K{$r}*100,0)");
+        $r++;
+    }
+    $last = $r - 1;
+    $ws->getStyle("F{$first}:F{$last}")->getNumberFormat()->setFormatCode('0.00"%"');
+    $ws->getStyle("O{$first}:O{$last}")->getNumberFormat()->setFormatCode('0.00"%"');
+    $ws->getStyle("H{$first}:H{$last}")->getNumberFormat()->setFormatCode('0.0');
+    $ws->getStyle("L{$first}:L{$last}")->getNumberFormat()->setFormatCode('0.0');
+    $r += 2;
+}
             $ws->getColumnDimension('A')->setWidth(34);
             foreach (range('B', 'O') as $c) $ws->getColumnDimension($c)->setWidth(15);
         }];
@@ -163,3 +221,6 @@ class PlannerReportSummary implements FromArray, WithTitle, WithEvents, WithChar
         return [$chart];
     }
 }
+
+
+

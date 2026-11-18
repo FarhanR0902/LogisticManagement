@@ -428,76 +428,48 @@ $currentRoute = request()->route()->getName() ?? '';
 
         @endif
 
-   @if($role === 'sales' || $role === 'developer')
+ @if($role === 'sales' || $role === 'developer')
 
 <li>
- 
+    <a href="{{ route('sales.gabungan.dashboard') }}"
+        class="{{ request()->routeIs('sales.gabungan.*') ? 'active' : '' }}">
+        📊 Dashboard Gabungan
+    </a>
+</li>
 
+<li>
+    <a href="javascript:void(0)"
+        onclick="toggleSubmenu('dataLogistikSubmenu', this)"
+        class="submenu-toggle {{ request()->routeIs('sales.logistik*') || request()->routeIs('sales.data*') ? 'active' : '' }}">
+        <span>📋 Data Logistik</span>
+        <i class="arrow {{ request()->routeIs('sales.logistik*') || request()->routeIs('sales.data*') ? 'open' : '' }}">▾</i>
+    </a>
+
+    <ul class="submenu" id="dataLogistikSubmenu"
+        style="display: {{ request()->routeIs('sales.logistik*') || request()->routeIs('sales.data*') ? 'block' : 'none' }};">
         <li>
-            <a href="{{ route('sales.gabungan.dashboard') }}"
-                class="{{ request()->routeIs('sales.gabungan.*') ? 'active' : '' }}">
-                📊 Dashboard Gabungan
+            <a href="{{ route('sales.logistik') }}"
+                class="{{ request()->routeIs('sales.logistik*') ? 'active' : '' }}">
+                🏢 Data Logistik Jakarta
             </a>
         </li>
-
-   
-
         <li>
-            <a href="javascript:void(0)"
-                onclick="toggleSubmenu('dataLogistikSubmenu', this)"
-                class="submenu-toggle {{ request()->routeIs('sales.data*') ? 'active' : '' }}">
-                <span>📋 Data Logistik</span>
-                <i class="arrow {{ request()->routeIs('sales.data*') ? 'open' : '' }}">▾</i>
+            <a href="{{ route('sales.data.pasuruan') }}"
+                class="{{ request()->routeIs('sales.data.pasuruan*') ? 'active' : '' }}">
+                🏭 Data Logistik Pasuruan
             </a>
-
-            <ul class="submenu" id="dataLogistikSubmenu"
-                style="display: {{ request()->routeIs('sales.data*') ? 'block' : 'none' }};">
-
-                <li>
-                    <a href="{{ url('/datalogistik') }}" class="{{ request()->is('datalogistik') ? 'active' : '' }}">
-                        🏢 Full Data Logistik jakarta
-                    </a>
-                </li>
-
-                <li>
-                    <a href="{{ route('sales.data.pasuruan') }}"
-                        class="{{ request()->routeIs('sales.data.pasuruan') ? 'active' : '' }}">
-                        🏭 Full Data Logistik Pasuruan
-                    </a>
-                </li>
-
-            </ul>
         </li>
+    </ul>
+</li>
 
-        <a href="{{ route('sales.gudang.ontime') }}">
-            🏭 Sudah Tiba Di Gudang
-        </a>
+<li><a href="{{ route('sales.gudang.ontime') }}">🏭 Sudah Tiba Di Gudang</a></li>
+<li><a href="{{ route('sales.gudang.delay') }}">🚨 Belum Tiba Di Gudang</a></li>
+<li><a href="{{ route('sales.customer.ontime') }}">🚚 Customer Ontime</a></li>
+<li><a href="{{ route('sales.customer.delay') }}">⚠️ Customer Delay</a></li>
+<li><a href="{{ route('sales.bongkar.ontime') }}">📦 Bongkar Ontime</a></li>
+<li><a href="{{ route('sales.bongkar.delay') }}">⏳ Bongkar Delay</a></li>
 
-        <a href="{{ route('sales.gudang.delay') }}">
-            🚨 Belum Tiba Di Gudang
-        </a>
-
-        <a href="{{ route('sales.customer.ontime') }}">
-            🚚 Customer Ontime
-        </a>
-
-        <a href="{{ route('sales.customer.delay') }}">
-            ⚠️ Customer Delay
-        </a>
-
-        <a href="{{ route('sales.bongkar.ontime') }}">
-            📦 Bongkar Ontime
-        </a>
-
-        <a href="{{ route('sales.bongkar.delay') }}">
-            ⏳ Bongkar Delay
-        </a>
-
-
-
-
-
-        @endif
+@endif
 
         {{-- ================= PASURUAN ================= --}}
         @if($role === 'admin_pasuruan' || $role === 'developer')

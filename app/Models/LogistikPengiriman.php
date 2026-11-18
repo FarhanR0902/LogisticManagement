@@ -180,6 +180,26 @@ class LogistikPengiriman extends Model
         }
     }
 
+    // App\Models\LogistikPengiriman
+public static function syncRep(array $shipments): void
+{
+    $ships = array_values(array_unique(array_filter(
+        array_map(fn($s) => trim((string) $s), $shipments), 'strlen'
+    )));
+    if (!$ships) return;
+
+    $in = implode(',', array_fill(0, count($ships), '?'));
+
+    DB::update("UPDATE logistik_pengiriman SET is_rep = 0 WHERE no_shipment IN ($in)", $ships);
+    DB::update("
+        UPDATE logistik_pengiriman l
+        JOIN (SELECT MIN(id) AS id FROM logistik_pengiriman
+              WHERE no_shipment IN ($in)
+              GROUP BY no_shipment, COALESCE(tujuan,'')) r ON r.id = l.id
+        SET l.is_rep = 1
+    ", $ships);
+}
+
     public function getEstimasiAttribute()
     {
         $keluar = strtotime($this->tanggal_keluar_gudang);

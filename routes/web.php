@@ -134,6 +134,7 @@ Route::prefix('planner')->group(function () {
 Route::get('/planner/pilih-periode', [PlannerController::class, 'pilihPeriode'])->name('planner.periode');
     Route::get('/planner/export-report', [PlannerController::class, 'exportPlannerReport'])
         ->name('planner.export.report');
+        Route::get('/planner/export-cepat', [PlannerController::class, 'exportCepat'])->name('planner.export.cepat');
 
     Route::get('/planner/in-transit', [PlannerController::class, 'inTransit'])
         ->name('planner.intransit');
@@ -237,6 +238,8 @@ Route::get(
 )->name('monitoring.datalogistik');
 Route::get('/monitoring/periode', [MonitoringController::class, 'pilihPeriode'])
     ->name('monitoring.periode');
+    Route::post('/monitoring/hitung-ulang-sla', [MonitoringController::class, 'hitungUlangSla'])
+    ->name('monitoring.hitungUlangSla');
 
 Route::post('/monitoring/fill-pic', [MonitoringController::class, 'fillPic'])->name('monitoring.fill.pic');
 Route::post('/monitoring/fill-pic', [MonitoringController::class, 'fillPic'])->name('monitoring.fill.pic');
@@ -420,14 +423,17 @@ Route::prefix('sales')->name('sales.')->group(function () {
     Route::get('/gabungan', [SalesGabunganController::class, 'dashboard'])->name('gabungan.dashboard');
     Route::get('/gabungan/in-transit', [SalesGabunganController::class, 'inTransit'])->name('gabungan.intransit');
     Route::get('/gabungan/list/{kpi}', [SalesGabunganController::class, 'list'])->name('gabungan.list');
-Route::get('/data-logistik', [SalesController::class, 'dataLogistik'])->name('sales.data.logistik');
-Route::post('/data-logistik/ajax', [SalesController::class, 'dataLogistikAjax'])->name('sales.data.logistik.ajax');
-Route::post('/data-logistik/detail', [SalesController::class, 'dataLogistikDetail'])->name('sales.data.logistik.detail');
+
     // ===== DATA GABUNGAN (dipakai kartu "Total Shipment") =====
     Route::get('/data-gabungan', [SalesController::class, 'dataGabungan'])->name('data.gabungan');
     Route::post('/data-gabungan/ajax', [SalesController::class, 'dataGabunganAjax'])->name('data.gabungan.ajax');
     Route::get('/data-gabungan/detail', [SalesGabunganController::class, 'detail'])->name('data.gabungan.detail');
-
+Route::middleware(['auth', 'role:sales,developer'])->group(function () {
+    Route::get('/data-logistik',        [SalesController::class, 'dataLogistik'])->name('logistik');
+    Route::post('/data-logistik/ajax',  [SalesController::class, 'dataLogistikAjax'])->name('logistik.ajax');
+    Route::get('/data-logistik/detail', [SalesController::class, 'dataLogistikDetail'])->name('logistik.detail');
+    Route::get('/data-logistik/export', [SalesController::class, 'dataLogistikExport'])->name('logistik.export');
+});
     // ... sisanya tetap
     // ===== SUMMARY =====
     Route::get('/summary-area', [SalesController::class, 'summaryArea'])->name('summary.area');
@@ -649,8 +655,8 @@ Route::middleware(['auth'])
 
 
 
-        Route::get('/datalogistik', [SpvMonitoringController::class, 'dataLogistik'])
-            ->name('datalogistik');
+      Route::get('/datalogistik', [MonitoringController::class, 'dataLogistik'])
+    ->name('datalogistik');
 
         Route::get('tujuan-filter', [TujuanFilterController::class, 'index'])->name('tujuan.index');
         Route::get('tujuan-filter/create', [TujuanFilterController::class, 'create'])->name('tujuan.create');

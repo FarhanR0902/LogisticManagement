@@ -46,7 +46,7 @@
                 <th>No</th><th>Sumber</th><th>Periode</th><th>Tgl Shipment</th>
                 <th>Planner</th><th>PIC Monitoring</th><th>No Shipment</th><th>Tujuan</th>
                 <th>Area</th><th>Mobil</th><th>Rencana Kirim</th><th>Dapat Unit</th>
-                <th>Keluar Gudang Terakhir</th><th>Tgl Tiba</th>
+                <th>Keluar Gudang Terakhir</th><th>Tgl Tiba</th><th>Tgl Bongkar</th>
             </tr>
             </thead>
             <tbody>
@@ -73,6 +73,7 @@
                     <td>{{ $d($r->tanggal_dpt_unit) }}</td>
                     <td>{{ $keluar ? date('d-m-Y', $keluar) : '-' }}</td>
                     <td>{{ $d($r->tanggal_tiba) }}</td>
+                      <td>{{ $d($r->tanggal_bongkar) }}</td>
                 </tr>
             @empty
                 <tr><td colspan="14" style="text-align:center;color:#94a3b8;padding:22px">Tidak ada data</td></tr>

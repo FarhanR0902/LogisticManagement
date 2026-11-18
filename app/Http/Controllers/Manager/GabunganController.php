@@ -280,17 +280,19 @@ protected string $monitoringRoute = 'monitoring.datalogistik';
                 $q->whereRaw('(' . implode(' OR ', array_map($filled, $this->gcols('tanggal_tiba_gudang'))) . ')');
                 break;
 
-            case 'belum_armada':
-                $q->whereRaw('(' . $empty('rencana_kirim') . ' OR ' . $empty('tanggal_dpt_unit') . ')');
-                break;
+          case 'belum_armada':
+    $q->whereRaw('(' . $empty('rencana_kirim') . ' OR ' . $empty('tanggal_dpt_unit') . ')')
+      ->whereRaw("TRIM(COALESCE(no_shipment,'')) NOT LIKE '45%'");   // 45xxxx tidak dihitung di sini
+    break;
 
-            case 'sla_delay': // sudah dapat armada, belum tiba di gudang mana pun
-                $q->whereRaw($filled('rencana_kirim'))
-                  ->whereRaw($filled('tanggal_dpt_unit'));
-                foreach ($this->gcols('tanggal_tiba_gudang') as $col) {
-                    $q->whereRaw($empty($col));
-                }
-                break;
+case 'sla_delay': // belum tiba di gudang mana pun
+    // sudah dapat armada, ATAU no_shipment berawalan 45 (langsung dihitung, tanpa syarat armada)
+    $q->whereRaw('((' . $filled('rencana_kirim') . ' AND ' . $filled('tanggal_dpt_unit') . ")
+        OR TRIM(COALESCE(no_shipment,'')) LIKE '45%')");
+    foreach ($this->gcols('tanggal_tiba_gudang') as $col) {
+        $q->whereRaw($empty($col));
+    }
+    break;
 
           case 'tujuan_ontime':
     $q->whereRaw($filled('tanggal_tiba'))->whereRaw($filled('estimasi_tiba'))

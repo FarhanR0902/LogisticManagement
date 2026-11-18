@@ -13,10 +13,15 @@ use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\Shared\Date as XlDate;
 use PhpOffice\PhpSpreadsheet\Style\NumberFormat;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
+use Maatwebsite\Excel\Concerns\WithCustomChunkSize;
 
 class PlannerExport implements
-    FromQuery, WithHeadings, WithMapping, ShouldAutoSize, WithColumnFormatting, WithStyles
+    FromQuery, WithHeadings, WithMapping, ShouldAutoSize, WithColumnFormatting, WithStyles, WithCustomChunkSize
 {
+    public function chunkSize(): int
+    {
+        return 5000;
+    }
     // suffix kolom => nama gudang (samakan dengan PlannerController::GUDANG)
     protected const GUDANG = [
         ''   => 'KACS',
@@ -40,23 +45,31 @@ class PlannerExport implements
     // ============================================================
     // QUERY (urutan sama dengan dataAjax)
     // ============================================================
-    public function query()
-    {
-        $q = LogistikPengiriman::query();
-        $f = $this->f;
+   public function query()
+{
+    $q = LogistikPengiriman::query();
+    $f = $this->f;
 
-        if (!empty($f['planner']))          $q->whereIn('planner', (array) $f['planner']);
-        if (!empty($f['area']))             $q->whereIn('area', (array) $f['area']);
-        if (!empty($f['dist_channel']))     $q->whereIn('dist_channel', (array) $f['dist_channel']);
-        if (!empty($f['tanggal_shipment'])) $q->whereDate('tanggal_shipment', $f['tanggal_shipment']);
-        if (!empty($f['create_tgl']))       $q->whereDate('create_tgl', $f['create_tgl']);
-
-        return $q->orderByRaw($this->selesaiGudangSql() . ' ASC')
-                 ->orderBy('tanggal_shipment', 'ASC')
-                 ->orderByRaw('CAST(no_shipment AS UNSIGNED) ASC')
-                 ->orderBy('id', 'ASC');
+    if (!empty($f['periode'])) {
+        if ($f['periode'] === '__KOSONG__') {
+            $q->whereRaw("COALESCE(NULLIF(TRIM(periode_shipment),''),'') = ''");
+        } else {
+            $q->where('periode_shipment', $f['periode']);
+        }
     }
+    if (!empty($f['planner']))      $q->whereIn('planner', (array) $f['planner']);
+    if (!empty($f['area']))         $q->whereIn('area', (array) $f['area']);
+    if (!empty($f['dist_channel'])) $q->whereIn('dist_channel', (array) $f['dist_channel']);
+    if (!empty($f['tanggal_shipment'])) {
+        $d = $f['tanggal_shipment'];
+        $q->where('tanggal_shipment', '>=', $d)
+          ->where('tanggal_shipment', '<', date('Y-m-d', strtotime($d . ' +1 day')));
+    }
+    if (!empty($f['create_tgl'])) $q->whereDate('create_tgl', $f['create_tgl']);
 
+    // urut berdasarkan id saja: murah, dan stabil untuk chunk
+    return $q->orderBy('id');
+}
     private function selesaiGudangSql(): string
     {
         $f = fn($c) => "NULLIF(TRIM({$c}), '') IS NOT NULL";

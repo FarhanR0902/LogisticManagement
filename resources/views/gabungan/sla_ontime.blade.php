@@ -36,6 +36,10 @@ select,input[type=month]{padding:8px;margin-right:10px;border:1px solid #ccc;bor
     $dt    = fn($v) => $v ? date('d-m-Y', strtotime($v)) : '';
     $dtm   = fn($v) => $v ? date('d-m-Y H:i', strtotime($v)) : '';
     $dashRoute = request()->routeIs('sales.*') ? 'sales.gabungan.dashboard' : 'gabungan.dashboard';
+
+    // month & area bisa berupa array (month[] / area[]) dari dashboard
+    $monthSel = array_values(array_filter((array) request('month', []), 'strlen'));
+    $areaSel  = array_values(array_filter((array) request('area', []), 'strlen'));
 @endphp
 
 <div class="filter-box">
@@ -46,16 +50,22 @@ select,input[type=month]{padding:8px;margin-right:10px;border:1px solid #ccc;bor
         <option value="PASURUAN" {{ request('sumber')=='PASURUAN' ? 'selected' : '' }}>Pasuruan</option>
     </select>
 
-    <input type="month" name="month" value="{{ request('month') }}">
+    {{-- month[] dari dashboard dipertahankan lewat hidden input --}}
+    @foreach($monthSel as $m)
+        <input type="hidden" name="month[]" value="{{ $m }}">
+    @endforeach
+    @if(count($monthSel))
+        <span class="tag tag-jkt">Bulan: {{ implode(', ', $monthSel) }}</span>
+    @endif
 
-    <select name="area">
+    <select name="area[]">
         <option value="">Semua Area</option>
         @foreach($list_area as $a)
-            <option value="{{ $a->area }}" {{ request('area')==$a->area ? 'selected' : '' }}>{{ $a->area }}</option>
+            <option value="{{ $a->area }}" {{ in_array($a->area, $areaSel) ? 'selected' : '' }}>{{ $a->area }}</option>
         @endforeach
     </select>
 
-     @foreach(['tgl_basis','pulau','dist_channel','year','date','date_from','date_to'] as $k)
+    @foreach(['tgl_basis','pulau','dist_channel','year','date','date_from','date_to'] as $k)
         @php $v = request($k); @endphp
         @if(is_array($v))
             @foreach(array_filter($v, 'strlen') as $item)
@@ -67,7 +77,7 @@ select,input[type=month]{padding:8px;margin-right:10px;border:1px solid #ccc;bor
     @endforeach
 
     <button class="btn btn-green">Filter</button>
-    <a href="{{ route($dashRoute, request()->query()) }}" class="btn btn-blue">Dashboard</a>
+    <a href="{{ route($dashRoute, request()->except('page')) }}" class="btn btn-blue">Dashboard</a>
 </form>
 </div>
 
@@ -108,6 +118,8 @@ select,input[type=month]{padding:8px;margin-right:10px;border:1px solid #ccc;bor
     $sf   = $r->gudang_keluar_terakhir ? $sfx[$r->gudang_keluar_terakhir - 1] : '';
     $nama = $r->sumber === 'JAKARTA' ? $namaJ : $namaP;
     $key  = $r->sumber . '|' . $r->no_shipment;
+    $tandai = !empty($r->gudang_sla) && !in_array($key, $markedShipment);
+    if ($tandai) { $markedShipment[] = $key; }
 @endphp
 <tr>
     <td>{{ $loop->iteration }}</td>
@@ -116,9 +128,7 @@ select,input[type=month]{padding:8px;margin-right:10px;border:1px solid #ccc;bor
     <td>{{ $dt($r->rencana_kirim) }}</td>
     <td>{{ $r->transport_lead_time }}</td>
     <td>{{ $r->planner }}</td>
-    <td @if(!empty($r->gudang_sla) && !in_array($key, $markedShipment)) class="highlight-source" @php $markedShipment[] = $key; @endphp @endif>
-        {{ $r->no_shipment }}
-    </td>
+    <td class="{{ $tandai ? 'highlight-source' : '' }}">{{ $r->no_shipment }}</td>
     <td>{{ $r->tujuan }}</td>
     <td>{{ $r->area }}</td>
     <td>{{ $r->mobil }}</td>

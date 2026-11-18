@@ -37,6 +37,15 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Table\TableStyle;
 class LogistikReportData extends LogistikExportFull implements WithEvents, WithTitle
 {
     public const SUFFIXES = ['', '_2', '_3', '_4', '_5'];
+    /** kolom yang tampil di sheet Data laporan (sisanya ada di Export Data cepat) */
+private const KEEP = [
+    'no_shipment', 'no_do', 'tanggal_naik_logistik', 'rencana_kirim',
+    'planner', 'tujuan', 'area', 'dist_channel', 'ekpedisi', 'mobil',
+    'nilai_muatan', 'biaya_kirim', 'kirim_kontribusi', 'pic_monitoring',
+    'tanggal_keluar_gudang', 'tanggal_tiba', 'tanggal_bongkar',
+    'sla_tiba', 'sla_bongkar', 'status_akhir', 'monitoring_alert',
+    '[Hitung] Update Posisi Mobil', '[Hitung] CR (%)', '[Hitung] Status Akhir',
+];
 
     private ?array $extraCols = null;
     private ?array $tblCols = null;
@@ -56,7 +65,10 @@ class LogistikReportData extends LogistikExportFull implements WithEvents, WithT
             return $this->extraCols;
         }
 
-        $base = parent::columns();
+     $base = array_values(array_filter(
+    parent::columns(),
+    fn($c) => in_array($c[0], self::KEEP, true)
+));
 
         $bln = ['', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
             'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
@@ -71,6 +83,17 @@ class LogistikReportData extends LogistikExportFull implements WithEvents, WithT
 
         return $this->extraCols = array_merge($base, $extra, $this->rankColumns());
     }
+
+    public function styles(\PhpOffice\PhpSpreadsheet\Worksheet\Worksheet $sheet)
+{
+    $sheet->freezePane('A2');
+    $sheet->getDefaultColumnDimension()->setWidth(18);
+    $sheet->getStyle('A1:' . $sheet->getHighestColumn() . '1')->applyFromArray([
+        'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF']],
+        'fill' => ['fillType' => 'solid', 'startColor' => ['rgb' => '03C03C']],
+    ]);
+    return [];
+}
 
     // ============================================================
     // KOLOM BANTU UNTUK RINGKASAN HIDUP

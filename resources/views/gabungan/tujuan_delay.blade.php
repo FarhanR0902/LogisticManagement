@@ -55,6 +55,11 @@ select,input[type=month],input[type=text]{padding:8px;margin-right:10px;border:1
         return trim(($d ? "{$d} Hari " : '') . ($h ? "{$h} Jam " : '') . "{$m} Menit");
     };
     $dashRoute = request()->routeIs('sales.*') ? 'sales.gabungan.dashboard' : 'gabungan.dashboard';
+
+    // month[] / area[] bisa berupa array dari dashboard
+    $monthSel = array_values(array_filter((array) request('month', []), 'strlen'));
+    $areaSel  = array_values(array_filter((array) request('area', []), 'strlen'));
+    $qVal     = is_array(request('q')) ? '' : (string) request('q');
 @endphp
 
 <div class="filter-box">
@@ -65,16 +70,22 @@ select,input[type=month],input[type=text]{padding:8px;margin-right:10px;border:1
         <option value="PASURUAN" {{ request('sumber')=='PASURUAN' ? 'selected' : '' }}>Pasuruan</option>
     </select>
 
-    <input type="month" name="month" value="{{ request('month') }}">
+    {{-- month[] dari dashboard dipertahankan lewat hidden input --}}
+    @foreach($monthSel as $m)
+        <input type="hidden" name="month[]" value="{{ $m }}">
+    @endforeach
+    @if(count($monthSel))
+        <span class="tag tag-jkt">Bulan: {{ implode(', ', $monthSel) }}</span>
+    @endif
 
-    <select name="area">
+    <select name="area[]">
         <option value="">Semua Area</option>
         @foreach($list_area as $a)
-            <option value="{{ $a->area }}" {{ request('area')==$a->area ? 'selected' : '' }}>{{ $a->area }}</option>
+            <option value="{{ $a->area }}" {{ in_array($a->area, $areaSel) ? 'selected' : '' }}>{{ $a->area }}</option>
         @endforeach
     </select>
 
-    <input type="text" name="q" value="{{ request('q') }}" placeholder="Cari shipment / tujuan / ekspedisi...">
+    <input type="text" name="q" value="{{ $qVal }}" placeholder="Cari shipment / tujuan / ekspedisi...">
 
     @foreach(['tgl_basis','pulau','dist_channel','year','date','date_from','date_to'] as $k)
         @php $v = request($k); @endphp
@@ -106,7 +117,7 @@ select,input[type=month],input[type=text]{padding:8px;margin-right:10px;border:1
     <th>Area</th>
     <th>Ekspedisi</th>
     <th>Estimasi Tiba</th>
-    <th>Tanggal & Jam Tiba</th>
+    <th>Tanggal &amp; Jam Tiba</th>
     <th>Lewat Dari Estimasi</th>
     <th>SLA Tiba</th>
     <th>Reason Tiba</th>

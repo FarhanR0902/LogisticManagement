@@ -52,7 +52,7 @@ select,input[type=month],input[type=text]{padding:8px;margin-right:10px;border:1
     };
 
     // selisih tiba vs awal hari estimasi (aturan controller: < 24 jam = on time)
-    $selisih = function ($tibaTs, $estimasi) use ($isDelay) {
+    $selisih = function ($tibaTs, $estimasi) {
         if (!$tibaTs || !$estimasi) return '-';
         $estTs = strtotime(date('Y-m-d', strtotime($estimasi)));
         $d = $tibaTs - $estTs;
@@ -68,7 +68,11 @@ select,input[type=month],input[type=text]{padding:8px;margin-right:10px;border:1
     };
 
     $dashRoute = request()->routeIs('sales.*') ? 'sales.gabungan.dashboard' : 'gabungan.dashboard';
-    $areaSel   = (array) request('area', []);
+
+    // month[] / area[] bisa berupa array dari dashboard
+    $monthSel = array_values(array_filter((array) request('month', []), 'strlen'));
+    $areaSel  = array_values(array_filter((array) request('area', []), 'strlen'));
+    $qVal     = is_array(request('q')) ? '' : (string) request('q');
 @endphp
 
 <h2>🚚 TIBA TUJUAN {{ $isDelay ? 'DELAY' : 'ON TIME' }} (Jakarta + Pasuruan)</h2>
@@ -81,7 +85,13 @@ select,input[type=month],input[type=text]{padding:8px;margin-right:10px;border:1
         <option value="PASURUAN" {{ request('sumber')=='PASURUAN' ? 'selected' : '' }}>Pasuruan</option>
     </select>
 
-    <input type="month" name="month" value="{{ request('month') }}">
+    {{-- month[] dari dashboard dipertahankan lewat hidden input --}}
+    @foreach($monthSel as $m)
+        <input type="hidden" name="month[]" value="{{ $m }}">
+    @endforeach
+    @if(count($monthSel))
+        <span class="tag tag-jkt">Bulan: {{ implode(', ', $monthSel) }}</span>
+    @endif
 
     <select name="area[]">
         <option value="">Semua Area</option>
@@ -90,7 +100,7 @@ select,input[type=month],input[type=text]{padding:8px;margin-right:10px;border:1
         @endforeach
     </select>
 
-    <input type="text" name="q" value="{{ request('q') }}" placeholder="Cari shipment / tujuan / ekspedisi...">
+    <input type="text" name="q" value="{{ $qVal }}" placeholder="Cari shipment / tujuan / ekspedisi...">
 
     @foreach(['tgl_basis','pulau','dist_channel','year','date','date_from','date_to'] as $k)
         @php $v = request($k); @endphp

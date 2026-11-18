@@ -7,6 +7,7 @@ use App\Http\Controllers\Manager\ManagerController;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache; 
 use App\Models\LogistikPengirimanPasuruan;
+use App\Http\Controllers\LogistikController;
 
 /**
  * SalesController
@@ -223,7 +224,7 @@ if (!empty($areaPulau)) $query->whereIn('area', $areaPulau);
 
 $dists = array_values(array_filter((array) $request->input('dist_channel', []), 'strlen'));
 if (!empty($dists)) $query->whereIn('dist_channel', $dists);
-    $col  = $this->dateFilterColumn($request);
+      $col  = $this->dateFilterColumn($request);
     $from = $request->input('date_from');
     $to   = $request->input('date_to');
 
@@ -231,13 +232,19 @@ if (!empty($dists)) $query->whereIn('dist_channel', $dists);
         [$from, $to] = [$to, $from];
     }
 
-    // periode_shipment = teks "MM-YYYY", jadi tanggal pakai tanggal_shipment
+    $months = array_values(array_filter((array) $request->input('month', []), 'strlen'));
+    $year   = $request->input('year');
+    $year   = is_array($year) ? null : $year;
+
     if ($col === 'periode_shipment') {
-        if ($request->month) {
-            $query->where('periode_shipment', substr($request->month, 5, 2) . '-' . substr($request->month, 0, 4));
+        if ($months) {
+            $query->whereIn('periode_shipment', array_map(
+                fn ($m) => substr($m, 5, 2) . '-' . substr($m, 0, 4),
+                $months
+            ));
         }
-        if ($request->year) {
-            $query->where('periode_shipment', 'like', '%-' . $request->year);
+        if ($year) {
+            $query->where('periode_shipment', 'like', '%-' . $year);
         }
         if ($from) $query->whereDate('tanggal_shipment', '>=', $from);
         if ($to)   $query->whereDate('tanggal_shipment', '<=', $to);
@@ -245,16 +252,21 @@ if (!empty($dists)) $query->whereIn('dist_channel', $dists);
         return $query;
     }
 
-    // basis lain (rencana_kirim / tanggal_naik_logistik): kolom tanggal biasa
     if ($from) $query->whereDate($col, '>=', $from);
     if ($to)   $query->whereDate($col, '<=', $to);
 
-    if ($request->month) {
-        $query->whereMonth($col, substr($request->month, 5, 2));
-        $query->whereYear($col, substr($request->month, 0, 4));
+    if ($months) {
+        $query->where(function ($w) use ($months, $col) {
+            foreach ($months as $m) {
+                $w->orWhere(function ($x) use ($col, $m) {
+                    $x->whereYear($col, substr($m, 0, 4))
+                      ->whereMonth($col, substr($m, 5, 2));
+                });
+            }
+        });
     }
-    if ($request->year) {
-        $query->whereYear($col, $request->year);
+    if ($year) {
+        $query->whereYear($col, $year);
     }
 
     return $query;
@@ -609,17 +621,36 @@ if (!empty($dists)) $query->whereIn('dist_channel_pasuruan', $dists);
         $query->whereDate($col, $request->date);
     }
 
-    if ($request->filled('month') && preg_match('/^(\d{4})-(\d{2})$/', $request->month, $m)) {
-        $byPeriode
-            ? $query->where('periode_shipment_pasuruan', $m[2] . '-' . $m[1])
-            : $query->whereYear($col, $m[1])->whereMonth($col, $m[2]);
-    }
-    if ($request->filled('year')) {
-        $byPeriode
-            ? $query->where('periode_shipment_pasuruan', 'like', '%-' . $request->year)
-            : $query->whereYear($col, $request->year);
+    $months = array_values(array_filter((array) $request->input('month', []), 'strlen'));
+    $year   = $request->input('year');
+    $year   = is_array($year) ? null : $year;
+
+    $validMonths = [];
+    foreach ($months as $mo) {
+        if (preg_match('/^(\d{4})-(\d{2})$/', (string) $mo, $m)) {
+            $validMonths[] = [$m[1], $m[2]];
+        }
     }
 
+    if ($validMonths) {
+        if ($byPeriode) {
+            $query->whereIn('periode_shipment_pasuruan',
+                array_map(fn ($v) => $v[1] . '-' . $v[0], $validMonths));
+        } else {
+            $query->where(function ($w) use ($validMonths, $col) {
+                foreach ($validMonths as [$y, $mm]) {
+                    $w->orWhere(function ($x) use ($col, $y, $mm) {
+                        $x->whereYear($col, $y)->whereMonth($col, $mm);
+                    });
+                }
+            });
+        }
+    }
+    if ($year) {
+        $byPeriode
+            ? $query->where('periode_shipment_pasuruan', 'like', '%-' . $year)
+            : $query->whereYear($col, $year);
+    }
     return $query;
 }
 
@@ -1506,6 +1537,17 @@ foreach (['', '_2', '_3'] as $i => $s) {
         return view('sales.summary_area', compact('summary_area'));
     }
 
+   public function dataLogistik()
+{
+    return view('sales.data_logistik', [
+        'areaList' => $this->getArea()->pluck('area'),
+    ]);
+}
+
+public function dataLogistikAjax(Request $request)   { return app(LogistikController::class)->dataLogistikAjax($request); }
+public function dataLogistikDetail(Request $request) { return app(LogistikController::class)->dataLogistikDetail($request); }
+public function dataLogistikExport(Request $request) { return app(LogistikController::class)->export($request->merge(['mode' => null])); }
+
     /* =====================================================================
      |  PASURUAN - DATA LOGISTIK (AJAX, per shipment + tujuan)
      * ===================================================================== */
@@ -1611,11 +1653,24 @@ public function dataLogistikDetailPasuruan(Request $request)
     $this->filterByDistChannelPasuruan($query);
     $this->applyFilterPasuruan($query, $this->dashRequestPasuruan($request));
  
-    if ($request->filled('planner')) $query->where('planner_pasuruan', $request->planner);
-    if ($request->filled('area'))    $query->where('area_pasuruan', $request->area);
-    if ($request->filled('date'))    $query->whereDate('tanggal_terima_po_pasuruan', $request->date);
-    if ($request->filled('month'))   $query->whereMonth('tanggal_terima_po_pasuruan', $request->month);
-    if ($request->filled('year'))    $query->whereYear('tanggal_terima_po_pasuruan', $request->year);
+    $areaIn = array_values(array_filter((array) $request->input('area', []), 'strlen'));
+    if ($areaIn) $query->whereIn('area_pasuruan', $areaIn);
+
+    if ($request->filled('planner') && !is_array($request->planner)) {
+        $query->where('planner_pasuruan', $request->planner);
+    }
+    if ($request->filled('date') && !is_array($request->date)) {
+        $query->whereDate('tanggal_terima_po_pasuruan', $request->date);
+    }
+
+    $mo = $request->input('month');
+    if (!is_array($mo) && ctype_digit((string) $mo)) {
+        $query->whereMonth('tanggal_terima_po_pasuruan', (int) $mo);
+    }
+    $yr = $request->input('year');
+    if (!is_array($yr) && ctype_digit((string) $yr)) {
+        $query->whereYear('tanggal_terima_po_pasuruan', (int) $yr);
+    }
  
     // jumlah GRUP (shipment + tujuan), bukan jumlah DO
     $recordsTotal = $this->countGroupsPasuruan($query);

@@ -12,8 +12,9 @@ body{font-family:Arial;background:#f4f6f9;margin:0}
 table{width:100%;border-collapse:collapse;font-size:12px;white-space:nowrap;border:1px solid #ddd}
 th{background:#dc3545;color:#fff;padding:8px;text-align:center;position:sticky;top:0;border:1px solid #ddd}
 td{padding:6px;border:1px solid #ddd;text-align:center}
-.filter-box{background:#fff;padding:15px;border-radius:10px;box-shadow:0 2px 10px rgba(0,0,0,.05)}
-select,input[type=month]{padding:8px;margin-right:10px;border:1px solid #ccc;border-radius:5px}
+.filter-box{background:#fff;padding:15px;border-radius:10px;box-shadow:0 2px 10px rgba(0,0,0,.05);display:flex;flex-wrap:wrap;align-items:center;gap:10px}
+.filter-box form{display:flex;flex-wrap:wrap;align-items:center;gap:10px;width:100%}
+select,input[type=month]{padding:8px;margin-right:0;border:1px solid #ccc;border-radius:5px}
 .btn{padding:8px 14px;border-radius:6px;border:none;cursor:pointer;text-decoration:none;display:inline-block;font-size:13px}
 .btn-green{background:#28a745;color:#fff}
 .btn-blue{background:#007bff;color:#fff}
@@ -39,6 +40,9 @@ select,input[type=month]{padding:8px;margin-right:10px;border:1px solid #ccc;bor
     $namaP = ['PASURUAN', 'PUNTIR', '-', '-', '-'];
     $dt    = fn($v) => $v ? date('d-m-Y', strtotime($v)) : '';
     $dashRoute = request()->routeIs('sales.*') ? 'sales.gabungan.dashboard' : 'gabungan.dashboard';
+
+    $monthSel = array_values(array_filter((array) request('month', []), 'strlen'));
+    $areaSel  = array_values(array_filter((array) request('area', []), 'strlen'));
 @endphp
 
 <div class="filter-box">
@@ -49,16 +53,22 @@ select,input[type=month]{padding:8px;margin-right:10px;border:1px solid #ccc;bor
         <option value="PASURUAN" {{ request('sumber')=='PASURUAN' ? 'selected' : '' }}>Pasuruan</option>
     </select>
 
-    <input type="month" name="month" value="{{ request('month') }}">
+    {{-- month[] dari dashboard dipertahankan lewat hidden input --}}
+    @foreach($monthSel as $m)
+        <input type="hidden" name="month[]" value="{{ $m }}">
+    @endforeach
+    @if(count($monthSel))
+        <span class="tag tag-jkt">Bulan: {{ implode(', ', $monthSel) }}</span>
+    @endif
 
-    <select name="area">
+    <select name="area[]">
         <option value="">Semua Area</option>
         @foreach($list_area as $a)
-            <option value="{{ $a->area }}" {{ request('area')==$a->area ? 'selected' : '' }}>{{ $a->area }}</option>
+            <option value="{{ $a->area }}" {{ in_array($a->area, $areaSel) ? 'selected' : '' }}>{{ $a->area }}</option>
         @endforeach
     </select>
 
-      @foreach(['tgl_basis','pulau','dist_channel','year','date','date_from','date_to'] as $k)
+    @foreach(['tgl_basis','pulau','dist_channel','year','date','date_from','date_to'] as $k)
         @php $v = request($k); @endphp
         @if(is_array($v))
             @foreach(array_filter($v, 'strlen') as $item)

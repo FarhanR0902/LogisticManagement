@@ -309,6 +309,7 @@
             <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#shipModal">
                 + Shipment Laut
             </button>
+            <button type="button" id="btnHitungUlang" class="btn btn-primary">🔄 Hitung Ulang SLA</button>
 
             <button id="btnSaveAll" type="button" class="btn btn-primary">
                 <span id="btnSaveAllLabel">💾 Simpan Semua</span>
@@ -1390,6 +1391,60 @@
                         (params.toString() ? '?' + params.toString() : '');
                 });
 
+                // ================= HITUNG ULANG SLA (tiba, estimasi, status) =================
+$(document).on('click', '#btnHitungUlang', function () {
+    const $btn = $(this);
+
+    // ada baris yang masih proses simpan -> tunggu dulu
+    if ($('#tableMonitoring tbody tr.row-dirty').length) {
+        showToastMsg('Masih ada baris yang belum tersimpan. Tunggu sampai tersimpan, lalu coba lagi.');
+        return;
+    }
+
+    Swal.fire({
+        icon: 'question',
+        title: 'Hitung ulang SLA?',
+        text: 'Semua baris yang sudah punya Tanggal Tiba, sesuai filter saat ini, akan dihitung ulang (estimasi tiba, SLA Tiba, lama perjalanan, status).',
+        showCancelButton: true,
+        confirmButtonText: 'Ya, hitung ulang',
+        cancelButtonText: 'Batal'
+    }).then(function (r) {
+        if (!r.isConfirmed) return;
+
+        const kg = getKeluarRange();
+        $btn.prop('disabled', true).text('Menghitung...');
+
+        $.ajax({
+            url: "{{ route('monitoring.hitungUlangSla') }}",
+            type: 'POST',
+            timeout: 0,   // override ajaxSetup 30 detik: proses ini bisa lebih lama
+            data: {
+                _token: '{{ csrf_token() }}',
+                periode: periodeAktif,
+                tanggal_shipment: tglShipmentFilter,
+                pic_monitoring: getMulti('pic_monitoring'),
+                dist_channel: getMulti('dist_channel'),
+                area: getSelectedAreas(),
+                bulan: getMulti('bulan'),
+                tahun: getMulti('tahun'),
+                keluar_gudang_dari: kg.dari,
+                keluar_gudang_sampai: kg.sampai
+            },
+            success: function (res) {
+                Swal.fire({ icon: 'success', title: 'Selesai', text: res.message });
+                table.draw(false);          // muat ulang tabel, tetap di halaman yang sama
+                loadAlertControl(false);    // refresh kotak alert
+            },
+            error: function (xhr, textStatus) {
+                popupGagal('Gagal menghitung ulang', pesanXhr(xhr, textStatus));
+            },
+            complete: function () {
+                $btn.prop('disabled', false).text('🔄 Hitung Ulang SLA');
+            }
+        });
+    });
+});
+
                 // ================= NAVIGASI PANAH ALA EXCEL =================
                 (function () {
                     let editableCols = null;
@@ -1581,4 +1636,3 @@
     </div>
 
 </body>
-</html>

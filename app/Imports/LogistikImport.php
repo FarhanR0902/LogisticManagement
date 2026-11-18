@@ -182,6 +182,9 @@ class LogistikImport implements ToCollection, WithHeadingRow, WithEvents, WithCa
 
     // cache hasil tarif: "route|ekspedisi|mobil" => [mobil lengkap, kubikasi, tonase]
     private array $tarifMemo = [];
+       private array $padDefaults = []; 
+       private float $tBuild = 0;
+private float $tDb    = 0;  // kolom => default, untuk padding insert
 
     // ===== mode skip data yang sudah ada =====
     private bool $skipExisting;
@@ -320,13 +323,22 @@ private function countDate(string $type, ?string $tgl): void
     {
         $this->skipExisting = $skipExisting;
 
-        foreach (DB::select('SHOW COLUMNS FROM `' . self::TABLE . '`') as $c) {
-            $this->allColumns[] = $c->Field;
+    
 
-            if (!in_array($c->Field, self::SKIP_COLUMNS, true)) {
-                $this->dbColumns[$c->Field] = strtolower($c->Type);
-            }
+foreach (DB::select('SHOW COLUMNS FROM `' . self::TABLE . '`') as $c) {
+    $this->allColumns[] = $c->Field;
+
+    if (!in_array($c->Field, self::SKIP_COLUMNS, true)) {
+        $this->dbColumns[$c->Field] = strtolower($c->Type);
+
+        $def = $c->Default;
+        $isTs = is_string($def) && stripos($def, 'current_timestamp') !== false;
+        $wajib = ($def === null && $c->Null === 'NO');
+        if (!$isTs && !$wajib) {
+            $this->padDefaults[$c->Field] = $def;   // null untuk kolom nullable
         }
+    }
+}
 
         $this->hasCreatedAt = in_array('created_at', $this->allColumns, true);
         $this->hasUpdatedAt = in_array('updated_at', $this->allColumns, true);
@@ -408,6 +420,19 @@ private function countDate(string $type, ?string $tgl): void
         }
     }
 
+
+    private function padForInsert(array $attrs): array
+{
+    $out = [];
+    foreach ($this->padDefaults as $col => $def) {
+        $out[$col] = array_key_exists($col, $attrs) ? $attrs[$col] : $def;
+    }
+    foreach ($attrs as $col => $v) {          // created_at, updated_at, kolom wajib
+        $out[$col] ??= $v;
+    }
+    ksort($out);
+    return $out;
+}
     // =========================================================
     // DETEKSI DATA YANG SUDAH ADA
     // =========================================================
@@ -545,20 +570,24 @@ if ($this->skipExisting && $doKey !== null && isset($this->doSet[$doKey])) {
 
             $this->allNoShipmentInFile[] = $noShipment;
 
-            try {
-                $attrs = $this->buildAttributes($row, $noShipment, $tujuan);
+        try {
+    $t = microtime(true);
+    $attrs = $this->buildAttributes($row, $noShipment, $tujuan);
+    $this->tBuild += microtime(true) - $t;
 
-                $legacy = $this->skipExisting
-                    && isset($this->legacySet[$this->legacyKey($noShipment, $tujuan)]);
+    $legacy = $this->skipExisting
+        && isset($this->legacySet[$this->legacyKey($noShipment, $tujuan)]);
 
-                if (!$this->skipExisting || $legacy) {
-                    // mode update, atau baris lama yang no_do-nya masih kosong -> jalur lama
-                    $this->flushInsert();
-                    unset($this->shipCache[$noShipment]);
-                    $this->save($noShipment, $tujuan, $noDo, $attrs);
-                } else {
-                    $this->queueInsert($noShipment, $tujuan, $noDo, $attrs);
-                }
+    $t = microtime(true);
+    if (!$this->skipExisting || $legacy) {
+        // mode update, atau baris lama yang no_do-nya masih kosong -> jalur lama
+        $this->flushInsert();
+        unset($this->shipCache[$noShipment]);
+        $this->save($noShipment, $tujuan, $noDo, $attrs);
+    } else {
+        $this->queueInsert($noShipment, $tujuan, $noDo, $attrs);
+    }
+    $this->tDb += microtime(true) - $t;
 
                 $this->touched[$noShipment] = true;
 
@@ -585,7 +614,19 @@ if ($this->skipExisting && $doKey !== null && isset($this->doSet[$doKey])) {
         }
 
         // tulis sisa antrian insert di akhir tiap chunk
-        $this->flushInsert();
+    
+        // tulis sisa antrian insert di akhir tiap chunk
+$t = microtime(true);
+$this->flushInsert();
+$this->tDb += microtime(true) - $t;
+
+logger()->info('CHUNK', [
+    'build_s'          => round($this->tBuild, 1),
+    'db_s'             => round($this->tDb, 1),
+    'skipped_existing' => $this->skippedExisting,
+    'inserted'         => $this->inserted,
+    'updated'          => $this->updated,
+]);
 
         if (!empty($this->ignoredHeaders)) {
             logger()->info('LOGISTIK IMPORT: header Excel tanpa kolom DB (diabaikan)', $this->getIgnoredHeaders());
@@ -625,15 +666,19 @@ if (isset($this->shipSet[mb_strtolower(trim($noShipment))])) {
         if (isset($this->dbColumns['ketersediaan_unit'])) {
             $attrs['ketersediaan_unit'] ??= 'BELUM DAPAT';
         }
-        if ($this->hasCreatedAt) $attrs['created_at'] = $now;
+            if ($this->hasCreatedAt) $attrs['created_at'] = $now;
         if ($this->hasUpdatedAt) $attrs['updated_at'] = $now;
-$this->countDate('baru', $attrs['tanggal_shipment'] ?? null);
-        $sig = implode(',', array_keys($attrs));
+
+        $this->countDate('baru', $attrs['tanggal_shipment'] ?? null);
+
+        $attrs = $this->padForInsert($attrs);
+        $sig   = implode(',', array_keys($attrs));
         $this->insertBuf[$sig][] = $attrs;
 
         if (count($this->insertBuf[$sig]) >= self::INSERT_BATCH) {
             $this->flushInsert($sig);
         }
+    
     }
     private function logChange(string $sh, string $tj, string $type, ?string $noDo = null, array $cols = []): void
 {
@@ -936,7 +981,7 @@ $this->countDate('baru', $tglShip);
         $this->lastNoShipment = $noShipment;
 
         // ================= ANGKA DARI EXCEL =================
-        $totalDoCar  = $this->parseNumber($row['total_do_qty_car'] ?? null);
+$totalDoCar  = $this->parseQty($row['total_do_qty_car'] ?? null);
         $totalKubik  = $this->parseNumber($this->pick($row, ['total_kubik', 'total_kubik_m3', 'total_kubik_m_3', 'totalkubik']));
         $totalTonase = $this->parseNumber($this->pick($row, ['total_tonase', 'total_tonase_ton', 'totaltonase']));
         $nilaiMuatan = $this->parseNumber($this->pick($row, ['nilai_muatan', 'nilai_muatan_rp', 'nilai_muatan_rp_', 'nilai_muatan_pasuruan']));
@@ -1376,6 +1421,13 @@ $this->countDate('baru', $tglShip);
         $ts = strtotime(trim((string) $value));
         return $ts ? date('H:i:s', $ts) : null;
     }
+
+    /** qty DO = pcs, selalu bilangan bulat (999,8 -> 1000) */
+private function parseQty($value): ?int
+{
+    $n = $this->parseNumber($value);
+    return $n === null ? null : (int) round($n);
+}
 
     private function parseNumber($value): ?float
     {
