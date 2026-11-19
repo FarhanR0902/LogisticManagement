@@ -566,7 +566,7 @@ private function kecualikanShipment($query): void
         if (!empty($periode)) {
             $kosong = in_array('__kosong__', $periode, true);
             $vals   = array_values(array_filter($periode, fn($v) => $v !== '__kosong__'));
-jd 
+
             $query->where(function ($q) use ($vals, $kosong) {
                 if ($vals) {
                     $q->whereIn('periode_shipment', $vals);
