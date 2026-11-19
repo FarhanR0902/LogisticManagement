@@ -96,21 +96,23 @@ class PlannerController extends Controller
         Cache::forget($this->totalKey($periode));
     }
 
-    public function pilihPeriode()
-    {
-        $periodes = Cache::remember('planner.periodes', 60, function () {
-            $kunci = "COALESCE(NULLIF(TRIM(periode_shipment),''),'__KOSONG__')";
-            return $this->repQuery()
-                ->selectRaw("{$kunci} AS periode, COUNT(*) AS total,
-                         SUM(CASE WHEN selesai_gudang = 0 THEN 1 ELSE 0 END) AS belum,
-                         MAX(tanggal_shipment) AS terakhir")
-                ->groupByRaw($kunci)
-                ->orderByDesc('terakhir')
-                ->get();
-        });
+ public function pilihPeriode()
+{
+    $periodes = Cache::remember('planner.periodes', 60, function () {
+        $kunci = "COALESCE(NULLIF(TRIM(periode_shipment),''),'__KOSONG__')";
+        $sel   = $this->selesaiGudangSql();
 
-        return view('planner.pilih_periode', compact('periodes'));
-    }
+        return $this->repQuery()
+            ->selectRaw("{$kunci} AS periode, COUNT(*) AS total,
+                     SUM(CASE WHEN {$sel} = 0 THEN 1 ELSE 0 END) AS belum,
+                     MAX(tanggal_shipment) AS terakhir")
+            ->groupByRaw($kunci)
+            ->orderByDesc('terakhir')
+            ->get();
+    });
+
+    return view('planner.pilih_periode', compact('periodes'));
+}
 
     private function totalKey(?string $periode): string
     {
@@ -220,7 +222,7 @@ class PlannerController extends Controller
 
         try {
             LogistikPengiriman::create($payload);
-            LogistikPengiriman::syncRep([$payload['no_shipment'] ?? null]);
+            // LogistikPengiriman::syncRep([$payload['no_shipment'] ?? null]);
         } catch (\Throwable $e) {
             report($e);
             return $this->gagal($request, [$this->pesanDb($e)], 500, 'Gagal menyimpan ke database');
@@ -579,7 +581,7 @@ class PlannerController extends Controller
 
         try {
             DB::transaction(function () use ($updateShipment, $old, $newNoShipment, $shipment, $request) {
-                LogistikPengiriman::syncRep([$old->no_shipment, $newNoShipment]);
+                // LogistikPengiriman::syncRep([$old->no_shipment, $newNoShipment]);
                 $this->shipmentScope(DB::table('logistik_pengiriman'), $old, $newNoShipment)
                     ->update($updateShipment);
 
@@ -931,7 +933,7 @@ class PlannerController extends Controller
 
         try {
             DB::transaction(function () use ($updateShipment, $old, $newNoShipment, $shipment, $request) {
-                LogistikPengiriman::syncRep([$old->no_shipment, $newNoShipment]);
+                // LogistikPengiriman::syncRep([$old->no_shipment, $newNoShipment]);
                 $this->shipmentScope(DB::table('logistik_pengiriman'), $old, $newNoShipment)
                     ->update($updateShipment);
 
@@ -1041,10 +1043,10 @@ class PlannerController extends Controller
         $periode = $request->input('periode');
 
         // list planner cuma dari periode yang dipilih
-        $planners = Cache::remember('planner.planners.' . md5($periode), 300, fn() =>
-        $this->filterPeriode(DB::table('logistik_pengiriman')->where('is_rep', 1), $request)
-            ->whereNotNull('planner')->where('planner', '!=', '')
-            ->distinct()->orderBy('planner')->pluck('planner'));
+       $planners = Cache::remember('planner.planners.' . md5($periode), 300, fn() =>
+    $this->filterPeriode($this->repQuery(), $request)
+        ->whereNotNull('planner')->where('planner', '!=', '')
+        ->distinct()->orderBy('planner')->pluck('planner'));
 
         // tarif dipakai JS untuk auto biaya kirim (di-cache, jarang berubah)
         $tarifPengiriman = Cache::remember('planner.tarif', 600, fn() =>
@@ -1241,16 +1243,20 @@ class PlannerController extends Controller
         $searchValue = trim((string) $request->input('search.value', ''));
         $periode     = (string) $request->input('periode', '');
 
-        $baseQuery = LogistikPengiriman::query()->where('is_rep', 1);
-        $this->filterPeriode($baseQuery, $request);
+      $repScope = fn($q) => $q->whereIn('id', function ($sub) {
+    $sub->from('logistik_pengiriman')
+        ->selectRaw('MIN(id)')
+        ->groupByRaw(self::GROUP_KEY);
+});
 
-        $totalRecords = Cache::remember(
-            $this->totalKey($periode),
-            self::CACHE_TOTAL,
-            fn() =>
-            $this->filterPeriode(LogistikPengiriman::query()->where('is_rep', 1), $request)->count()
-        );
+$baseQuery = $repScope(LogistikPengiriman::query());
+$this->filterPeriode($baseQuery, $request);
 
+$totalRecords = Cache::remember(
+    $this->totalKey($periode),
+    self::CACHE_TOTAL,
+    fn() => $this->filterPeriode($repScope(LogistikPengiriman::query()), $request)->count()
+);
         $adaFilter = false;
 
         if ($vals = $this->multiInput($request, 'planner_filter')) {
@@ -1292,14 +1298,14 @@ class PlannerController extends Controller
 
         $recordsFiltered = $adaFilter ? (clone $baseQuery)->count() : $totalRecords;
 
-        $rows = (clone $baseQuery)
-            ->orderBy('selesai_gudang', 'ASC')
-            ->orderBy('tanggal_shipment', 'ASC')
-            ->orderByRaw('CAST(no_shipment AS UNSIGNED) ASC')
-            ->orderBy('id', 'ASC')
-            ->skip($start)
-            ->take($length)
-            ->get();
+     $rows = (clone $baseQuery)
+    ->orderByRaw($this->selesaiGudangSql() . ' ASC')
+    ->orderBy('tanggal_shipment', 'ASC')
+    ->orderByRaw('CAST(no_shipment AS UNSIGNED) ASC')
+    ->orderBy('id', 'ASC')
+    ->skip($start)
+    ->take($length)
+    ->get();
 
         $groupAgg = $this->plannerGroupAgg($rows);
         $shipOpt  = $this->optimalPerShipment($groupAgg);
@@ -1386,11 +1392,14 @@ class PlannerController extends Controller
     }
 
 
-    private function repQuery()
-    {
-        return DB::table('logistik_pengiriman')->where('is_rep', 1);
-    }
-
+   private function repQuery()
+{
+    return DB::table('logistik_pengiriman')->whereIn('id', function ($sub) {
+        $sub->from('logistik_pengiriman')
+            ->selectRaw('MIN(id)')
+            ->groupByRaw(self::GROUP_KEY);
+    });
+}
     // private function selesaiGudangSql(): string
     // {
     //     $f = fn($c) => "NULLIF(TRIM({$c}), '') IS NOT NULL";
@@ -1971,10 +1980,10 @@ class PlannerController extends Controller
     }
 
     /** Sekarang cukup baca kolom (bisa pakai index) */
-    private function selesaiGudangSql(): string
-    {
-        return 'selesai_gudang';
-    }
+private function selesaiGudangSql(): string
+{
+    return '(' . $this->selesaiGudangExpr() . ')';
+}
     private function hitungBiayaKirimRow($totalKubik, $kubikasi, $biayaTarif): float
     {
         $biayaTarif = (float) $biayaTarif;
