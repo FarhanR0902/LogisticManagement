@@ -89,12 +89,13 @@ class PlannerController extends Controller
     /* =====================================================================
      |  CACHE: hapus saat data berubah
      * ===================================================================== */
-    private function forgetCaches(?string $periode = null): void
-    {
-        Cache::forget('planner.bloker');
-        Cache::forget('planner.periodes');
-        Cache::forget($this->totalKey($periode));
-    }
+   private function forgetCaches(?string $periode = null): void
+{
+    Cache::forget('planner.bloker');
+    Cache::forget('planner.periodes');
+    Cache::forever('planner.total.ver', microtime(true));
+}
+
 
  public function pilihPeriode()
 {
@@ -114,10 +115,11 @@ class PlannerController extends Controller
     return view('planner.pilih_periode', compact('periodes'));
 }
 
-    private function totalKey(?string $periode): string
-    {
-        return 'planner.total.' . md5((string) $periode);
-    }
+   
+private function totalKey(?string $periode): string
+{
+    return 'planner.total.' . Cache::get('planner.total.ver', 0) . '.' . md5((string) $periode);
+}
     public function exportPlannerReport(Request $request)
     {
         $filters = array_filter([
@@ -1040,7 +1042,7 @@ class PlannerController extends Controller
         if (!$request->filled('periode')) {
             return redirect()->route('planner.periode');
         }
-        $periode = $request->input('periode');
+     $periode = $this->periodeKey($request);
 
         // list planner cuma dari periode yang dipilih
        $planners = Cache::remember('planner.planners.' . md5($periode), 300, fn() =>
@@ -1241,7 +1243,7 @@ class PlannerController extends Controller
         $length      = (int) $request->input('length', 10);
         $length      = $length > 0 ? min($length, 200) : 25;
         $searchValue = trim((string) $request->input('search.value', ''));
-        $periode     = (string) $request->input('periode', '');
+      $periode = $this->periodeKey($request);
 
       $repScope = fn($q) => $q->whereIn('id', function ($sub) {
     $sub->from('logistik_pengiriman')
@@ -1666,16 +1668,40 @@ $totalRecords = Cache::remember(
     }
 
     /** Filter periode_shipment. '__KOSONG__' = data yang periodenya belum diisi */
-    private function filterPeriode($q, Request $request)
-    {
-        $p = $request->input('periode');
-        if ($p === null || $p === '') return $q;
+   private function filterPeriode($q, Request $request)
+{
+    $list = $this->periodeList($request->input('periode'));
+    if ($list === null) return $q;
 
-        if ($p === '__KOSONG__') {
-            return $q->whereRaw("COALESCE(NULLIF(TRIM(periode_shipment),''),'') = ''");
+    return $q->where(function ($w) use ($list) {
+        $real = array_values(array_diff($list, ['__KOSONG__']));
+        if ($real) {
+            $w->whereIn('periode_shipment', $real);
         }
-        return $q->where('periode_shipment', $p);
-    }
+        if (in_array('__KOSONG__', $list, true)) {
+            $w->orWhereRaw("COALESCE(NULLIF(TRIM(periode_shipment),''),'') = ''");
+        }
+    });
+}
+    /** null = semua periode. Terima "11-2026,12-2026", array, atau "__SEMUA__" */
+private function periodeList($p): ?array
+{
+    $list = is_array($p) ? $p : explode(',', (string) $p);
+    $list = array_values(array_unique(array_filter(
+        array_map('trim', $list), fn($v) => $v !== ''
+    )));
+
+    return (!$list || in_array('__SEMUA__', $list, true)) ? null : $list;
+}
+
+/** string kunci periode (untuk cache & dikirim ke view) */
+private function periodeKey(Request $request): string
+{
+    $l = $this->periodeList($request->input('periode'));
+    if ($l === null) return '__SEMUA__';
+    sort($l);
+    return implode(',', $l);
+}
 
     /** Halaman pilih periode: ringkasan per periode */
     // public function pilihPeriode()

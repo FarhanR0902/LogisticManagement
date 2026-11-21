@@ -589,11 +589,11 @@
                     </div>
                 </div>
 
-                <select id="filterTglBasis" name="tgl_basis">
-                    <option value="tanggal_naik_logistik">Tanggal Naik Logistik</option>
-                    <option value="rencana_kirim">Rencana Kirim</option>
-                </select>
-
+         <select id="filterTglBasis" name="tgl_basis">
+    <option value="tanggal_shipment" selected>Tanggal Shipment</option>
+    <option value="tanggal_naik_logistik">Tanggal Naik Logistik</option>
+    <option value="rencana_kirim">Rencana Kirim</option>
+</select>
                 <label class="tgl-lbl">Dari
                     <input type="date" id="filterDateFrom" name="date_from">
                 </label>

@@ -255,6 +255,8 @@ Route::get('/monitoring/shipment-list', [MonitoringController::class, 'shipmentL
 Route::put('/monitoring/update/{id}', [MonitoringController::class, 'updateMonitoring'])->name('monitoring.update');
 Route::post('/monitoring/update-batch', [MonitoringController::class, 'updateMonitoringBatch'])->name('monitoring.update.batch');
 
+    Route::get('/monitoring/export-report', [MonitoringController::class, 'exportReport'])
+    ->name('monitoring.exportReport');
 Route::get('/monitoring/in-transit', [MonitoringController::class, 'inTransit'])
     ->name('monitoring.intransit');
 
@@ -646,6 +648,9 @@ Route::middleware(['auth'])
             ->name('dashboard');
           Route::get('/monitoring/shipment-list', [MonitoringController::class, 'shipmentList'])
     ->name('monitoring.shipmentList');
+
+    Route::get('/monitoring/export-report', [MonitoringController::class, 'exportReport'])
+    ->name('monitoring.exportReport');
         Route::get('in-transit-pasuruan', [SpvMonitoringController::class, 'inTransitPasuruan'])
             ->name('intransit.pasuruan');
         Route::get('/belum-tiba-gudang', [SpvMonitoringController::class, 'belumTibaGudang'])
@@ -1098,6 +1103,7 @@ Route::prefix('kota-import')->name('kota.import.')->group(function () {
 Route::get('/logistik/cocoklogi/status', [CocoklogiController::class, 'status'])->name('cocoklogi.status');
 Route::post('/logistik/cocoklogi/preview', [CocoklogiController::class, 'preview'])->name('cocoklogi.preview');
 Route::post('/logistik/cocoklogi/hapus', [CocoklogiController::class, 'hapus'])->name('cocoklogi.hapus');
+Route::get('cocoklogi/periode', [CocoklogiController::class, 'periode'])->name('cocoklogi.periode');
 /*
 |--------------------------------------------------------------------------
 | Dipakai di logic redirect role, contoh:

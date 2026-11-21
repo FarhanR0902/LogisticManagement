@@ -23,6 +23,21 @@ class CocoklogiController extends Controller
 
         return response()->json(['last' => $last, 'overdue' => $overdue]);
     }
+    /** Daftar periode_shipment yang ada di DB (terbaru di-import paling atas) */
+public function periode()
+{
+    $q = LogistikPengiriman::query();
+    $this->filterByDistChannel($q);
+
+    $list = $q->whereNotNull('periode_shipment')
+        ->where('periode_shipment', '!=', '')
+        ->select('periode_shipment')
+        ->groupBy('periode_shipment')
+        ->orderByRaw('MAX(id) DESC')
+        ->pluck('periode_shipment');
+
+    return response()->json($list);
+}
 
     /**
      * Bandingkan Excel vs DB. TIDAK menghapus apa pun.
@@ -35,6 +50,8 @@ class CocoklogiController extends Controller
             'mode'      => 'required|in:grup,do',
             'date_from' => 'nullable|date',
             'date_to'   => 'nullable|date',
+            'periode'   => 'nullable|array',
+'periode.*' => 'string',
         ]);
 
         $mode = $request->mode;
@@ -56,6 +73,9 @@ class CocoklogiController extends Controller
 
         $q = LogistikPengiriman::query();
         $this->filterByDistChannel($q);
+        if ($request->filled('periode')) {
+    $q->whereIn('periode_shipment', $request->periode);
+}
 
         $filtered = $request->filled('date_from') || $request->filled('date_to');
         if ($request->filled('date_from')) $q->whereDate('tanggal_naik_logistik', '>=', $request->date_from);
@@ -104,14 +124,17 @@ class CocoklogiController extends Controller
 
         // ---------- ada di Excel, belum ada di sistem ----------
         // Kalau pakai filter periode, DB-nya cuma sebagian sehingga hasilnya menyesatkan -> tidak dihitung.
-        $notInDb = null;
+    $notInDb = null;
         if (!$filtered) {
             $notInDb = [];
             foreach (array_diff_key($excelKeys, $dbItems) as $v) {
-                $notInDb[] = ['no_shipment' => $v[0], 'tujuan_atau_do' => $v[1]];
+                $notInDb[] = [
+                    'no_shipment'      => $v[0],
+                    'tujuan_atau_do'   => $v[1],
+                    'tanggal_shipment' => $v[2] ?? null,
+                ];
             }
         }
-
         $token = bin2hex(random_bytes(8));
         Cache::put('cocok_' . $token, $missing, 1800);   // 30 menit; penghapusan hanya boleh dari daftar ini
         Cache::forever(self::LAST_RUN_KEY, now()->toDateTimeString());
@@ -140,31 +163,36 @@ class CocoklogiController extends Controller
      * Arsipkan ke logistik_storage lalu hapus dari logistik_pengiriman.
      * Hanya baris yang muncul di preview (token) yang bisa dihapus.
      */
-    public function hapus(Request $request)
-    {
-        $request->validate([
-            'token' => 'required|string',
-            'idx'   => 'required|array|min:1',
-            'idx.*' => 'integer|min:0',
-        ]);
+ public function hapus(Request $request)
+{
+    $request->validate([
+        'token' => 'required|string',
+        'aksi'  => 'required|in:hapus,arsip',   // hapus = hapus permanen, arsip = pindah ke logistik_storage
+        'idx'   => 'required|array|min:1',
+        'idx.*' => 'integer|min:0',
+    ]);
 
-        $missing = Cache::get('cocok_' . $request->token);
-        if (!$missing) {
-            return response()->json(['error' => 'Sesi preview habis, upload ulang Excel.'], 410);
+    $missing = Cache::get('cocok_' . $request->token);
+    if (!$missing) {
+        return response()->json(['error' => 'Sesi preview habis, upload ulang Excel.'], 410);
+    }
+
+    $arsip = $request->aksi === 'arsip';
+
+    $ids = [];
+    foreach (array_unique($request->idx) as $i) {
+        if (isset($missing[(int) $i])) {
+            array_push($ids, ...$missing[(int) $i]['ids']);
         }
+    }
+    $ids = array_values(array_unique($ids));
 
-        $ids = [];
-        foreach (array_unique($request->idx) as $i) {
-            if (isset($missing[(int) $i])) {
-                array_push($ids, ...$missing[(int) $i]['ids']);
-            }
-        }
-        $ids = array_values(array_unique($ids));
+    if (empty($ids)) {
+        return response()->json(['error' => 'Tidak ada data valid yang dipilih.'], 422);
+    }
 
-        if (empty($ids)) {
-            return response()->json(['error' => 'Tidak ada data valid yang dipilih.'], 422);
-        }
-
+    $list = null;
+    if ($arsip) {
         $cols = array_values(array_diff(
             array_intersect(
                 Schema::getColumnListing('logistik_pengiriman'),
@@ -173,12 +201,14 @@ class CocoklogiController extends Controller
             ['id']
         ));
         $list = '`' . implode('`,`', $cols) . '`';
+    }
 
-        try {
-            $deleted = 0;
+    try {
+        $deleted = 0;
 
-            DB::transaction(function () use ($ids, $list, &$deleted) {
-                foreach (array_chunk($ids, 1000) as $chunk) {
+        DB::transaction(function () use ($ids, $list, $arsip, &$deleted) {
+            foreach (array_chunk($ids, 1000) as $chunk) {
+                if ($arsip) {
                     $in = implode(',', array_fill(0, count($chunk), '?'));
 
                     $archived = DB::affectingStatement(
@@ -191,24 +221,32 @@ class CocoklogiController extends Controller
                     if ($archived !== $removed) {
                         throw new \RuntimeException("Arsip ({$archived}) dan hapus ({$removed}) tidak sama, dibatalkan.");
                     }
-                    $deleted += $removed;
+                } else {
+                    $removed = DB::table('logistik_pengiriman')->whereIn('id', $chunk)->delete();
                 }
-            });
-        } catch (\Throwable $e) {
-            logger()->error('COCOKLOGI HAPUS GAGAL', ['error' => $e->getMessage()]);
-            return response()->json(['error' => 'Gagal menghapus: ' . mb_substr($e->getMessage(), 0, 200)], 500);
-        }
 
-        logger()->info('COCOKLOGI HAPUS', ['deleted' => $deleted, 'user' => optional($request->user())->id]);
-
-        Cache::forget('cocok_' . $request->token);
-        Cache::forget('logistik_shipment_agg');
-        foreach (['area', 'dist_channel', 'pic_monitoring'] as $c) {
-            Cache::forget("list_{$c}");
-        }
-
-        return response()->json(['deleted' => $deleted]);
+                $deleted += $removed;
+            }
+        });
+    } catch (\Throwable $e) {
+        logger()->error('COCOKLOGI HAPUS GAGAL', ['aksi' => $request->aksi, 'error' => $e->getMessage()]);
+        return response()->json(['error' => 'Gagal memproses: ' . mb_substr($e->getMessage(), 0, 200)], 500);
     }
+
+    logger()->info('COCOKLOGI HAPUS', [
+        'aksi'    => $request->aksi,
+        'deleted' => $deleted,
+        'user'    => optional($request->user())->id,
+    ]);
+
+    Cache::forget('cocok_' . $request->token);
+    Cache::forget('logistik_shipment_agg');
+    foreach (['area', 'dist_channel', 'pic_monitoring'] as $c) {
+        Cache::forget("list_{$c}");
+    }
+
+    return response()->json(['deleted' => $deleted, 'aksi' => $request->aksi]);
+}
 
     private function filterByDistChannel($query)
     {

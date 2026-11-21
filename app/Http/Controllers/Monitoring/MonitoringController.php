@@ -1,9 +1,12 @@
 <?php
 
 namespace App\Http\Controllers\Monitoring;
-
+use App\Exports\XlsxSlicerInjector;
 use App\Exports\InTransitExport;
-use App\Exports\MonitoringExport;
+// use App\Exports\MonitoringExport;
+use App\Exports\MonitoringSlicerExport;
+use App\Exports\MonitoringFastExport;
+
 use App\Http\Controllers\Controller;
 use App\Models\LogistikPengiriman;
 use App\Traits\LogsInput;
@@ -72,6 +75,37 @@ private function kecualikanShipment($query): void
         }
         return $sql . 'ELSE 1 END';
     }
+
+   public function exportReport(Request $request)
+{
+    $filters = $request->only([
+        'periode', 'tanggal_shipment', 'pic_monitoring', 'dist_channel', 'area',
+        'bulan', 'tahun', 'keluar_gudang_dari', 'keluar_gudang_sampai',
+        'tgl_dari', 'tgl_sampai',
+    ]);
+
+    $name = 'Monitoring_Dashboard_' . date('Ymd_His') . '.xlsx';
+    $dir  = storage_path('app/private');
+    if (!is_dir($dir)) mkdir($dir, 0775, true);
+    $path = $dir . '/' . $name;
+
+    // build() sudah membuat tabel tblLogistik + chart di Ringkasan
+   // build() membuat sheet Ringkasan (tabel), Data (tblLogistik), dan Dashboard (chart)
+(new MonitoringSlicerExport($filters))->build($path);
+
+// slicer di sheet Dashboard, mengontrol tabel tblLogistik (sheet Data)
+
+    // slicer di sheet Ringkasan, mengontrol tabel tblLogistik (sheet Data)
+    $wanted = MonitoringSlicerExport::SLICER_HEADS;
+    XlsxSlicerInjector::inject(
+        $path,
+        'Dashboard',
+        $wanted,
+        MonitoringSlicerExport::slicerSlots(count($wanted))
+    );
+
+    return response()->download($path, $name)->deleteFileAfterSend(true);
+}
 
     private function gudangSuffixes(): array
     {
@@ -380,25 +414,25 @@ private function kecualikanShipment($query): void
         ]);
     }
 
-    public function export(Request $request)
-    {
-        $filters = $request->only([
-            'pic_monitoring',
-            'dist_channel',
-            'area',
-            'bulan',
-            'tahun',
-            'keluar_gudang_dari',
-            'keluar_gudang_sampai',
-            'tgl_dari',
-            'tgl_sampai',
-        ]);
+   public function export(Request $request)
+{
+    $filters = $request->only([
+        'periode',            // BARU: sebelumnya nggak ikut terkirim
+        'tanggal_shipment',   // BARU
+        'pic_monitoring',
+        'dist_channel',
+        'area',
+        'bulan',
+        'tahun',
+        'keluar_gudang_dari',
+        'keluar_gudang_sampai',
+        'tgl_dari',
+        'tgl_sampai',
+    ]);
 
-        return Excel::download(
-            new MonitoringExport($filters),
-            'Monitoring_Logistik_' . date('Ymd_His') . '.xlsx'
-        );
-    }
+    return (new MonitoringFastExport($filters))
+        ->download('Monitoring_Logistik_' . date('Ymd_His') . '.xlsx');
+}
 
     // =====================================================
     // HALAMAN DATA MONITORING

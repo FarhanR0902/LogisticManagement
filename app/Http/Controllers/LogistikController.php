@@ -40,6 +40,24 @@ class LogistikController extends Controller
         '_5' => 'FIFATEX',
     ];
 
+    private string $table = 'logistik_pengiriman';
+
+    /** Dipakai StorageController: storage pakai logic & kolom yang sama persis */
+    public function useStorage(): static
+    {
+        $this->table = 'logistik_storage';
+        return $this;
+    }
+
+    private function newQuery()
+    {
+        $model = $this->table === 'logistik_storage'
+            ? new \App\Models\LogistikStorage
+            : new LogistikPengiriman;
+
+        return $model->newQuery();
+    }
+
     private function gudangSuffixes(): array
     {
         return array_keys(self::GUDANG);
@@ -546,7 +564,7 @@ class LogistikController extends Controller
         set_time_limit(0);
 
         // ---------- 1. BANGUN QUERY + SEMUA FILTER ----------
-        $query = LogistikPengiriman::query();
+        $query = $this->newQuery();
 
         $this->filterByDistChannel($query);        // hak akses user
         $this->applyTanggalFilter($query, $request); // date_from, date_to, month, year, tgl_basis
@@ -585,34 +603,47 @@ class LogistikController extends Controller
     }
 
     /** Laporan lama (Ringkasan + slicer), dipindah apa adanya jadi method sendiri */
-    private function exportLaporan($query)
-    {
-        ini_set('memory_limit', '2G');
+   /** Laporan (Dashboard + Ringkasan + Data) dengan slicer */
+private function exportLaporan($query)
+{
+    ini_set('memory_limit', '2G');
 
-        $name = 'laporan_logistik_' . date('Ymd_His') . '.xlsx';
-        $rel  = 'exports/' . $name;
+    $name = 'laporan_logistik_' . date('Ymd_His') . '.xlsx';
+    $rel  = 'exports/' . $name;
 
-        Excel::store(
-            new \App\Exports\LogistikReportExport($query, 'Filter dari halaman Data Logistik'),
-            $rel,
-            'local'
-        );
-        $path = Storage::disk('local')->path($rel);
+    // storage punya tabel sendiri; Data/Ringkasan harus join ke tabel yang sama dengan $query
+    $tabel = $this->table === 'logistik_storage' ? 'logistik_storage' : null;
 
-        $headings = (new LogistikReportData($query))->headings();
-        $norm     = fn($s) => preg_replace('/[^a-z0-9]/', '', mb_strtolower((string) $s));
+    Excel::store(
+        new \App\Exports\LogistikReportExport($query, 'Filter dari halaman Data Logistik', $tabel),
+        $rel,
+        'local'
+    );
+    $path = Storage::disk('local')->path($rel);
 
-        $wanted = [];
-        foreach (['Tahun Naik Logistik', 'Bulan Naik Logistik', 'Area', 'Dist Channel', 'Planner', 'PIC Monitoring'] as $w) {
-            $found = collect($headings)->first(fn($h) => $norm($h) === $norm($w));
-            $found ? $wanted[] = $found : logger()->warning("Slicer: heading '{$w}' tidak ketemu di sheet Data");
-        }
+    $headings = (new LogistikReportData($query))->headings();
+    $norm     = fn($s) => preg_replace('/[^a-z0-9]/', '', mb_strtolower((string) $s));
 
-        $ok = XlsxSlicerInjector::inject($path, 'Ringkasan', $wanted, LogistikReportSummary::slicerSlots());
-        logger()->info('Slicer inject: ' . ($ok ? 'OK' : 'GAGAL'), ['kolom' => $wanted]);
-
-        return response()->download($path, $name)->deleteFileAfterSend(true);
+    // urutan di sini = urutan slot slicer di Dashboard (kolom A-C)
+    $wanted = [];
+    foreach ([
+        'Tahun Naik Logistik', 'Bulan Naik Logistik',
+        'Area', 'Ekpedisi', 'Dist Channel', 'Planner', 'PIC Monitoring',
+    ] as $w) {
+        $found = collect($headings)->first(fn($h) => $norm($h) === $norm($w));
+        $found ? $wanted[] = $found : logger()->warning("Slicer: heading '{$w}' tidak ketemu di sheet Data");
     }
+
+    $ok = XlsxSlicerInjector::inject(
+        $path,
+        'Dashboard',
+        $wanted,
+        \App\Exports\LogistikReportDashboard::slicerSlots()
+    );
+    logger()->info('Slicer inject: ' . ($ok ? 'OK' : 'GAGAL'), ['sheet' => 'Dashboard', 'kolom' => $wanted]);
+
+    return response()->download($path, $name)->deleteFileAfterSend(true);
+}
     /* =========================================================
      * DATA LOGISTIK — HALAMAN
      * ========================================================= */
@@ -629,7 +660,7 @@ class LogistikController extends Controller
      * ========================================================= */
     public function dataLogistikAjax(Request $request)
     {
-        $query = LogistikPengiriman::query();
+        $query = $this->newQuery();
 
         $this->filterByDistChannel($query);
 
@@ -790,7 +821,7 @@ class LogistikController extends Controller
         }
 
         $recordsFiltered = $this->countGroups($query);
-        $query = LogistikPengiriman::query()->whereIn('id', $this->groupIdsQuery($query));
+        $query = $this->newQuery()->whereIn('id', $this->groupIdsQuery($query));
 
         // ---------- SORTING ----------
 
@@ -823,7 +854,7 @@ class LogistikController extends Controller
 
         $shipments = $rows->pluck('no_shipment')->filter()->unique()->values();
 
-        $groupAgg = LogistikPengiriman::query()
+        $groupAgg = $this->newQuery()
             ->whereIn('no_shipment', $shipments)
             ->select(
                 'no_shipment',
@@ -852,7 +883,11 @@ class LogistikController extends Controller
                 return $muatan > 0 ? ($biaya / $muatan) * 100 : 0;
             });
 
-        $shipmentAgg = Cache::remember('logistik_shipment_agg', 300, fn() => $this->shipmentAggregates());
+        $shipmentAgg = Cache::remember(
+            $this->table === 'logistik_storage' ? 'storage_shipment_agg' : 'logistik_shipment_agg',
+            300,
+            fn() => $this->shipmentAggregates()
+        );
 
         // ---------- BANGUN BARIS OUTPUT ----------
         $data = $rows->map(function ($r) use ($shipmentAgg, $groupAgg, $crShipment) {
@@ -895,6 +930,7 @@ class LogistikController extends Controller
                     : e($r->tujuan),
 
                 'area'                        => $r->area,
+                'kota'                        => $r->kota,
                 'ketersediaan_unit_badge'     => $this->badgeKetersediaanUnit($r),
                 'mobil'                       => $r->mobil,
                 'total_do_qty_car'            => $r->total_do_qty_car,
@@ -1021,7 +1057,7 @@ class LogistikController extends Controller
             'tujuan'      => 'nullable|string',
         ]);
 
-        $q = LogistikPengiriman::query()->where('no_shipment', $request->no_shipment);
+        $q = $this->newQuery()->where('no_shipment', $request->no_shipment);
         $this->filterByDistChannel($q);
 
         $tujuan = (string) $request->tujuan;
@@ -1049,9 +1085,9 @@ class LogistikController extends Controller
     /** Daftar kolom asli tabel (cache 1 jam) */
     private function searchableCols(): array
     {
-        return Cache::remember('logistik_searchable_cols', 3600, function () {
+        return Cache::remember('logistik_searchable_cols_' . $this->table, 3600, function () {
             return array_values(array_diff(
-                Schema::getColumnListing('logistik_pengiriman'),
+                Schema::getColumnListing($this->table),
                 ['id', 'created_at', 'updated_at']
             ));
         });
@@ -1108,6 +1144,8 @@ class LogistikController extends Controller
         });
 
         Cache::forget('logistik_shipment_agg');
+        Cache::forget('storage_shipment_agg');
+        Cache::forget('storage_list_area');
         foreach (['area', 'dist_channel', 'pic_monitoring'] as $c) {
             Cache::forget("list_{$c}");
         }
@@ -1560,7 +1598,7 @@ class LogistikController extends Controller
     /** Agregat per no_shipment (dipakai untuk Cost Ratio & optimal). */
     private function shipmentAggregates(): array
     {
-        return DB::table('logistik_pengiriman')
+        return DB::table($this->table)
             ->select(
                 'no_shipment',
                 DB::raw('SUM(nilai_muatan) as total_muatan'),

@@ -155,6 +155,7 @@ protected string $monitoringRoute = 'monitoring.datalogistik';
 
         return DB::query()->fromSub($jakarta->unionAll($pasuruan), 'v');
     }
+    
 
     private function colExpr(string $generic, ?string $col): string
     {

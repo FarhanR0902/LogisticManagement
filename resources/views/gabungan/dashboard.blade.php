@@ -1241,6 +1241,14 @@ function formatRupiahRingkas(value){
     if (abs >= 1e3)  return (value/1e3).toFixed(1).replace(/\.0$/,'') + 'Rb';
     return value.toString();
 }
+function hitungCr(biaya, muatan){
+    biaya  = Number(biaya)  || 0;
+    muatan = Number(muatan) || 0;
+    return muatan > 0 ? (biaya / muatan) * 100 : 0;
+}
+function formatCr(cr){
+    return cr.toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '%';
+}
 
 if (document.getElementById('shipmentMap')) {
 
@@ -1281,13 +1289,15 @@ if (document.getElementById('shipmentMap')) {
             iconAnchor: [radius, radius]
         });
 
-        L.marker(koordinat, { icon: icon }).addTo(shipmentMap).bindPopup(`
-            <strong>${a.area}</strong><br>
-            Jumlah shipment: <b>${a.total_shipment}</b><br>
-            Total nilai muatan: <b>Rp ${nilaiMuatan.toLocaleString('id-ID')}</b><br>
-            Total biaya kirim: Rp ${Number(a.total_biaya).toLocaleString('id-ID')}
-        `);
+      const cr = hitungCr(a.total_biaya, nilaiMuatan);
 
+L.marker(koordinat, { icon: icon }).addTo(shipmentMap).bindPopup(`
+    <strong>${a.area}</strong><br>
+    Jumlah shipment: <b>${a.total_shipment}</b><br>
+    Total nilai muatan: <b>Rp ${nilaiMuatan.toLocaleString('id-ID')}</b><br>
+    Total biaya kirim: <b>Rp ${Number(a.total_biaya).toLocaleString('id-ID')}</b><br>
+    Cost ratio (CR): <b>${formatCr(cr)}</b>
+`);
         boundsList.push(koordinat);
     });
 

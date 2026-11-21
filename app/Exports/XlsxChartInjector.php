@@ -19,7 +19,8 @@ class XlsxChartInjector
      * @param array $charts [
      *   ['title'=>'...', 'cat'=>'$A$9:$A$16',
      *    'series'=>[['name'=>'$F$8','val'=>'$F$9:$F$16','color'=>'0284C7'], ...],
-     *    'anchor'=>[kolomAwal, barisAwal, kolomAkhir, barisAkhir]],  // indeks mulai 0
+     *    'anchor'=>[kolomAwal, barisAwal, kolomAkhir, barisAkhir],  // indeks mulai 0
+     *    'labels'=>false],  // opsional: matikan label angka di chart ini
      * ]
      */
     public static function add(string $path, string $sheet, array $charts): void
@@ -50,6 +51,15 @@ class XlsxChartInjector
         return $n;
     }
 
+    /** teks putih di latar gelap, teks hitam di latar terang (supaya angka selalu kebaca) */
+    private static function warnaTeks(string $hex): string
+    {
+        $r = hexdec(substr($hex, 0, 2));
+        $g = hexdec(substr($hex, 2, 2));
+        $b = hexdec(substr($hex, 4, 2));
+        return (0.299 * $r + 0.587 * $g + 0.114 * $b) > 160 ? '111827' : 'FFFFFF';
+    }
+
     private static function chartXml(array $c, string $sheet): string
     {
         $q   = "'" . str_replace("'", "''", $sheet) . "'!";
@@ -57,10 +67,29 @@ class XlsxChartInjector
 
         $ser = '';
         foreach ($c['series'] as $i => $s) {
+            // label angka: badge berwarna seri di ujung atas bar (matikan per chart dengan 'labels' => false)
+            $dl = '';
+            if (($c['labels'] ?? true) !== false) {
+                $dl = '<c:dLbls>'
+                    . '<c:numFmt formatCode="#,##0;-#,##0;;" sourceLinked="0"/>'
+                    . '<c:spPr>'
+                    .   '<a:solidFill><a:srgbClr val="' . $s['color'] . '"/></a:solidFill>'
+                    .   '<a:ln w="9525"><a:solidFill><a:srgbClr val="FFFFFF"/></a:solidFill></a:ln>'
+                    . '</c:spPr>'
+                    . '<c:txPr><a:bodyPr/><a:lstStyle/><a:p><a:pPr>'
+                    .   '<a:defRPr sz="1000" b="1"><a:solidFill><a:srgbClr val="' . self::warnaTeks($s['color']) . '"/></a:solidFill></a:defRPr>'
+                    . '</a:pPr><a:endParaRPr lang="id-ID"/></a:p></c:txPr>'
+                    . '<c:dLblPos val="outEnd"/>'
+                    . '<c:showLegendKey val="0"/><c:showVal val="1"/><c:showCatName val="0"/>'
+                    . '<c:showSerName val="0"/><c:showPercent val="0"/><c:showBubbleSize val="0"/>'
+                    . '</c:dLbls>';
+            }
+
             $ser .= '<c:ser><c:idx val="' . $i . '"/><c:order val="' . $i . '"/>'
                 . '<c:tx><c:strRef><c:f>' . $esc($q . $s['name']) . '</c:f></c:strRef></c:tx>'
                 . '<c:spPr><a:solidFill><a:srgbClr val="' . $s['color'] . '"/></a:solidFill></c:spPr>'
                 . '<c:invertIfNegative val="0"/>'
+                . $dl
                 . '<c:cat><c:strRef><c:f>' . $esc($q . $c['cat']) . '</c:f></c:strRef></c:cat>'
                 . '<c:val><c:numRef><c:f>' . $esc($q . $s['val']) . '</c:f></c:numRef></c:val>'
                 . '</c:ser>';

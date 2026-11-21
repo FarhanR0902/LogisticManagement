@@ -2,14 +2,6 @@
 
 namespace App\Exports;
 
-use PhpOffice\PhpSpreadsheet\Cell\DataType;
-use PhpOffice\PhpSpreadsheet\Chart\Chart;
-use PhpOffice\PhpSpreadsheet\Chart\DataSeries;
-use PhpOffice\PhpSpreadsheet\Chart\DataSeriesValues;
-use PhpOffice\PhpSpreadsheet\Chart\Legend;
-use PhpOffice\PhpSpreadsheet\Chart\PlotArea;
-use PhpOffice\PhpSpreadsheet\Chart\Title;
-use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 use Illuminate\Database\Eloquent\Builder as EloquentBuilder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -17,11 +9,18 @@ use Maatwebsite\Excel\Concerns\WithEvents;
 use Maatwebsite\Excel\Concerns\WithTitle;
 use Maatwebsite\Excel\Events\AfterSheet;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
+use PhpOffice\PhpSpreadsheet\Chart\Chart;
+use PhpOffice\PhpSpreadsheet\Chart\DataSeries;
+use PhpOffice\PhpSpreadsheet\Chart\DataSeriesValues;
+use PhpOffice\PhpSpreadsheet\Chart\Legend;
+use PhpOffice\PhpSpreadsheet\Chart\PlotArea;
+use PhpOffice\PhpSpreadsheet\Chart\Title;
 use PhpOffice\PhpSpreadsheet\Worksheet\Table;
 use PhpOffice\PhpSpreadsheet\Worksheet\Table\TableStyle;
+use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
 /**
- * Sheet "Data" = isi LogistikExportFull (semua kolom database + kolom [Hitung])
+ * Sheet "Data" = isi LogistikExportFull (kolom terpilih + kolom [Hitung])
  * + kolom bantu slicer (Periode Keluar, Tanggal Keluar Terakhir, Tahun/Bulan Naik Logistik)
  * + kolom bantu "Rk ..." untuk sheet Ringkasan yang HIDUP (rumus SUMIFS yang ikut filter/slicer),
  * dijadikan Excel Table "tblLogistik".
@@ -30,26 +29,40 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Table\TableStyle;
  *   Rk Tampil       -> rumus =SUBTOTAL(103, Rk Wakil Grup): 1 kalau baris sedang terlihat (tidak terfilter)
  *   Rk Wakil Grup   -> 1 hanya pada baris wakil (MIN id) tiap grup no_shipment + tujuan
  *   Rk Nilai Grup / Rk Biaya Grup -> total grup, hanya di baris wakil
- *   Rk Tiba OT ... Rk Belum Bongkar -> flag metrik, hanya di baris wakil
+ *   Rk Tiba OT ... Rk Gudang Delay -> flag metrik, hanya di baris wakil
  *   Rk Area, Rk PIC Monitoring, Rk Dist Channel, Rk Ekspedisi, Rk Tujuan, Rk Planner
  *                   -> kunci pengelompokan (kosong = "(kosong)") yang dibaca SUMIFS di Ringkasan
  */
 class LogistikReportData extends LogistikExportFull implements WithEvents, WithTitle
 {
     public const SUFFIXES = ['', '_2', '_3', '_4', '_5'];
+
     /** kolom yang tampil di sheet Data laporan (sisanya ada di Export Data cepat) */
-private const KEEP = [
-    'no_shipment', 'no_do', 'tanggal_naik_logistik', 'rencana_kirim',
-    'planner', 'tujuan', 'area', 'dist_channel', 'ekpedisi', 'mobil',
-    'nilai_muatan', 'biaya_kirim', 'kirim_kontribusi', 'pic_monitoring',
-    'tanggal_keluar_gudang', 'tanggal_tiba', 'tanggal_bongkar',
-    'sla_tiba', 'sla_bongkar', 'status_akhir', 'monitoring_alert',
-    '[Hitung] Update Posisi Mobil', '[Hitung] CR (%)', '[Hitung] Status Akhir',
-];
+    private const KEEP = [
+        'no_shipment', 'no_do', 'tanggal_naik_logistik', 'rencana_kirim',
+        'planner', 'tujuan', 'area', 'dist_channel', 'ekpedisi', 'mobil',
+        'nilai_muatan', 'biaya_kirim', 'kirim_kontribusi', 'pic_monitoring',
+        'tanggal_keluar_gudang', 'tanggal_tiba', 'tanggal_bongkar',
+        'sla_tiba', 'sla_bongkar', 'status_akhir', 'monitoring_alert',
+        '[Hitung] Update Posisi Mobil', '[Hitung] CR (%)', '[Hitung] Status Akhir',
+    ];
+
+    /** pola di kolom `mobil` yang dianggap Reefer; selain itu = Dry */
+    private const REEFER_REGEX = '/reefer|reffer|refer|chiller|frozen|freezer|cold/i';
 
     private ?array $extraCols = null;
     private ?array $tblCols = null;
     private ?array $grp = null;
+    private ?array $groupList = null;
+
+    private ?object $factsFor = null;
+    private array $facts = [];
+    private ?array $gdgCols = null;
+
+    private ?array $letters = null;
+    private int $rowNo = 1;              // baris 1 = heading
+    private ?int $tampilIdx = null;
+    private ?string $wkLetter = null;
 
     public function title(): string
     {
@@ -65,10 +78,10 @@ private const KEEP = [
             return $this->extraCols;
         }
 
-     $base = array_values(array_filter(
-    parent::columns(),
-    fn($c) => in_array($c[0], self::KEEP, true)
-));
+        $base = array_values(array_filter(
+            parent::columns(),
+            fn($c) => in_array($c[0], self::KEEP, true)
+        ));
 
         $bln = ['', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
             'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
@@ -84,20 +97,55 @@ private const KEEP = [
         return $this->extraCols = array_merge($base, $extra, $this->rankColumns());
     }
 
-    public function styles(\PhpOffice\PhpSpreadsheet\Worksheet\Worksheet $sheet)
-{
-    $sheet->freezePane('A2');
-    $sheet->getDefaultColumnDimension()->setWidth(18);
-    $sheet->getStyle('A1:' . $sheet->getHighestColumn() . '1')->applyFromArray([
-        'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF']],
-        'fill' => ['fillType' => 'solid', 'startColor' => ['rgb' => '03C03C']],
-    ]);
-    return [];
-}
+    public function styles(Worksheet $sheet)
+    {
+        $sheet->freezePane('A2');
+        $sheet->getDefaultColumnDimension()->setWidth(18);
+        $sheet->getStyle('A1:' . $sheet->getHighestColumn() . '1')->applyFromArray([
+            'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF']],
+            'fill' => ['fillType' => 'solid', 'startColor' => ['rgb' => '03C03C']],
+        ]);
+        return [];
+    }
+
+    /** map() = nilai kolom biasa + rumus SUBTOTAL di Rk Tampil (ditulis langsung, tanpa loop kedua) */
+    public function map($r): array
+    {
+        $row = parent::map($r);
+
+        $this->tampilIdx ??= array_search('Rk Tampil', array_column($this->columns(), 0), true);
+        $this->wkLetter  ??= $this->letter('Rk Wakil Grup');
+
+        $row[$this->tampilIdx] = '=SUBTOTAL(103,$' . $this->wkLetter . (++$this->rowNo) . ')';
+
+        return $row;
+    }
 
     // ============================================================
-    // KOLOM BANTU UNTUK RINGKASAN HIDUP
+    // DATA GRUP (SATU query)
     // ============================================================
+
+    /** SATU query: baris wakil tiap grup + kolom kunci + kolom keluar gudang */
+    private function groupList(): array
+    {
+        if ($this->groupList !== null) {
+            return $this->groupList;
+        }
+
+        $cols = ['lp.id', 'g.g_nilai', 'g.g_biaya'];
+        foreach (['area', 'pic_monitoring', 'dist_channel', 'ekpedisi', 'tujuan', 'planner'] as $c) {
+            if ($this->hasColumn($c)) {
+                $cols[] = "lp.{$c}";
+            }
+        }
+        foreach (self::SUFFIXES as $s) {
+            if ($this->hasColumn("tanggal_keluar_gudang{$s}")) {
+                $cols[] = "lp.tanggal_keluar_gudang{$s}";
+            }
+        }
+
+        return $this->groupList = $this->groupRows()->select($cols)->get()->all();
+    }
 
     /** id baris wakil => [total nilai grup, total biaya grup] */
     private function groupInfo(): array
@@ -107,76 +155,207 @@ private const KEEP = [
         }
 
         $out = [];
-        foreach ($this->groupRows()->select('lp.id', 'g.g_nilai', 'g.g_biaya')->get() as $x) {
+        foreach ($this->groupList() as $x) {
             $out[(int) $x->id] = [(float) $x->g_nilai, (float) $x->g_biaya];
         }
 
         return $this->grp = $out;
     }
 
-    private function rankColumns(): array
+    /** daftar label unik utk 1 kolom (case-insensitive, sama seperti SUMIFS), urut 'nilai' (desc) atau 'abjad' */
+    public function keyList(string $col, string $order = 'abjad', int $limit = 10000): array
     {
-        $wk   = fn($r) => isset($this->groupInfo()[(int) $r->id]);
-        $lc   = fn($v) => mb_strtolower(trim((string) $v));
-        $fl   = fn($r, string $c) => trim((string) ($r->{$c} ?? '')) !== '';
-        $flag = fn(callable $cond) => fn($r) => ($wk($r) && $cond($r)) ? 1 : 0;
-
-        // suffix gudang yang kolom "keluar"-nya ada di tabel (sama dengan metrics())
-        $sfx = array_values(array_filter(
-            self::SUFFIXES,
-            fn($s) => $this->hasColumn("tanggal_keluar_gudang{$s}")
-        ));
-
-        // in transit: belum tiba, minimal 1 gudang sudah keluar, tidak ada siklus gudang yang menggantung
-        $inTransit = function ($r) use ($sfx, $fl) {
-            if (empty($sfx) || $fl($r, 'tanggal_tiba')) {
-                return false;
+        $tot = [];
+        $lbl = [];
+        foreach ($this->groupList() as $g) {
+            $k = trim((string) ($g->{$col} ?? ''));
+            if ($k === '') {
+                $k = '(kosong)';
             }
+            $lk = mb_strtolower($k);
+            $lbl[$lk] ??= $k;
+            $tot[$lk] = ($tot[$lk] ?? 0) + (float) $g->g_nilai;
+        }
 
+        $order === 'nilai' ? arsort($tot) : ksort($tot, SORT_STRING);
+
+        $keys = [];
+        foreach (array_keys($tot) as $lk) {
+            $keys[] = $lbl[$lk];
+        }
+
+        return array_slice($keys, 0, $limit);
+    }
+
+    /** daftar periode keluar gudang (yyyymm) dari baris wakil */
+    public function periodeKeys(): array
+    {
+        $set = [];
+        foreach ($this->groupList() as $g) {
+            $max = null;
+            foreach (self::SUFFIXES as $s) {
+                $v = $g->{"tanggal_keluar_gudang{$s}"} ?? null;
+                if (trim((string) $v) !== '' && ($t = strtotime((string) $v))) {
+                    $max = max($max ?? $t, $t);
+                }
+            }
+            if ($max) {
+                $set[date('Ym', $max)] = true;
+            }
+        }
+
+        $keys = array_keys($set);
+        sort($keys);
+
+        return array_map('strval', $keys);
+    }
+
+    // ============================================================
+    // FLAG TURUNAN PER BARIS (dihitung sekali, dipakai ulang tiap kolom Rk)
+    // ============================================================
+
+    /** [suffix => kolom 'mulai' yg ada di tabel] untuk gudang yang punya kolom keluar */
+    private function gdgCols(): array
+    {
+        if ($this->gdgCols !== null) {
+            return $this->gdgCols;
+        }
+
+        $out = [];
+        foreach (self::SUFFIXES as $s) {
+            if (!$this->hasColumn("tanggal_keluar_gudang{$s}")) {
+                continue;
+            }
+            $out[$s] = array_values(array_filter(
+                ["planning_loading{$s}", "tanggal_tiba_gudang{$s}"],
+                fn($c) => $this->hasColumn($c)
+            ));
+        }
+
+        return $this->gdgCols = $out;
+    }
+
+    private function facts($r): array
+    {
+        if ($this->factsFor === $r) {
+            return $this->facts;
+        }
+
+        $has = fn(string $c) => trim((string) ($r->{$c} ?? '')) !== '';
+        $lc  = fn(string $c) => strtolower(trim((string) ($r->{$c} ?? '')));
+
+        $info = $this->groupInfo()[(int) $r->id] ?? null;
+        $wk   = $info !== null ? 1 : 0;
+        $f    = fn(bool $c) => ($wk && $c) ? 1 : 0;
+
+        $tiba    = $has('tanggal_tiba');
+        $bongkar = $has('tanggal_bongkar');
+
+        // in transit: belum tiba, min. 1 gudang sudah keluar, tidak ada siklus gudang menggantung
+        $inTransit = false;
+        if (!$tiba && $this->gdgCols()) {
             $any      = false;
             $dangling = false;
-
-            foreach ($sfx as $s) {
-                $kFilled = $fl($r, "tanggal_keluar_gudang{$s}");
-                if ($kFilled) {
+            foreach ($this->gdgCols() as $s => $started) {
+                if ($has("tanggal_keluar_gudang{$s}")) {
                     $any = true;
+                    continue;
                 }
-
-                $started = array_filter(
-                    ["planning_loading{$s}", "tanggal_tiba_gudang{$s}"],
-                    fn($c) => $this->hasColumn($c)
-                );
-                if (!empty($started) && !$kFilled) {
-                    foreach ($started as $c) {
-                        if ($fl($r, $c)) {
-                            $dangling = true;
-                            break;
-                        }
+                foreach ($started as $c) {
+                    if ($has($c)) {
+                        $dangling = true;
+                        break;
                     }
                 }
             }
+            $inTransit = $any && !$dangling;
+        }
 
-            return $any && !$dangling;
-        };
+        // status gudang: delay kalau ada gudang tiba lebih lambat dari planning, ot kalau ada data & tak ada yg telat
+        $gd = null;
+        foreach (self::SUFFIXES as $s) {
+            $p = strtotime((string) ($r->{"planning_loading{$s}"} ?? ''));
+            $t = strtotime((string) ($r->{"tanggal_tiba_gudang{$s}"} ?? ''));
+            if (!$p || !$t) {
+                continue;
+            }
+            $gd = 'ot';
+            if (date('Y-m-d', $t) > date('Y-m-d', $p)) {
+                $gd = 'delay';
+                break;
+            }
+        }
+
+        // tanggal keluar gudang terakhir
+        $keluar = null;
+        foreach (self::SUFFIXES as $s) {
+            $v = $r->{"tanggal_keluar_gudang{$s}"} ?? null;
+            if (trim((string) $v) !== '' && ($t = strtotime((string) $v))) {
+                $keluar = max($keluar ?? $t, $t);
+            }
+        }
+
+        $sT = $lc('sla_tiba');
+        $sB = $lc('sla_bongkar');
+        $sA = $lc('status_akhir');
+        $mA = $lc('monitoring_alert');
+
+        $this->factsFor = $r;
+
+        return $this->facts = [
+            'wk'         => $wk,
+            'nilai'      => $info[0] ?? 0,
+            'biaya'      => $info[1] ?? 0,
+            'tiba_ot'    => $f($sT === 'on time'),
+            'tiba_dl'    => $f($sT === 'delay'),
+            'bong_ot'    => $f($sB === 'on time'),
+            'bong_dl'    => $f($sB === 'delay'),
+            'ak_ot'      => $f($sA === 'on time total'),
+            'ak_dp'      => $f($sA === 'delay perjalanan'),
+            'ak_dpb'     => $f($sA === 'delay pembongkaran'),
+            'ak_dt'      => $f($sA === 'delay total'),
+            'del_ot'     => $f($mA === 'delivered on time'),
+            'del_dl'     => $f($mA === 'delivered delay'),
+            'in_transit' => $f($inTransit),
+            'belum_tiba' => $f(!$tiba),
+            'belum_bong' => $f($tiba && !$bongkar),
+            'gd_ot'      => $f($gd === 'ot'),
+            'gd_dl'      => $f($gd === 'delay'),
+            'tipe'       => preg_match(self::REEFER_REGEX, (string) ($r->mobil ?? '')) ? 'Reefer' : 'Dry',
+            'keluar'     => $keluar,
+        ];
+    }
+
+    private function keluarTs($r): ?int
+    {
+        return $this->facts($r)['keluar'];
+    }
+
+    private function rankColumns(): array
+    {
+        $k = fn(string $key) => fn($r) => $this->facts($r)[$key];
 
         $cols = [
-            ['Rk Tampil',                   'raw', fn($r) => ''],   // diisi rumus SUBTOTAL di registerEvents
-            ['Rk Wakil Grup',               'raw', fn($r) => $wk($r) ? 1 : 0],
-            ['Rk Nilai Grup',               'raw', fn($r) => $this->groupInfo()[(int) $r->id][0] ?? 0],
-            ['Rk Biaya Grup',               'raw', fn($r) => $this->groupInfo()[(int) $r->id][1] ?? 0],
-            ['Rk Tiba OT',                  'raw', $flag(fn($r) => $lc($r->sla_tiba ?? '') === 'on time')],
-            ['Rk Tiba Delay',               'raw', $flag(fn($r) => $lc($r->sla_tiba ?? '') === 'delay')],
-            ['Rk Bongkar OT',               'raw', $flag(fn($r) => $lc($r->sla_bongkar ?? '') === 'on time')],
-            ['Rk Bongkar Delay',            'raw', $flag(fn($r) => $lc($r->sla_bongkar ?? '') === 'delay')],
-            ['Rk Akhir OT',                 'raw', $flag(fn($r) => $lc($r->status_akhir ?? '') === 'on time total')],
-            ['Rk Akhir Delay Perjalanan',   'raw', $flag(fn($r) => $lc($r->status_akhir ?? '') === 'delay perjalanan')],
-            ['Rk Akhir Delay Pembongkaran', 'raw', $flag(fn($r) => $lc($r->status_akhir ?? '') === 'delay pembongkaran')],
-            ['Rk Akhir Delay Total',        'raw', $flag(fn($r) => $lc($r->status_akhir ?? '') === 'delay total')],
-            ['Rk Delivered OT',             'raw', $flag(fn($r) => $lc($r->monitoring_alert ?? '') === 'delivered on time')],
-            ['Rk Delivered Delay',          'raw', $flag(fn($r) => $lc($r->monitoring_alert ?? '') === 'delivered delay')],
-            ['Rk In Transit',               'raw', $flag($inTransit)],
-            ['Rk Belum Tiba',               'raw', $flag(fn($r) => !$fl($r, 'tanggal_tiba'))],
-            ['Rk Belum Bongkar',            'raw', $flag(fn($r) => $fl($r, 'tanggal_tiba') && !$fl($r, 'tanggal_bongkar'))],
+            ['Rk Tampil',                   'raw', fn($r) => ''],   // diisi rumus di map()
+            ['Rk Wakil Grup',               'raw', $k('wk')],
+            ['Rk Nilai Grup',               'raw', $k('nilai')],
+            ['Rk Biaya Grup',               'raw', $k('biaya')],
+            ['Rk Tiba OT',                  'raw', $k('tiba_ot')],
+            ['Rk Tiba Delay',               'raw', $k('tiba_dl')],
+            ['Rk Bongkar OT',               'raw', $k('bong_ot')],
+            ['Rk Bongkar Delay',            'raw', $k('bong_dl')],
+            ['Rk Akhir OT',                 'raw', $k('ak_ot')],
+            ['Rk Akhir Delay Perjalanan',   'raw', $k('ak_dp')],
+            ['Rk Akhir Delay Pembongkaran', 'raw', $k('ak_dpb')],
+            ['Rk Akhir Delay Total',        'raw', $k('ak_dt')],
+            ['Rk Delivered OT',             'raw', $k('del_ot')],
+            ['Rk Delivered Delay',          'raw', $k('del_dl')],
+            ['Rk In Transit',               'raw', $k('in_transit')],
+            ['Rk Belum Tiba',               'raw', $k('belum_tiba')],
+            ['Rk Belum Bongkar',            'raw', $k('belum_bong')],
+            ['Rk Gudang OT',                'raw', $k('gd_ot')],
+            ['Rk Gudang Delay',             'raw', $k('gd_dl')],
+            ['Rk Tipe Mobil',               'raw', $k('tipe')],
         ];
 
         // kolom kunci pengelompokan untuk SUMIFS di sheet Ringkasan (kosong => "(kosong)")
@@ -229,27 +408,21 @@ private const KEEP = [
         return $f;
     }
 
-    /** huruf kolom (A, B, ...) berdasarkan nama heading */
+    /** huruf kolom (A, B, ...) berdasarkan nama heading (di-cache) */
     public function letter(string $head): string
     {
-        foreach ($this->columns() as $i => $col) {
-            if ($col[0] === $head) {
-                return Coordinate::stringFromColumnIndex($i + 1);
+        if ($this->letters === null) {
+            $this->letters = [];
+            foreach ($this->columns() as $i => $col) {
+                $this->letters[$col[0]] ??= Coordinate::stringFromColumnIndex($i + 1);
             }
         }
-        throw new \RuntimeException("Kolom '{$head}' tidak ada di sheet Data.");
-    }
 
-    private function keluarTs($r): ?int
-    {
-        $max = null;
-        foreach (self::SUFFIXES as $s) {
-            $v = $r->{"tanggal_keluar_gudang{$s}"} ?? null;
-            if (trim((string) $v) !== '' && ($t = strtotime((string) $v))) {
-                $max = $max === null ? $t : max($max, $t);
-            }
+        if (!isset($this->letters[$head])) {
+            throw new \RuntimeException("Kolom '{$head}' tidak ada di sheet Data.");
         }
-        return $max;
+
+        return $this->letters[$head];
     }
 
     // ============================================================
@@ -257,7 +430,7 @@ private const KEEP = [
     // ============================================================
     public function hasColumn(string $col): bool
     {
-        $this->tblCols ??= array_flip(Schema::getColumnListing('logistik_pengiriman'));
+        $this->tblCols ??= array_flip(Schema::getColumnListing($this->tabel ?: 'logistik_pengiriman'));
         return isset($this->tblCols[$col]);
     }
 
@@ -290,7 +463,7 @@ private const KEEP = [
             ))
             ->groupByRaw("COALESCE(NULLIF(TRIM(no_shipment),''), CONCAT('id', id)), COALESCE(tujuan,'')");
 
-       return $this->source('lp')->joinSub($agg, 'g', 'g.id', '=', 'lp.id');
+        return $this->source('lp')->joinSub($agg, 'g', 'g.id', '=', 'lp.id');
     }
 
     /** ekspresi SQL: tanggal keluar gudang terakhir dari semua gudang */
@@ -501,7 +674,8 @@ private const KEEP = [
     }
 
     // ============================================================
-    // EVENT: isi rumus Rk Tampil, jadikan Excel Table, warnai kolom bantu
+    // EVENT: jadikan Excel Table, warnai kolom bantu
+    // (rumus Rk Tampil sudah ditulis langsung di map())
     // ============================================================
     public function registerEvents(): array
     {
@@ -519,15 +693,8 @@ private const KEEP = [
                     'fill' => ['fillType' => 'solid', 'startColor' => ['rgb' => '6B7280']],
                 ]);
 
+                // Table hanya valid kalau ada minimal 1 baris data
                 if ($lastRow >= 2) {
-                    // Rk Tampil: 1 kalau baris terlihat, 0 kalau terfilter (filter tabel / slicer)
-                    $tc = $this->letter('Rk Tampil');
-                    $wk = $this->letter('Rk Wakil Grup');   // selalu terisi (1/0)
-                    for ($r = 2; $r <= $lastRow; $r++) {
-                        $sheet->setCellValueExplicit("{$tc}{$r}", "=SUBTOTAL(103,\${$wk}{$r})", DataType::TYPE_FORMULA);
-                    }
-
-                    // Table hanya valid kalau ada minimal 1 baris data
                     $table = new Table("A1:{$lastCol}{$lastRow}", 'tblLogistik');
                     $table->setShowHeaderRow(true);
                     $table->setAllowFilter(true);

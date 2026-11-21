@@ -41,25 +41,38 @@ class PlannerExport implements
     {
         $this->f = $filters;
     }
-
+/** terima array atau string "a,b,c", buang elemen kosong */
+protected function toList($v): array
+{
+    if (is_string($v)) $v = explode(',', $v);
+    return array_values(array_filter(
+        array_map(fn($x) => trim((string) $x), (array) $v),
+        fn($x) => $x !== ''
+    ));
+}
     // ============================================================
     // QUERY (urutan sama dengan dataAjax)
     // ============================================================
-   public function query()
+public function query()
 {
     $q = LogistikPengiriman::query();
     $f = $this->f;
 
-    if (!empty($f['periode'])) {
-        if ($f['periode'] === '__KOSONG__') {
-            $q->whereRaw("COALESCE(NULLIF(TRIM(periode_shipment),''),'') = ''");
-        } else {
-            $q->where('periode_shipment', $f['periode']);
-        }
+    if ($list = $this->toList($f['periode'] ?? [])) {
+        $q->where(function ($w) use ($list) {
+            $real = array_values(array_diff($list, ['__KOSONG__']));
+            if ($real) {
+                $w->whereIn('periode_shipment', $real);
+            }
+            if (in_array('__KOSONG__', $list, true)) {
+                $w->orWhereRaw("COALESCE(NULLIF(TRIM(periode_shipment),''),'') = ''");
+            }
+        });
     }
-    if (!empty($f['planner']))      $q->whereIn('planner', (array) $f['planner']);
-    if (!empty($f['area']))         $q->whereIn('area', (array) $f['area']);
-    if (!empty($f['dist_channel'])) $q->whereIn('dist_channel', (array) $f['dist_channel']);
+    if ($v = $this->toList($f['planner'] ?? []))      $q->whereIn('planner', $v);
+    if ($v = $this->toList($f['area'] ?? []))         $q->whereIn('area', $v);
+    if ($v = $this->toList($f['dist_channel'] ?? [])) $q->whereIn('dist_channel', $v);
+
     if (!empty($f['tanggal_shipment'])) {
         $d = $f['tanggal_shipment'];
         $q->where('tanggal_shipment', '>=', $d)
@@ -67,7 +80,6 @@ class PlannerExport implements
     }
     if (!empty($f['create_tgl'])) $q->whereDate('create_tgl', $f['create_tgl']);
 
-    // urut berdasarkan id saja: murah, dan stabil untuk chunk
     return $q->orderBy('id');
 }
     private function selesaiGudangSql(): string
@@ -230,13 +242,28 @@ class PlannerExport implements
     // ============================================================
     // HELPER (protected: dipakai juga oleh PlannerReportData)
     // ============================================================
-    protected function xl($v)
-    {
-        if ($v === null || $v === '' || $v === false) return '';
-        $ts = is_int($v) ? $v : strtotime((string) $v);
-        if (!$ts || $ts <= 0) return '';
-        return XlDate::PHPToExcel(new \DateTime(date('Y-m-d', $ts)));
+ protected function xl($v)
+{
+    if ($v === null || $v === '' || $v === false) return '';
+    $ts = is_int($v) ? $v : strtotime((string) $v);
+    if (!$ts || $ts <= 0) return '';
+    return strtotime(date('Y-m-d', $ts) . ' UTC') / 86400 + 25569;
+}
+
+private $memoRow = null;
+private array $memoVal = [];
+
+protected function memo($r, string $key, callable $fn)
+{
+    if ($this->memoRow !== $r) {
+        $this->memoRow = $r;
+        $this->memoVal = [];
     }
+    if (!array_key_exists($key, $this->memoVal)) {
+        $this->memoVal[$key] = $fn();
+    }
+    return $this->memoVal[$key];
+}
 
     protected function jam($v): string
     {
@@ -272,35 +299,59 @@ class PlannerExport implements
         return ['text' => $text, 'delay' => $menit > 1440, 'hari' => $hari];
     }
 
-    protected function infoGudang($r, string $s): ?array
-    {
-        return $this->hitungGudang(
-            $r->{'tanggal_tiba_gudang' . $s},   $r->{'waktu_tiba_gudang' . $s},
-            $r->{'tanggal_keluar_gudang' . $s}, $r->{'waktu_keluar_gudang' . $s}
-        );
-    }
+protected function infoGudang($r, string $s): ?array
+{
+    return $this->memo($r, 'ig' . $s, fn() => $this->hitungGudang(
+        $r->{'tanggal_tiba_gudang' . $s},   $r->{'waktu_tiba_gudang' . $s},
+        $r->{'tanggal_keluar_gudang' . $s}, $r->{'waktu_keluar_gudang' . $s}
+    ));
+}
 
     // salinan logic SLA Dapat Mobil di renderRowColumns
+    // protected function slaDapatMobil($r): string
+    // {
+    //     if (!$r->rencana_kirim || !$r->tanggal_dpt_unit) return '-';
+
+    //     $area    = strtoupper(trim($r->area ?? ''));
+    //     $rencana = strtotime(date('Y-m-d', strtotime($r->rencana_kirim)));
+    //     $dptUnit = strtotime(date('Y-m-d', strtotime($r->tanggal_dpt_unit)));
+    //     $selisih = floor(($dptUnit - $rencana) / 86400);
+
+    //     if (in_array($area, ['JABODEBEK', 'JABODETABEK', 'BANTEN'])) {
+    //         $batas = 0;
+    //     } elseif (in_array($area, ['JAWA_BARAT', 'JAWA BARAT'])) {
+    //         $batas = 1;
+    //     } else {
+    //         $batas = 2;
+    //     }
+
+    //     return $selisih > $batas ? 'H+' . ($selisih - $batas) : 'Sesuai SLA';
+    // }
+
     protected function slaDapatMobil($r): string
-    {
-        if (!$r->rencana_kirim || !$r->tanggal_dpt_unit) return '-';
+{
+    return $this->memo($r, 'sla', fn() => $this->slaDapatMobilRaw($r));
+}
 
-        $area    = strtoupper(trim($r->area ?? ''));
-        $rencana = strtotime(date('Y-m-d', strtotime($r->rencana_kirim)));
-        $dptUnit = strtotime(date('Y-m-d', strtotime($r->tanggal_dpt_unit)));
-        $selisih = floor(($dptUnit - $rencana) / 86400);
+protected function slaDapatMobilRaw($r): string
+{
+    if (!$r->rencana_kirim || !$r->tanggal_dpt_unit) return '-';
 
-        if (in_array($area, ['JABODEBEK', 'JABODETABEK', 'BANTEN'])) {
-            $batas = 0;
-        } elseif (in_array($area, ['JAWA_BARAT', 'JAWA BARAT'])) {
-            $batas = 1;
-        } else {
-            $batas = 2;
-        }
+    $area    = strtoupper(trim($r->area ?? ''));
+    $rencana = strtotime(date('Y-m-d', strtotime($r->rencana_kirim)));
+    $dptUnit = strtotime(date('Y-m-d', strtotime($r->tanggal_dpt_unit)));
+    $selisih = floor(($dptUnit - $rencana) / 86400);
 
-        return $selisih > $batas ? 'H+' . ($selisih - $batas) : 'Sesuai SLA';
+    if (in_array($area, ['JABODEBEK', 'JABODETABEK', 'BANTEN'])) {
+        $batas = 0;
+    } elseif (in_array($area, ['JAWA_BARAT', 'JAWA BARAT'])) {
+        $batas = 1;
+    } else {
+        $batas = 2;
     }
 
+    return $selisih > $batas ? 'H+' . ($selisih - $batas) : 'Sesuai SLA';
+}
     // 5 field wajib, sama dengan render
     protected function kelengkapan($r): string
     {

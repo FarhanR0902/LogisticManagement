@@ -13,7 +13,7 @@ use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\Shared\Date as XlDate;
 use PhpOffice\PhpSpreadsheet\Style\NumberFormat;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
-
+use Maatwebsite\Excel\Concerns\WithCustomChunkSize;
 /**
  * EXPORT FULL data logistik_pengiriman
  *  - BAGIAN 1: SEMUA kolom tabel (119 kolom, urutan sama dengan database)
@@ -24,8 +24,10 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
  *   return Excel::download(new LogistikExportFull($query), 'data_logistik_full.xlsx');
  *   ($query = query builder yang sudah difilter, JANGAN di-get())
  */
+
+
 class LogistikExportFull implements
-    FromQuery, WithHeadings, WithMapping, WithColumnFormatting, WithStyles
+    FromQuery, WithHeadings, WithMapping, WithColumnFormatting, WithStyles, WithCustomChunkSize
 {
      protected $builder;
     private ?array $cols = null;
@@ -39,6 +41,10 @@ public function scopeAggregates(?array $noShipments): void
     $this->aggScope = $noShipments;
     $this->agg = null;
 }
+  public function chunkSize(): int
+    {
+        return 5000;
+    }
 
 public function rawCount(): int
 {
@@ -496,30 +502,33 @@ public function rawCount(): int
     // ============================================================
     // UPDATE POSISI MOBIL
     // ============================================================
-    private function statusPengiriman($r): string
-    {
-        $gudang = collect([
-            ['n' => 'KACS',   'p' => $r->planning_loading,   't' => $r->tanggal_tiba_gudang,   'k' => $r->tanggal_keluar_gudang],
-            ['n' => 'SENTUL', 'p' => $r->planning_loading_2, 't' => $r->tanggal_tiba_gudang_2, 'k' => $r->tanggal_keluar_gudang_2],
-            ['n' => 'CCIE',   'p' => $r->planning_loading_3, 't' => $r->tanggal_tiba_gudang_3, 'k' => $r->tanggal_keluar_gudang_3],
-        ])
-            ->filter(fn($g) => !empty($g['p']))
-            ->sortBy(fn($g) => strtotime($g['p']))
-            ->values();
+   private function statusPengiriman($r): string
+{
+    if (empty($r->tanggal_dpt_unit)) return 'MENCARI UNIT';
 
-        $sg = null;
-        foreach ($gudang as $g) {
-            if (empty($g['t'])) { $sg = 'PERJALANAN KE ' . $g['n']; break; }
-            if (empty($g['k'])) { $sg = 'DI GUDANG ' . $g['n']; break; }
+    $g = [];
+    foreach ([['KACS', ''], ['SENTUL', '_2'], ['CCIE', '_3']] as [$n, $s]) {
+        $p = $r->{'planning_loading' . $s};
+        if (!empty($p)) {
+            $g[] = [
+                'p' => strtotime($p), 'n' => $n,
+                't' => $r->{'tanggal_tiba_gudang' . $s},
+                'k' => $r->{'tanggal_keluar_gudang' . $s},
+            ];
         }
+    }
+    usort($g, fn($a, $b) => $a['p'] <=> $b['p']);
 
-        if (empty($r->tanggal_dpt_unit)) return 'MENCARI UNIT';
-        if ($gudang->isEmpty() && empty($r->tanggal_tiba)) return 'PERJALANAN KE GUDANG';
-        if ($sg) return $sg;
-        if (empty($r->tanggal_tiba)) return 'PERJALANAN KE TUJUAN';
-        return !empty($r->tanggal_bongkar) ? 'SUDAH SELESAI' : 'SUDAH TIBA TUJUAN';
+    if (!$g && empty($r->tanggal_tiba)) return 'PERJALANAN KE GUDANG';
+
+    foreach ($g as $x) {
+        if (empty($x['t'])) return 'PERJALANAN KE ' . $x['n'];
+        if (empty($x['k'])) return 'DI GUDANG ' . $x['n'];
     }
 
+    if (empty($r->tanggal_tiba)) return 'PERJALANAN KE TUJUAN';
+    return !empty($r->tanggal_bongkar) ? 'SUDAH SELESAI' : 'SUDAH TIBA TUJUAN';
+}
     private function gudangAktif($r): ?string
     {
         $gudang = collect([

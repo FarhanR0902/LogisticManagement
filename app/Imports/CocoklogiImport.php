@@ -6,7 +6,8 @@ use Illuminate\Support\Collection;
 use Maatwebsite\Excel\Concerns\ToCollection;
 use Maatwebsite\Excel\Concerns\WithChunkReading;
 use Maatwebsite\Excel\Concerns\WithHeadingRow;
-
+use Carbon\Carbon;
+use PhpOffice\PhpSpreadsheet\Shared\Date as XlDate;
 /**
  * Membaca Excel hanya untuk dicocokkan, TIDAK menyimpan apa pun ke DB.
  * Header yang dipakai: no_shipment, tujuan, no_do (huruf kecil, spasi jadi underscore).
@@ -34,6 +35,19 @@ class CocoklogiImport implements ToCollection, WithHeadingRow, WithChunkReading
 
         return strtoupper($v);
     }
+    public static function normTanggal($v): ?string
+{
+    if ($v === null || trim((string) $v) === '') return null;
+
+    try {
+        if (is_numeric($v)) {
+            return XlDate::excelToDateTimeObject((float) $v)->format('Y-m-d');
+        }
+        return Carbon::parse((string) $v)->format('Y-m-d');
+    } catch (\Throwable $e) {
+        return trim((string) $v);
+    }
+}
 
     /** Normalisasi tujuan: trim, spasi ganda dirapikan, uppercase */
     public static function normTujuan($v): string
@@ -51,13 +65,25 @@ class CocoklogiImport implements ToCollection, WithHeadingRow, WithChunkReading
                 continue;
             }
 
-            $tujuan = self::normTujuan($r['tujuan'] ?? '');
-            $this->groups[$ship . '|' . $tujuan] = [$ship, trim((string) ($r['tujuan'] ?? ''))];
+          $tujuan  = self::normTujuan($r['tujuan'] ?? '');
+$tanggal = self::normTanggal($r['tanggal_shipment'] ?? null);
 
-            $do = self::normNo($r['no_do'] ?? '');
-            if ($do !== '') {
-                $this->dos[$ship . '|' . $do] = [$ship, $do];
-            }
+$kg = $ship . '|' . $tujuan;
+$this->groups[$kg] = [
+    $ship,
+    trim((string) ($r['tujuan'] ?? '')),
+    $this->groups[$kg][2] ?? $tanggal,   // pakai tanggal pertama yang terbaca
+];
+
+$do = self::normNo($r['no_do'] ?? '');
+if ($do !== '') {
+    $kd = $ship . '|' . $do;
+    $this->dos[$kd] = [
+        $ship,
+        $do,
+        $this->dos[$kd][2] ?? $tanggal,
+    ];
+}
 
             $this->rows++;
         }

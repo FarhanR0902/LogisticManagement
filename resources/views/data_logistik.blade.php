@@ -590,11 +590,11 @@
                         </div>
                     </div>
                 </div>
-
-                <select id="filterTglBasis" name="tgl_basis">
-                    <option value="tanggal_naik_logistik">Tanggal Naik Logistik</option>
-                    <option value="rencana_kirim">Rencana Kirim</option>
-                </select>
+<select id="filterTglBasis" name="tgl_basis">
+    <option value="tanggal_shipment" selected>Tanggal Shipment</option>
+    <option value="tanggal_naik_logistik">Tanggal Naik Logistik</option>
+    <option value="rencana_kirim">Rencana Kirim</option>
+</select>
 
                 <label class="tgl-lbl">Dari
                     <input type="date" id="filterDateFrom" name="date_from">
@@ -640,8 +640,9 @@
                         <th>Update Posisi Mobil</th>
                         <th>Dist Channel</th>
                         <th>Tujuan</th>
-                        <th>Area</th>
-                        <th>Ketersediaan Unit</th>
+                       <th>Area</th>
+<th>Kota</th>
+<th>Ketersediaan Unit</th>
                         <th>Mobil</th>
                         <th>Delivery Quantity</th>
                         <th>Nilai Muatan</th>
@@ -932,6 +933,11 @@ function gudangCols(s, n) {
                         data: 'area',
                         name: 'area'
                     },
+                    {
+    data: 'kota',
+    name: 'kota',
+    defaultContent: '-'
+},
                     {
                         data: 'ketersediaan_unit_badge',
                         name: 'ketersediaan_unit',

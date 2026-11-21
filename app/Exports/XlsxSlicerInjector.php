@@ -6,7 +6,7 @@ use ZipArchive;
 
 /**
  * Menyuntikkan slicer Excel Table ke file .xlsx hasil PhpSpreadsheet.
- * Slicer diletakkan di $sheet (mis. 'Ringkasan'), mengontrol tabel tblLogistik (sheet Data).
+ * Slicer diletakkan di sheet "Dashboard" (kalau ada), mengontrol tabel tblLogistik (sheet Data).
  * Bekerja di salinan sementara; file asli hanya diganti kalau semua langkah lolos.
  */
 class XlsxSlicerInjector
@@ -23,9 +23,9 @@ class XlsxSlicerInjector
 
     /**
      * @param string $path    file xlsx hasil export
-     * @param string $sheet   sheet tempat slicer diletakkan (mis. 'Ringkasan')
+     * @param string $sheet   sheet tempat slicer diletakkan (kalau ada sheet "Dashboard", sheet itu yang dipakai)
      * @param array  $wanted  heading kolom tabel yang dijadikan slicer
-     * @param array  $slots   posisi tiap slicer, lihat LogistikReportSummary::slicerSlots()
+     * @param array  $slots   posisi tiap slicer, lihat LogistikReportDashboard::slicerSlots()
      */
     public static function inject(string $path, string $sheet, array $wanted, array $slots = []): bool
     {
@@ -147,6 +147,11 @@ class XlsxSlicerInjector
                 throw new \RuntimeException('struktur xlsx tidak dikenali');
             }
 
+            // [FIX 1] slicer selalu ke sheet "Dashboard" kalau ada, apa pun yang dikirim pemanggil
+            if (preg_match('/<sheet\b[^>]*\bname="Dashboard"/', $wbXml)) {
+                $sheet = 'Dashboard';
+            }
+
             // ---- sheet tempat slicer diletakkan
             if (!preg_match('/<sheet\b[^>]*\bname="' . preg_quote($sheet, '/') . '"[^>]*>/', $wbXml, $m)
                 || !preg_match('/\br:id="([^"]+)"/', $m[0], $rid)
@@ -164,6 +169,10 @@ class XlsxSlicerInjector
             $sheetRel = $zip->getFromName($relPath)
                 ?: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
                 . '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"></Relationships>';
+
+            // [FIX 2] rels kosong ditulis PhpSpreadsheet sebagai <Relationships .../> (tanpa penutup),
+            // sehingga str_replace('</Relationships>', ...) di bawah tidak pernah menambah relasi
+            $sheetRel = preg_replace('#<Relationships([^>]*)/>#', '<Relationships$1></Relationships>', $sheetRel);
 
             // ---- tabel & kolom slicer (dibaca dari file)
             $tbl     = self::readTable($zip, self::TABLE_NAME);
@@ -201,9 +210,16 @@ class XlsxSlicerInjector
                 }
                 $usedNames[$name] = true;
 
+                // sourceName = nama kolom asli; caption = tampilan di slicer
                 $cap = htmlspecialchars($c['head'], ENT_XML1 | ENT_QUOTES, 'UTF-8');
 
-                $slicerXml .= '<slicer name="' . $name . '" cache="' . $name . '" caption="' . $cap
+                // [FIX 3] nama kolom database (dist_channel) dirapikan jadi "Dist Channel" untuk caption
+                $captionRaw = preg_match('/^[a-z0-9_]+$/', $c['head'])
+                    ? ucwords(str_replace('_', ' ', $c['head']))
+                    : $c['head'];
+                $caption = htmlspecialchars($captionRaw, ENT_XML1 | ENT_QUOTES, 'UTF-8');
+
+                $slicerXml .= '<slicer name="' . $name . '" cache="' . $name . '" caption="' . $caption
                     . '" rowHeight="241300" style="SlicerStyleLight1"/>';
 
                 $parts["xl/slicerCaches/slicerCache{$n}.xml"] =
@@ -305,15 +321,17 @@ class XlsxSlicerInjector
             $wbXml = strpos($wbXml, '</extLst>') !== false
                 ? str_replace('</extLst>', $wbExt . '</extLst>', $wbXml)
                 : str_replace('</workbook>', '<extLst>' . $wbExt . '</extLst></workbook>', $wbXml);
-           // paksa Excel menghitung ulang semua rumus saat file dibuka
-if (preg_match('/<calcPr\b[^>]*\/>/', $wbXml)) {
-    $wbXml = preg_replace(
-        '/<calcPr\b[^>]*\/>/',
-        '<calcPr calcId="191029" calcMode="auto" fullCalcOnLoad="1"/>',
-        $wbXml, 1
-    );
-}
-                $parts['xl/workbook.xml']            = $wbXml;
+
+            // paksa Excel menghitung ulang semua rumus saat file dibuka
+            if (preg_match('/<calcPr\b[^>]*\/>/', $wbXml)) {
+                $wbXml = preg_replace(
+                    '/<calcPr\b[^>]*\/>/',
+                    '<calcPr calcId="191029" calcMode="auto" fullCalcOnLoad="1"/>',
+                    $wbXml, 1
+                );
+            }
+
+            $parts['xl/workbook.xml']            = $wbXml;
             $parts['xl/_rels/workbook.xml.rels'] = str_replace('</Relationships>', $extraWbRels . '</Relationships>', $wbRels);
 
             // ---- content types

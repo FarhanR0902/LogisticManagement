@@ -1546,7 +1546,114 @@ foreach (['', '_2', '_3'] as $i => $s) {
 
 public function dataLogistikAjax(Request $request)   { return app(LogistikController::class)->dataLogistikAjax($request); }
 public function dataLogistikDetail(Request $request) { return app(LogistikController::class)->dataLogistikDetail($request); }
-public function dataLogistikExport(Request $request) { return app(LogistikController::class)->export($request->merge(['mode' => null])); }
+/** Export Data Logistik (Sales): 1 baris = shipment + tujuan, ikut filter halaman. Streaming CSV. */
+public function dataLogistikExport(Request $request)
+{
+    @set_time_limit(0);
+    @ini_set('memory_limit', '512M');
+
+    $n = fn($c) => "COALESCE(CAST(NULLIF(TRIM({$c}), '') AS DECIMAL(18,4)), 0)";
+
+    // ---- filter (dist channel + periode shipment dikunci seperti halaman Sales) ----
+    $q = DB::table('logistik_pengiriman');
+    $this->filterByDistChannel($q);
+
+    $areas = array_values(array_filter((array) $request->input('area', []), 'strlen'));
+    if ($areas) $q->whereIn('area', $areas);
+
+    $col  = $request->input('tgl_basis') === 'rencana_kirim' ? 'rencana_kirim' : 'tanggal_naik_logistik';
+    $from = $request->input('date_from');
+    $to   = $request->input('date_to');
+    if ($from && $to && $from > $to) [$from, $to] = [$to, $from];
+
+    if ($from) $q->whereDate($col, '>=', $from);
+    if ($to)   $q->whereDate($col, '<=', $to);
+
+    // bulan dari dropdown berupa angka 1-12 (bukan "YYYY-MM")
+    $mo = $request->input('month');
+    if (!is_array($mo) && ctype_digit((string) $mo)) $q->whereMonth($col, (int) $mo);
+    $yr = $request->input('year');
+    if (!is_array($yr) && ctype_digit((string) $yr)) $q->whereYear($col, (int) $yr);
+
+    // ---- agregasi per shipment + tujuan ----
+    $q->selectRaw("
+            MAX(DATE(tanggal_naik_logistik))   AS tgl_naik,
+            MAX(DATE(rencana_kirim))           AS rencana_kirim,
+            MAX(transport_lead_time)           AS lead_time,
+            MAX(planner)                       AS planner,
+            MAX(no_shipment)                   AS no_shipment,
+            MAX(dist_channel)                  AS dist_channel,
+            COALESCE(tujuan,'')                AS tujuan,
+            MAX(area)                          AS area,
+            MAX(pulau)                         AS pulau,
+            MAX(mobil)                         AS mobil,
+            SUM(COALESCE(total_do_qty_car,0))  AS qty,
+            SUM(COALESCE(nilai_muatan,0))      AS nilai,
+            MAX(COALESCE(biaya_kirim,0))       AS biaya,
+            MAX({$n('kubikasi')})              AS kubikasi,
+            MAX({$n('tonase')})                AS tonase,
+            SUM({$n('total_kubik')})           AS total_kubik,
+            SUM({$n('total_tonase')})          AS total_tonase,
+            MAX(kategori_ekspedisi)            AS kategori,
+            MAX(ekpedisi)                      AS ekspedisi,
+            MAX(DATE(tanggal_dpt_unit))        AS tgl_dapat_unit,
+            MAX(DATE(estimasi_tiba))           AS tgl_estimasi,
+            MAX(tanggal_tiba)                  AS tgl_tiba,
+            MAX(tanggal_bongkar)               AS tgl_bongkar,
+            MAX({$n('overstay_days')})         AS overstay,
+            COUNT(*)                           AS jml_do
+        ")
+        ->groupByRaw("COALESCE(NULLIF(TRIM(no_shipment),''), CONCAT('id', id)), COALESCE(tujuan,'')")
+        ->orderByRaw('CAST(MAX(no_shipment) AS UNSIGNED) ASC')
+        ->orderBy('tujuan');
+
+    $headers = [
+        'Tanggal Naik Logistik', 'Rencana Kirim', 'Lead Time', 'Planner', 'No Shipment',
+        'Dist Channel', 'Tujuan', 'Area', 'Pulau', 'Mobil', 'Jumlah DO', 'Delivery Quantity',
+        'Nilai Muatan', 'Biaya Kirim', 'CR (%)', 'Kubikasi', 'Tonase', 'Total Kubik', 'Total Tonase',
+        'Hasil Kubik (%)', 'Hasil Tonase (%)', 'Kategori Ekspedisi', 'Ekspedisi', 'Tanggal Dapat Unit',
+        'Tanggal Estimasi', 'Tanggal Tiba', 'Tanggal Bongkar', 'SLA Tiba', 'Overstay (hari)', 'SLA Bongkar',
+    ];
+
+    $d   = fn($v) => $v ? date('d-m-Y', strtotime($v)) : '';
+    $dt  = fn($v) => $v ? date('d-m-Y H:i', strtotime($v)) : '';
+    $num = fn($v) => $v === null ? '' : round((float) $v, 2);
+
+    $filename = 'data_logistik_' . date('Ymd_His') . '.csv';
+
+    return response()->streamDownload(function () use ($q, $headers, $d, $dt, $num) {
+        $out = fopen('php://output', 'w');
+     fwrite($out, "\xEF\xBB\xBF");
+fwrite($out, "sep=;\r\n");   // <- tambahkan ini
+fputcsv($out, $headers, ';');
+
+        foreach ($q->cursor() as $r) {
+            $nilai = (float) $r->nilai;
+            $cr    = $nilai > 0 ? ((float) $r->biaya / $nilai) * 100 : null;
+            $hk    = (float) $r->kubikasi > 0 ? ((float) $r->total_kubik  / (float) $r->kubikasi) * 100 : null;
+            $ht    = (float) $r->tonase   > 0 ? ((float) $r->total_tonase / (float) $r->tonase)   * 100 : null;
+
+            $slaTiba = ($r->tgl_tiba && $r->tgl_estimasi)
+                ? (date('Y-m-d', strtotime($r->tgl_tiba)) <= $r->tgl_estimasi ? 'On Time' : 'Delay') : '';
+            $slaBongkar = $r->tgl_bongkar
+                ? (((float) $r->overstay) <= 0 ? 'On Time' : 'Delay') : '';
+
+            fputcsv($out, [
+                $d($r->tgl_naik), $d($r->rencana_kirim), $r->lead_time, $r->planner, $r->no_shipment,
+                $r->dist_channel, $r->tujuan, $r->area, $r->pulau, $r->mobil, $r->jml_do, $num($r->qty),
+                $num($r->nilai), $num($r->biaya), $num($cr), $num($r->kubikasi), $num($r->tonase),
+                $num($r->total_kubik), $num($r->total_tonase), $num($hk), $num($ht),
+                $r->kategori, $r->ekspedisi, $d($r->tgl_dapat_unit), $d($r->tgl_estimasi),
+                $dt($r->tgl_tiba), $dt($r->tgl_bongkar), $slaTiba, $num($r->overstay), $slaBongkar,
+            ], ';');
+        }
+        fclose($out);
+    }, $filename, [
+        'Content-Type'  => 'text/csv; charset=UTF-8',
+        'Cache-Control' => 'no-store',
+        'X-Accel-Buffering' => 'no',
+    ]);
+}
 
     /* =====================================================================
      |  PASURUAN - DATA LOGISTIK (AJAX, per shipment + tujuan)

@@ -51,11 +51,13 @@ class LogistikImport implements ToCollection, WithHeadingRow, WithEvents, WithCa
     // kolom yang tidak pernah diisi dari Excel
     private const SKIP_COLUMNS = ['id', 'created_at', 'updated_at'];
 
-    // pada baris yang SUDAH ada (mode update), hanya kolom ini yang boleh menimpa nilai lama
-    private const ALWAYS_OVERWRITE = [
-        'no_shipment',
-        'tujuan',
-        'no_do',
+   private const ALWAYS_OVERWRITE = [
+    'no_shipment',
+    'tujuan',
+    'no_do',
+    'area',
+    'kota',
+    'pulau',
         'sales_document',
         'customer_reference',
         'contract_end_date',
@@ -77,6 +79,12 @@ class LogistikImport implements ToCollection, WithHeadingRow, WithEvents, WithCa
         'pengiriman_optimal',
         'pengiriman_optimal_customer',
         'reason_optimal_customer',
+    ];
+    // kolom ini HANYA boleh dari master tujuanfillterr (berdasarkan tujuan), bukan dari Excel
+private const MASTER_TUJUAN_COLUMNS = [
+    'area', 
+    'kota',
+     'pulau'
     ];
 
     // area => PIC. Hanya area yang PIC-nya satu; dipakai kalau PIC masih kosong.
@@ -112,11 +120,7 @@ class LogistikImport implements ToCollection, WithHeadingRow, WithEvents, WithCa
 
     // kolom hasil lookup master tujuan yang boleh "ikut" baris lain di shipment yang sama
     private const SIBLING_FILL_COLUMNS = [
-        'area',
-        'pulau',
-        'transport_lead_time',
-        'planner',
-        'pic_monitoring',
+    
         'tanggal_shipment',
         'periode_shipment',
     ];
@@ -355,6 +359,7 @@ foreach (DB::select('SHOW COLUMNS FROM `' . self::TABLE . '`') as $c) {
                     'Planner',
                     'pulau',
                     'area',
+                    'kota',
                     'biaya_kuli',
                     'transport_lead_time',
                     'Monitoring'
@@ -1039,12 +1044,13 @@ $totalDoCar  = $this->parseQty($row['total_do_qty_car'] ?? null);
             $picMonitoring = $this->cleanText($customerData->Monitoring ?? null);
         }
 
-        $distChannel         = $customerData->dist_channel ?? null;
-        $area                = $customerData->area ?? null;
-        $biayaKuli           = $customerData->biaya_kuli ?? null;
-        $transport_lead_time = $customerData->transport_lead_time ?? null;
-        $pulau               = ($customerData->pulau ?? null) ?: $this->cleanText($row['pulau'] ?? null);
-        $picMonitoring       = $this->fixPic($picMonitoring, $area);
+ $distChannel         = $customerData->dist_channel ?? null;
+$area                = $this->cleanText($customerData->area  ?? null);
+$kota                = $this->cleanText($customerData->kota  ?? null);
+$pulau               = $this->cleanText($customerData->pulau ?? null);
+$biayaKuli           = $customerData->biaya_kuli ?? null;
+$transport_lead_time = $customerData->transport_lead_time ?? null;
+$picMonitoring       = $this->fixPic($picMonitoring, $area);
 
         // ================= MONITORING =================
         $keluar = collect([$tanggalKeluarGudang, $tanggalKeluarGudang2, $tanggalKeluarGudang3])
@@ -1090,8 +1096,9 @@ $totalDoCar  = $this->parseQty($row['total_do_qty_car'] ?? null);
             'code_planner'        => $codePlanner,
             'planner'             => $planner,
             'dist_channel'        => $distChannel,
-            'area'                => $area,
-            'ketersediaan_unit'   => $ketersediaanUnit,
+'area'                => $area,
+'kota'                => $kota,
+'ketersediaan_unit'   => $ketersediaanUnit,
 
             'pulau'     => $pulau,
             'route'     => $route,
@@ -1187,9 +1194,10 @@ $totalDoCar  = $this->parseQty($row['total_do_qty_car'] ?? null);
         // ================= SISA HEADER EXCEL (apa adanya) =================
         // header yang cocok dengan kolom DB tapi belum diisi di atas.
         // Kolom hasil hitung ulang tidak pernah diisi dari Excel.
-        foreach ($this->map as $header => [$col, $kind]) {
-            if (in_array($col, self::RECALC_COLUMNS, true)) continue;
-            if (($attrs[$col] ?? null) !== null) continue;
+foreach ($this->map as $header => [$col, $kind]) {
+    if (in_array($col, self::RECALC_COLUMNS, true)) continue;
+    if (in_array($col, self::MASTER_TUJUAN_COLUMNS, true)) continue;   // <-- baru
+    if (($attrs[$col] ?? null) !== null) continue;nue;
 
             $v = $this->convert($row[$header] ?? null, $kind, $col);
             if ($v !== null) {

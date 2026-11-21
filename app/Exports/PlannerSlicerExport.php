@@ -3,12 +3,12 @@
 namespace App\Exports;
 
 use Illuminate\Support\Facades\DB;
-use OpenSpout\Common\Entity\Cell;
-use OpenSpout\Common\Entity\Row;
-use OpenSpout\Common\Entity\Style\Color;
-use OpenSpout\Common\Entity\Style\Style;
-use OpenSpout\Writer\XLSX\Options;
-use OpenSpout\Writer\XLSX\Writer;
+use App\Exports\Lite\Cell;
+use App\Exports\Lite\Row;
+use App\Exports\Lite\Color;
+use App\Exports\Lite\Style;
+use App\Exports\Lite\Options;
+use App\Exports\Lite\Writer;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 
 class PlannerSlicerExport extends PlannerExport
@@ -28,9 +28,10 @@ class PlannerSlicerExport extends PlannerExport
         'In Transit' => 'Rk In Transit',
     ];
 
-    private array $gagg = [];
-    private array $shipOpt = [];
-    private array $seen = [];
+    private array $gagg = [];       // [sk|tujuan] => [nilai, biaya]
+    private array $shipOpt = [];    // [sk] => OPTIMAL | TIDAK OPTIMAL
+    private array $seen = [];       // wakil per no_shipment (id terkecil)
+    private array $seenGrp = [];    // wakil per no_shipment + tujuan (id terkecil)
     private ?array $cols2 = null;
     private int $nRows = 0;
 
@@ -79,7 +80,7 @@ class PlannerSlicerExport extends PlannerExport
         return $periode ? 'Periode ' . $v : $v;
     }
 
-    /** total per grup + status optimal per shipment (1 query agregat) */
+    /** total per grup + status optimal per shipment (1 query agregat) + jumlah baris */
     private function prepare(): void
     {
         $k = [];
@@ -99,15 +100,29 @@ class PlannerSlicerExport extends PlannerExport
         foreach (array_unique(array_merge(array_keys($k), array_keys($t))) as $s) {
             $this->shipOpt[$s] = (($k[$s] ?? 0) >= 85 || ($t[$s] ?? 0) >= 85) ? 'OPTIMAL' : 'TIDAK OPTIMAL';
         }
-        $this->nRows = (int) $this->base()->where('is_rep', 1)->count();
+
+        // jumlah SEMUA baris data (semua DO), dipakai untuk range rumus di Ringkasan
+        $this->nRows = (int) $this->base()->count();
     }
 
     protected function columns(): array
     {
         if ($this->cols2 !== null) return $this->cols2;
 
-        $fl     = fn($r, $c) => trim((string) ($r->{$c} ?? '')) !== '';
-        $f      = fn(callable $c) => fn($r) => $c($r) ? 1 : 0;
+        $fl = fn($r, $c) => trim((string) ($r->{$c} ?? '')) !== '';
+
+        // wakil per no_shipment + tujuan = baris pertama (id terkecil) dari grup itu
+        $gk = fn($r) => $this->sk($r) . '|' . ($r->tujuan ?? '');
+        $gw = function ($r) use ($gk) {
+            $k = $gk($r);
+            $this->seenGrp[$k] ??= $r->id;
+            return $this->seenGrp[$k] === $r->id;
+        };
+        // flag 0/1 hanya bernilai 1 di baris wakil grup, supaya SUMIFS tidak menghitung dobel per DO
+        $f    = fn(callable $c) => fn($r) => ($gw($r) && $c($r)) ? 1 : 0;
+        $grpv = fn($r, $i) => $gw($r) ? ($this->gagg[$gk($r)][$i] ?? 0) : 0;
+
+        // wakil per no_shipment (untuk metrik level shipment)
         $shipRep = function ($r) {
             $s = $this->sk($r);
             $this->seen[$s] ??= $r->id;
@@ -118,22 +133,25 @@ class PlannerSlicerExport extends PlannerExport
         $naik   = fn($r) => $this->hari($r->tanggal_naik_logistik, $r->tanggal_dpt_unit);
         $batas  = fn($r) => self::NAIK_SLA[strtoupper(trim((string) $r->planner))] ?? self::NAIK_DEFAULT;
         $opt    = fn($r) => $this->shipOpt[$this->sk($r)] ?? null;
-        $gDelay = function ($r) {
+
+        $gDelay = fn($r) => $this->memo($r, 'gd', function () use ($r) {
             foreach (array_keys(self::GUDANG) as $s) {
                 $i = $this->infoGudang($r, $s);
                 if ($i && $i['delay']) return true;
             }
             return false;
-        };
+        });
+
         // ada minimal 1 gudang yang punya tiba + keluar (durasi bisa dihitung)
-        $keluarAda = function ($r) {
+        $keluarAda = fn($r) => $this->memo($r, 'ka', function () use ($r) {
             foreach (array_keys(self::GUDANG) as $s) {
                 if ($this->infoGudang($r, $s)) return true;
             }
             return false;
-        };
+        });
+
         // tiba gudang terakhir vs planning loading gudang itu: true = delay, false = on time, null = tidak ada data
-        $tibaDelay = function ($r) {
+        $tibaDelay = fn($r) => $this->memo($r, 'td', function () use ($r) {
             $best = null;
             $plan = '';
             foreach (array_keys(self::GUDANG) as $s) {
@@ -146,24 +164,25 @@ class PlannerSlicerExport extends PlannerExport
             }
             if ($best === null || $plan === '') return null;
             return date('Y-m-d', strtotime($best)) > date('Y-m-d', strtotime($plan));
-        };
-        $any = function ($r) use ($fl) {   // [ada keluar, menggantung, ada isi]
+        });
+
+        // [ada keluar, menggantung, ada isi]
+        $any = fn($r) => $this->memo($r, 'any', function () use ($r, $fl) {
             $keluar = $dang = $isi = false;
             foreach (array_keys(self::GUDANG) as $s) {
-                $k = $fl($r, "tanggal_keluar_gudang{$s}");
+                $k  = $fl($r, "tanggal_keluar_gudang{$s}");
                 $st = $fl($r, "planning_loading{$s}") || $fl($r, "tanggal_tiba_gudang{$s}");
                 $keluar = $keluar || $k;
-                $isi = $isi || $k || $st;
-                $dang = $dang || ($st && !$k);
+                $isi    = $isi || $k || $st;
+                $dang   = $dang || ($st && !$k);
             }
             return [$keluar, $dang, $isi];
-        };
-        $grp = fn($r) => $this->gagg[$this->sk($r) . '|' . ($r->tujuan ?? '')] ?? [0, 0];
+        });
 
         return $this->cols2 = [
             ['Nama Planner',     'text', fn($r) => $this->key($r->planner)],
             ['No Shipment',      'text', fn($r) => (string) $r->no_shipment],
-            ['Tujuan',           'text', fn($r) => $r->tujuan],
+            ['Tujuan',           'text', fn($r) => $this->key($r->tujuan)],   // seragam dengan tabel PER TUJUAN
             ['Periode Shipment', 'text', fn($r) => $this->key($r->periode_shipment, true)],
             ['Tanggal Shipment', 'date', fn($r) => $this->xl($r->tanggal_shipment)],
             ['Area',             'text', fn($r) => $this->key($r->area)],
@@ -175,10 +194,10 @@ class PlannerSlicerExport extends PlannerExport
             ['Rencana Kirim',    'date', fn($r) => $this->xl($r->rencana_kirim)],
             ['Tanggal Dapat Unit', 'date', fn($r) => $this->xl($r->tanggal_dpt_unit)],
             ['Pengiriman Optimal Shipment', 'text', fn($r) => ($o = $opt($r)) === 'OPTIMAL' ? 'Optimal' : ($o ? 'Tidak Optimal' : '-')],
-            ['Rk Nilai Grup',    'money', fn($r) => $grp($r)[0]],
-            ['Rk Biaya Grup',    'money', fn($r) => $grp($r)[1]],
+            ['Rk Nilai Grup',    'money', fn($r) => $grpv($r, 0)],
+            ['Rk Biaya Grup',    'money', fn($r) => $grpv($r, 1)],
             ['Rk Tampil',        'raw',  fn($r) => ''],            // diganti rumus SUBTOTAL
-            ['Rk Grup',          'raw',  fn($r) => 1],
+            ['Rk Grup',          'raw',  fn($r) => $gw($r) ? 1 : 0],
             ['Rk Armada Sudah',  'raw',  $f(fn($r) => $fl($r, 'rencana_kirim') && $fl($r, 'tanggal_dpt_unit'))],
             ['Rk Armada Belum',  'raw',  $f(fn($r) => !($fl($r, 'rencana_kirim') && $fl($r, 'tanggal_dpt_unit')))],
             ['Rk Armada Delay',  'raw',  $f(fn($r) => str_starts_with($this->slaDapatMobil($r), 'H+'))],
@@ -232,6 +251,13 @@ class PlannerSlicerExport extends PlannerExport
         @ini_set('memory_limit', '512M');
 
         $this->prepare();
+
+        \Log::info('slicer export', [
+            'filters'     => $this->f,
+            'rows'        => $this->nRows,
+            'total_tabel' => \DB::table('logistik_pengiriman')->count(),
+        ]);
+
         $heads = $this->headings();
 
         $o = new Options();
@@ -272,6 +298,7 @@ class PlannerSlicerExport extends PlannerExport
         $w->addRow($row([]));
         $r = 7;
 
+        // tabel dimensi di bagian atas (PER TUJUAN sengaja ditaruh paling bawah karena bisa sangat panjang)
         $dims = [
             'Nama Planner' => 'PER PLANNER',
             'Area' => 'PER AREA',
@@ -279,30 +306,63 @@ class PlannerSlicerExport extends PlannerExport
             'Periode Shipment' => 'PER PERIODE SHIPMENT'
         ];
 
+        $dbCol = [
+            'Nama Planner' => 'planner',
+            'Area' => 'area',
+            'Dist Channel' => 'dist_channel',
+            'Periode Shipment' => 'periode_shipment',
+            'Tujuan' => 'tujuan',
+        ];
+
         $keys = [];
-        foreach (array_keys($dims) as $h) {
-            $col = ['Nama Planner' => 'planner', 'Area' => 'area', 'Dist Channel' => 'dist_channel', 'Periode Shipment' => 'periode_shipment'][$h];
-            $keys[$h] = $this->base()->where('is_rep', 1)
+        foreach ($dbCol as $h => $col) {
+            $keys[$h] = $this->base()
                 ->selectRaw("COALESCE(NULLIF(TRIM({$col}),''),'') AS k")->distinct()->orderBy('k')->pluck('k')
                 ->map(fn($v) => $this->key($v, $h === 'Periode Shipment'))->unique()->values()->all();
         }
+
+        // PER TUJUAN: hanya 100 tujuan dengan grup (shipment + tujuan) terbanyak
+        $tujuanTotal = count($keys['Tujuan']);
+        $keys['Tujuan'] = $this->base()
+            ->selectRaw("COALESCE(NULLIF(TRIM(tujuan),''),'') AS k,
+                COUNT(DISTINCT COALESCE(NULLIF(TRIM(no_shipment),''), CONCAT('id',id))) AS jml")
+            ->groupByRaw('k')->orderByDesc('jml')->orderBy('k')->limit(100)->pluck('k')
+            ->map(fn($v) => $this->key($v))->unique()->values()->all();
 
         // style baris grand total
         $gT = fn() => (new Style())->withFontBold(true)->withBackgroundColor('E5E7EB');
         $totStyles = [];
         for ($i = 0; $i <= $nC + 4; $i++) $totStyles[$i] = $gT();
+        $totStyles[$nC + 1] = $gT()->withFormat('#,##0');
         $totStyles[$nC + 2] = $gT()->withFormat('#,##0');
-        $totStyles[$nC + 3] = $gT()->withFormat('#,##0');
-        $totStyles[$nC + 4] = $gT()->withFormat('0.00"%"');
+        $totStyles[$nC + 3] = $gT()->withFormat('0.00"%"');
 
         $nn = Coordinate::stringFromColumnIndex($nC + 2);   // kolom Nilai Muatan
         $bb = Coordinate::stringFromColumnIndex($nC + 3);   // kolom Biaya Kirim
 
-        foreach ($dims as $head => $judul) {
+        $blockFirst = [];   // baris data pertama tiap tabel dimensi
+
+        // satu tabel dimensi: judul, header, baris per nilai, GRAND TOTAL, 2 baris kosong
+        $tulisDim = function (string $head, string $judul) use (
+            &$r, &$blockFirst, $w, $row, $rowS, $keys, $labels, $hd, $nC, $nn, $bb, $sMoney, $sPct2, $totStyles
+        ) {
+            if (empty($keys[$head])) return;
+
             $w->addRow($row([$judul]));
             $r++;
             $w->addRow($row(array_merge([''], $labels, ['Nilai Muatan', 'Biaya Kirim', 'CR (%)']), $hd));
             $r++;
+            $blockFirst[$head] = $r;
+
+            $z      = ($head === 'Tujuan');
+            $fmtInt = $z ? '#,##0;-#,##0;;' : '#,##0';
+            $fmtPct = $z ? '0.00"%";-0.00"%";;' : '0.00"%"';
+            $stRow  = [
+                $nC + 1 => (new Style())->withFormat($fmtInt),
+                $nC + 2 => (new Style())->withFormat($fmtInt),
+                $nC + 3 => (new Style())->withFormat($fmtPct),
+            ];
+            if ($z) for ($i = 1; $i <= $nC; $i++) $stRow[$i] = (new Style())->withFormat($fmtInt);
 
             foreach ($keys[$head] as $k) {
                 $cells = [$k];
@@ -310,7 +370,7 @@ class PlannerSlicerExport extends PlannerExport
                 $cells[] = '=' . $this->sumifs('Rk Nilai Grup', $head, "\$A{$r}");
                 $cells[] = '=' . $this->sumifs('Rk Biaya Grup', $head, "\$A{$r}");
                 $cells[] = "=IF({$nn}{$r}>0,{$bb}{$r}/{$nn}{$r}*100,0)";
-                $w->addRow($rowS($cells, [$nC + 2 => $sMoney, $nC + 3 => $sMoney, $nC + 4 => $sPct2]));
+                $w->addRow($rowS($cells, $stRow));
                 $r++;
             }
 
@@ -326,7 +386,9 @@ class PlannerSlicerExport extends PlannerExport
             $w->addRow($row([]));
             $w->addRow($row([]));
             $r += 2;
-        }
+        };
+
+        foreach ($dims as $head => $judul) $tulisDim($head, $judul);
 
         // optimal per shipment + SLA armada per planner
         $w->addRow($row(['OPTIMAL PER SHIPMENT & SLA ARMADA PER PLANNER']));
@@ -401,6 +463,12 @@ class PlannerSlicerExport extends PlannerExport
             ]));
             $r++;
         }
+        $w->addRow($row([]));
+        $w->addRow($row([]));
+        $r += 2;
+
+        // PER TUJUAN (paling bawah supaya tabel lain tetap dekat dengan chart)
+        $tulisDim('Tujuan', 'PER TUJUAN (TOP ' . count($keys['Tujuan']) . ' DARI ' . $tujuanTotal . ' TUJUAN, urut grup terbanyak)');
 
         // ================= DATA =================
         $w->addNewSheetAndMakeItCurrent();
@@ -415,7 +483,8 @@ class PlannerSlicerExport extends PlannerExport
         $cGrup   = $this->L('Rk Grup');
         $n = 1;
 
-        $this->base()->where('is_rep', 1)->chunkById(5000, function ($rows) use ($w, $styles, $iTampil, $cGrup, &$n) {
+        // semua baris (semua DO), urut id; wakil grup ditentukan di columns() lewat $gw
+        $this->base()->chunkById(5000, function ($rows) use ($w, $styles, $iTampil, $cGrup, &$n) {
             foreach ($rows as $r) {
                 $n++;
                 $cells = [];
@@ -441,54 +510,74 @@ class PlannerSlicerExport extends PlannerExport
             $ol = $slaFirst + $nP - 1;        // blok optimal
             $tf = $tgFirst;
             $tl = $tgFirst + $nP - 1;         // blok tiba/keluar
+
+            $charts = [
+                [
+                    'title'  => 'Gudang Selesai vs Di Gudang per Planner',
+                    'cat'    => "\$A\${$f}:\$A\${$l}",
+                    'series' => [
+                        ['name' => '$F$8', 'val' => "\$F\${$f}:\$F\${$l}", 'color' => '0284C7'],
+                        ['name' => '$G$8', 'val' => "\$G\${$f}:\$G\${$l}", 'color' => 'F59E0B'],
+                    ],
+                    'anchor' => [14, 6, 20, 24],     // O7 : T25
+                ],
+                [
+                    'title'  => 'Sudah vs Belum Armada per Planner',
+                    'cat'    => "\$A\${$f}:\$A\${$l}",
+                    'series' => [
+                        ['name' => '$C$8', 'val' => "\$C\${$f}:\$C\${$l}", 'color' => '16A34A'],
+                        ['name' => '$D$8', 'val' => "\$D\${$f}:\$D\${$l}", 'color' => 'DC2626'],
+                    ],
+                    'anchor' => [14, 26, 20, 44],    // O27 : T45
+                ],
+                [
+                    'title'  => 'Pengiriman Optimal vs Tidak Optimal per Planner',
+                    'cat'    => "\$A\${$of}:\$A\${$ol}",
+                    'series' => [
+                        ['name' => "\$D\${$slaHdr}", 'val' => "\$D\${$of}:\$D\${$ol}", 'color' => '16A34A'],
+                        ['name' => "\$E\${$slaHdr}", 'val' => "\$E\${$of}:\$E\${$ol}", 'color' => 'F59E0B'],
+                    ],
+                    'anchor' => [14, 46, 20, 64],    // O47 : T65
+                ],
+                [
+                    'title'  => 'Ketibaan ke Gudang: On Time vs Delay per Planner',
+                    'cat'    => "\$A\${$tf}:\$A\${$tl}",
+                    'series' => [
+                        ['name' => "\$C\${$tgHdr}", 'val' => "\$C\${$tf}:\$C\${$tl}", 'color' => '16A34A'],
+                        ['name' => "\$D\${$tgHdr}", 'val' => "\$D\${$tf}:\$D\${$tl}", 'color' => 'DC2626'],
+                    ],
+                    'anchor' => [14, 66, 20, 84],    // O67 : T85
+                ],
+                [
+                    'title'  => 'Keluar Gudang: On Time vs Delay per Planner',
+                    'cat'    => "\$A\${$tf}:\$A\${$tl}",
+                    'series' => [
+                        ['name' => "\$F\${$tgHdr}", 'val' => "\$F\${$tf}:\$F\${$tl}", 'color' => '16A34A'],
+                        ['name' => "\$G\${$tgHdr}", 'val' => "\$G\${$tf}:\$G\${$tl}", 'color' => 'DC2626'],
+                    ],
+                    'anchor' => [14, 86, 20, 104],   // O87 : T105
+                ],
+            ];
+
+            // chart 15 tujuan teratas (tabelnya sudah urut grup terbanyak)
+            $nT = min(15, count($keys['Tujuan']));
+            if ($nT > 0 && isset($blockFirst['Tujuan'])) {
+                $tj  = $blockFirst['Tujuan'];
+                $tje = $tj + $nT - 1;
+                $th  = $tj - 1;
+                $charts[] = [
+                    'title'  => 'Top 15 Tujuan: Gudang Selesai vs Di Gudang',
+                    'cat'    => "\$A\${$tj}:\$A\${$tje}",
+                    'series' => [
+                        ['name' => "\$F\${$th}", 'val' => "\$F\${$tj}:\$F\${$tje}", 'color' => '0284C7'],
+                        ['name' => "\$G\${$th}", 'val' => "\$G\${$tj}:\$G\${$tje}", 'color' => 'F59E0B'],
+                    ],
+                    'anchor' => [14, 106, 20, 124],  // O107 : T125
+                ];
+            }
+
             try {
-                XlsxChartInjector::add($path, 'Ringkasan', [
-                    [
-                        'title'  => 'Gudang Selesai vs Di Gudang per Planner',
-                        'cat'    => "\$A\${$f}:\$A\${$l}",
-                        'series' => [
-                            ['name' => '$F$8', 'val' => "\$F\${$f}:\$F\${$l}", 'color' => '0284C7'],
-                            ['name' => '$G$8', 'val' => "\$G\${$f}:\$G\${$l}", 'color' => 'F59E0B'],
-                        ],
-                        'anchor' => [14, 6, 20, 24],     // O7 : T25
-                    ],
-                    [
-                        'title'  => 'Sudah vs Belum Armada per Planner',
-                        'cat'    => "\$A\${$f}:\$A\${$l}",
-                        'series' => [
-                            ['name' => '$C$8', 'val' => "\$C\${$f}:\$C\${$l}", 'color' => '16A34A'],
-                            ['name' => '$D$8', 'val' => "\$D\${$f}:\$D\${$l}", 'color' => 'DC2626'],
-                        ],
-                        'anchor' => [14, 26, 20, 44],    // O27 : T45
-                    ],
-                    [
-                        'title'  => 'Pengiriman Optimal vs Tidak Optimal per Planner',
-                        'cat'    => "\$A\${$of}:\$A\${$ol}",
-                        'series' => [
-                            ['name' => "\$D\${$slaHdr}", 'val' => "\$D\${$of}:\$D\${$ol}", 'color' => '16A34A'],
-                            ['name' => "\$E\${$slaHdr}", 'val' => "\$E\${$of}:\$E\${$ol}", 'color' => 'F59E0B'],
-                        ],
-                        'anchor' => [14, 46, 20, 64],    // O47 : T65
-                    ],
-                    [
-                        'title'  => 'Ketibaan ke Gudang: On Time vs Delay per Planner',
-                        'cat'    => "\$A\${$tf}:\$A\${$tl}",
-                        'series' => [
-                            ['name' => "\$C\${$tgHdr}", 'val' => "\$C\${$tf}:\$C\${$tl}", 'color' => '16A34A'],
-                            ['name' => "\$D\${$tgHdr}", 'val' => "\$D\${$tf}:\$D\${$tl}", 'color' => 'DC2626'],
-                        ],
-                        'anchor' => [14, 66, 20, 84],    // O67 : T85
-                    ],
-                    [
-                        'title'  => 'Keluar Gudang: On Time vs Delay per Planner',
-                        'cat'    => "\$A\${$tf}:\$A\${$tl}",
-                        'series' => [
-                            ['name' => "\$F\${$tgHdr}", 'val' => "\$F\${$tf}:\$F\${$tl}", 'color' => '16A34A'],
-                            ['name' => "\$G\${$tgHdr}", 'val' => "\$G\${$tf}:\$G\${$tl}", 'color' => 'DC2626'],
-                        ],
-                        'anchor' => [14, 86, 20, 104],   // O87 : T105
-                    ],
-                ]);
+                XlsxChartInjector::add($path, 'Ringkasan', $charts);
             } catch (\Throwable $e) {
                 report($e);   // chart gagal, export tetap jalan
             }

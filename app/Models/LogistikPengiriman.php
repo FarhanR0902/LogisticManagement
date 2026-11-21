@@ -104,6 +104,7 @@ class LogistikPengiriman extends Model
     'tanggal_keluar_gudang_3',
     'lama_digudang_3',
     'status_gudang_3',
+    'kota',
     'sla_loading_3',
     'nama_kapal',
     'etd',

@@ -719,6 +719,10 @@ class UpdateQtyPgiImport implements ToCollection, WithHeadingRow, WithEvents, Wi
      */
     private function recalcBiayaKontribusi(): void
     {
+        logger()->info('DEBUG BIAYA', [
+    'groupBiaya' => $this->groupBiaya,
+    'touched'    => array_keys($this->touchedShipments),
+]);
         // A) Excel membawa biaya 1 mobil (kunci: no_shipment)
         foreach ($this->groupBiaya as $sh => $pool) {
             $this->distributeBiaya((string) $sh, (float) $pool);

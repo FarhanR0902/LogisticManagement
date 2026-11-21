@@ -304,7 +304,10 @@
         <div class="title">🚚 DATA MONITORING</div>
 
         <div class="mb-3 d-flex align-items-center gap-2">
-            <button type="button" id="btnExport" class="btn btn-success">Export Excel</button>
+          <button type="button" id="btnExport" class="btn btn-success"
+        data-url="{{ route('monitoring.export') }}">Export Excel</button>
+<button type="button" id="btnExportReport" class="btn btn-warning"
+        data-url="{{ route('monitoring.exportReport') }}">📊 Export Dashboard + Slicer</button>
 
             <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#shipModal">
                 + Shipment Laut
@@ -1372,25 +1375,28 @@
                 }
 
                 // ================= EXPORT =================
-                $(document).on('click', '#btnExport', function() {
-                    const params = new URLSearchParams();
-                    const add = (k, v) => { if (v) params.append(k, v); };
+              $(document).on('click', '#btnExport, #btnExportReport', function() {
+    if (!periodeAktif.length) { showToastMsg('Pilih periode dulu.'); return; }
 
-                    ['pic_monitoring', 'dist_channel', 'bulan', 'tahun'].forEach(function(k) {
-                        getMulti(k).forEach(v => params.append(k + '[]', v));
-                    });
-                    getSelectedAreas().forEach(a => params.append('area[]', a));
+    const params = new URLSearchParams();
+    const add = (k, v) => { if (v) params.append(k, v); };
 
-                    const kg = getKeluarRange();
-                    add('keluar_gudang_dari',   kg.dari);
-                    add('keluar_gudang_sampai', kg.sampai);
-                    add('tgl_dari',             $('#exportTglDari').val());
-                    add('tgl_sampai',           $('#exportTglSampai').val());
+    periodeAktif.forEach(p => params.append('periode[]', p));
+    add('tanggal_shipment', tglShipmentFilter);
 
-                    window.location.href = "{{ route('monitoring.export') }}" +
-                        (params.toString() ? '?' + params.toString() : '');
-                });
+    ['pic_monitoring', 'dist_channel', 'bulan', 'tahun'].forEach(function(k) {
+        getMulti(k).forEach(v => params.append(k + '[]', v));
+    });
+    getSelectedAreas().forEach(a => params.append('area[]', a));
 
+    const kg = getKeluarRange();
+    add('keluar_gudang_dari',   kg.dari);
+    add('keluar_gudang_sampai', kg.sampai);
+    add('tgl_dari',   $('#exportTglDari').val());
+    add('tgl_sampai', $('#exportTglSampai').val());
+
+    window.location.href = $(this).data('url') + '?' + params.toString();
+});
                 // ================= HITUNG ULANG SLA (tiba, estimasi, status) =================
 $(document).on('click', '#btnHitungUlang', function () {
     const $btn = $(this);

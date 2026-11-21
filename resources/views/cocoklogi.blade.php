@@ -20,6 +20,13 @@
             <label><input type="radio" name="clMode" value="do"> Per DO (lebih detail)</label>
         </div>
         <div class="cl-row">
+    <b>Periode shipment:</b>
+    <div id="clPeriode" style="display:flex;gap:14px;flex-wrap:wrap">
+        <span class="cl-muted">memuat...</span>
+    </div>
+</div>
+<div class="cl-muted" style="margin-top:-4px">Kosongkan semua centang = cek semua periode.</div>
+        <div class="cl-row">
             <span>Periode opsional (tgl naik logistik):</span>
             <input type="date" id="clFrom"> s/d <input type="date" id="clTo">
             <button type="button" id="clCek" class="cl-btn cl-blue">Cek</button>
@@ -28,10 +35,13 @@
         <div id="clInfo" style="margin:10px 0"></div>
 
         <div id="clMissingWrap" style="display:none">
-            <div class="cl-row" style="justify-content:space-between">
-                <b>Ada di sistem, tidak ada di Excel</b>
-                <button type="button" id="clHapus" class="cl-btn cl-red">Hapus yang dicentang (diarsipkan dulu)</button>
-            </div>
+          <div class="cl-row" style="justify-content:space-between">
+    <b>Ada di sistem, tidak ada di Excel</b>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button type="button" class="cl-btn cl-orange cl-aksi" data-aksi="arsip">📦 Pindahkan ke Storage</button>
+        <button type="button" class="cl-btn cl-red cl-aksi" data-aksi="hapus">🗑 Hapus Permanen</button>
+    </div>
+</div>
             <div class="cl-scroll">
                 <table class="cl-tbl" id="clTbl">
                     <thead><tr>
@@ -47,7 +57,7 @@
             <b>Ada di Excel, belum ada di sistem</b>
             <div class="cl-scroll">
                 <table class="cl-tbl" id="clTbl2">
-                    <thead><tr><th>No Shipment</th><th id="clTh2">Tujuan</th></tr></thead>
+                    <thead><tr><th>No Shipment</th><th id="clTh2">Tujuan</th><th>Tanggal Shipment</tr></thead>
                     <tbody></tbody>
                 </table>
             </div>
@@ -64,7 +74,7 @@
     .cl-row{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:10px 0}
     .cl-row input[type=date]{padding:9px 12px;border:1px solid #cbd5e1;border-radius:8px;font-size:15px}
     .cl-btn{padding:10px 18px;border:none;border-radius:8px;color:#fff;font-size:15px;font-weight:600;cursor:pointer}
-    .cl-blue{background:#2563eb}.cl-red{background:#dc2626}
+    .cl-blue{background:#2563eb}.cl-red{background:#dc2626}.cl-orange{background:#f59e0b}
     .cl-btn:disabled{opacity:.6;cursor:wait}
     .cl-scroll{max-height:320px;overflow:auto;margin-top:8px;border:1px solid #e2e8f0;border-radius:8px}
     .cl-tbl{width:100%;border-collapse:collapse;font-size:15px}
@@ -94,8 +104,21 @@ $(function () {
         });
     }
     loadStatus();
+    function loadPeriode() {
+    var picked = $('.cl-per:checked').map(function () { return this.value; }).get();
+    $.getJSON("{{ route('cocoklogi.periode') }}", function (list) {
+        if (!list.length) {
+            $('#clPeriode').html('<span class="cl-muted">Belum ada periode</span>');
+            return;
+        }
+        $('#clPeriode').html(list.map(function (p) {
+            return '<label><input type="checkbox" class="cl-per" value="' + esc(p) + '"' +
+                (picked.indexOf(String(p)) > -1 ? ' checked' : '') + '> ' + esc(p) + '</label>';
+        }).join(''));
+    });
+}
 
-    $('#btnCocoklogi').on('click', function (e) { e.preventDefault(); $m.show(); loadStatus(); });
+   $('#btnCocoklogi').on('click', function (e) { e.preventDefault(); $m.show(); loadStatus(); loadPeriode(); });
     $('#clClose').on('click', function () { $m.hide(); });
     $m.on('mousedown', function (e) { if (e.target === this) $m.hide(); });
 
@@ -109,6 +132,7 @@ $(function () {
         fd.append('mode', mode);
         fd.append('date_from', $('#clFrom').val());
         fd.append('date_to', $('#clTo').val());
+        $('.cl-per:checked').each(function () { fd.append('periode[]', this.value); });
 
         var $btn = $(this).prop('disabled', true);
         $('#clInfo').text('Memproses...');
@@ -141,9 +165,10 @@ $(function () {
 
             var nd = j.not_in_db || [];
             $('#clTh2').text(mode === 'do' ? 'No DO' : 'Tujuan');
-            $('#clTbl2 tbody').html(nd.map(function (x) {
-                return '<tr><td>' + esc(x.no_shipment) + '</td><td>' + esc(x.tujuan_atau_do) + '</td></tr>';
-            }).join(''));
+          $('#clTbl2 tbody').html(nd.map(function (x) {
+    return '<tr><td>' + esc(x.no_shipment) + '</td><td>' + esc(x.tujuan_atau_do) + '</td>' +
+        '<td>' + esc(x.tanggal_shipment || '-') + '</td></tr>';
+}).join(''));
             $('#clNotDbWrap').toggle(nd.length > 0);
 
             loadStatus();
@@ -155,25 +180,30 @@ $(function () {
 
     $('#clAll').on('change', function () { $('.cl-chk').prop('checked', this.checked); });
 
-    $('#clHapus').on('click', function () {
-        var idx = $('.cl-chk:checked').map(function () { return parseInt(this.value, 10); }).get();
-        if (!idx.length) return alert('Belum ada yang dicentang');
-        if (!confirm('Hapus ' + idx.length + ' baris dari daftar? Data diarsipkan ke storage dulu.')) return;
+   $('.cl-aksi').on('click', function () {
+    var aksi = $(this).data('aksi');
+    var idx = $('.cl-chk:checked').map(function () { return parseInt(this.value, 10); }).get();
+    if (!idx.length) return alert('Belum ada yang dicentang');
 
-        var $btn = $(this).prop('disabled', true);
-        $.ajax({
-            url: "{{ route('cocoklogi.hapus') }}", type: 'POST', contentType: 'application/json',
-            data: JSON.stringify({token: token, idx: idx}),
-            headers: {'X-CSRF-TOKEN': csrf, 'Accept': 'application/json'}
-        }).done(function (j) {
-            alert(j.deleted + ' baris dihapus (diarsipkan ke storage)');
-            $m.hide();
-            $('#clMissingWrap, #clNotDbWrap').hide();
-            $('#clInfo').text('');
-            $('#tableLogistik').DataTable().ajax.reload(null, false);   // refresh tabel tanpa pindah halaman
-        }).fail(function (xhr) {
-            alert((xhr.responseJSON && xhr.responseJSON.error) || 'Gagal menghapus');
-        }).always(function () { $btn.prop('disabled', false); });
-    });
+    var msg = aksi === 'arsip'
+        ? 'Pindahkan ' + idx.length + ' baris ke logistik_storage? Data akan hilang dari Data Logistik tapi masih tersimpan di Storage.'
+        : 'HAPUS PERMANEN ' + idx.length + ' baris? Data TIDAK diarsipkan dan tidak bisa dikembalikan.';
+    if (!confirm(msg)) return;
+
+    var $btns = $('.cl-aksi').prop('disabled', true);
+    $.ajax({
+        url: "{{ route('cocoklogi.hapus') }}", type: 'POST', contentType: 'application/json',
+        data: JSON.stringify({token: token, idx: idx, aksi: aksi}),
+        headers: {'X-CSRF-TOKEN': csrf, 'Accept': 'application/json'}
+    }).done(function (j) {
+        alert(j.deleted + (j.aksi === 'arsip' ? ' baris dipindahkan ke storage' : ' baris dihapus permanen'));
+        $m.hide();
+        $('#clMissingWrap, #clNotDbWrap').hide();
+        $('#clInfo').text('');
+        $('#tableLogistik').DataTable().ajax.reload(null, false);
+    }).fail(function (xhr) {
+        alert((xhr.responseJSON && xhr.responseJSON.error) || 'Gagal memproses');
+    }).always(function () { $btns.prop('disabled', false); });
+});
 });
 </script>
