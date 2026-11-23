@@ -18,26 +18,24 @@ use PhpOffice\PhpSpreadsheet\Shared\Date;
  * Aturan:
  *  - 1 baris Excel = 1 DO. Kunci baris: no_do (kalau kosong: no_shipment + tujuan).
  *  - MODE DEFAULT (skipExisting = true):
- *      * no_do yang SUDAH ada di DB dilewati total (tidak diproses, tidak diupdate, tidak dobel).
- *      * no_do yang BELUM ada di DB di-insert (batch). Cocok untuk upload berulang tgl 1, 1-2, 1-2-3.
- *      * Baris lama yang no_do-nya masih kosong (data lama) dicocokkan lewat no_shipment + tujuan,
- *        lalu diisi lewat jalur update lama (supaya tidak jadi duplikat).
- *  - MODE UPDATE (skipExisting = false): perilaku lama.
+ *      * no_do yang SUDAH ada di DB dilewati total.
+ *      * no_do yang BELUM ada di DB di-insert (batch).
+ *      * Baris lama yang no_do-nya kosong dicocokkan lewat no_shipment + tujuan (jalur update lama).
+ *  - MODE UPDATE (skipExisting = false):
  *      * Baris yang SUDAH ada: kolom input user TIDAK ditimpa (hanya diisi kalau kosong),
- *        kecuali kolom di ALWAYS_OVERWRITE (data per DO + angka dari Excel).
+ *        kecuali kolom di ALWAYS_OVERWRITE.
  *  - Nilai kosong di Excel tidak pernah menimpa data lama.
- *  - kirim_kontribusi di Excel = biaya 1 mobil per no_shipment (diulang di banyak baris tidak masalah,
- *    dihitung 1x). Dibagi ke tiap DO berdasarkan total_kubik.
- *  - biaya_kirim per tujuan = SUM kirim_kontribusi DO di tujuan itu.
- *  - cr, hasil_kubik, hasil_tonase, pengiriman_optimal dihitung ulang setelah import,
- *    HANYA untuk shipment yang kena baris baru / diubah.
  *
- * PERFORMA (target 10.000 - 15.000 baris):
- *  - File dibaca per 1000 baris (WithChunkReading), tidak dimuat sekaligus.
- *  - no_do yang sudah ada dimuat 1x ke memori; baris duplikat dilewati sebelum diproses.
- *  - Insert per batch (300 baris), bukan satu-satu.
- *  - Hasil lookup tarif (nama mobil lengkap + kubikasi + tonase) di-cache per route|ekspedisi|mobil.
- *  - Hitung ulang di AfterImport hanya untuk shipment yang tersentuh.
+ *  - area, kota, pulau, kubikasi, tonase dibaca dari EXCEL.
+ *    Cadangan kalau sel kosong: area/kota/pulau dari master tujuanfillterr,
+ *    kubikasi/tonase dari master tarif_pengiriman.
+ *
+ *  - kirim_kontribusi di Excel = biaya 1 mobil per no_shipment, dibagi ke tiap DO berdasarkan total_kubik.
+ *  - biaya_kirim per tujuan = SUM kirim_kontribusi DO di tujuan itu.
+ *  - hasil_kubik / hasil_tonase = SUM total per TUJUAN / kapasitas mobil (kubikasi/tonase) x 100.
+ *  - pengiriman_optimal = per SHIPMENT: SUM total semua tujuan / kapasitas >= 85%.
+ *  - Semua dihitung ulang setelah import, HANYA untuk shipment yang tersentuh.
+ *
  *  - Wajib ada index: logistik_pengiriman(no_shipment), (no_do), (periode_shipment).
  */
 class LogistikImport implements ToCollection, WithHeadingRow, WithEvents, WithCalculatedFormulas, WithChunkReading
@@ -51,13 +49,16 @@ class LogistikImport implements ToCollection, WithHeadingRow, WithEvents, WithCa
     // kolom yang tidak pernah diisi dari Excel
     private const SKIP_COLUMNS = ['id', 'created_at', 'updated_at'];
 
-   private const ALWAYS_OVERWRITE = [
-    'no_shipment',
-    'tujuan',
-    'no_do',
-    'area',
-    'kota',
-    'pulau',
+    // kolom yang selalu ditimpa di mode update
+    private const ALWAYS_OVERWRITE = [
+        'no_shipment',
+        'tujuan',
+        'no_do',
+        'area',
+        'kota',
+        'pulau',
+        'kubikasi',
+        'tonase',
         'sales_document',
         'customer_reference',
         'contract_end_date',
@@ -80,12 +81,9 @@ class LogistikImport implements ToCollection, WithHeadingRow, WithEvents, WithCa
         'pengiriman_optimal_customer',
         'reason_optimal_customer',
     ];
-    // kolom ini HANYA boleh dari master tujuanfillterr (berdasarkan tujuan), bukan dari Excel
-private const MASTER_TUJUAN_COLUMNS = [
-    'area', 
-    'kota',
-     'pulau'
-    ];
+
+    // kolom yang hanya boleh dari master (kosong = semua boleh dari Excel)
+    private const MASTER_TUJUAN_COLUMNS = [];
 
     // area => PIC. Hanya area yang PIC-nya satu; dipakai kalau PIC masih kosong.
     private const AREA_PIC = [
@@ -118,9 +116,8 @@ private const MASTER_TUJUAN_COLUMNS = [
         // 'namadiexcel' => 'PT Nama Di Master',
     ];
 
-    // kolom hasil lookup master tujuan yang boleh "ikut" baris lain di shipment yang sama
+    // kolom yang boleh "ikut" baris lain di shipment yang sama
     private const SIBLING_FILL_COLUMNS = [
-    
         'tanggal_shipment',
         'periode_shipment',
     ];
@@ -130,8 +127,8 @@ private const MASTER_TUJUAN_COLUMNS = [
         'tgl_terima_dari_admin'  => 'tanggal_naik_logistik',
         'tgl_rencana_kirim'      => 'rencana_kirim',
         'tanggal_tiba_di_gudang' => 'tanggal_tiba_gudang',
-        'rute'  => 'route',
-        'rute_name' => 'route',
+        'rute'                   => 'route',
+        'rute_name'              => 'route',
         'ac_turutan_bongkar'     => 'act_urutan_bongkar',
         'reason_waktu_tiba'      => 'reason_tiba',
         'reason_waktu_bongkar'   => 'reason_bongkar',
@@ -186,9 +183,11 @@ private const MASTER_TUJUAN_COLUMNS = [
 
     // cache hasil tarif: "route|ekspedisi|mobil" => [mobil lengkap, kubikasi, tonase]
     private array $tarifMemo = [];
-       private array $padDefaults = []; 
-       private float $tBuild = 0;
-private float $tDb    = 0;  // kolom => default, untuk padding insert
+
+    // kolom => default, untuk padding insert
+    private array $padDefaults = [];
+    private float $tBuild = 0;
+    private float $tDb    = 0;
 
     // ===== mode skip data yang sudah ada =====
     private bool $skipExisting;
@@ -197,11 +196,12 @@ private float $tDb    = 0;  // kolom => default, untuk padding insert
     private array $insertBuf = [];   // signature kolom => baris yang antre insert
     private array $touched   = [];   // no_shipment yang ditambah / diubah (untuk hitung ulang)
     private int $skippedExisting = 0;
-private array $shipSet      = [];   // no_shipment yang sudah ada di DB sebelum import (mode skip)
-private array $shipHadRows  = [];   // mode update: shipment yang sudah punya baris sebelum import
-private array $changeLog    = [];   // "shipment|tujuan" => detail perubahan
-private int $unchanged      = 0;
-private array $byDate = [];   // 'Y-m-d' => [baru, diperbarui, tidak_berubah, sudah_ada]
+    private array $shipSet      = [];   // no_shipment yang sudah ada di DB sebelum import (mode skip)
+    private array $shipHadRows  = [];   // mode update: shipment yang sudah punya baris sebelum import
+    private array $changeLog    = [];   // "shipment|tujuan" => detail perubahan
+    private int $unchanged      = 0;
+    private array $byDate       = [];   // 'Y-m-d' => [baru, diperbarui, tidak_berubah, sudah_ada]
+
     // no_shipment => [no_shipment, biaya 1 mobil]  (diambil dari baris PERTAMA yang terisi)
     private array $groupBiaya    = [];
     // no_shipment => true kalau angka biaya di Excel beda-beda dalam 1 shipment
@@ -268,50 +268,49 @@ private array $byDate = [];   // 'Y-m-d' => [baru, diperbarui, tidak_berubah, su
         return array_map('strval', array_keys($this->biayaConflict));
     }
 
-    // ===== TAMBAHAN BARU: mulai =====
- public function getChangeLog(): array
-{
-    return array_values(array_map(function ($c) {
-        $alasan = [];
+    public function getChangeLog(): array
+    {
+        return array_values(array_map(function ($c) {
+            $alasan = [];
 
-        if (!empty($c['do_baru'])) {
-            $alasan[] = 'DO baru ditambah: ' . implode(', ', $c['do_baru']);
-        }
+            if (!empty($c['do_baru'])) {
+                $alasan[] = 'DO baru ditambah: ' . implode(', ', $c['do_baru']);
+            }
 
-        foreach ($c['kolom'] as $col => $pair) {
-            [$old, $new] = $pair;
-            $o = ($old === null || trim((string) $old) === '') ? 'kosong' : (string) $old;
-            $alasan[] = $col . ' (' . $o . ' → ' . (string) $new . ')';
-        }
+            foreach ($c['kolom'] as $col => $pair) {
+                [$old, $new] = $pair;
+                $o = ($old === null || trim((string) $old) === '') ? 'kosong' : (string) $old;
+                $alasan[] = $col . ' (' . $o . ' → ' . (string) $new . ')';
+            }
 
-        $c['alasan'] = $alasan;
-        return $c;
-    }, $this->changeLog));
-}
+            $c['alasan'] = $alasan;
+            return $c;
+        }, $this->changeLog));
+    }
 
     public function getUnchangedCount(): int
     {
         return $this->unchanged;
     }
+
     public function getByDate(): array
-{
-    ksort($this->byDate);
+    {
+        ksort($this->byDate);
 
-    $out = [];
-    foreach ($this->byDate as $tgl => $c) {
-        $out[] = ['tanggal' => $tgl] + $c;
+        $out = [];
+        foreach ($this->byDate as $tgl => $c) {
+            $out[] = ['tanggal' => $tgl] + $c;
+        }
+        return $out;
     }
-    return $out;
-}
 
-private function countDate(string $type, ?string $tgl): void
-{
-    $tgl = $tgl ?: '(tanpa tanggal)';
+    private function countDate(string $type, ?string $tgl): void
+    {
+        $tgl = $tgl ?: '(tanpa tanggal)';
 
-    $this->byDate[$tgl] ??= ['baru' => 0, 'diperbarui' => 0, 'tidak_berubah' => 0, 'sudah_ada' => 0];
-    $this->byDate[$tgl][$type]++;
-}
-    // ===== TAMBAHAN BARU: selesai =====
+        $this->byDate[$tgl] ??= ['baru' => 0, 'diperbarui' => 0, 'tidak_berubah' => 0, 'sudah_ada' => 0];
+        $this->byDate[$tgl][$type]++;
+    }
 
     /** baca file per 1000 baris supaya memori aman untuk 10.000+ baris */
     public function chunkSize(): int
@@ -321,28 +320,30 @@ private function countDate(string $type, ?string $tgl): void
 
     /**
      * @param bool $skipExisting true  = lewati no_do yang sudah ada di DB (default)
-     *                           false = mode update lama (isi kolom kosong + ALWAYS_OVERWRITE)
+     *                           false = mode update (isi kolom kosong + ALWAYS_OVERWRITE)
      */
     public function __construct(bool $skipExisting = true)
     {
         $this->skipExisting = $skipExisting;
 
-    
-
-foreach (DB::select('SHOW COLUMNS FROM `' . self::TABLE . '`') as $c) {
-    $this->allColumns[] = $c->Field;
-
-    if (!in_array($c->Field, self::SKIP_COLUMNS, true)) {
-        $this->dbColumns[$c->Field] = strtolower($c->Type);
-
-        $def = $c->Default;
-        $isTs = is_string($def) && stripos($def, 'current_timestamp') !== false;
-        $wajib = ($def === null && $c->Null === 'NO');
-        if (!$isTs && !$wajib) {
-            $this->padDefaults[$c->Field] = $def;   // null untuk kolom nullable
-        }
-    }
+        foreach (DB::select('SHOW COLUMNS FROM `' . self::TABLE . '`') as $c) {
+            $this->allColumns[] = $c->Field;
+            if (stripos((string) $c->Extra, 'STORED GENERATED') !== false
+    || stripos((string) $c->Extra, 'VIRTUAL GENERATED') !== false) {
+    continue;   // kolom otomatis MySQL, jangan diisi
 }
+
+            if (!in_array($c->Field, self::SKIP_COLUMNS, true)) {
+                $this->dbColumns[$c->Field] = strtolower($c->Type);
+
+                $def   = $c->Default;
+                $isTs  = is_string($def) && stripos($def, 'current_timestamp') !== false;
+                $wajib = ($def === null && $c->Null === 'NO');
+                if (!$isTs && !$wajib) {
+                    $this->padDefaults[$c->Field] = $def;   // null untuk kolom nullable
+                }
+            }
+        }
 
         $this->hasCreatedAt = in_array('created_at', $this->allColumns, true);
         $this->hasUpdatedAt = in_array('updated_at', $this->allColumns, true);
@@ -425,19 +426,19 @@ foreach (DB::select('SHOW COLUMNS FROM `' . self::TABLE . '`') as $c) {
         }
     }
 
-
     private function padForInsert(array $attrs): array
-{
-    $out = [];
-    foreach ($this->padDefaults as $col => $def) {
-        $out[$col] = array_key_exists($col, $attrs) ? $attrs[$col] : $def;
+    {
+        $out = [];
+        foreach ($this->padDefaults as $col => $def) {
+            $out[$col] = array_key_exists($col, $attrs) ? $attrs[$col] : $def;
+        }
+        foreach ($attrs as $col => $v) {          // created_at, updated_at, kolom wajib
+            $out[$col] ??= $v;
+        }
+        ksort($out);
+        return $out;
     }
-    foreach ($attrs as $col => $v) {          // created_at, updated_at, kolom wajib
-        $out[$col] ??= $v;
-    }
-    ksort($out);
-    return $out;
-}
+
     // =========================================================
     // DETEKSI DATA YANG SUDAH ADA
     // =========================================================
@@ -565,34 +566,33 @@ foreach (DB::select('SHOW COLUMNS FROM `' . self::TABLE . '`') as $c) {
             $doKey = $noDo !== null ? mb_strtolower(trim($noDo)) : null;
 
             // SUDAH ADA di DB (atau sudah muncul di file ini) -> lewati total
-// SUDAH ADA di DB (atau sudah muncul di file ini) -> lewati total
-if ($this->skipExisting && $doKey !== null && isset($this->doSet[$doKey])) {
-    $this->skippedExisting++;
-    $this->countDate('sudah_ada', $this->convertDateUs($row['tanggal_shipment'] ?? null));
-    $this->rememberForwardFill($row, $noShipment);
-    continue;
-}
+            if ($this->skipExisting && $doKey !== null && isset($this->doSet[$doKey])) {
+                $this->skippedExisting++;
+                $this->countDate('sudah_ada', $this->convertDateUs($row['tanggal_shipment'] ?? null));
+                $this->rememberForwardFill($row, $noShipment);
+                continue;
+            }
 
             $this->allNoShipmentInFile[] = $noShipment;
 
-        try {
-    $t = microtime(true);
-    $attrs = $this->buildAttributes($row, $noShipment, $tujuan);
-    $this->tBuild += microtime(true) - $t;
+            try {
+                $t = microtime(true);
+                $attrs = $this->buildAttributes($row, $noShipment, $tujuan);
+                $this->tBuild += microtime(true) - $t;
 
-    $legacy = $this->skipExisting
-        && isset($this->legacySet[$this->legacyKey($noShipment, $tujuan)]);
+                $legacy = $this->skipExisting
+                    && isset($this->legacySet[$this->legacyKey($noShipment, $tujuan)]);
 
-    $t = microtime(true);
-    if (!$this->skipExisting || $legacy) {
-        // mode update, atau baris lama yang no_do-nya masih kosong -> jalur lama
-        $this->flushInsert();
-        unset($this->shipCache[$noShipment]);
-        $this->save($noShipment, $tujuan, $noDo, $attrs);
-    } else {
-        $this->queueInsert($noShipment, $tujuan, $noDo, $attrs);
-    }
-    $this->tDb += microtime(true) - $t;
+                $t = microtime(true);
+                if (!$this->skipExisting || $legacy) {
+                    // mode update, atau baris lama yang no_do-nya masih kosong -> jalur lama
+                    $this->flushInsert();
+                    unset($this->shipCache[$noShipment]);
+                    $this->save($noShipment, $tujuan, $noDo, $attrs);
+                } else {
+                    $this->queueInsert($noShipment, $tujuan, $noDo, $attrs);
+                }
+                $this->tDb += microtime(true) - $t;
 
                 $this->touched[$noShipment] = true;
 
@@ -619,19 +619,17 @@ if ($this->skipExisting && $doKey !== null && isset($this->doSet[$doKey])) {
         }
 
         // tulis sisa antrian insert di akhir tiap chunk
-    
-        // tulis sisa antrian insert di akhir tiap chunk
-$t = microtime(true);
-$this->flushInsert();
-$this->tDb += microtime(true) - $t;
+        $t = microtime(true);
+        $this->flushInsert();
+        $this->tDb += microtime(true) - $t;
 
-logger()->info('CHUNK', [
-    'build_s'          => round($this->tBuild, 1),
-    'db_s'             => round($this->tDb, 1),
-    'skipped_existing' => $this->skippedExisting,
-    'inserted'         => $this->inserted,
-    'updated'          => $this->updated,
-]);
+        logger()->info('CHUNK', [
+            'build_s'          => round($this->tBuild, 1),
+            'db_s'             => round($this->tDb, 1),
+            'skipped_existing' => $this->skippedExisting,
+            'inserted'         => $this->inserted,
+            'updated'          => $this->updated,
+        ]);
 
         if (!empty($this->ignoredHeaders)) {
             logger()->info('LOGISTIK IMPORT: header Excel tanpa kolom DB (diabaikan)', $this->getIgnoredHeaders());
@@ -659,9 +657,11 @@ logger()->info('CHUNK', [
         if (isset($this->dbColumns['no_shipment'])) $attrs['no_shipment'] = $noShipment;
         if (isset($this->dbColumns['tujuan']))      $attrs['tujuan']      = $tujuan;
         if ($noDo !== null && isset($this->dbColumns['no_do'])) $attrs['no_do'] = $noDo;
-if (isset($this->shipSet[mb_strtolower(trim($noShipment))])) {
-    $this->logChange($noShipment, $tujuan, 'do_baru', $noDo);
-}
+
+        if (isset($this->shipSet[mb_strtolower(trim($noShipment))])) {
+            $this->logChange($noShipment, $tujuan, 'do_baru', $noDo);
+        }
+
         $now = now();
 
         // default hanya untuk baris BARU
@@ -671,7 +671,7 @@ if (isset($this->shipSet[mb_strtolower(trim($noShipment))])) {
         if (isset($this->dbColumns['ketersediaan_unit'])) {
             $attrs['ketersediaan_unit'] ??= 'BELUM DAPAT';
         }
-            if ($this->hasCreatedAt) $attrs['created_at'] = $now;
+        if ($this->hasCreatedAt) $attrs['created_at'] = $now;
         if ($this->hasUpdatedAt) $attrs['updated_at'] = $now;
 
         $this->countDate('baru', $attrs['tanggal_shipment'] ?? null);
@@ -683,51 +683,54 @@ if (isset($this->shipSet[mb_strtolower(trim($noShipment))])) {
         if (count($this->insertBuf[$sig]) >= self::INSERT_BATCH) {
             $this->flushInsert($sig);
         }
-    
     }
+
     private function logChange(string $sh, string $tj, string $type, ?string $noDo = null, array $cols = []): void
-{
-    $k = mb_strtolower(trim($sh)) . '|' . mb_strtolower(trim($tj));
+    {
+        $k = mb_strtolower(trim($sh)) . '|' . mb_strtolower(trim($tj));
 
-    $this->changeLog[$k] ??= [
-        'no_shipment' => $sh,
-        'tujuan'      => $tj,
-        'do_baru'     => [],
-        'kolom'       => [],
-    ];
+        $this->changeLog[$k] ??= [
+            'no_shipment' => $sh,
+            'tujuan'      => $tj,
+            'do_baru'     => [],
+            'kolom'       => [],
+        ];
 
-    if ($type === 'do_baru') {
-        $this->changeLog[$k]['do_baru'][] = $noDo ?? '(tanpa No DO)';
-    }
-foreach ($cols as $c => $pair) {
-    $this->changeLog[$k]['kolom'][$c] = $pair;
-}
-}
-private function sameValue($a, $b, string $col = ''): bool
-{
-    $a = $a === null ? '' : trim((string) $a);
-    $b = $b === null ? '' : trim((string) $b);
-
-    if ($a === $b) return true;
-
-    // tanggal: abaikan jam 00:00:00
-    if (preg_match('/^\d{4}-\d{2}-\d{2}/', $a) && preg_match('/^\d{4}-\d{2}-\d{2}/', $b)) {
-        if (substr($a, 0, 10) === substr($b, 0, 10)
-            && (strlen($a) <= 10 || strlen($b) <= 10
-                || substr($a, 11) === substr($b, 11)
-                || substr($a, 11) === '00:00:00' || substr($b, 11) === '00:00:00')) {
-            return true;
+        if ($type === 'do_baru') {
+            $this->changeLog[$k]['do_baru'][] = $noDo ?? '(tanpa No DO)';
+        }
+        foreach ($cols as $c => $pair) {
+            $this->changeLog[$k]['kolom'][$c] = $pair;
         }
     }
 
-    // angka: uang 2 desimal, lainnya dibandingkan teliti
-    if (is_numeric($a) && is_numeric($b)) {
-        $tol = $col === 'nilai_muatan' ? 0.005 : 0.000001;
-        return abs((float) $a - (float) $b) < $tol;
-    }
+    private function sameValue($a, $b, string $col = ''): bool
+    {
+        $a = $a === null ? '' : trim((string) $a);
+        $b = $b === null ? '' : trim((string) $b);
 
-    return false;
-}
+        if ($a === $b) return true;
+
+        // tanggal: abaikan jam 00:00:00
+        if (preg_match('/^\d{4}-\d{2}-\d{2}/', $a) && preg_match('/^\d{4}-\d{2}-\d{2}/', $b)) {
+            if (
+                substr($a, 0, 10) === substr($b, 0, 10)
+                && (strlen($a) <= 10 || strlen($b) <= 10
+                    || substr($a, 11) === substr($b, 11)
+                    || substr($a, 11) === '00:00:00' || substr($b, 11) === '00:00:00')
+            ) {
+                return true;
+            }
+        }
+
+        // angka: uang 2 desimal, lainnya dibandingkan teliti
+        if (is_numeric($a) && is_numeric($b)) {
+            $tol = $col === 'nilai_muatan' ? 0.005 : 0.000001;
+            return abs((float) $a - (float) $b) < $tol;
+        }
+
+        return false;
+    }
 
     private function flushInsert(?string $only = null): void
     {
@@ -775,12 +778,11 @@ private function sameValue($a, $b, string $col = ''): bool
 
     // =========================================================
     // SIMPAN JALUR LAMA (insert / update berdasarkan no_shipment + tujuan + no_do)
-    // Dipakai di mode update, dan untuk baris lama yang no_do-nya masih kosong.
     // =========================================================
     private function save(string $noShipment, string $tujuan, ?string $noDo, array $attrs): void
     {
         $tglShip = $attrs['tanggal_shipment'] ?? null;
-        $attrs = $this->filterToColumns($attrs);
+        $attrs   = $this->filterToColumns($attrs);
 
         if (isset($this->dbColumns['no_shipment'])) $attrs['no_shipment'] = $noShipment;
         if (isset($this->dbColumns['tujuan']))      $attrs['tujuan']      = $tujuan;
@@ -798,12 +800,12 @@ private function sameValue($a, $b, string $col = ''): bool
                 ->all();
         }
         if (!$this->skipExisting && !isset($this->shipHadRows[$noShipment])) {
-    $this->shipHadRows[$noShipment] = !empty($this->shipCache[$noShipment]);
-}
+            $this->shipHadRows[$noShipment] = !empty($this->shipCache[$noShipment]);
+        }
 
-        $tKey  = mb_strtolower(trim($tujuan));
-        $doKey = $noDo !== null ? mb_strtolower(trim($noDo)) : null;
-        $idx = null;
+        $tKey     = mb_strtolower(trim($tujuan));
+        $doKey    = $noDo !== null ? mb_strtolower(trim($noDo)) : null;
+        $idx      = null;
         $fallback = null;
 
         foreach ($this->shipCache[$noShipment] as $i => $r) {
@@ -824,41 +826,43 @@ private function sameValue($a, $b, string $col = ''): bool
         }
         $idx ??= $fallback;
 
-if ($idx !== null) {
-    $existing   = $this->shipCache[$noShipment][$idx];
-    $existingId = $existing['id'];
-    $changed    = [];
+        if ($idx !== null) {
+            $existing   = $this->shipCache[$noShipment][$idx];
+            $existingId = $existing['id'];
+            $changed    = [];
 
-   foreach ($attrs as $col => $v) {
-    if (in_array($col, self::ALWAYS_OVERWRITE, true)) {
-if (!$this->sameValue($existing[$col] ?? null, $v, $col)) {
-            $changed[$col] = [$existing[$col] ?? null, $v];   // [lama, baru]
+            foreach ($attrs as $col => $v) {
+                if (in_array($col, self::ALWAYS_OVERWRITE, true)) {
+                    if (!$this->sameValue($existing[$col] ?? null, $v, $col)) {
+                        $changed[$col] = [$existing[$col] ?? null, $v];   // [lama, baru]
+                    }
+                    continue;
+                }
+
+                $cur = $existing[$col] ?? null;
+                if ($cur !== null && trim((string) $cur) !== '') {
+                    unset($attrs[$col]);                // sudah terisi, jangan ditimpa
+                } else {
+                    $changed[$col] = [null, $v];        // tadinya kosong, sekarang diisi
+                }
+            }
+
+            if (empty($changed)) {
+                $this->unchanged++;
+                $this->countDate('tidak_berubah', $tglShip);
+                return;
+            }
+
+            if ($this->hasUpdatedAt) $attrs['updated_at'] = $now;
+            DB::table(self::TABLE)->where('id', $existingId)->update($attrs);
+            $this->shipCache[$noShipment][$idx] = array_merge($existing, $attrs);
+
+            $this->logChange($noShipment, $tujuan, 'update', $noDo, $changed);
+            $this->countDate('diperbarui', $tglShip);
+            $this->updated++;
+            return;
         }
-        continue;
-    }
 
-    $cur = $existing[$col] ?? null;
-    if ($cur !== null && trim((string) $cur) !== '') {
-        unset($attrs[$col]);                // sudah terisi, jangan ditimpa
-    } else {
-        $changed[$col] = [null, $v];        // tadinya kosong, sekarang diisi
-    }
-}
-if (empty($changed)) {
-    $this->unchanged++;
-    $this->countDate('tidak_berubah', $tglShip);
-    return;
-}
-
-    if ($this->hasUpdatedAt) $attrs['updated_at'] = $now;
-    DB::table(self::TABLE)->where('id', $existingId)->update($attrs);
-    $this->shipCache[$noShipment][$idx] = array_merge($existing, $attrs);
-
-    $this->logChange($noShipment, $tujuan, 'update', $noDo, $changed);
-    $this->countDate('diperbarui', $tglShip);
-    $this->updated++;
-    return;
-}
         // default hanya untuk baris BARU
         if (isset($this->dbColumns['create_tgl'])) {
             $attrs['create_tgl'] ??= $now->format('Y-m-d H:i:s');
@@ -868,15 +872,15 @@ if (empty($changed)) {
         }
         if ($this->hasCreatedAt) $attrs['created_at'] = $now;
         if ($this->hasUpdatedAt) $attrs['updated_at'] = $now;
+
         $shipmentLama = isset($this->shipSet[mb_strtolower(trim($noShipment))])
-    || ($this->shipHadRows[$noShipment] ?? false);
+            || ($this->shipHadRows[$noShipment] ?? false);
 
-if ($shipmentLama) {
-    $this->logChange($noShipment, $tujuan, 'do_baru', $noDo);
-}
+        if ($shipmentLama) {
+            $this->logChange($noShipment, $tujuan, 'do_baru', $noDo);
+        }
 
-
-$this->countDate('baru', $tglShip);
+        $this->countDate('baru', $tglShip);
         $newId = DB::table(self::TABLE)->insertGetId($attrs);
         $this->shipCache[$noShipment][] = array_merge($attrs, ['id' => $newId]);
         $this->inserted++;
@@ -986,12 +990,12 @@ $this->countDate('baru', $tglShip);
         $this->lastNoShipment = $noShipment;
 
         // ================= ANGKA DARI EXCEL =================
-$totalDoCar  = $this->parseQty($row['total_do_qty_car'] ?? null);
+        $totalDoCar  = $this->parseQty($row['total_do_qty_car'] ?? null);
         $totalKubik  = $this->parseNumber($this->pick($row, ['total_kubik', 'total_kubik_m3', 'total_kubik_m_3', 'totalkubik']));
         $totalTonase = $this->parseNumber($this->pick($row, ['total_tonase', 'total_tonase_ton', 'totaltonase']));
         $nilaiMuatan = $this->parseNumber($this->pick($row, ['nilai_muatan', 'nilai_muatan_rp', 'nilai_muatan_rp_', 'nilai_muatan_pasuruan']));
 
-        // ================= NAMA MOBIL LENGKAP + KAPASITAS DARI TARIF (di-cache per kombinasi) =================
+        // ================= NAMA MOBIL LENGKAP + KAPASITAS DARI TARIF (cadangan, di-cache) =================
         $memoKey = $route . '|' . $ekpedisi . '|' . $mobil;
         if (!isset($this->tarifMemo[$memoKey])) {
             $mobilFull = $this->completeMobilName($mobil, $route, $ekpedisi);
@@ -1005,8 +1009,11 @@ $totalDoCar  = $this->parseQty($row['total_do_qty_car'] ?? null);
         }
         [$mobil, $kubikasi, $tonase] = $this->tarifMemo[$memoKey];
 
+        // kapasitas mobil dari Excel diprioritaskan; tarif hanya cadangan kalau sel kosong
+        $kubikasi = $this->parseNumber($this->pick($row, ['kubikasi'])) ?? $kubikasi;
+        $tonase   = $this->parseNumber($this->pick($row, ['tonase']))   ?? $tonase;
+
         // ================= BIAYA 1 MOBIL DARI EXCEL (1 per no_shipment) =================
-        // angka bisa diulang di banyak baris atau cuma di 1 baris; yang dipakai baris PERTAMA yang terisi
         $biayaExcel = $this->parseNumber($this->pick($row, ['kirim_kontribusi', 'biaya_kirim', 'biaya_kirim_rp']));
 
         if ($biayaExcel !== null && $biayaExcel > 0) {
@@ -1044,13 +1051,14 @@ $totalDoCar  = $this->parseQty($row['total_do_qty_car'] ?? null);
             $picMonitoring = $this->cleanText($customerData->Monitoring ?? null);
         }
 
- $distChannel         = $customerData->dist_channel ?? null;
-$area                = $this->cleanText($customerData->area  ?? null);
-$kota                = $this->cleanText($customerData->kota  ?? null);
-$pulau               = $this->cleanText($customerData->pulau ?? null);
-$biayaKuli           = $customerData->biaya_kuli ?? null;
-$transport_lead_time = $customerData->transport_lead_time ?? null;
-$picMonitoring       = $this->fixPic($picMonitoring, $area);
+        $distChannel         = $customerData->dist_channel ?? null;
+        // area / kota / pulau: Excel diprioritaskan, master tujuan jadi cadangan
+        $area                = $this->cleanText($row['area']  ?? null) ?? $this->cleanText($customerData->area  ?? null);
+        $kota                = $this->cleanText($row['kota']  ?? null) ?? $this->cleanText($customerData->kota  ?? null);
+        $pulau               = $this->cleanText($row['pulau'] ?? null) ?? $this->cleanText($customerData->pulau ?? null);
+        $biayaKuli           = $customerData->biaya_kuli ?? null;
+        $transport_lead_time = $customerData->transport_lead_time ?? null;
+        $picMonitoring       = $this->fixPic($picMonitoring, $area);
 
         // ================= MONITORING =================
         $keluar = collect([$tanggalKeluarGudang, $tanggalKeluarGudang2, $tanggalKeluarGudang3])
@@ -1096,9 +1104,9 @@ $picMonitoring       = $this->fixPic($picMonitoring, $area);
             'code_planner'        => $codePlanner,
             'planner'             => $planner,
             'dist_channel'        => $distChannel,
-'area'                => $area,
-'kota'                => $kota,
-'ketersediaan_unit'   => $ketersediaanUnit,
+            'area'                => $area,
+            'kota'                => $kota,
+            'ketersediaan_unit'   => $ketersediaanUnit,
 
             'pulau'     => $pulau,
             'route'     => $route,
@@ -1194,10 +1202,10 @@ $picMonitoring       = $this->fixPic($picMonitoring, $area);
         // ================= SISA HEADER EXCEL (apa adanya) =================
         // header yang cocok dengan kolom DB tapi belum diisi di atas.
         // Kolom hasil hitung ulang tidak pernah diisi dari Excel.
-foreach ($this->map as $header => [$col, $kind]) {
-    if (in_array($col, self::RECALC_COLUMNS, true)) continue;
-    if (in_array($col, self::MASTER_TUJUAN_COLUMNS, true)) continue;   // <-- baru
-    if (($attrs[$col] ?? null) !== null) continue;nue;
+        foreach ($this->map as $header => [$col, $kind]) {
+            if (in_array($col, self::RECALC_COLUMNS, true)) continue;
+            if (in_array($col, self::MASTER_TUJUAN_COLUMNS, true)) continue;
+            if (($attrs[$col] ?? null) !== null) continue;
 
             $v = $this->convert($row[$header] ?? null, $kind, $col);
             if ($v !== null) {
@@ -1431,11 +1439,11 @@ foreach ($this->map as $header => [$col, $kind]) {
     }
 
     /** qty DO = pcs, selalu bilangan bulat (999,8 -> 1000) */
-private function parseQty($value): ?int
-{
-    $n = $this->parseNumber($value);
-    return $n === null ? null : (int) round($n);
-}
+    private function parseQty($value): ?int
+    {
+        $n = $this->parseNumber($value);
+        return $n === null ? null : (int) round($n);
+    }
 
     private function parseNumber($value): ?float
     {
@@ -1532,9 +1540,9 @@ private function parseQty($value): ?int
             return self::EKSPEDISI_ALIASES[$key];
         }
 
-        $best = null;
+        $best      = null;
         $bestScore = 0.0;
-        $second = 0.0;
+        $second    = 0.0;
 
         foreach ($candidates->pluck('ekpedisi')->filter()->unique() as $master) {
             $mk = $this->ekspedisiKey($master);
@@ -1553,9 +1561,9 @@ private function parseQty($value): ?int
             }
 
             if ($score > $bestScore) {
-                $second = $bestScore;
+                $second    = $bestScore;
                 $bestScore = $score;
-                $best = $master;
+                $best      = $master;
             } elseif ($score > $second) {
                 $second = $score;
             }
@@ -1687,7 +1695,7 @@ private function parseQty($value): ?int
     }
 
     /**
-     * kolom master yang kosong -> ikut baris lain di no_shipment yang sama.
+     * kolom yang kosong -> ikut baris lain di no_shipment yang sama.
      * Hanya diisi kalau nilai di shipment itu seragam (1 nilai unik).
      */
     private function fillMasterGapsFromSiblings(array $shipments): void
@@ -1719,7 +1727,6 @@ private function parseQty($value): ?int
     /**
      * 1) area kosong -> ikut area baris lain di no_shipment yang sama (kalau seragam)
      * 2) planner / pic_monitoring kosong -> isi dari master berdasarkan area
-     *    (digabung: 1 UPDATE per kolom pakai CASE, bukan 1 UPDATE per area)
      */
     private function fillAreaAndPlannerGaps(array $shipments): void
     {
@@ -1800,9 +1807,9 @@ private function parseQty($value): ?int
      * kirim_kontribusi DO : biaya 1 mobil x total_kubik DO / SUM total_kubik shipment
      * biaya_kirim tujuan  : SUM kirim_kontribusi DO di tujuan itu
      * CR                  : biaya_kirim / SUM nilai_muatan tujuan x 100
-     * hasil_kubik/tonase  : per baris = total / kapasitas x 100
-     * pengiriman_optimal  : per shipment (SUM total / kapasitas >= 85%)
-     * Kalau kapasitas tidak ketahui, nilai lama dipertahankan (tidak di-NULL-kan).
+     * hasil_kubik/tonase  : SUM total per TUJUAN / kapasitas mobil x 100
+     * pengiriman_optimal  : per SHIPMENT (SUM total semua tujuan / kapasitas >= 85%)
+     * Kalau kapasitas tidak diketahui, nilai lama dipertahankan (tidak di-NULL-kan).
      */
     private function recalcShipments(array $shipments): void
     {
@@ -1861,9 +1868,17 @@ private function parseQty($value): ?int
                 WHERE lp.no_shipment IN ($in)
             ", $bindings);
 
-            // ---- 4) HASIL KUBIK / TONASE (per baris) + OPTIMAL (per shipment) ----
+            // ---- 4) HASIL KUBIK / TONASE per TUJUAN + OPTIMAL per SHIPMENT ----
             DB::update("
                 UPDATE logistik_pengiriman lp
+                JOIN (
+                    SELECT no_shipment, COALESCE(tujuan,'') AS tj,
+                           SUM(COALESCE(total_kubik, 0))  AS t_kubik,
+                           SUM(COALESCE(total_tonase, 0)) AS t_tonase
+                    FROM logistik_pengiriman
+                    WHERE no_shipment IN ($in)
+                    GROUP BY no_shipment, COALESCE(tujuan,'')
+                ) t ON lp.no_shipment = t.no_shipment AND COALESCE(lp.tujuan,'') = t.tj
                 JOIN (
                     SELECT no_shipment,
                            SUM(COALESCE(total_kubik, 0))  AS sum_kubik,
@@ -1876,11 +1891,11 @@ private function parseQty($value): ?int
                 ) x ON lp.no_shipment = x.no_shipment
                 SET
                     lp.hasil_kubik = CASE
-                        WHEN x.kubikasi > 0 THEN ROUND(COALESCE(lp.total_kubik, 0) / x.kubikasi * 100, 2)
+                        WHEN x.kubikasi > 0 THEN ROUND(t.t_kubik / x.kubikasi * 100, 2)
                         ELSE lp.hasil_kubik
                     END,
                     lp.hasil_tonase = CASE
-                        WHEN x.tonase > 0 THEN ROUND(COALESCE(lp.total_tonase, 0) / x.tonase * 100, 2)
+                        WHEN x.tonase > 0 THEN ROUND(t.t_tonase / x.tonase * 100, 2)
                         ELSE lp.hasil_tonase
                     END,
                     lp.pengiriman_optimal = CASE
@@ -1892,7 +1907,7 @@ private function parseQty($value): ?int
                         ELSE lp.pengiriman_optimal
                     END
                 WHERE lp.no_shipment IN ($in)
-            ", $bindings);
+            ", array_merge($chunk, $chunk, $chunk));
 
             // ---- 5) OPTIMAL PER CUSTOMER ----
             if (isset($this->dbColumns['pengiriman_optimal_customer'])) {

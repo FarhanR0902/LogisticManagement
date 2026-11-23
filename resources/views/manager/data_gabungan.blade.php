@@ -52,6 +52,8 @@
         .yellow { background: #facc15 !important; color: #000 !important; }
         .gray { background: #64748b !important; }
         .pink { background: #ec4899 !important; }
+        .btn { display: inline-block; padding: 12px 20px; margin: 0 8px 16px 0; background: #03c03c; color: #fff; border-radius: 10px; text-decoration: none; font-weight: 600; }
+.btn:hover { background: #02a334; }
 
         @media (max-width: 768px) {
             .container { margin-left: 0; padding: 15px; }
@@ -67,7 +69,8 @@
 
 <div class="container">
     <h2>📦 DATA LOGISTIK (Jakarta + Pasuruan)</h2>
-
+<a class="btn js-export" href="#" data-base="{{ route('manager.gabungan.export') }}">⬇ Export Data</a>
+<a class="btn js-export" href="#" data-base="{{ route('manager.gabungan.export.laporan') }}">⬇ Laporan (Dashboard + Ringkasan + Slicer)</a>
     <div class="filter-box">
         <form id="filterForm" onsubmit="return false;">
             <select id="fSumber">
@@ -203,7 +206,25 @@ $(function () {
         renderLinkInfo();
         table.ajax.reload();
     });
+    // ===== EXPORT: bawa filter yang sama persis dengan tabel =====
+    $('.js-export').on('click', function (e) {
+        e.preventDefault();
 
+        var params = {
+            sumber:       $('#fSumber').val(),
+            area:         $('#fArea').val() ? [$('#fArea').val()] : linkFilter.area,
+            tgl_basis:    $('#fBasis').val(),
+            date_from:    $('#fFrom').val(),
+            date_to:      $('#fTo').val(),
+            month:        $('#fMonth').val(),
+            pulau:        linkFilter.pulau,
+            dist_channel: linkFilter.dist_channel,
+            date:         linkFilter.date,
+            year:         linkFilter.year
+        };
+
+        window.location.href = $(this).data('base') + '?' + $.param(params);
+    });
        // ===== RINCIAN DO =====
     var detailUrl = "{{ route('sales.data.gabungan.detail') }}";
 

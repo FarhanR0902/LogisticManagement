@@ -10,6 +10,7 @@ use PhpOffice\PhpSpreadsheet\Cell\DataType;
 /**
  * Sheet 2 "Ringkasan": semua angka = rumus SUMIFS ke sheet Data (kolom "Rk ..."), ikut filter/slicer.
  * Juga menyimpan tabel bantu grafik "Top 10 tujuan" untuk Dashboard (kolom R-AA).
+ * Kolom Q "Sudah Tiba" (= Total - Belum Tiba) dipakai chart "Sudah Tiba vs Belum Tiba per PIC".
  */
 class LogistikReportSummary implements WithTitle, WithEvents
 {
@@ -200,7 +201,7 @@ class LogistikReportSummary implements WithTitle, WithEvents
                 }
 
                 $s->getColumnDimension('A')->setWidth(36);
-                foreach (range('B', 'P') as $c) {
+                foreach (range('B', 'Q') as $c) {
                     $s->getColumnDimension($c)->setWidth(16);
                 }
                 $s->getColumnDimension('L')->setWidth(22);
@@ -275,11 +276,12 @@ class LogistikReportSummary implements WithTitle, WithEvents
             'I' => 'Belum Tiba', 'J' => 'Belum Bongkar', 'K' => 'In Transit',
             'L' => 'Nilai Muatan', 'M' => 'Biaya Kirim (Kirim Kontribusi)', 'N' => 'CR (%)',
             'O' => 'On Time di Gudang', 'P' => 'Delay di Gudang',
+            'Q' => 'Sudah Tiba',
         ];
         foreach ($heads as $col => $text) {
             $s->setCellValue("{$col}{$b['hdrRow']}", $text);
         }
-        $s->getStyle("A{$b['hdrRow']}:P{$b['hdrRow']}")->applyFromArray([
+        $s->getStyle("A{$b['hdrRow']}:Q{$b['hdrRow']}")->applyFromArray([
             'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF']],
             'fill' => ['fillType' => 'solid', 'startColor' => ['rgb' => '111827']],
         ]);
@@ -297,8 +299,8 @@ class LogistikReportSummary implements WithTitle, WithEvents
 
             foreach ($b['keys'] as $tipe) {
                 $this->writeKeyRow($s, $r, $tipe, false, $metricCols, [[$b['rk'], "\$A{$r}"]]);
-                $s->getStyle("A{$r}:P{$r}")->getFont()->setBold(true);
-                $s->getStyle("A{$r}:P{$r}")->getFill()->setFillType('solid')->getStartColor()->setRGB('E5E7EB');
+                $s->getStyle("A{$r}:Q{$r}")->getFont()->setBold(true);
+                $s->getStyle("A{$r}:Q{$r}")->getFill()->setFillType('solid')->getStartColor()->setRGB('E5E7EB');
                 if ($b['m'] > 0) {
                     $s->getRowDimension($r)->setCollapsed(true);
                 }
@@ -337,11 +339,11 @@ class LogistikReportSummary implements WithTitle, WithEvents
 
         $this->writePctCr($s, $tr);
 
-        $s->getStyle("A{$tr}:P{$tr}")->getFont()->setBold(true);
-        $s->getStyle("A{$tr}:P{$tr}")->getBorders()->getTop()->setBorderStyle('thin');
+        $s->getStyle("A{$tr}:Q{$tr}")->getFont()->setBold(true);
+        $s->getStyle("A{$tr}:Q{$tr}")->getBorders()->getTop()->setBorderStyle('thin');
 
         $s->getStyle("B{$b['first']}:K{$tr}")->getNumberFormat()->setFormatCode('#,##0');
-        $s->getStyle("O{$b['first']}:P{$tr}")->getNumberFormat()->setFormatCode('#,##0');
+        $s->getStyle("O{$b['first']}:Q{$tr}")->getNumberFormat()->setFormatCode('#,##0');
         $s->getStyle("L{$b['first']}:M{$tr}")->getNumberFormat()->setFormatCode('"Rp" #,##0');
         $s->getStyle("E{$b['first']}:E{$tr}")->getNumberFormat()->setFormatCode('0.0%');
         $s->getStyle("H{$b['first']}:H{$tr}")->getNumberFormat()->setFormatCode('0.0%');
@@ -386,6 +388,7 @@ class LogistikReportSummary implements WithTitle, WithEvents
         $this->formula($s, "E{$r}", "IF(C{$r}+D{$r}>0,C{$r}/(C{$r}+D{$r}),0)");
         $this->formula($s, "H{$r}", "IF(F{$r}+G{$r}>0,F{$r}/(F{$r}+G{$r}),0)");
         $this->formula($s, "N{$r}", "IF(L{$r}>0,M{$r}/L{$r},0)");
+        $this->formula($s, "Q{$r}", "B{$r}-I{$r}");   // Sudah Tiba = Total - Belum Tiba
     }
 
     // ============================================================
@@ -444,6 +447,6 @@ class LogistikReportSummary implements WithTitle, WithEvents
         $last = self::HELP_HDR + self::HELP_N;
         $s->getStyle('Y' . self::HELP_FIRST . ":Y{$last}")->getNumberFormat()->setFormatCode('0.00%');
         $s->getStyle("S1:AA{$last}")->getFont()->getColor()->setRGB('9CA3AF');
-        $s->getStyle("R{$f}:R{$l}")->getFont()->getColor()->setRGB('9CA3AF');
+        $s->getStyle("R{$f}:R{$l}")->getFont()->setBold(false)->getColor()->setRGB('9CA3AF');
     }
 }

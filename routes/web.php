@@ -304,6 +304,10 @@ Route::prefix('manager/gabungan')->group(function () {
     Route::get('/list/{kpi}', [GabunganController::class, 'list'])->name('manager.gabungan.list');
     Route::get('gabungan/alert/{tipe}/export', [GabunganController::class, 'alertExport'])
     ->name('manager.gabungan.alert.export');
+      Route::get('/export', [GabunganController::class, 'export'])
+        ->name('manager.gabungan.export');
+    Route::get('/export-laporan', [GabunganController::class, 'exportLaporan'])
+        ->name('manager.gabungan.export.laporan');
 });
 Route::prefix('manager')->group(function () {
     Route::get('/kpi/planner',    [KpiController::class, 'planner'])->name('manager.kpi.planner');
@@ -411,6 +415,9 @@ Route::post('/logistik/update/{id}', [LogistikController::class, 'update']);
 Route::delete('/logistik/delete/{id}', [LogistikController::class, 'destroy']);
 
 Route::post('/logistik/archive-all', [LogistikController::class, 'archiveAll']);
+Route::post('/logistik/archive-all', [LogistikController::class, 'archiveAll']);
+Route::post('/logistik/archive-periode', [LogistikController::class, 'archiveByPeriode'])
+    ->name('logistik.archivePeriode');
 Route::get('/storage', [StorageController::class, 'index']);
 
 Route::post(

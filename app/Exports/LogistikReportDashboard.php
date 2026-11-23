@@ -12,22 +12,33 @@ use PhpOffice\PhpSpreadsheet\Chart\DataSeries;
 use PhpOffice\PhpSpreadsheet\Chart\DataSeriesValues;
 use PhpOffice\PhpSpreadsheet\Chart\Legend;
 use PhpOffice\PhpSpreadsheet\Chart\PlotArea;
+use PhpOffice\PhpSpreadsheet\Chart\Title;
 
 /**
  * Sheet 1 "Dashboard": hanya grafik (+ slicer di kolom A-C). Semua data grafik dibaca dari sheet "Ringkasan".
  *
- * Susunan (tiap band = 1 baris judul + 20 baris grafik):
+ * Gaya (seperti dashboard monitoring): judul di dalam chart, sudut membulat, warna per series,
+ * label angka berkotak warna + border (kotak & border ditulis oleh XlsxChartLabelStyler setelah file jadi).
+ * Pengecualian: chart "Top 10 tujuan" tetap pakai banner di atasnya (isinya pesan dinamis).
+ *
+ * Susunan (tiap band = 22 baris):
  *  0: SLA Tiba per Area        | SLA Tiba per Tujuan
  *  1: SLA Bongkar per Area     | SLA Bongkar per Tujuan
- *  2: CR per Area              | CR per Tujuan
- *  3: CR per Dist Channel      | SLA Tiba Dry vs Reefer
- *  4: Ekspedisi: Tiba On Time vs Delay di Gudang vs Delay di Konsumen (selebar layar)
+ *  2: Tiba di Gudang per Area  | Tiba di Gudang per Tujuan
+ *  3: CR per Area              | CR per Tujuan
+ *  4: CR per Dist Channel      | SLA Tiba Dry vs Reefer
+ *  5: Ekspedisi (selebar layar)
+ *  6: Sudah Tiba vs Belum Tiba per PIC (selebar layar)  -> butuh kolom Q di Ringkasan
  */
 class LogistikReportDashboard implements WithTitle, WithEvents, WithCharts
 {
     private const FIRST_BANNER = 4;
     private const BAND_H       = 22;
     private const SIDES        = ['L' => ['D', 'K'], 'R' => ['L', 'S'], 'F' => ['D', 'S']];
+
+    /** urutan warna series: hijau, oranye, biru, merah */
+    private const PALETTE      = ['16A34A', 'F59E0B', '2563EB', 'DC2626'];
+    private const SINGLE_COLOR = '2563EB';
 
     private ?array $specs = null;
 
@@ -41,15 +52,14 @@ class LogistikReportDashboard implements WithTitle, WithEvents, WithCharts
     }
 
     /**
-     * Slot slicer: 2 kolom x 3 baris di kolom A-C (kiri grafik), mulai baris 4.
+     * Slot slicer: 2 kolom x 4 baris di kolom A-C (kiri grafik), mulai baris 4.
      * Format: [kolomAwal, offsetKolomAwal, kolomAkhir, offsetKolomAkhir, barisAwal, barisAkhir] (0-based, EMU)
-     * PENTING: injector slicer harus menempelkan slicer ke sheet "Dashboard" (sheet pertama).
      */
     public static function slicerSlots(): array
     {
         $cols  = [[0, 38100, 0, 2350000], [1, 38100, 2, 1050000]];
         $slots = [];
-     for ($band = 0; $band < 4; $band++) {   // 4 band × 2 kolom = 8 slot, baris 4-59 (kolom A-C)
+        for ($band = 0; $band < 4; $band++) {
             $r1 = 3 + $band * 14;
             foreach ($cols as [$c1, $o1, $c2, $o2]) {
                 $slots[] = [$c1, $o1, $c2, $o2, $r1, $r1 + 13];
@@ -80,7 +90,6 @@ class LogistikReportDashboard implements WithTitle, WithEvents, WithCharts
         $b   = $this->summary->layout()['blocks'];
         $out = [];
 
-        // grafik dari satu blok tabel di Ringkasan
         $fromBlock = function (string $key, int $band, string $side, string $name, string $title, array $cols,
                                int $max = 20, string $grouping = DataSeries::GROUPING_CLUSTERED) use (&$out, $b) {
             if (!isset($b[$key])) {
@@ -99,7 +108,6 @@ class LogistikReportDashboard implements WithTitle, WithEvents, WithCharts
             ];
         };
 
-        // grafik dari tabel bantu "Top 10 tujuan" (kosong kalau area belum dipilih)
         $fromHelper = function (int $band, string $name, string $title, array $cols) use (&$out, $b) {
             if (!isset($b['tujuan'])) {
                 return;
@@ -117,34 +125,37 @@ class LogistikReportDashboard implements WithTitle, WithEvents, WithCharts
             ];
         };
 
-$fromBlock('area', 0, 'L', 'chTibaArea',    'SLA TIBA PER AREA',    ['C', 'D']);
-$fromHelper(0, 'chTibaTujuan',    'SLA TIBA PER TUJUAN (TOP 10)',    ['U', 'V']);
+        $fromBlock('area', 0, 'L', 'chTibaArea', 'SLA TIBA PER AREA', ['C', 'D']);
+        $fromHelper(0, 'chTibaTujuan', 'SLA TIBA PER TUJUAN (TOP 10)', ['U', 'V']);
 
-$fromBlock('area', 1, 'L', 'chBongkarArea', 'SLA BONGKAR PER AREA', ['F', 'G']);
-$fromHelper(1, 'chBongkarTujuan', 'SLA BONGKAR PER TUJUAN (TOP 10)', ['W', 'X']);
+        $fromBlock('area', 1, 'L', 'chBongkarArea', 'SLA BONGKAR PER AREA', ['F', 'G']);
+        $fromHelper(1, 'chBongkarTujuan', 'SLA BONGKAR PER TUJUAN (TOP 10)', ['W', 'X']);
 
-// BARU: tiba di gudang
-$fromBlock('area', 2, 'L', 'chGudangArea',  'TIBA DI GUDANG PER AREA: ON TIME vs DELAY', ['O', 'P']);
-$fromHelper(2, 'chGudangTujuan', 'TIBA DI GUDANG PER TUJUAN (TOP 10): ON TIME vs DELAY', ['Z', 'AA']);
+        $fromBlock('area', 2, 'L', 'chGudangArea', 'TIBA DI GUDANG PER AREA: ON TIME vs DELAY', ['O', 'P']);
+        $fromHelper(2, 'chGudangTujuan', 'TIBA DI GUDANG PER TUJUAN (TOP 10): ON TIME vs DELAY', ['Z', 'AA']);
 
-$fromBlock('area', 3, 'L', 'chCrArea',      'CR PER AREA',          ['N']);
-$fromHelper(3, 'chCrTujuan',      'CR PER TUJUAN (TOP 10)',          ['Y']);
+        $fromBlock('area', 3, 'L', 'chCrArea', 'CR PER AREA', ['N']);
+        $fromHelper(3, 'chCrTujuan', 'CR PER TUJUAN (TOP 10)', ['Y']);
 
-$fromBlock('dist_channel', 4, 'L', 'chCrChannel', 'CR PER DIST CHANNEL', ['N']);
-if (isset($b['tipe'])) {
-    $out[] = [
-        'name' => 'chTibaTipe', 'band' => 4, 'side' => 'R', 'title' => 'SLA TIBA: DRY vs REEFER', 'dynamic' => false,
-        'cat' => $this->ref('S', 17, 18), 'n' => 2,
-        'series' => [
-            [$this->ref('T', 16), $this->ref('T', 17, 18)],
-            [$this->ref('U', 16), $this->ref('U', 17, 18)],
-        ],
-        'grouping' => DataSeries::GROUPING_CLUSTERED,
-    ];
-}
+        $fromBlock('dist_channel', 4, 'L', 'chCrChannel', 'CR PER DIST CHANNEL', ['N']);
+        if (isset($b['tipe'])) {
+            $out[] = [
+                'name' => 'chTibaTipe', 'band' => 4, 'side' => 'R', 'title' => 'SLA TIBA: DRY vs REEFER', 'dynamic' => false,
+                'cat' => $this->ref('S', 17, 18), 'n' => 2,
+                'series' => [
+                    [$this->ref('T', 16), $this->ref('T', 17, 18)],
+                    [$this->ref('U', 16), $this->ref('U', 17, 18)],
+                ],
+                'grouping' => DataSeries::GROUPING_CLUSTERED,
+            ];
+        }
 
-$fromBlock('ekpedisi', 5, 'F', 'chEkspedisi', 'PER EKSPEDISI: TIBA ON TIME / DELAY & GUDANG ON TIME / DELAY',
-    ['C', 'D', 'O', 'P'], 20);
+        $fromBlock('ekpedisi', 5, 'F', 'chEkspedisi', 'PER EKSPEDISI: TIBA ON TIME / DELAY & GUDANG ON TIME / DELAY',
+            ['C', 'D', 'O', 'P'], 20);
+
+        // Sudah Tiba (Q) vs Belum Tiba (I) per PIC
+        $fromBlock('pic_monitoring', 6, 'F', 'chPic', 'SUDAH TIBA vs BELUM TIBA PER PIC', ['Q', 'I'], 20);
+
         return $this->specs = $out;
     }
 
@@ -157,13 +168,18 @@ $fromBlock('ekpedisi', 5, 'F', 'chEkspedisi', 'PER EKSPEDISI: TIBA ON TIME / DEL
 
         foreach ($this->specs() as $sp) {
             [$c1, $c2] = self::SIDES[$sp['side']];
-            $top       = $this->bannerRow($sp['band']) + 1;
+            $card      = !$sp['dynamic'];                           // judul di dalam chart
+            $top       = $this->bannerRow($sp['band']) + ($card ? 0 : 1);
+            $single    = count($sp['series']) === 1;
 
             $labels = [new DataSeriesValues(DataSeriesValues::DATASERIES_TYPE_STRING, $sp['cat'], null, $sp['n'])];
             $tags = $values = [];
-            foreach ($sp['series'] as [$nameRef, $valRef]) {
-                $tags[]   = new DataSeriesValues(DataSeriesValues::DATASERIES_TYPE_STRING, $nameRef, null, 1);
-                $values[] = new DataSeriesValues(DataSeriesValues::DATASERIES_TYPE_NUMBER, $valRef, null, $sp['n']);
+            foreach ($sp['series'] as $i => [$nameRef, $valRef]) {
+                $tags[] = new DataSeriesValues(DataSeriesValues::DATASERIES_TYPE_STRING, $nameRef, null, 1);
+
+                $v = new DataSeriesValues(DataSeriesValues::DATASERIES_TYPE_NUMBER, $valRef, null, $sp['n']);
+                $v->setFillColor($single ? self::SINGLE_COLOR : (self::PALETTE[$i] ?? '6B7280'));
+                $values[] = $v;
             }
 
             $ds = new DataSeries(
@@ -176,13 +192,17 @@ $fromBlock('ekpedisi', 5, 'F', 'chEkspedisi', 'PER EKSPEDISI: TIBA ON TIME / DEL
             );
             $ds->setPlotDirection(DataSeries::DIRECTION_COL);
 
-            // judul grafik = sel banner di atasnya (bisa berubah otomatis), jadi title chart dikosongkan
+            // label angka ditulis oleh XlsxChartLabelStyler (per series), jadi PlotArea tanpa Layout
+
             $chart = new Chart(
                 $sp['name'],
-                null,
+                $card ? new Title($sp['title']) : null,
                 new Legend(Legend::POSITION_BOTTOM, null, false),
                 new PlotArea(null, [$ds])
             );
+            if (method_exists($chart, 'setRoundedCorners')) {
+                $chart->setRoundedCorners(true);
+            }
             $chart->setTopLeftPosition("{$c1}{$top}");
             $chart->setBottomRightPosition("{$c2}" . ($top + 19));
 
@@ -193,7 +213,7 @@ $fromBlock('ekpedisi', 5, 'F', 'chEkspedisi', 'PER EKSPEDISI: TIBA ON TIME / DEL
     }
 
     // ============================================================
-    // TULIS SHEET (judul, banner, lebar kolom)
+    // TULIS SHEET (judul, banner chart dinamis, lebar kolom)
     // ============================================================
     public function registerEvents(): array
     {
@@ -216,21 +236,20 @@ $fromBlock('ekpedisi', 5, 'F', 'chEkspedisi', 'PER EKSPEDISI: TIBA ON TIME / DEL
                 }
 
                 foreach ($this->specs() as $sp) {
+                    if (!$sp['dynamic']) {
+                        continue;   // judul sudah ada di dalam chart
+                    }
+
                     [$c1, $c2] = self::SIDES[$sp['side']];
                     $row       = $this->bannerRow($sp['band']);
 
                     $s->mergeCells("{$c1}{$row}:{$c2}{$row}");
-
-                    if ($sp['dynamic']) {
-                        $s->setCellValueExplicit(
-                            "{$c1}{$row}",
-                            '=IF(' . LogistikReportSummary::FLAG_REF . '=1,"' . $sp['title']
-                            . '","Pilih Area di slicer untuk menampilkan grafik per tujuan")',
-                            DataType::TYPE_FORMULA
-                        );
-                    } else {
-                        $s->setCellValue("{$c1}{$row}", $sp['title']);
-                    }
+                    $s->setCellValueExplicit(
+                        "{$c1}{$row}",
+                        '=IF(' . LogistikReportSummary::FLAG_REF . '=1,"' . $sp['title']
+                        . '","Pilih Area di slicer untuk menampilkan grafik per tujuan")',
+                        DataType::TYPE_FORMULA
+                    );
 
                     $s->getStyle("{$c1}{$row}:{$c2}{$row}")->applyFromArray([
                         'font'      => ['bold' => true, 'color' => ['rgb' => 'FFFFFF']],

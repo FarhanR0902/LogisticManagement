@@ -647,13 +647,19 @@ private function exportLaporan($query)
     /* =========================================================
      * DATA LOGISTIK — HALAMAN
      * ========================================================= */
-    public function dataLogistik(Request $request)
-    {
-        $picList  = $this->cachedList('pic_monitoring');
-        $areaList = $this->cachedList('area');
+ public function dataLogistik(Request $request)
+{
+    $picList  = $this->cachedList('pic_monitoring');
+    $areaList = $this->cachedList('area');
 
-        return view('data_logistik', compact('picList', 'areaList'));
-    }
+    $periodeList = DB::table('logistik_pengiriman')
+        ->whereNotNull('periode_shipment')->where('periode_shipment', '!=', '')
+        ->distinct()
+        ->orderByRaw('RIGHT(periode_shipment,4) DESC, LEFT(periode_shipment,2) DESC')
+        ->pluck('periode_shipment');
+
+    return view('data_logistik', compact('picList', 'areaList', 'periodeList'));
+}
 
     /* =========================================================
      * DATA LOGISTIK — ENDPOINT AJAX (SERVER-SIDE PAGINATION)
@@ -1152,6 +1158,50 @@ private function exportLaporan($query)
 
         return back()->with('success', "{$moved} baris berhasil dipindahkan ke Storage");
     }
+
+    public function archiveByPeriode(Request $request)
+{
+    $request->validate(['periode' => ['required', 'regex:/^\d{2}-\d{4}$/']]); // MM-YYYY
+    $periode = $request->periode;
+
+    $cols = array_values(array_diff(
+        array_intersect(
+            Schema::getColumnListing('logistik_pengiriman'),
+            Schema::getColumnListing('logistik_storage')
+        ),
+        ['id']
+    ));
+
+    if (!in_array('periode_shipment', $cols, true)) {
+        return back()->with('error', "Kolom periode_shipment belum ada di tabel logistik_storage.");
+    }
+
+    $list = '`' . implode('`,`', $cols) . '`';
+
+    $moved = 0;
+
+    DB::transaction(function () use ($list, $periode, &$moved) {
+        DB::insert(
+            "INSERT INTO logistik_storage ({$list})
+             SELECT {$list} FROM logistik_pengiriman WHERE periode_shipment = ?",
+            [$periode]
+        );
+        $moved = DB::table('logistik_pengiriman')->where('periode_shipment', $periode)->delete();
+    });
+
+    if ($moved === 0) {
+        return back()->with('error', "Tidak ada data untuk periode {$periode}.");
+    }
+
+    Cache::forget('logistik_shipment_agg');
+    Cache::forget('storage_shipment_agg');
+    Cache::forget('storage_list_area');
+    foreach (['area', 'dist_channel', 'pic_monitoring'] as $c) {
+        Cache::forget("list_{$c}");
+    }
+
+    return back()->with('success', "{$moved} baris periode {$periode} berhasil dipindahkan ke Storage");
+}
 
     public function deleteAll()
     {

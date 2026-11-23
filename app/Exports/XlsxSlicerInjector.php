@@ -8,9 +8,15 @@ use ZipArchive;
  * Menyuntikkan slicer Excel Table ke file .xlsx hasil PhpSpreadsheet.
  * Slicer diletakkan di sheet "Dashboard" (kalau ada), mengontrol tabel tblLogistik (sheet Data).
  * Bekerja di salinan sementara; file asli hanya diganti kalau semua langkah lolos.
+ *
+ * Setelah slicer terpasang, label angka chart dipercantik (kotak warna + border) lewat
+ * XlsxChartLabelStyler. Langkah ini opsional: kalau gagal, file tetap jadi tanpa kotak warna.
  */
 class XlsxSlicerInjector
 {
+    /** matikan (false) kalau mau export tanpa kotak warna di label angka */
+    private const STYLE_CHART_LABELS = true;
+
     private const NS_X14 = 'http://schemas.microsoft.com/office/spreadsheetml/2009/9/main';
     private const NS_X15 = 'http://schemas.microsoft.com/office/spreadsheetml/2010/11/main';
     private const NS_R   = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
@@ -37,6 +43,15 @@ class XlsxSlicerInjector
             }
 
             self::build($tmp, $sheet, $wanted, $slots);
+
+            // kotak warna + border di label angka chart (opsional, tidak menggagalkan export)
+            if (self::STYLE_CHART_LABELS) {
+                try {
+                    XlsxChartLabelStyler::apply($tmp);
+                } catch (\Throwable $e) {
+                    report($e);
+                }
+            }
 
             $z = new ZipArchive();
             if ($z->open($tmp) !== true) {
@@ -147,7 +162,7 @@ class XlsxSlicerInjector
                 throw new \RuntimeException('struktur xlsx tidak dikenali');
             }
 
-            // [FIX 1] slicer selalu ke sheet "Dashboard" kalau ada, apa pun yang dikirim pemanggil
+            // slicer selalu ke sheet "Dashboard" kalau ada, apa pun yang dikirim pemanggil
             if (preg_match('/<sheet\b[^>]*\bname="Dashboard"/', $wbXml)) {
                 $sheet = 'Dashboard';
             }
@@ -170,8 +185,7 @@ class XlsxSlicerInjector
                 ?: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
                 . '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"></Relationships>';
 
-            // [FIX 2] rels kosong ditulis PhpSpreadsheet sebagai <Relationships .../> (tanpa penutup),
-            // sehingga str_replace('</Relationships>', ...) di bawah tidak pernah menambah relasi
+            // rels kosong ditulis PhpSpreadsheet sebagai <Relationships .../> (tanpa penutup)
             $sheetRel = preg_replace('#<Relationships([^>]*)/>#', '<Relationships$1></Relationships>', $sheetRel);
 
             // ---- tabel & kolom slicer (dibaca dari file)
@@ -213,7 +227,7 @@ class XlsxSlicerInjector
                 // sourceName = nama kolom asli; caption = tampilan di slicer
                 $cap = htmlspecialchars($c['head'], ENT_XML1 | ENT_QUOTES, 'UTF-8');
 
-                // [FIX 3] nama kolom database (dist_channel) dirapikan jadi "Dist Channel" untuk caption
+                // nama kolom database (dist_channel) dirapikan jadi "Dist Channel" untuk caption
                 $captionRaw = preg_match('/^[a-z0-9_]+$/', $c['head'])
                     ? ucwords(str_replace('_', ' ', $c['head']))
                     : $c['head'];

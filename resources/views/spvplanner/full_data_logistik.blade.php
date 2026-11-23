@@ -603,7 +603,19 @@
             </button>
         </form>
     @include('cocoklogi')
-
+<form action="{{ route('logistik.archivePeriode') }}" method="POST" class="archive-form"
+      style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;"
+      onsubmit="return confirm('Pindahkan semua data periode ' + this.periode.value + ' ke Storage?')">
+    @csrf
+    <select name="periode" required
+            style="padding:13px 16px;border:1px solid #cbd5e1;border-radius:10px;font-size:16px;min-width:220px;">
+        <option value="">-- Pilih Periode Shipment --</option>
+        @foreach($periodeList as $p)
+            <option value="{{ $p }}">{{ $p }}</option>
+        @endforeach
+    </select>
+    <button type="submit" class="archive-btn">🗄 Archive per Periode</button>
+</form>
 <div class="filter-box">
     <form id="filterForm" onsubmit="return false;">
 

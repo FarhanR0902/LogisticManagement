@@ -2563,22 +2563,28 @@ return view('spvplanner.dashboard_full', compact(
      * Data (ajax), rincian DO & export dilayani LogistikController:
      *   route('logistik.ajax'), route('logistik.detail'), route('logistik.export')
      * ===================================================== */
-    public function fullDataLogistik(Request $request)
-    {
-        $picList = LogistikPengiriman::whereNotNull('planner')
-            ->where('planner', '!=', '')
-            ->distinct()
-            ->orderBy('planner')
-            ->pluck('planner');
+   public function fullDataLogistik(Request $request)
+{
+    $picList = LogistikPengiriman::whereNotNull('planner')
+        ->where('planner', '!=', '')
+        ->distinct()
+        ->orderBy('planner')
+        ->pluck('planner');
 
-        $areaList = LogistikPengiriman::whereNotNull('area')
-            ->where('area', '!=', '')
-            ->distinct()
-            ->orderBy('area')
-            ->pluck('area');
+    $areaList = LogistikPengiriman::whereNotNull('area')
+        ->where('area', '!=', '')
+        ->distinct()
+        ->orderBy('area')
+        ->pluck('area');
 
-        return view('spvplanner.full_data_logistik', compact('picList', 'areaList'));
-    }
+    $periodeList = LogistikPengiriman::whereNotNull('periode_shipment')
+        ->where('periode_shipment', '!=', '')
+        ->distinct()
+        ->orderByRaw('RIGHT(periode_shipment,4) DESC, LEFT(periode_shipment,2) DESC')
+        ->pluck('periode_shipment');
+
+    return view('spvplanner.full_data_logistik', compact('picList', 'areaList', 'periodeList'));
+}
 
     /* =====================================================
      * GUDANG / SLA HELPERS

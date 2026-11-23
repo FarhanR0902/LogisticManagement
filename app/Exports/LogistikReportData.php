@@ -32,6 +32,12 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
  *   Rk Tiba OT ... Rk Gudang Delay -> flag metrik, hanya di baris wakil
  *   Rk Area, Rk PIC Monitoring, Rk Dist Channel, Rk Ekspedisi, Rk Tujuan, Rk Planner
  *                   -> kunci pengelompokan (kosong = "(kosong)") yang dibaca SUMIFS di Ringkasan
+ *
+ * CATATAN kirim_kontribusi:
+ *   Kolom ini tidak selalu ada di sumber data (mis. view v_logistik_gabungan yang belum diperbarui).
+ *   Kalau tidak ada, Biaya Grup otomatis memakai MAX(biaya_kirim) per grup (sama dengan dashboard web)
+ *   dan kolom kirim_kontribusi tidak ditampilkan di sheet Data. Kalau ada, SUM(kirim_kontribusi) dipakai
+ *   dan fallback ke MAX(biaya_kirim) hanya bila semua barisnya kosong.
  */
 class LogistikReportData extends LogistikExportFull implements WithEvents, WithTitle
 {
@@ -78,9 +84,15 @@ class LogistikReportData extends LogistikExportFull implements WithEvents, WithT
             return $this->extraCols;
         }
 
+        // kirim_kontribusi hanya ditampilkan kalau memang ada di sumber data
+        $keep = array_values(array_filter(
+            self::KEEP,
+            fn($c) => $c !== 'kirim_kontribusi' || $this->hasColumn('kirim_kontribusi')
+        ));
+
         $base = array_values(array_filter(
             parent::columns(),
-            fn($c) => in_array($c[0], self::KEEP, true)
+            fn($c) => in_array($c[0], $keep, true)
         ));
 
         $bln = ['', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
@@ -451,15 +463,20 @@ class LogistikReportData extends LogistikExportFull implements WithEvents, WithT
      * ditambah total grup dari SEMUA DO di grup itu:
      *   g.g_nilai = SUM(nilai_muatan)
      *   g.g_biaya = SUM(kirim_kontribusi), kalau kosong semua pakai MAX(biaya_kirim)
+     *               (kalau kolom kirim_kontribusi tidak ada di sumber data: langsung MAX(biaya_kirim))
      */
     public function groupRows()
     {
+        $biaya = $this->hasColumn('kirim_kontribusi')
+            ? 'COALESCE(SUM(kirim_kontribusi), MAX(COALESCE(biaya_kirim,0)), 0)'
+            : 'COALESCE(MAX(COALESCE(biaya_kirim,0)), 0)';
+
         $agg = $this->baseQuery()
             ->reorder()
             ->select(DB::raw(
                 'MIN(id) AS id, '
                 . 'SUM(COALESCE(nilai_muatan,0)) AS g_nilai, '
-                . 'COALESCE(SUM(kirim_kontribusi), MAX(COALESCE(biaya_kirim,0)), 0) AS g_biaya'
+                . $biaya . ' AS g_biaya'
             ))
             ->groupByRaw("COALESCE(NULLIF(TRIM(no_shipment),''), CONCAT('id', id)), COALESCE(tujuan,'')");
 
