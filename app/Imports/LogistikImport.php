@@ -133,7 +133,7 @@ class LogistikImport implements ToCollection, WithHeadingRow, WithEvents, WithCa
         'reason_waktu_tiba'      => 'reason_tiba',
         'reason_waktu_bongkar'   => 'reason_bongkar',
         'nilai_muatan_rp'        => 'nilai_muatan',
-        'biaya_kirim_rp'         => 'biaya_kirim',
+        'biaya_kirim_rp'         => 'biaya_kirim',  
         'nopol'                  => 'no_pol',
         'via'                    => 'via_kirim',
         'kode_planner'           => 'code_planner',

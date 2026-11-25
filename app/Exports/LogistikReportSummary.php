@@ -20,7 +20,7 @@ class LogistikReportSummary implements WithTitle, WithEvents
 
     public const HELP_HDR   = 3;
     public const HELP_FIRST = 4;
-    public const HELP_N     = 10;
+    // public const HELP_N     = 10;
     public const FLAG_REF   = "'Ringkasan'!\$T\$2";   // 1 = area sedang dipilih/difilter
 
     private const RK = [
@@ -210,6 +210,9 @@ class LogistikReportSummary implements WithTitle, WithEvents
                 foreach (array_merge(range('S', 'Z'), ['AA']) as $c) {
                     $s->getColumnDimension($c)->setWidth(16);
                 }
+                 foreach (['AC', 'AD', 'AE', 'AF', 'AG', 'AH', 'AI', 'AJ', 'AK'] as $c) {
+                    $s->getColumnDimension($c)->setWidth(16);
+                }
             },
         ];
     }
@@ -397,10 +400,16 @@ class LogistikReportSummary implements WithTitle, WithEvents
     //  - T2: 1 kalau Area sedang difilter (jumlah area tampil < total area), selain itu 0
     //  - S3:AA13: Top 10 tujuan dinamis; kalau T2 = 0 semua jadi kosong / #N/A, grafik kosong
     // ============================================================
+      // ============================================================
+    // TABEL BANTU GRAFIK TUJUAN (kolom AC-AK) - SEMUA tujuan, urut Nilai Muatan
+    //  - R (di baris blok Tujuan): ranking by Nilai Muatan, unik
+    //  - T2: 1 kalau Area sedang difilter, selain itu 0
+    // ============================================================
     private function writeTujuanHelper($s, array $b, ?array $area): void
     {
         $f = $b['first'];
         $l = $b['last'];
+        $n = $b['n'];
 
         $s->setCellValue("R{$b['hdrRow']}", 'Rank (bantu)');
         for ($r = $f; $r <= $l; $r++) {
@@ -416,37 +425,38 @@ class LogistikReportSummary implements WithTitle, WithEvents
         $this->formula($s, 'T2', $flag);
 
         $cols = [
-            'U'  => ['Tiba On Time', 'C'], 'V' => ['Tiba Delay', 'D'],
-            'W'  => ['Bongkar On Time', 'F'], 'X' => ['Bongkar Delay', 'G'],
-            'Y'  => ['CR (%)', 'N'],
-            'Z'  => ['On Time di Gudang', 'O'],
-            'AA' => ['Delay di Gudang', 'P'],
+            'AE' => ['Tiba On Time', 'C'], 'AF' => ['Tiba Delay', 'D'],
+            'AG' => ['Bongkar On Time', 'F'], 'AH' => ['Bongkar Delay', 'G'],
+            'AI' => ['CR (%)', 'N'],
+            'AJ' => ['On Time di Gudang', 'O'],
+            'AK' => ['Delay di Gudang', 'P'],
         ];
 
-        $s->setCellValue('S3', 'Pos');
-        $s->setCellValue('T3', 'Tujuan');
+        $s->setCellValue('AC3', 'Pos');
+        $s->setCellValue('AD3', 'Tujuan');
         foreach ($cols as $c => [$name]) {
             $this->formula($s, "{$c}3", 'IF($T$2=1,"' . $name . '","")');
         }
 
-        for ($k = 1; $k <= self::HELP_N; $k++) {
+        for ($k = 1; $k <= $n; $k++) {
             $r = self::HELP_HDR + $k;
 
-            $this->formula($s, "S{$r}", "IFERROR(MATCH({$k},\$R\${$f}:\$R\${$l},0),0)");
+            $this->formula($s, "AC{$r}", "IFERROR(MATCH({$k},\$R\${$f}:\$R\${$l},0),0)");
             $this->formula(
                 $s,
-                "T{$r}",
-                "IF(AND(\$T\$2=1,S{$r}>0),IF(INDEX(\$B\${$f}:\$B\${$l},S{$r})>0,INDEX(\$A\${$f}:\$A\${$l},S{$r}),\"\"),\"\")"
+                "AD{$r}",
+                "IF(AND(\$T\$2=1,AC{$r}>0),IF(INDEX(\$B\${$f}:\$B\${$l},AC{$r})>0,INDEX(\$A\${$f}:\$A\${$l},AC{$r}),\"\"),\"\")"
             );
 
             foreach ($cols as $c => [, $src]) {
-                $this->formula($s, "{$c}{$r}", "IF(\$T{$r}=\"\",NA(),INDEX(\${$src}\${$f}:\${$src}\${$l},\$S{$r}))");
+                $this->formula($s, "{$c}{$r}", "IF(\$AD{$r}=\"\",NA(),INDEX(\${$src}\${$f}:\${$src}\${$l},\$AC{$r}))");
             }
         }
 
-        $last = self::HELP_HDR + self::HELP_N;
-        $s->getStyle('Y' . self::HELP_FIRST . ":Y{$last}")->getNumberFormat()->setFormatCode('0.00%');
-        $s->getStyle("S1:AA{$last}")->getFont()->getColor()->setRGB('9CA3AF');
+        $last = self::HELP_HDR + $n;
+        $s->getStyle('AI' . self::HELP_FIRST . ":AI{$last}")->getNumberFormat()->setFormatCode('0.00%');
+        $s->getStyle('S1:T2')->getFont()->getColor()->setRGB('9CA3AF');
+        $s->getStyle("AC3:AK{$last}")->getFont()->getColor()->setRGB('9CA3AF');
         $s->getStyle("R{$f}:R{$l}")->getFont()->setBold(false)->getColor()->setRGB('9CA3AF');
     }
 }

@@ -201,28 +201,36 @@ class LogistikController extends Controller
     /**
      * Filter tanggal dari dropdown halaman: periode + bulan + tahun.
      */
-    private function applyTanggalFilter($query, Request $request)
-    {
-        $col   = $this->resolveTanggalColumn($request->input('tgl_basis'));
-        $month = $request->input('month');
-        $year  = $request->input('year');
+  private function applyTanggalFilter($query, Request $request)
+{
+    $col   = $this->resolveTanggalColumn($request->input('tgl_basis'));
+    $month = $request->input('month');
+    $year  = $request->input('year');
 
-        // dukung "2026-11" (input type=month) maupun "11"
-        if ($month && preg_match('/^(\d{4})-(\d{2})$/', $month, $m)) {
-            $year  = $year ?: $m[1];
-            $month = $m[2];
-        }
-
-        return $this->applyDateRange(
-            $query,
-            $col,
-            $request->input('date_from'),
-            $request->input('date_to'),
-            $month ?: null,
-            $year ?: null
-        );
+    // dukung "2026-11" (input type=month) maupun "11"
+    if ($month && preg_match('/^(\d{4})-(\d{2})$/', $month, $m)) {
+        $year  = $year ?: $m[1];
+        $month = $m[2];
     }
 
+    // ===== FILTER PERIODE SHIPMENT (string "MM-YYYY"), boleh satu atau banyak =====
+    $periode = array_values(array_filter(
+        (array) $request->input('periode', []),
+        fn($p) => is_string($p) && preg_match('/^\d{2}-\d{4}$/', $p)
+    ));
+    if (!empty($periode)) {
+        $query->whereIn('periode_shipment', $periode);
+    }
+
+    return $this->applyDateRange(
+        $query,
+        $col,
+        $request->input('date_from'),
+        $request->input('date_to'),
+        $month ?: null,
+        $year ?: null
+    );
+}
     /* =========================================================
      * ROLE SALES
      * ========================================================= */
@@ -712,11 +720,12 @@ private function exportLaporan($query)
 
         // Jangan terapkan filter tanggal dua kali kalau request sudah membawa filter yang sama
         if (
-            $request->filled('date_from') || $request->filled('date_to')
-            || $request->filled('month') || $request->filled('year')
-        ) {
-            unset($dash['tgl_basis'], $dash['date_from'], $dash['date_to'], $dash['month'], $dash['year']);
-        }
+    $request->filled('date_from') || $request->filled('date_to')
+    || $request->filled('month') || $request->filled('year')
+    || $request->filled('periode')          // <-- tambah
+) {
+    unset($dash['tgl_basis'], $dash['date_from'], $dash['date_to'], $dash['month'], $dash['year']);
+}
         if (!empty($areas)) {
             unset($dash['area']);
         }

@@ -595,6 +595,12 @@
     <option value="tanggal_naik_logistik">Tanggal Naik Logistik</option>
     <option value="rencana_kirim">Rencana Kirim</option>
 </select>
+<select id="filterPeriode" name="periode">
+    <option value="">Semua Periode Shipment</option>
+    @foreach($periodeList as $p)
+        <option value="{{ $p }}">{{ $p }}</option>
+    @endforeach
+</select>
 
                 <label class="tgl-lbl">Dari
                     <input type="date" id="filterDateFrom" name="date_from">
@@ -886,6 +892,7 @@ function gudangCols(s, n) {
                         d.area = getAreas(); // jQuery otomatis mengirim sebagai area[]=...
                         d.area = getAreas();
                         d.tgl_basis = $('#filterTglBasis').val();
+                           d.periode = $('#filterPeriode').val();  
                         d.date_from = $('#filterDateFrom').val();
                         d.date_to = $('#filterDateTo').val();
                         d.month = $('#filterMonth').val();
@@ -1436,9 +1443,9 @@ function gudangCols(s, n) {
 
 
             // Reload table setiap filter berubah (server-side, jadi ringan)
-            $('#filterTglBasis, #filterDateFrom, #filterDateTo, #filterMonth, #filterYear').on('change', function() {
-                table.ajax.reload();
-            });
+           $('#filterTglBasis, #filterPeriode, #filterDateFrom, #filterDateTo, #filterMonth, #filterYear').on('change', function() {
+    table.ajax.reload();
+});
             $('#btnResetFilter').on('click', function(e) {
                 e.preventDefault();
                 $('#filterForm')[0].reset(); // basis tanggal balik ke default
@@ -1461,17 +1468,19 @@ $('#btnExportExcel, #btnExportLaporan').on('click', function(e) {
 
     getAreas().forEach(a => params.append('area[]', a));
 
-    let basis = $('#filterTglBasis').val();
-    let from  = $('#filterDateFrom').val();
-    let to    = $('#filterDateTo').val();
-    let month = $('#filterMonth').val();
-    let year  = $('#filterYear').val();
+    let basis   = $('#filterTglBasis').val();
+    let periode = $('#filterPeriode').val();     // <-- TAMBAH DI SINI
+    let from    = $('#filterDateFrom').val();
+    let to      = $('#filterDateTo').val();
+    let month   = $('#filterMonth').val();
+    let year    = $('#filterYear').val();
 
-    if (basis) params.append('tgl_basis', basis);
-    if (from)  params.append('date_from', from);
-    if (to)    params.append('date_to', to);
-    if (month) params.append('month', month);
-    if (year)  params.append('year', year);
+    if (basis)   params.append('tgl_basis', basis);
+    if (periode) params.append('periode[]', periode);   // <-- TAMBAH DI SINI
+    if (from)    params.append('date_from', from);
+    if (to)      params.append('date_to', to);
+    if (month)   params.append('month', month);
+    if (year)    params.append('year', year);
 
     // tombol laporan membawa mode=laporan
     let mode = $(this).data('mode');

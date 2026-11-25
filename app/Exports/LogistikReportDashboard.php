@@ -81,7 +81,7 @@ class LogistikReportDashboard implements WithTitle, WithEvents, WithCharts
     // ============================================================
     // DEFINISI GRAFIK
     // ============================================================
-    private function specs(): array
+      private function specs(): array
     {
         if ($this->specs !== null) {
             return $this->specs;
@@ -91,12 +91,15 @@ class LogistikReportDashboard implements WithTitle, WithEvents, WithCharts
         $out = [];
 
         $fromBlock = function (string $key, int $band, string $side, string $name, string $title, array $cols,
-                               int $max = 20, string $grouping = DataSeries::GROUPING_CLUSTERED) use (&$out, $b) {
+                               ?int $max = null, string $grouping = DataSeries::GROUPING_CLUSTERED) use (&$out, $b) {
             if (!isset($b[$key])) {
                 return;
             }
-            $blk    = $b[$key];
-            $n      = min($blk['n'], $max);
+            $blk = $b[$key];
+            $n   = $max === null ? $blk['n'] : min($blk['n'], $max);
+            if ($n < 1) {
+                return;
+            }
             $first  = $blk['first'];
             $series = [];
             foreach ($cols as $c) {
@@ -112,32 +115,34 @@ class LogistikReportDashboard implements WithTitle, WithEvents, WithCharts
             if (!isset($b['tujuan'])) {
                 return;
             }
+            $n  = $b['tujuan']['n'];                       // SEMUA tujuan
             $h1 = LogistikReportSummary::HELP_FIRST;
-            $h2 = $h1 + LogistikReportSummary::HELP_N - 1;
+            $h2 = $h1 + $n - 1;
             $series = [];
             foreach ($cols as $c) {
                 $series[] = [$this->ref($c, LogistikReportSummary::HELP_HDR), $this->ref($c, $h1, $h2)];
             }
             $out[] = [
                 'name' => $name, 'band' => $band, 'side' => 'R', 'title' => $title, 'dynamic' => true,
-                'cat' => $this->ref('T', $h1, $h2), 'n' => LogistikReportSummary::HELP_N,
+                'cat' => $this->ref('AD', $h1, $h2), 'n' => $n,
                 'series' => $series, 'grouping' => DataSeries::GROUPING_CLUSTERED,
             ];
         };
 
         $fromBlock('area', 0, 'L', 'chTibaArea', 'SLA TIBA PER AREA', ['C', 'D']);
-        $fromHelper(0, 'chTibaTujuan', 'SLA TIBA PER TUJUAN (TOP 10)', ['U', 'V']);
+        $fromHelper(0, 'chTibaTujuan', 'SLA TIBA PER TUJUAN', ['AE', 'AF']);
 
         $fromBlock('area', 1, 'L', 'chBongkarArea', 'SLA BONGKAR PER AREA', ['F', 'G']);
-        $fromHelper(1, 'chBongkarTujuan', 'SLA BONGKAR PER TUJUAN (TOP 10)', ['W', 'X']);
+        $fromHelper(1, 'chBongkarTujuan', 'SLA BONGKAR PER TUJUAN', ['AG', 'AH']);
 
         $fromBlock('area', 2, 'L', 'chGudangArea', 'TIBA DI GUDANG PER AREA: ON TIME vs DELAY', ['O', 'P']);
-        $fromHelper(2, 'chGudangTujuan', 'TIBA DI GUDANG PER TUJUAN (TOP 10): ON TIME vs DELAY', ['Z', 'AA']);
+        $fromHelper(2, 'chGudangTujuan', 'TIBA DI GUDANG PER TUJUAN: ON TIME vs DELAY', ['AJ', 'AK']);
 
         $fromBlock('area', 3, 'L', 'chCrArea', 'CR PER AREA', ['N']);
-        $fromHelper(3, 'chCrTujuan', 'CR PER TUJUAN (TOP 10)', ['Y']);
+        $fromHelper(3, 'chCrTujuan', 'CR PER TUJUAN', ['AI']);
 
         $fromBlock('dist_channel', 4, 'L', 'chCrChannel', 'CR PER DIST CHANNEL', ['N']);
+
         if (isset($b['tipe'])) {
             $out[] = [
                 'name' => 'chTibaTipe', 'band' => 4, 'side' => 'R', 'title' => 'SLA TIBA: DRY vs REEFER', 'dynamic' => false,
@@ -151,10 +156,9 @@ class LogistikReportDashboard implements WithTitle, WithEvents, WithCharts
         }
 
         $fromBlock('ekpedisi', 5, 'F', 'chEkspedisi', 'PER EKSPEDISI: TIBA ON TIME / DELAY & GUDANG ON TIME / DELAY',
-            ['C', 'D', 'O', 'P'], 20);
+            ['C', 'D', 'O', 'P']);
 
-        // Sudah Tiba (Q) vs Belum Tiba (I) per PIC
-        $fromBlock('pic_monitoring', 6, 'F', 'chPic', 'SUDAH TIBA vs BELUM TIBA PER PIC', ['Q', 'I'], 20);
+     
 
         return $this->specs = $out;
     }
