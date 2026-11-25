@@ -121,7 +121,7 @@ class LogistikReportDashboard implements WithTitle, WithEvents, WithCharts
 
         $fromBlock('ekpedisi', 5, 'F', 'chEkspedisi', 'PER EKSPEDISI: TIBA ON TIME / DELAY & GUDANG ON TIME / DELAY',
             ['C', 'D', 'O', 'P']);
-        $fromBlock('pic_monitoring', 6, 'F', 'chPic', 'SUDAH TIBA vs BELUM TIBA PER PIC', ['Q', 'I']);
+     
 
          // ---- grafik tujuan: TOP 20, 1 grafik per metrik, di kanan grafik Area yang sepasang
         //      kosong kalau slicer belum aktif (flag Ringkasan!T2 = 0)
