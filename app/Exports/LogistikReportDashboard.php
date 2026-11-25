@@ -15,28 +15,20 @@ use PhpOffice\PhpSpreadsheet\Chart\PlotArea;
 use PhpOffice\PhpSpreadsheet\Chart\Title;
 
 /**
- * Sheet 1 "Dashboard": hanya grafik (+ slicer di kolom A-C). Semua data grafik dibaca dari sheet "Ringkasan".
+ * Sheet 1 "Dashboard": grafik (+ slicer di kolom A-C). Data grafik dibaca dari sheet "Ringkasan".
  *
- * Gaya (seperti dashboard monitoring): judul di dalam chart, sudut membulat, warna per series,
- * label angka berkotak warna + border (kotak & border ditulis oleh XlsxChartLabelStyler setelah file jadi).
- * Pengecualian: chart "Top 10 tujuan" tetap pakai banner di atasnya (isinya pesan dinamis).
- *
- * Susunan (tiap band = 22 baris):
- *  0: SLA Tiba per Area        | SLA Tiba per Tujuan
- *  1: SLA Bongkar per Area     | SLA Bongkar per Tujuan
- *  2: Tiba di Gudang per Area  | Tiba di Gudang per Tujuan
- *  3: CR per Area              | CR per Tujuan
- *  4: CR per Dist Channel      | SLA Tiba Dry vs Reefer
- *  5: Ekspedisi (selebar layar)
- *  6: Sudah Tiba vs Belum Tiba per PIC (selebar layar)  -> butuh kolom Q di Ringkasan
+ * Band 0-6 (tiap band 22 baris): grafik per Area / Dist Channel / Dry-Reefer / Ekspedisi / PIC
+ * (Area, Dist Channel, Ekspedisi, PIC = SEMUA data, tidak dibatasi top N).
+ * Band 7: 1 grafik gabungan TOP 20 TUJUAN (4 series, gaya PER EKSPEDISI).
+ * Grafik tujuan baru terisi kalau slicer/filter aktif (flag Ringkasan!T2 = 1), kalau tidak kosong.
  */
 class LogistikReportDashboard implements WithTitle, WithEvents, WithCharts
 {
-    private const FIRST_BANNER = 4;
-    private const BAND_H       = 22;
-    private const SIDES        = ['L' => ['D', 'K'], 'R' => ['L', 'S'], 'F' => ['D', 'S']];
+    private const FIRST_BANNER   = 4;
+    private const BAND_H         = 22;
+    private const SIDES          = ['L' => ['D', 'K'], 'R' => ['L', 'S'], 'F' => ['D', 'S']];
+    private const TUJ_START_BAND = 7;
 
-    /** urutan warna series: hijau, oranye, biru, merah */
     private const PALETTE      = ['16A34A', 'F59E0B', '2563EB', 'DC2626'];
     private const SINGLE_COLOR = '2563EB';
 
@@ -51,10 +43,6 @@ class LogistikReportDashboard implements WithTitle, WithEvents, WithCharts
         return 'Dashboard';
     }
 
-    /**
-     * Slot slicer: 2 kolom x 4 baris di kolom A-C (kiri grafik), mulai baris 4.
-     * Format: [kolomAwal, offsetKolomAwal, kolomAkhir, offsetKolomAkhir, barisAwal, barisAkhir] (0-based, EMU)
-     */
     public static function slicerSlots(): array
     {
         $cols  = [[0, 38100, 0, 2350000], [1, 38100, 2, 1050000]];
@@ -81,7 +69,7 @@ class LogistikReportDashboard implements WithTitle, WithEvents, WithCharts
     // ============================================================
     // DEFINISI GRAFIK
     // ============================================================
-      private function specs(): array
+    private function specs(): array
     {
         if ($this->specs !== null) {
             return $this->specs;
@@ -108,39 +96,14 @@ class LogistikReportDashboard implements WithTitle, WithEvents, WithCharts
             $out[] = [
                 'name' => $name, 'band' => $band, 'side' => $side, 'title' => $title, 'dynamic' => false,
                 'cat' => $this->ref('A', $first, $first + $n - 1), 'n' => $n, 'series' => $series, 'grouping' => $grouping,
-            ];
-        };
-
-        $fromHelper = function (int $band, string $name, string $title, array $cols) use (&$out, $b) {
-            if (!isset($b['tujuan'])) {
-                return;
-            }
-            $n  = $b['tujuan']['n'];                       // SEMUA tujuan
-            $h1 = LogistikReportSummary::HELP_FIRST;
-            $h2 = $h1 + $n - 1;
-            $series = [];
-            foreach ($cols as $c) {
-                $series[] = [$this->ref($c, LogistikReportSummary::HELP_HDR), $this->ref($c, $h1, $h2)];
-            }
-            $out[] = [
-                'name' => $name, 'band' => $band, 'side' => 'R', 'title' => $title, 'dynamic' => true,
-                'cat' => $this->ref('AD', $h1, $h2), 'n' => $n,
-                'series' => $series, 'grouping' => DataSeries::GROUPING_CLUSTERED,
+                'row' => $this->bannerRow($band), 'rows' => 19,
             ];
         };
 
         $fromBlock('area', 0, 'L', 'chTibaArea', 'SLA TIBA PER AREA', ['C', 'D']);
-        $fromHelper(0, 'chTibaTujuan', 'SLA TIBA PER TUJUAN', ['AE', 'AF']);
-
         $fromBlock('area', 1, 'L', 'chBongkarArea', 'SLA BONGKAR PER AREA', ['F', 'G']);
-        $fromHelper(1, 'chBongkarTujuan', 'SLA BONGKAR PER TUJUAN', ['AG', 'AH']);
-
         $fromBlock('area', 2, 'L', 'chGudangArea', 'TIBA DI GUDANG PER AREA: ON TIME vs DELAY', ['O', 'P']);
-        $fromHelper(2, 'chGudangTujuan', 'TIBA DI GUDANG PER TUJUAN: ON TIME vs DELAY', ['AJ', 'AK']);
-
         $fromBlock('area', 3, 'L', 'chCrArea', 'CR PER AREA', ['N']);
-        $fromHelper(3, 'chCrTujuan', 'CR PER TUJUAN', ['AI']);
-
         $fromBlock('dist_channel', 4, 'L', 'chCrChannel', 'CR PER DIST CHANNEL', ['N']);
 
         if (isset($b['tipe'])) {
@@ -152,13 +115,45 @@ class LogistikReportDashboard implements WithTitle, WithEvents, WithCharts
                     [$this->ref('U', 16), $this->ref('U', 17, 18)],
                 ],
                 'grouping' => DataSeries::GROUPING_CLUSTERED,
+                'row' => $this->bannerRow(4), 'rows' => 19,
             ];
         }
 
         $fromBlock('ekpedisi', 5, 'F', 'chEkspedisi', 'PER EKSPEDISI: TIBA ON TIME / DELAY & GUDANG ON TIME / DELAY',
             ['C', 'D', 'O', 'P']);
+        $fromBlock('pic_monitoring', 6, 'F', 'chPic', 'SUDAH TIBA vs BELUM TIBA PER PIC', ['Q', 'I']);
 
-     
+         // ---- grafik tujuan: TOP 20, 1 grafik per metrik, di kanan grafik Area yang sepasang
+        //      kosong kalau slicer belum aktif (flag Ringkasan!T2 = 0)
+        if (isset($b['tujuan'])) {
+            $n  = min(LogistikReportSummary::TUJ_TOP, $b['tujuan']['n']);
+            $h1 = LogistikReportSummary::HELP_FIRST;
+            $h2 = $h1 + $n - 1;
+            $top = LogistikReportSummary::TUJ_TOP;
+
+            // [band, nama, judul, kolom bantu]  (band sama dengan chart Area di sebelah kirinya)
+            $list = [
+                [0, 'chTibaTujuan',    "SLA TIBA PER TUJUAN (TOP {$top})",                         ['AE', 'AF']],
+                [1, 'chBongkarTujuan', "SLA BONGKAR PER TUJUAN (TOP {$top})",                      ['AG', 'AH']],
+                [2, 'chGudangTujuan',  "TIBA DI GUDANG PER TUJUAN: ON TIME vs DELAY (TOP {$top})", ['AJ', 'AK']],
+                [3, 'chCrTujuan',      "CR PER TUJUAN (TOP {$top})",                               ['AI']],
+            ];
+
+            foreach ($list as [$band, $name, $title, $cols]) {
+                $series = [];
+                foreach ($cols as $c) {
+                    $series[] = [$this->ref($c, LogistikReportSummary::HELP_HDR), $this->ref($c, $h1, $h2)];
+                }
+
+                $out[] = [
+                    'name' => $name, 'band' => $band, 'side' => 'R', 'dynamic' => true,
+                    'title' => $title,
+                    'cat' => $this->ref('AD', $h1, $h2), 'n' => $n,
+                    'series' => $series, 'grouping' => DataSeries::GROUPING_CLUSTERED,
+                    'row' => $this->bannerRow($band), 'rows' => 19,
+                ];
+            }
+        }
 
         return $this->specs = $out;
     }
@@ -173,7 +168,7 @@ class LogistikReportDashboard implements WithTitle, WithEvents, WithCharts
         foreach ($this->specs() as $sp) {
             [$c1, $c2] = self::SIDES[$sp['side']];
             $card      = !$sp['dynamic'];                           // judul di dalam chart
-            $top       = $this->bannerRow($sp['band']) + ($card ? 0 : 1);
+            $top       = $sp['row'] + ($card ? 0 : 1);
             $single    = count($sp['series']) === 1;
 
             $labels = [new DataSeriesValues(DataSeriesValues::DATASERIES_TYPE_STRING, $sp['cat'], null, $sp['n'])];
@@ -208,7 +203,7 @@ class LogistikReportDashboard implements WithTitle, WithEvents, WithCharts
                 $chart->setRoundedCorners(true);
             }
             $chart->setTopLeftPosition("{$c1}{$top}");
-            $chart->setBottomRightPosition("{$c2}" . ($top + 19));
+            $chart->setBottomRightPosition("{$c2}" . ($top + $sp['rows']));
 
             $charts[] = $chart;
         }
@@ -217,7 +212,7 @@ class LogistikReportDashboard implements WithTitle, WithEvents, WithCharts
     }
 
     // ============================================================
-    // TULIS SHEET (judul, banner chart dinamis, lebar kolom)
+    // TULIS SHEET (judul, banner chart tujuan, lebar kolom)
     // ============================================================
     public function registerEvents(): array
     {
@@ -239,19 +234,22 @@ class LogistikReportDashboard implements WithTitle, WithEvents, WithCharts
                     $s->getColumnDimension($c)->setWidth(16);
                 }
 
+                $flag = LogistikReportSummary::FLAG_REF;   // 'Ringkasan'!$T$2 (1 = slicer/filter aktif)
+
                 foreach ($this->specs() as $sp) {
                     if (!$sp['dynamic']) {
                         continue;   // judul sudah ada di dalam chart
                     }
 
                     [$c1, $c2] = self::SIDES[$sp['side']];
-                    $row       = $this->bannerRow($sp['band']);
+                    $row       = $sp['row'];
 
                     $s->mergeCells("{$c1}{$row}:{$c2}{$row}");
                     $s->setCellValueExplicit(
                         "{$c1}{$row}",
-                        '=IF(' . LogistikReportSummary::FLAG_REF . '=1,"' . $sp['title']
-                        . '","Pilih Area di slicer untuk menampilkan grafik per tujuan")',
+                        '=IF(' . $flag . '=1,'
+                        . '"' . $sp['title'] . ' (sesuai slicer)",'
+                        . '"' . $sp['title'] . ' - pilih slicer (mis. Area) untuk menampilkan data")',
                         DataType::TYPE_FORMULA
                     );
 

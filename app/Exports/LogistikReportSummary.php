@@ -16,6 +16,7 @@ class LogistikReportSummary implements WithTitle, WithEvents
 {
     private const KPI_START   = 5;     // header KPI di baris 4, isi baris 5-24
     private const BLOCK_START = 27;
+    public const TUJ_TOP = 20;
     private const MAX_ROWS    = 10000; // batas pengaman jumlah baris per tabel
 
     public const HELP_HDR   = 3;
@@ -210,7 +211,7 @@ class LogistikReportSummary implements WithTitle, WithEvents
                 foreach (array_merge(range('S', 'Z'), ['AA']) as $c) {
                     $s->getColumnDimension($c)->setWidth(16);
                 }
-                 foreach (['AC', 'AD', 'AE', 'AF', 'AG', 'AH', 'AI', 'AJ', 'AK'] as $c) {
+                              foreach (['AC', 'AD', 'AE', 'AF', 'AG', 'AH', 'AI', 'AJ', 'AK', 'AM'] as $c) {
                     $s->getColumnDimension($c)->setWidth(16);
                 }
             },
@@ -274,7 +275,7 @@ class LogistikReportSummary implements WithTitle, WithEvents
 
         $heads = [
             'A' => $b['label'], 'B' => 'Total (grup)',
-            'C' => 'Tiba On Time', 'D' => 'Tiba Delay', 'E' => '% Tiba On Time',
+            'C' => 'Tiba On Time Customer', 'D' => 'Tiba Delay Customer', 'E' => '% Tiba On Time Customer',
             'F' => 'Bongkar On Time', 'G' => 'Bongkar Delay', 'H' => '% Bongkar On Time',
             'I' => 'Belum Tiba', 'J' => 'Belum Bongkar', 'K' => 'In Transit',
             'L' => 'Nilai Muatan', 'M' => 'Biaya Kirim (Kirim Kontribusi)', 'N' => 'CR (%)',
@@ -376,8 +377,8 @@ class LogistikReportSummary implements WithTitle, WithEvents
         [$p1, $p2] = $b['parents'];
 
         $s->setCellValue('S16', 'Tipe');
-        $s->setCellValue('T16', 'Tiba On Time');
-        $s->setCellValue('U16', 'Tiba Delay');
+              $s->setCellValue('T16', 'Tiba On Time Customer');
+        $s->setCellValue('U16', 'Tiba Delay Customer');
         foreach ([17 => $p1, 18 => $p2] as $r => $p) {
             $this->formula($s, "S{$r}", "A{$p}");
             $this->formula($s, "T{$r}", "C{$p}");
@@ -405,27 +406,37 @@ class LogistikReportSummary implements WithTitle, WithEvents
     //  - R (di baris blok Tujuan): ranking by Nilai Muatan, unik
     //  - T2: 1 kalau Area sedang difilter, selain itu 0
     // ============================================================
+       // ============================================================
+    // TABEL BANTU GRAFIK TUJUAN (kolom AC-AK): SEMUA tujuan urut Nilai Muatan.
+    //  - S/R (baris blok Tujuan): kunci urut + ranking unik (tujuan yang tersaring slicer = Total 0 jatuh ke bawah)
+    //  - AM2: jumlah tujuan yang tampil (Total grup > 0); grafik memakai range dinamis sepanjang AM2
+    // ============================================================
     private function writeTujuanHelper($s, array $b, ?array $area): void
     {
         $f = $b['first'];
         $l = $b['last'];
-        $n = $b['n'];
+        $n = min(self::TUJ_TOP, $b['n']);
 
+        // FLAG: 1 kalau slicer/filter aktif (baris tampil < jumlah baris data yang terisi)
+        $tampil = $this->rng('Rk Tampil');
+        $wk     = $this->rng('Rk Wakil Grup');
+        $s->setCellValue('S2', 'Flag slicer aktif');
+        $this->formula($s, 'T2', "IF(SUM({$tampil})<COUNT({$wk}),1,0)");
+
+        // ranking tujuan berdasar Nilai Muatan (yang tersaring slicer = 0, jatuh ke bawah)
         $s->setCellValue("R{$b['hdrRow']}", 'Rank (bantu)');
+        $s->setCellValue("S{$b['hdrRow']}", 'Kunci urut (bantu)');
         for ($r = $f; $r <= $l; $r++) {
-            $this->formula($s, "R{$r}", "RANK(L{$r},\$L\${$f}:\$L\${$l},0)+COUNTIF(\$L\${$f}:L{$r},L{$r})-1");
+            $this->formula($s, "S{$r}", "L{$r}+B{$r}/1000");
+            $this->formula($s, "R{$r}", "RANK(S{$r},\$S\${$f}:\$S\${$l},0)+COUNTIF(\$S\${$f}:S{$r},S{$r})-1");
         }
 
-        $flag = $area
-            ? 'IF(COUNTIF(B' . $area['first'] . ':B' . $area['last'] . ',">0")<' . $area['n'] . ',1,0)'
-            : '1';
-
-        $s->setCellValue('S1', 'BANTU GRAFIK DASHBOARD (jangan diubah)');
-        $s->setCellValue('S2', 'Area dipilih? (1=ya)');
-        $this->formula($s, 'T2', $flag);
+        // jumlah tujuan yang ditampilkan: 0 kalau slicer belum aktif, selain itu maksimal 20
+        $s->setCellValue('AM1', 'Jumlah tujuan tampil (maks ' . $n . ')');
+        $this->formula($s, 'AM2', "IF(\$T\$2=1,MIN({$n},COUNTIF(\$B\${$f}:\$B\${$l},\">0\")),0)");
 
         $cols = [
-            'AE' => ['Tiba On Time', 'C'], 'AF' => ['Tiba Delay', 'D'],
+            'AE' => ['Tiba On Time Customer', 'C'], 'AF' => ['Tiba Delay Customer', 'D'],
             'AG' => ['Bongkar On Time', 'F'], 'AH' => ['Bongkar Delay', 'G'],
             'AI' => ['CR (%)', 'N'],
             'AJ' => ['On Time di Gudang', 'O'],
@@ -435,28 +446,24 @@ class LogistikReportSummary implements WithTitle, WithEvents
         $s->setCellValue('AC3', 'Pos');
         $s->setCellValue('AD3', 'Tujuan');
         foreach ($cols as $c => [$name]) {
-            $this->formula($s, "{$c}3", 'IF($T$2=1,"' . $name . '","")');
+            $s->setCellValue("{$c}3", $name);
         }
 
         for ($k = 1; $k <= $n; $k++) {
             $r = self::HELP_HDR + $k;
 
-            $this->formula($s, "AC{$r}", "IFERROR(MATCH({$k},\$R\${$f}:\$R\${$l},0),0)");
-            $this->formula(
-                $s,
-                "AD{$r}",
-                "IF(AND(\$T\$2=1,AC{$r}>0),IF(INDEX(\$B\${$f}:\$B\${$l},AC{$r})>0,INDEX(\$A\${$f}:\$A\${$l},AC{$r}),\"\"),\"\")"
-            );
+            $this->formula($s, "AC{$r}", "IF(\$T\$2=1,IFERROR(MATCH({$k},\$R\${$f}:\$R\${$l},0),0),0)");
+            $this->formula($s, "AD{$r}", "IF(AND(\$T\$2=1,{$k}<=\$AM\$2,AC{$r}>0),INDEX(\$A\${$f}:\$A\${$l},AC{$r}),\"\")");
 
             foreach ($cols as $c => [, $src]) {
-                $this->formula($s, "{$c}{$r}", "IF(\$AD{$r}=\"\",NA(),INDEX(\${$src}\${$f}:\${$src}\${$l},\$AC{$r}))");
+                $this->formula($s, "{$c}{$r}", "IF(\$AD{$r}=\"\",0,INDEX(\${$src}\${$f}:\${$src}\${$l},\$AC{$r}))");
             }
         }
 
         $last = self::HELP_HDR + $n;
         $s->getStyle('AI' . self::HELP_FIRST . ":AI{$last}")->getNumberFormat()->setFormatCode('0.00%');
-        $s->getStyle('S1:T2')->getFont()->getColor()->setRGB('9CA3AF');
-        $s->getStyle("AC3:AK{$last}")->getFont()->getColor()->setRGB('9CA3AF');
-        $s->getStyle("R{$f}:R{$l}")->getFont()->setBold(false)->getColor()->setRGB('9CA3AF');
+        $s->getStyle("AC1:AM{$last}")->getFont()->getColor()->setRGB('9CA3AF');
+        $s->getStyle('S2:T2')->getFont()->getColor()->setRGB('9CA3AF');
+        $s->getStyle("R{$f}:S{$l}")->getFont()->setBold(false)->getColor()->setRGB('9CA3AF');
     }
 }
