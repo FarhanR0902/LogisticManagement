@@ -567,59 +567,211 @@ class LogistikController extends Controller
     /* =========================================================
      * EXPORT EXCEL
      * ========================================================= */
-    public function export(Request $request)
-    {
-        set_time_limit(0);
+//     public function export(Request $request)
+//     {
+//         set_time_limit(0);
 
-        // ---------- 1. BANGUN QUERY + SEMUA FILTER ----------
-        $query = $this->newQuery();
+//         // ---------- 1. BANGUN QUERY + SEMUA FILTER ----------
+//         $query = $this->newQuery();
 
-        $this->filterByDistChannel($query);        // hak akses user
-        $this->applyTanggalFilter($query, $request); // date_from, date_to, month, year, tgl_basis
+//         $this->filterByDistChannel($query);        // hak akses user
+//         $this->applyTanggalFilter($query, $request); // date_from, date_to, month, year, tgl_basis
 
-        if ($request->filled('pic_monitoring')) {
-            $query->where('pic_monitoring', $request->pic_monitoring);
-        }
+//         if ($request->filled('pic_monitoring')) {
+//             $query->where('pic_monitoring', $request->pic_monitoring);
+//         }
 
-        $areas = array_values(array_filter((array) $request->input('area', []), 'strlen'));
-        if (!empty($areas)) {
-            $query->whereIn('area', $areas);
-        }
+//         $areas = array_values(array_filter((array) $request->input('area', []), 'strlen'));
+//         if (!empty($areas)) {
+//             $query->whereIn('area', $areas);
+//         }
 
-        if ($request->filled('dist_channel')) {
-            $query->where('dist_channel', $request->dist_channel);
-        }
+//         if ($request->filled('dist_channel')) {
+//             $query->where('dist_channel', $request->dist_channel);
+//         }
 
-        if ($request->filled('pulau') && isset(self::PULAU_MAP[$request->pulau])) {
-            $query->whereIn('area', self::PULAU_MAP[$request->pulau]);
-        }
+//         if ($request->filled('pulau') && isset(self::PULAU_MAP[$request->pulau])) {
+//             $query->whereIn('area', self::PULAU_MAP[$request->pulau]);
+//         }
 
-        // ---------- 2. MODE LAPORAN (Ringkasan + slicer), hanya untuk data kecil ----------
-        if ($request->input('mode') === 'laporan') {
-            if ((clone $query)->count() <= 25000) {
-                return $this->exportLaporan($query);
-            }
-            // data terlalu besar -> jatuh ke export streaming di bawah
-        }
+//         // ---------- 2. MODE LAPORAN (Ringkasan + slicer), hanya untuk data kecil ----------
+//         if ($request->input('mode') === 'laporan') {
+//             if ((clone $query)->count() <= 25000) {
+//                 return $this->exportLaporan($query);
+//             }
+//             // data terlalu besar -> jatuh ke export streaming di bawah
+//         }
 
-        // ---------- 3. EXPORT FULL (streaming, memori konstan) ----------
-        // toBase() = baris stdClass biasa (tanpa model Eloquent), lebih cepat dan hemat memori
-        $export = new LogistikExportFull($query->toBase());
+//         // ---------- 3. EXPORT FULL (streaming, memori konstan) ----------
+//         // toBase() = baris stdClass biasa (tanpa model Eloquent), lebih cepat dan hemat memori
+//         $export = new LogistikExportFull($query->toBase());
 
-        return (new \App\Exports\LogistikStreamExport($export))
-            ->download('data_logistik_full_' . date('Ymd_His') . '.xlsx');
+//         return (new \App\Exports\LogistikStreamExport($export))
+//             ->download('data_logistik_full_' . date('Ymd_His') . '.xlsx');
+//     }
+
+//     /** Laporan lama (Ringkasan + slicer), dipindah apa adanya jadi method sendiri */
+//    /** Laporan (Dashboard + Ringkasan + Data) dengan slicer */
+// private function exportLaporan($query)
+// {
+//     ini_set('memory_limit', '2G');
+
+//     $name = 'laporan_logistik_' . date('Ymd_His') . '.xlsx';
+//     $rel  = 'exports/' . $name;
+
+//     // storage punya tabel sendiri; Data/Ringkasan harus join ke tabel yang sama dengan $query
+//     $tabel = $this->table === 'logistik_storage' ? 'logistik_storage' : null;
+
+//     Excel::store(
+//         new \App\Exports\LogistikReportExport($query, 'Filter dari halaman Data Logistik', $tabel),
+//         $rel,
+//         'local'
+//     );
+//     $path = Storage::disk('local')->path($rel);
+
+//     $headings = (new LogistikReportData($query))->headings();
+//     $norm     = fn($s) => preg_replace('/[^a-z0-9]/', '', mb_strtolower((string) $s));
+
+//     // urutan di sini = urutan slot slicer di Dashboard (kolom A-C)
+//     $wanted = [];
+// foreach ([
+//     'Tahun Shipment', 'Bulan Shipment',
+//     'Area', 'Ekpedisi', 'Dist Channel', 'Planner', 'PIC Monitoring',
+// ] as $w) {
+//         $found = collect($headings)->first(fn($h) => $norm($h) === $norm($w));
+//         $found ? $wanted[] = $found : logger()->warning("Slicer: heading '{$w}' tidak ketemu di sheet Data");
+//     }
+
+//     $ok = XlsxSlicerInjector::inject(
+//         $path,
+//         'Dashboard',
+//         $wanted,
+//         \App\Exports\LogistikReportDashboard::slicerSlots()
+//     );
+//     logger()->info('Slicer inject: ' . ($ok ? 'OK' : 'GAGAL'), ['sheet' => 'Dashboard', 'kolom' => $wanted]);
+
+//     return response()->download($path, $name)->deleteFileAfterSend(true);
+// }
+
+
+private const LAPORAN_MAX_ROWS = 40000;
+public function export(Request $request)
+{
+    set_time_limit(0);
+    ini_set('memory_limit', '1G');
+
+    $query = $this->baseFilteredQuery($request);
+
+    // search box dipakai HANYA kalau diisi (applySearch = CAST LIKE ke semua kolom, berat)
+    if (trim((string) $request->input('search.value')) !== '') {
+        $query = $this->applySearch($query, $request);
     }
 
-    /** Laporan lama (Ringkasan + slicer), dipindah apa adanya jadi method sendiri */
-   /** Laporan (Dashboard + Ringkasan + Data) dengan slicer */
+    $mode = $request->input('mode');
+
+   if ($mode === 'cek') {
+    return response()->json([
+        'rows'    => $this->exportCount($query, $request, true),   // jumlah grup (batas laporan)
+        'do_rows' => $this->exportCount($query, $request, false),  // jumlah DO (download penuh)
+        'max'     => self::LAPORAN_MAX_ROWS,
+    ]);
+}
+
+if ($mode === 'laporan' && $this->exportCount($query, $request, true) <= self::LAPORAN_MAX_ROWS) {
+    return $this->exportLaporan($query);
+}
+
+    // ---------- EXPORT FULL ----------
+    $export           = new LogistikExportFull($query->toBase());
+    $export->tabel    = $this->table === 'logistik_storage' ? 'logistik_storage' : null;
+    $export->skipCalc = $request->boolean('lite');
+
+    if ($request->input('format') === 'csv') {
+        return $this->exportCsv($export);
+    }
+
+    $name = 'data_logistik_full_' . date('Ymd_His') . '.xlsx';
+    Storage::disk('local')->makeDirectory('exports');
+    $path = Storage::disk('local')->path('exports/' . $name);
+
+    $export->writeXlsx($path);   // streaming XML + zip, tanpa PhpSpreadsheet
+
+    return response()->download($path, $name, [
+        'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    ])->deleteFileAfterSend(true);
+}
+
+/** count di-cache 2 menit, supaya cek -> laporan/export tidak count berulang */
+/** count di-cache 2 menit, key dari SQL + binding sehingga semua filter ikut terhitung */
+private function exportCount($query, Request $request, bool $groups = false): int
+{
+    $key = 'cnt' . ($groups ? 'g_' : '_')
+        . md5($query->toSql() . '|' . json_encode($query->getBindings()));
+
+    return (int) Cache::remember($key, 120, fn() => $groups
+        ? $this->countGroups($query)
+        : (clone $query)->count());
+}
+
+/** CSV streaming: mulai download di detik pertama, memori konstan */
+private function exportCsv(LogistikExportFull $export)
+{
+    $export->csv = true;                      // tanggal jadi teks d-m-Y
+    $name = 'data_logistik_' . date('Ymd_His') . '.csv';
+
+    return response()->streamDownload(function () use ($export) {
+        set_time_limit(0);
+
+        $types = $export->colTypes();
+        $ftext = [];
+        foreach ($types as $i => $t) {
+            if ($t === 'ftext') {
+                $ftext[] = $i;               // no_shipment, no_pol, no_do, dst: jaga angka 0 di depan
+            }
+        }
+
+        $out = fopen('php://output', 'w');
+        fwrite($out, "\xEF\xBB\xBF");         // BOM supaya Excel baca UTF-8
+        fputcsv($out, $export->headings(), ';');
+
+        $n = 0;
+        foreach ($export->rows() as $r) {
+            $row = $export->map($r);
+
+            foreach ($ftext as $i) {
+                if ($row[$i] !== '') {
+                    $row[$i] = '="' . $row[$i] . '"';
+                }
+            }
+            foreach ($row as $i => $v) {
+                if (is_float($v)) {
+                    $row[$i] = str_replace('.', ',', (string) $v);   // desimal koma (Excel Indonesia)
+                }
+            }
+
+            fputcsv($out, $row, ';');
+
+            if (++$n % 5000 === 0) {
+                if (ob_get_level() > 0) {
+                    @ob_flush();
+                }
+                flush();
+            }
+        }
+        fclose($out);
+    }, $name, [
+        'Content-Type'      => 'text/csv; charset=UTF-8',
+        'X-Accel-Buffering' => 'no',          // nginx jangan buffer
+    ]);
+}
 private function exportLaporan($query)
 {
-    ini_set('memory_limit', '2G');
+    set_time_limit(0);
+    ini_set('memory_limit', '-1');
 
-    $name = 'laporan_logistik_' . date('Ymd_His') . '.xlsx';
-    $rel  = 'exports/' . $name;
 
-    // storage punya tabel sendiri; Data/Ringkasan harus join ke tabel yang sama dengan $query
+    $name  = 'laporan_logistik_' . date('Ymd_His') . '.xlsx';
+    $rel   = 'exports/' . $name;
     $tabel = $this->table === 'logistik_storage' ? 'logistik_storage' : null;
 
     Excel::store(
@@ -629,25 +781,18 @@ private function exportLaporan($query)
     );
     $path = Storage::disk('local')->path($rel);
 
-    $headings = (new LogistikReportData($query))->headings();
-    $norm     = fn($s) => preg_replace('/[^a-z0-9]/', '', mb_strtolower((string) $s));
+    $rep = new LogistikReportData($query);
+    $rep->tabel = $tabel;
+    $headings = $rep->headings();
+    $norm = fn($s) => preg_replace('/[^a-z0-9]/', '', mb_strtolower((string) $s));
 
-    // urutan di sini = urutan slot slicer di Dashboard (kolom A-C)
     $wanted = [];
-    foreach ([
-        'Tahun Naik Logistik', 'Bulan Naik Logistik',
-        'Area', 'Ekpedisi', 'Dist Channel', 'Planner', 'PIC Monitoring',
-    ] as $w) {
+    foreach (['Tahun Shipment', 'Bulan Shipment', 'Area', 'Ekpedisi', 'Dist Channel', 'Planner', 'PIC Monitoring'] as $w) {
         $found = collect($headings)->first(fn($h) => $norm($h) === $norm($w));
         $found ? $wanted[] = $found : logger()->warning("Slicer: heading '{$w}' tidak ketemu di sheet Data");
     }
 
-    $ok = XlsxSlicerInjector::inject(
-        $path,
-        'Dashboard',
-        $wanted,
-        \App\Exports\LogistikReportDashboard::slicerSlots()
-    );
+    $ok = XlsxSlicerInjector::inject($path, 'Dashboard', $wanted, \App\Exports\LogistikReportDashboard::slicerSlots());
     logger()->info('Slicer inject: ' . ($ok ? 'OK' : 'GAGAL'), ['sheet' => 'Dashboard', 'kolom' => $wanted]);
 
     return response()->download($path, $name)->deleteFileAfterSend(true);
@@ -672,170 +817,16 @@ private function exportLaporan($query)
     /* =========================================================
      * DATA LOGISTIK — ENDPOINT AJAX (SERVER-SIDE PAGINATION)
      * ========================================================= */
-    public function dataLogistikAjax(Request $request)
-    {
-        $query = $this->newQuery();
+public function dataLogistikAjax(Request $request)
+{
+    $query = $this->baseFilteredQuery($request);
 
-        $this->filterByDistChannel($query);
+    $recordsTotal = $this->countGroups($query);
 
-        // ---------- FILTER DARI DROPDOWN CUSTOM ----------
-        $this->applyTanggalFilter($query, $request);
+    $query = $this->applySearch($query, $request);
 
-        if ($request->filled('pic_monitoring')) {
-            $query->where('pic_monitoring', $request->pic_monitoring);
-        }
+    $recordsFiltered = $this->countGroups($query);
 
-        $areas = array_values(array_filter((array) $request->input('area', []), 'strlen'));
-        if (!empty($areas)) {
-            $query->whereIn('area', $areas);
-        }
-
-        // ---------- FILTER DARI DASHBOARD MANAGER ----------
-        // Prioritas: dash[...] dari JS. Fallback: query string halaman (Referer).
-        $dash = $request->input('dash');
-
-        if (!is_array($dash) || empty($dash)) {
-            $dash = [];
-            $refQuery = parse_url((string) $request->headers->get('referer'), PHP_URL_QUERY);
-            if ($refQuery) {
-                parse_str($refQuery, $dash);
-            }
-        }
-
-        $dash = array_intersect_key($dash, array_flip([
-            'tgl_basis',
-            'date',
-            'date_from',
-            'date_to',
-            'month',
-            'year',
-            'area',
-            'dist_channel',
-            'pulau',
-        ]));
-        // area boleh array (area[]=...), sisanya harus scalar
-        $dash = array_filter($dash, function ($v, $k) {
-            return $k === 'area' ? (is_scalar($v) || is_array($v)) : is_scalar($v);
-        }, ARRAY_FILTER_USE_BOTH);
-
-        // Jangan terapkan filter tanggal dua kali kalau request sudah membawa filter yang sama
-        if (
-    $request->filled('date_from') || $request->filled('date_to')
-    || $request->filled('month') || $request->filled('year')
-    || $request->filled('periode')          // <-- tambah
-) {
-    unset($dash['tgl_basis'], $dash['date_from'], $dash['date_to'], $dash['month'], $dash['year']);
-}
-        if (!empty($areas)) {
-            unset($dash['area']);
-        }
-
-        if (!empty($dash)) {
-            $this->applyDashboardFilter($query, $dash);
-        }
-
-        $recordsTotal = $this->countGroups($query);
-
-        // ---------- SEARCH BOX ----------
-        $searchValue = trim((string) $request->input('search.value'));
-        if ($searchValue !== '') {
-
-            $cols = $this->searchableCols();
-
-            $variants = [$searchValue];
-            if (preg_match('/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})$/', $searchValue, $m)) {
-                $variants[] = sprintf('%04d-%02d-%02d', $m[3], $m[2], $m[1]);
-            }
-
-            $f = fn($c) => "NULLIF(TRIM({$c}), '') IS NOT NULL";
-            $e = fn($c) => "NULLIF(TRIM({$c}), '') IS NULL";
-
-            $sisa = "DATEDIFF(DATE(estimasi_tiba), CURDATE())";
-            $num  = fn($c) => "CAST(COALESCE(NULLIF(TRIM({$c}),''),0) AS DECIMAL(20,4))";
-            $estAdmin = "DATE_ADD(rencana_kirim, INTERVAL (CAST(COALESCE(NULLIF(TRIM(transport_lead_time),''),0) AS UNSIGNED)
-                 + CASE WHEN LOWER(TRIM(area)) = 'jawa barat' THEN 1 ELSE 0 END) DAY)";
-            $posisi = "CASE WHEN " . $e('tanggal_dpt_unit') . " THEN 'MENCARI UNIT'"
-                . " WHEN " . implode(' AND ', array_map(fn($s) => $e("planning_loading{$s}"), $this->gudangSuffixes()))
-                . " AND " . $e('tanggal_tiba') . " THEN 'PERJALANAN KE GUDANG'";
-
-            foreach (self::GUDANG as $s => $nama) {
-                $posisi .= " WHEN " . $f("planning_loading{$s}") . " AND " . $e("tanggal_tiba_gudang{$s}")
-                    . " THEN 'PERJALANAN KE {$nama}'";
-                $posisi .= " WHEN " . $f("planning_loading{$s}") . " AND " . $f("tanggal_tiba_gudang{$s}")
-                    . " AND " . $e("tanggal_keluar_gudang{$s}") . " THEN 'DI GUDANG {$nama}'";
-            }
-
-            $posisi .= " WHEN " . $e('tanggal_tiba') . " THEN 'PERJALANAN KE TUJUAN'"
-                . " WHEN " . $f('tanggal_bongkar') . " THEN 'SUDAH SELESAI'"
-                . " ELSE 'SUDAH TIBA TUJUAN' END";
-            $computed = [
-                // Ketersediaan Unit
-                "CASE WHEN {$e('rencana_kirim')} OR {$e('tanggal_dpt_unit')} THEN 'BELUM DAPAT' ELSE 'SUDAH DAPAT' END",
-
-                // Update Posisi Mobil
-                $posisi,
-
-                // Alert
-                "CASE
-            WHEN {$f('tanggal_tiba')} THEN 'TIBA'
-            WHEN {$e('estimasi_tiba')} THEN ''
-            WHEN {$sisa} < 0 THEN CONCAT('Pending Tiba H+', ABS({$sisa}))
-            WHEN {$sisa} <= 7 THEN CONCAT('H-', {$sisa})
-            ELSE 'ON TRACK' END",
-
-                // Status Bongkar
-                "CASE
-            WHEN {$f('tanggal_bongkar')} THEN 'Sudah Bongkar'
-            WHEN {$f('tanggal_tiba')} THEN CONCAT('Pending Bongkar H+', GREATEST(0, DATEDIFF(CURDATE(), DATE(tanggal_tiba))))
-            ELSE '' END",
-
-                // Status Akhir
-                "CASE
-            WHEN {$e('tanggal_tiba')} THEN 'Dalam Perjalanan'
-            WHEN {$e('tanggal_bongkar')} THEN 'Sudah Tiba Dalam Pembongkaran'
-            WHEN UPPER(TRIM(sla_tiba)) = 'ON TIME' AND UPPER(TRIM(sla_bongkar)) = 'ON TIME' THEN 'Pengiriman On Time'
-            ELSE 'Pengiriman Delay' END",
-
-                // Status Alert
-                "CASE
-            WHEN UPPER(TRIM(sla_tiba)) = 'ON TIME' AND UPPER(TRIM(sla_bongkar)) = 'ON TIME' THEN 'Delivered Ontime'
-            WHEN UPPER(TRIM(sla_tiba)) = 'DELAY'   AND UPPER(TRIM(sla_bongkar)) = 'ON TIME' THEN 'Delay Perjalanan'
-            WHEN UPPER(TRIM(sla_tiba)) = 'ON TIME' AND UPPER(TRIM(sla_bongkar)) = 'DELAY'   THEN 'Delay Pembongkaran'
-            WHEN UPPER(TRIM(sla_tiba)) = 'DELAY'   AND UPPER(TRIM(sla_bongkar)) = 'DELAY'   THEN 'Delivered Delay'
-            ELSE 'Belum Selesai' END",
-
-                // Pengiriman Optimal
-                "CASE
-            WHEN {$num('kubikasi')} <= 0 AND {$num('tonase')} <= 0 THEN ''
-            WHEN ({$num('kubikasi')} > 0 AND {$num('total_kubik')} / {$num('kubikasi')} * 100 >= 85)
-              OR ({$num('tonase')}   > 0 AND {$num('total_tonase')} / {$num('tonase')}   * 100 >= 85) THEN 'Optimal'
-            ELSE 'Tidak Optimal' END",
-
-                // Ontime/Delay Admin
-                "CASE
-            WHEN {$e('rencana_kirim')} THEN ''
-            WHEN {$f('tanggal_tiba')} THEN CASE WHEN tanggal_tiba <= {$estAdmin} THEN 'On Time' ELSE 'Delay' END
-            WHEN CURDATE() > DATE({$estAdmin}) THEN 'Delay'
-            ELSE 'Belum Tiba' END",
-
-                // Estimasi Tiba Di Customer (d-m-Y)
-                "CASE WHEN {$e('rencana_kirim')} THEN '' ELSE DATE_FORMAT({$estAdmin}, '%d-%m-%Y') END",
-            ];
-
-            $query->where(function ($q) use ($variants, $cols, $computed) {
-                foreach ($variants as $v) {
-                    $like = "%{$v}%";
-                    foreach ($cols as $c) {
-                        $q->orWhereRaw("CAST(`{$c}` AS CHAR) LIKE ?", [$like]);
-                    }
-                    foreach ($computed as $x) {
-                        $q->orWhereRaw("({$x}) LIKE ?", [$like]);
-                    }
-                }
-            });
-        }
-
-        $recordsFiltered = $this->countGroups($query);
         $query = $this->newQuery()->whereIn('id', $this->groupIdsQuery($query));
 
         // ---------- SORTING ----------
@@ -1107,6 +1098,136 @@ private function exportLaporan($query)
             ));
         });
     }
+
+    /** Filter dasar: hak akses + dropdown + dash[...] (tanpa search box) */
+private function baseFilteredQuery(Request $request)
+{
+    $query = $this->newQuery();
+
+    $this->filterByDistChannel($query);
+    $this->applyTanggalFilter($query, $request);
+
+    if ($request->filled('pic_monitoring')) {
+        $query->where('pic_monitoring', $request->pic_monitoring);
+    }
+
+    $areas = array_values(array_filter((array) $request->input('area', []), 'strlen'));
+    if (!empty($areas)) {
+        $query->whereIn('area', $areas);
+    }
+
+    $dash = $request->input('dash');
+    if (!is_array($dash) || empty($dash)) {
+        $dash = [];
+        $refQuery = parse_url((string) $request->headers->get('referer'), PHP_URL_QUERY);
+        if ($refQuery) {
+            parse_str($refQuery, $dash);
+        }
+    }
+
+    $dash = array_intersect_key($dash, array_flip([
+        'tgl_basis', 'date', 'date_from', 'date_to', 'month', 'year', 'area', 'dist_channel', 'pulau',
+    ]));
+    $dash = array_filter($dash, fn($v, $k) => $k === 'area' ? (is_scalar($v) || is_array($v)) : is_scalar($v), ARRAY_FILTER_USE_BOTH);
+
+    if (
+        $request->filled('date_from') || $request->filled('date_to')
+        || $request->filled('month') || $request->filled('year')
+        || $request->filled('periode')
+    ) {
+        unset($dash['tgl_basis'], $dash['date_from'], $dash['date_to'], $dash['month'], $dash['year']);
+    }
+    if (!empty($areas)) {
+        unset($dash['area']);
+    }
+    if (!empty($dash)) {
+        $this->applyDashboardFilter($query, $dash);
+    }
+
+    return $query;
+}
+
+/** Search box DataTables */
+private function applySearch($query, Request $request)
+{
+    $searchValue = trim((string) $request->input('search.value'));
+    if ($searchValue === '') {
+        return $query;
+    }
+
+    $cols = $this->searchableCols();
+
+    $variants = [$searchValue];
+    if (preg_match('/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})$/', $searchValue, $m)) {
+        $variants[] = sprintf('%04d-%02d-%02d', $m[3], $m[2], $m[1]);
+    }
+
+    $f = fn($c) => "NULLIF(TRIM({$c}), '') IS NOT NULL";
+    $e = fn($c) => "NULLIF(TRIM({$c}), '') IS NULL";
+
+    $sisa = "DATEDIFF(DATE(estimasi_tiba), CURDATE())";
+    $num  = fn($c) => "CAST(COALESCE(NULLIF(TRIM({$c}),''),0) AS DECIMAL(20,4))";
+    $estAdmin = "DATE_ADD(rencana_kirim, INTERVAL (CAST(COALESCE(NULLIF(TRIM(transport_lead_time),''),0) AS UNSIGNED)
+         + CASE WHEN LOWER(TRIM(area)) = 'jawa barat' THEN 1 ELSE 0 END) DAY)";
+
+    $posisi = "CASE WHEN " . $e('tanggal_dpt_unit') . " THEN 'MENCARI UNIT'"
+        . " WHEN " . implode(' AND ', array_map(fn($s) => $e("planning_loading{$s}"), $this->gudangSuffixes()))
+        . " AND " . $e('tanggal_tiba') . " THEN 'PERJALANAN KE GUDANG'";
+    foreach (self::GUDANG as $s => $nama) {
+        $posisi .= " WHEN " . $f("planning_loading{$s}") . " AND " . $e("tanggal_tiba_gudang{$s}")
+            . " THEN 'PERJALANAN KE {$nama}'";
+        $posisi .= " WHEN " . $f("planning_loading{$s}") . " AND " . $f("tanggal_tiba_gudang{$s}")
+            . " AND " . $e("tanggal_keluar_gudang{$s}") . " THEN 'DI GUDANG {$nama}'";
+    }
+    $posisi .= " WHEN " . $e('tanggal_tiba') . " THEN 'PERJALANAN KE TUJUAN'"
+        . " WHEN " . $f('tanggal_bongkar') . " THEN 'SUDAH SELESAI'"
+        . " ELSE 'SUDAH TIBA TUJUAN' END";
+
+    $computed = [
+        "CASE WHEN {$e('rencana_kirim')} OR {$e('tanggal_dpt_unit')} THEN 'BELUM DAPAT' ELSE 'SUDAH DAPAT' END",
+        $posisi,
+        "CASE WHEN {$f('tanggal_tiba')} THEN 'TIBA'
+              WHEN {$e('estimasi_tiba')} THEN ''
+              WHEN {$sisa} < 0 THEN CONCAT('Pending Tiba H+', ABS({$sisa}))
+              WHEN {$sisa} <= 7 THEN CONCAT('H-', {$sisa})
+              ELSE 'ON TRACK' END",
+        "CASE WHEN {$f('tanggal_bongkar')} THEN 'Sudah Bongkar'
+              WHEN {$f('tanggal_tiba')} THEN CONCAT('Pending Bongkar H+', GREATEST(0, DATEDIFF(CURDATE(), DATE(tanggal_tiba))))
+              ELSE '' END",
+        "CASE WHEN {$e('tanggal_tiba')} THEN 'Dalam Perjalanan'
+              WHEN {$e('tanggal_bongkar')} THEN 'Sudah Tiba Dalam Pembongkaran'
+              WHEN UPPER(TRIM(sla_tiba)) = 'ON TIME' AND UPPER(TRIM(sla_bongkar)) = 'ON TIME' THEN 'Pengiriman On Time'
+              ELSE 'Pengiriman Delay' END",
+        "CASE WHEN UPPER(TRIM(sla_tiba)) = 'ON TIME' AND UPPER(TRIM(sla_bongkar)) = 'ON TIME' THEN 'Delivered Ontime'
+              WHEN UPPER(TRIM(sla_tiba)) = 'DELAY'   AND UPPER(TRIM(sla_bongkar)) = 'ON TIME' THEN 'Delay Perjalanan'
+              WHEN UPPER(TRIM(sla_tiba)) = 'ON TIME' AND UPPER(TRIM(sla_bongkar)) = 'DELAY'   THEN 'Delay Pembongkaran'
+              WHEN UPPER(TRIM(sla_tiba)) = 'DELAY'   AND UPPER(TRIM(sla_bongkar)) = 'DELAY'   THEN 'Delivered Delay'
+              ELSE 'Belum Selesai' END",
+        "CASE WHEN {$num('kubikasi')} <= 0 AND {$num('tonase')} <= 0 THEN ''
+              WHEN ({$num('kubikasi')} > 0 AND {$num('total_kubik')} / {$num('kubikasi')} * 100 >= 85)
+                OR ({$num('tonase')}   > 0 AND {$num('total_tonase')} / {$num('tonase')}   * 100 >= 85) THEN 'Optimal'
+              ELSE 'Tidak Optimal' END",
+        "CASE WHEN {$e('rencana_kirim')} THEN ''
+              WHEN {$f('tanggal_tiba')} THEN CASE WHEN tanggal_tiba <= {$estAdmin} THEN 'On Time' ELSE 'Delay' END
+              WHEN CURDATE() > DATE({$estAdmin}) THEN 'Delay'
+              ELSE 'Belum Tiba' END",
+        "CASE WHEN {$e('rencana_kirim')} THEN '' ELSE DATE_FORMAT({$estAdmin}, '%d-%m-%Y') END",
+    ];
+
+    $query->where(function ($q) use ($variants, $cols, $computed) {
+        foreach ($variants as $v) {
+            $like = "%{$v}%";
+            foreach ($cols as $c) {
+                $q->orWhereRaw("CAST(`{$c}` AS CHAR) LIKE ?", [$like]);
+            }
+            foreach ($computed as $x) {
+                $q->orWhereRaw("({$x}) LIKE ?", [$like]);
+            }
+        }
+    });
+
+    return $query;
+}
 
     /** Subquery: 1 id wakil (MIN id) per shipment+tujuan dari query yang sudah terfilter */
     private function groupIdsQuery($query)

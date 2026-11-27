@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Str;
 use App\Exports\AlertExport;
@@ -27,6 +29,19 @@ class GabunganController extends Controller
      * Di manager tidak berpengaruh apa-apa.
      */
     protected bool $periodeAktif = true;
+
+    /**
+     * Dashboard cepat: data difilter SEKALI ke tabel temporary, lalu semua KPI/summary
+     * membaca tabel itu (bukan UNION Jakarta+Pasuruan diulang ~25x).
+     * Sales = false karena scope-nya bergantung $periodeAktif (In Transit tanpa kunci periode).
+     */
+    protected bool $dashboardCepat = true;
+
+    /** Lama cache hasil dashboard (detik). 0 = tanpa cache. URL ?refresh=1 = paksa hitung ulang. */
+    protected int $cacheDetik = 180;
+
+    /** Kalau terisi, src() membaca tabel temporary ini (khusus selama dashboard dihitung). */
+    private ?string $tmpSrc = null;
 
     private const PULAU_MAP = [
         'JAWA'       => ['JABODEBEK','BANTEN','JAWA_BARAT','JAWA_TENGAH','JAWA_TIMUR','YOGYAKARTA'],
@@ -136,12 +151,17 @@ class GabunganController extends Controller
     /* =====================================================
      * SUMBER DATA GABUNGAN (UNION Jakarta + Pasuruan)
      * ===================================================== */
-    private function src()
+    private function src(?array $only = null)
     {
+        if ($this->tmpSrc !== null) {
+            return DB::table($this->tmpSrc);
+        }
+
         $selJ = ['id', DB::raw("'JAKARTA' AS sumber")];
         $selP = [DB::raw('id + 1000000000 AS id'), DB::raw("'PASURUAN' AS sumber")];
 
         foreach (self::COLS as $g => $p) {
+            if ($only !== null && !in_array($g, $only, true)) continue;   // hanya kolom yang dibutuhkan
             $selJ[] = DB::raw($this->colExpr($g, $g) . " AS `{$g}`");
             $selP[] = DB::raw($this->colExpr($g, $p) . " AS `{$g}`");
         }
@@ -547,8 +567,115 @@ class GabunganController extends Controller
     public function dashboard(Request $request)
     {
         $this->normalizeRequest($request);
-        $base    = $this->applyFilter($this->src(), $request);
-        $grouped = $this->src()->whereIn('id', $this->groupIdsQuery($base));
+
+        $t0 = microtime(true);
+
+        if ($this->cacheDetik > 0 && !$request->boolean('refresh')) {
+            $filter = $request->except(['refresh', '_token', 'page']);
+            ksort($filter);
+            $key = 'gab:dash:' . md5(static::class . '|' . auth()->id() . '|' . json_encode(session('dist_channel')) . '|' . json_encode($filter));
+
+            $data = Cache::remember($key, $this->cacheDetik, fn() => $this->hitungDashboard($request));
+        } else {
+            $data = $this->hitungDashboard($request);
+        }
+
+        Log::info('dashboard gabungan', ['kelas' => class_basename(static::class), 'ms' => round((microtime(true) - $t0) * 1000)]);
+
+        return view($this->dashboardView, $data)->with([
+            'listRoute'       => $this->listRoute,
+            'inTransitRoute'  => $this->inTransitRoute,
+            'plannerRoute'    => $this->plannerRoute,
+            'monitoringRoute' => $this->monitoringRoute,
+            'dataRoute'       => $this->dataRoute,
+        ]);
+    }
+
+    /** Kolom yang dipakai dashboard (filter, KPI, summary, alert) — sisanya tidak perlu di-UNION. */
+    private function kolomDashboard(): array
+    {
+        return array_merge(
+            ['no_shipment', 'tujuan', 'area', 'pulau', 'dist_channel', 'periode_shipment', 'tanggal_shipment',
+             'rencana_kirim', 'tanggal_naik_logistik', 'tanggal_dpt_unit', 'planner', 'pic_monitoring',
+             'kategori_ekspedisi', 'tanggal_tiba', 'waktu_tiba', 'estimasi_tiba', 'tanggal_bongkar',
+             'waktu_bongkar', 'nilai_muatan', 'biaya_kirim'],
+            $this->gcols('planning_loading'),
+            $this->gcols('tanggal_tiba_gudang'),
+            $this->gcols('tanggal_keluar_gudang')
+        );
+    }
+
+    /**
+     * Buat tabel temporary:
+     *   tmp_gab   = semua baris hasil filter (kolom ramping)
+     *   tmp_gab_g = 1 baris wakil per sumber+shipment+tujuan (pengganti $grouped)
+     * MySQL melarang tabel TEMPORARY dipakai 2x dalam satu query, makanya dibuat dua tabel
+     * dan id wakil dibuat bertahap. Gagal = return false, dashboard jalan lewat jalur lama.
+     */
+    private function bukaTmp(Request $request): bool
+    {
+        try {
+            $this->tutupTmp();
+
+            $q = $this->applyFilter($this->src($this->kolomDashboard()), $request);
+            DB::statement('CREATE TEMPORARY TABLE tmp_gab AS ' . $q->toSql(), $q->getBindings());
+            DB::statement('ALTER TABLE tmp_gab ADD INDEX idx_id (id)');
+
+            DB::statement("CREATE TEMPORARY TABLE tmp_gab_ids AS
+                SELECT MIN(id) AS id FROM tmp_gab
+                GROUP BY sumber, COALESCE(NULLIF(TRIM(no_shipment),''), CONCAT('id', id)), COALESCE(tujuan,'')");
+            DB::statement('ALTER TABLE tmp_gab_ids ADD INDEX idx_id (id)');
+
+            DB::statement('CREATE TEMPORARY TABLE tmp_gab_g AS SELECT t.* FROM tmp_gab t JOIN tmp_gab_ids i ON i.id = t.id');
+
+            $this->tmpSrc = 'tmp_gab';
+            return true;
+        } catch (\Throwable $e) {
+            Log::warning('dashboard gabungan: tabel temporary gagal, pakai jalur lama: ' . $e->getMessage());
+            $this->tutupTmp();
+            return false;
+        }
+    }
+
+    private function tutupTmp(): void
+    {
+        $this->tmpSrc = null;
+        foreach (['tmp_gab_g', 'tmp_gab_ids', 'tmp_gab'] as $t) {
+            try { DB::statement("DROP TEMPORARY TABLE IF EXISTS {$t}"); } catch (\Throwable $e) {}
+        }
+    }
+
+    private function hitungDashboard(Request $request): array
+    {
+        // dropdown filter: tidak tergantung filter dashboard -> cache lama, query ramping
+        $scope = md5(static::class . '|' . auth()->id() . '|' . json_encode(session('dist_channel')));
+        $list_dist_channel = Cache::remember('gab:dist:' . $scope, 3600, fn() =>
+            $this->src(['dist_channel'])->select('dist_channel')
+                ->whereNotNull('dist_channel')->distinct()->orderBy('dist_channel')->get());
+        $list_area = Cache::remember('gab:area:' . $scope, 3600, fn() =>
+            $this->src(['area'])->select('area')->whereNotNull('area')
+                ->groupBy('area')->orderBy('area')->get());
+
+        $cepat = $this->dashboardCepat && $this->bukaTmp($request);
+
+        try {
+            $data = $this->hitungDashboardInti($request, $cepat);
+        } finally {
+            if ($cepat) $this->tutupTmp();
+        }
+
+        return $data + compact('list_dist_channel', 'list_area');
+    }
+
+    private function hitungDashboardInti(Request $request, bool $cepat): array
+    {
+        if ($cepat) {
+            $base    = DB::table('tmp_gab');     // sudah terfilter
+            $grouped = DB::table('tmp_gab_g');   // 1 baris per sumber+shipment+tujuan
+        } else {
+            $base    = $this->applyFilter($this->src(), $request);
+            $grouped = $this->src()->whereIn('id', $this->groupIdsQuery($base));
+        }
 
         $total_data       = $this->countGroups($base);
         $gudang_ontime    = $this->kpiCount('gudang_ontime', $request);
@@ -571,10 +698,6 @@ class GabunganController extends Controller
         $planner_delay = $this->countGroups((clone $base)
             ->whereNotNull('rencana_kirim')->whereNotNull('tanggal_dpt_unit')
             ->whereRaw('DATE(tanggal_dpt_unit) > DATE(rencana_kirim)'));
-
-        $list_dist_channel = $this->src()->select('dist_channel')
-            ->whereNotNull('dist_channel')->distinct()->orderBy('dist_channel')->get();
-        $list_area = $this->listArea();
 
         $grp = $this->grupBiayaQuery($base);
         $tot = DB::query()->fromSub($grp, 'g')
@@ -682,7 +805,7 @@ class GabunganController extends Controller
             ->whereRaw($empty('tanggal_tiba'))
             ->whereRaw("({$lastKeluarKosong}) = 0"));
 
-        return view($this->dashboardView, compact(
+        return compact(
             'total_data', 'summary_planner', 'summary_pic_monitoring',
             'gudang_ontime', 'gudang_delay', 'total_in_transit', 'total_sla_delay',
             'customer_ontime', 'customer_delay', 'bongkar_ontime', 'bongkar_delay',
@@ -690,14 +813,8 @@ class GabunganController extends Controller
             'ekspedisi', 'label', 'value',
             'planner_ontime', 'planner_delay', 'planner_armada', 'planner_belum_armada',
             'ontime_rate', 'delay_rate', 'armada_rate', 'pending_rate',
-            'summary_monitoring', 'list_dist_channel', 'list_area', 'alert_planner', 'alert_pic_belum', 'alert_pic_sudah'
-        ))->with([
-            'listRoute'       => $this->listRoute,
-            'inTransitRoute'  => $this->inTransitRoute,
-            'plannerRoute'    => $this->plannerRoute,
-            'monitoringRoute' => $this->monitoringRoute,
-            'dataRoute'       => $this->dataRoute,
-        ]);
+            'summary_monitoring', 'alert_planner', 'alert_pic_belum', 'alert_pic_sudah'
+        );
     }
 
     private function enrichArmada($row)

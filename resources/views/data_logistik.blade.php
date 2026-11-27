@@ -1461,39 +1461,65 @@ function gudangCols(s, n) {
 // EXPORT EXCEL SESUAI FILTER AKTIF
 // (#btnExportExcel = cepat, #btnExportLaporan = dashboard + slicer)
 // ==========================================
-$('#btnExportExcel, #btnExportLaporan').on('click', function(e) {
+$('#btnExportExcel, #btnExportLaporan').on('click', function (e) {
     e.preventDefault();
 
     let params = new URLSearchParams();
-
     getAreas().forEach(a => params.append('area[]', a));
 
     let basis   = $('#filterTglBasis').val();
-    let periode = $('#filterPeriode').val();     // <-- TAMBAH DI SINI
+    let periode = $('#filterPeriode').val();
     let from    = $('#filterDateFrom').val();
     let to      = $('#filterDateTo').val();
     let month   = $('#filterMonth').val();
     let year    = $('#filterYear').val();
+    let q       = table.search();
 
     if (basis)   params.append('tgl_basis', basis);
-    if (periode) params.append('periode[]', periode);   // <-- TAMBAH DI SINI
+    if (periode) params.append('periode[]', periode);
     if (from)    params.append('date_from', from);
     if (to)      params.append('date_to', to);
     if (month)   params.append('month', month);
     if (year)    params.append('year', year);
+    if (q)       params.append('search[value]', q);
 
-    // tombol laporan membawa mode=laporan
-    let mode = $(this).data('mode');
-    if (mode) params.append('mode', mode);
+    const baseUrl = "{{ route('logistik.export') }}";
+    const mode    = $(this).data('mode');
+    const $btn    = $(this);
 
-    // cegah klik dobel selama laporan dibuat (lama)
-    if (mode === 'laporan') {
-        let $b = $(this).css({ pointerEvents: 'none', opacity: .6 });
-        setTimeout(() => $b.css({ pointerEvents: '', opacity: '' }), 120000);
+    function download(m) {
+        let p = new URLSearchParams(params);
+        if (m) p.append('mode', m);
+        window.location.href = baseUrl + '?' + p.toString();
     }
 
-    let baseUrl = "{{ route('logistik.export') }}";
-    window.location.href = params.toString() ? (baseUrl + '?' + params.toString()) : baseUrl;
+    if (mode !== 'laporan') {
+        return download('');
+    }
+
+    // laporan: cek jumlah baris dulu
+    let cek = new URLSearchParams(params);
+    cek.append('mode', 'cek');
+    $btn.css({ pointerEvents: 'none', opacity: .6 });
+
+    $.getJSON(baseUrl + '?' + cek.toString())
+        .done(function (r) {
+            if (r.rows > r.max) {
+                if (confirm('Data ' + r.rows.toLocaleString('id-ID') + ' baris melebihi batas laporan (' +
+                    r.max.toLocaleString('id-ID') + ').\nDownload Export Data (cepat) saja?')) {
+                    download('');
+                }
+                $btn.css({ pointerEvents: '', opacity: '' });
+            } else {
+               download('laporan');
+alert('Laporan sedang dibuat di server. Download akan muncul otomatis, mohon tunggu beberapa menit dan jangan klik lagi.');
+                setTimeout(() => $btn.css({ pointerEvents: '', opacity: '' }), 120000);
+            }
+        })
+        .fail(function () {
+            alert('Gagal mengecek jumlah data.');
+            $btn.css({ pointerEvents: '', opacity: '' });
+        });
 });
         });
     </script>

@@ -2,14 +2,15 @@
 
 namespace App\Exports;
 
+use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use ZipArchive;
 
 /**
  * Mempercantik chart hasil PhpSpreadsheet:
  *  - label angka = kotak berwarna series + border gelap, teks putih/hitam otomatis, nilai 0 disembunyikan
  *  - garis grid gelap, sudut membulat
- *  - chart tujuan (kategori Ringkasan!AD): rentang tetap diganti NAMA DINAMIS (OFFSET sepanjang
- *    Ringkasan!AM2) supaya jumlah batang ikut slicer, dan nama tujuan dimiringkan
+ *  - chart dengan rentang bantu (Tujuan + tabel padat Area/Channel/Ekspedisi/PIC): rentang tetap diganti
+ *    NAMA DINAMIS (OFFSET sepanjang jumlah kategori terpilih), nama kategori dimiringkan
  * Gagal = file asli tidak berubah.
  */
 class XlsxChartLabelStyler
@@ -17,6 +18,34 @@ class XlsxChartLabelStyler
     private const PCT_COLS = ['N', 'AI'];
     private const GRID     = '1F2937';
     private const DYN_COLS = ['AD', 'AE', 'AF', 'AG', 'AH', 'AI', 'AJ', 'AK'];
+
+    /** [kolom => sel jumlah kategori]. Tujuan: AM2. Tabel padat: sel 'pos' baris 2 (AO, AY, BI, BS) */
+    private static function dynMap(): array
+    {
+        $m = [];
+        foreach (self::DYN_COLS as $c) {
+            $m[$c] = '$AM$2';
+        }
+        // sama dengan LogistikReportSummary: CMP_START_COL = 41, CMP_STEP = 10, 4 blok
+        foreach ([0, 1, 2, 3] as $i) {
+            $c0  = 41 + $i * 10;
+            $cnt = '$' . Coordinate::stringFromColumnIndex($c0) . '$2';
+            for ($j = 1; $j <= 8; $j++) {          // label + 7 kolom metrik
+                $m[Coordinate::stringFromColumnIndex($c0 + $j)] = $cnt;
+            }
+        }
+        return $m;
+    }
+
+    /** kolom persen: CR di tabel Tujuan (AI) dan CR di tiap tabel padat (c0 + 6) */
+    private static function pctCols(): array
+    {
+        $c = self::PCT_COLS;
+        foreach ([0, 1, 2, 3] as $i) {
+            $c[] = Coordinate::stringFromColumnIndex(41 + $i * 10 + 6);
+        }
+        return array_unique($c);
+    }
 
     public static function apply(string $path): bool
     {
@@ -53,7 +82,7 @@ class XlsxChartLabelStyler
                 $out = preg_replace('#<c:majorGridlines>.*?</c:majorGridlines>#s', $grid, $out) ?? $out;
                 $out = preg_replace('#<c:roundedCorners val="0"\s*/>#', '<c:roundedCorners val="1"/>', $out) ?? $out;
 
-                // chart tujuan: rentang tetap -> nama dinamis, label nama miring
+                // rentang tetap -> nama dinamis, label nama miring
                 $changed = false;
                 $out     = self::dynamicRanges($out, $changed);
                 if ($changed) {
@@ -101,11 +130,11 @@ class XlsxChartLabelStyler
         }
     }
 
-    /** rentang tetap Ringkasan!$AD$4:$AD$23 -> nama dinamis (panjang = Ringkasan!AM2); cache dibuang */
+    /** rentang tetap Ringkasan!$AD$4:$AD$23 -> nama dinamis; cache dibuang */
     private static function dynamicRanges(string $xml, &$changed = null): string
     {
         $changed = false;
-        $cols    = implode('|', self::DYN_COLS);
+        $cols    = implode('|', array_keys(self::dynMap()));
         $q       = "(?:'|&apos;|&#0*39;|&quot;)?";   // &#039; (dipakai PhpSpreadsheet) ikut terbaca
 
         $out = preg_replace_callback(
@@ -123,8 +152,8 @@ class XlsxChartLabelStyler
     private static function addNames(string $wb): string
     {
         $names = '';
-        foreach (self::DYN_COLS as $c) {
-            $names .= '<definedName name="tj_' . $c . '">OFFSET(Ringkasan!$' . $c . '$4,0,0,MAX(1,Ringkasan!$AM$2),1)</definedName>';
+        foreach (self::dynMap() as $c => $cnt) {
+            $names .= '<definedName name="tj_' . $c . '">OFFSET(Ringkasan!$' . $c . '$4,0,0,MAX(1,Ringkasan!' . $cnt . '),1)</definedName>';
         }
 
         if (strpos($wb, '</definedNames>') !== false) {
@@ -136,7 +165,7 @@ class XlsxChartLabelStyler
         return str_replace('</sheets>', '</sheets><definedNames>' . $names . '</definedNames>', $wb);
     }
 
-    /** label kategori (nama tujuan) di sumbu bawah: miring 45 derajat, semua tampil */
+    /** label kategori di sumbu bawah: miring 45 derajat, semua tampil */
     private static function rotateCatLabels(string $xml): string
     {
         return preg_replace_callback('#<c:catAx>.*?</c:catAx>#s', function ($m) {
@@ -179,7 +208,7 @@ class XlsxChartLabelStyler
         }
 
         $isPct = preg_match('#<c:val>.*?<c:f>(.*?)</c:f>#s', $ser, $m)
-            && preg_match('#\$(' . implode('|', self::PCT_COLS) . ')\$\d+#', $m[1]);
+            && preg_match('#\$(' . implode('|', self::pctCols()) . ')\$\d+#', $m[1]);
         $fmt = $isPct ? '0.0%;;;' : '#,##0;;;';
 
         [$r, $g, $b] = [hexdec(substr($color, 0, 2)), hexdec(substr($color, 2, 2)), hexdec(substr($color, 4, 2))];

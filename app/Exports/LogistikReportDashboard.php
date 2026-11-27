@@ -17,17 +17,18 @@ use PhpOffice\PhpSpreadsheet\Chart\Title;
 /**
  * Sheet 1 "Dashboard": grafik (+ slicer di kolom A-C). Data grafik dibaca dari sheet "Ringkasan".
  *
- * Band 0-6 (tiap band 22 baris): grafik per Area / Dist Channel / Dry-Reefer / Ekspedisi / PIC
- * (Area, Dist Channel, Ekspedisi, PIC = SEMUA data, tidak dibatasi top N).
- * Band 7: 1 grafik gabungan TOP 20 TUJUAN (4 series, gaya PER EKSPEDISI).
- * Grafik tujuan baru terisi kalau slicer/filter aktif (flag Ringkasan!T2 = 1), kalau tidak kosong.
+  * Band 0-6 (tiap band 22 baris): grafik per Area / Dist Channel / Dry-Reefer / Ekspedisi (Tiba, lalu Gudang, full width).
+ * Grafik Area, Dist Channel, dan Ekspedisi membaca tabel "padat" di Ringkasan (LogistikReportSummary::compactMap),
+ * jadi hanya kategori yang lolos slicer yang tampil (urut Nilai Muatan terbesar, maks CMP_N).
+ * Grafik Dry vs Reefer membaca S16:U18 (cuma 2 kategori).
+ * Grafik TOP 20 TUJUAN (1 grafik per metrik, di kanan grafik Area) baru terisi kalau slicer/filter aktif
+ * (flag Ringkasan!T2 = 1), kalau tidak kosong.
  */
 class LogistikReportDashboard implements WithTitle, WithEvents, WithCharts
 {
     private const FIRST_BANNER   = 4;
     private const BAND_H         = 22;
     private const SIDES          = ['L' => ['D', 'K'], 'R' => ['L', 'S'], 'F' => ['D', 'S']];
-    private const TUJ_START_BAND = 7;
 
     private const PALETTE      = ['16A34A', 'F59E0B', '2563EB', 'DC2626'];
     private const SINGLE_COLOR = '2563EB';
@@ -69,7 +70,7 @@ class LogistikReportDashboard implements WithTitle, WithEvents, WithCharts
     // ============================================================
     // DEFINISI GRAFIK
     // ============================================================
-    private function specs(): array
+      private function specs(): array
     {
         if ($this->specs !== null) {
             return $this->specs;
@@ -84,19 +85,40 @@ class LogistikReportDashboard implements WithTitle, WithEvents, WithCharts
                 return;
             }
             $blk = $b[$key];
-            $n   = $max === null ? $blk['n'] : min($blk['n'], $max);
-            if ($n < 1) {
-                return;
+            $cmp = $this->summary->compactMap($key);
+            $dyn = [];
+
+            if ($cmp) {
+                // tabel padat: hanya kategori yang lolos slicer
+                $n      = $cmp['n'];
+                $f      = $cmp['first'];
+                $cat    = $this->ref($cmp['label'], $f, $f + $n - 1);
+                $series = [];
+
+                $dyn[$cat] = "'Ringkasan'!dyn_{$key}_label";
+                foreach ($cols as $c) {
+                    $valRef       = $this->ref($cmp['cols'][$c], $f, $f + $n - 1);
+                    $series[]     = [$this->ref($cmp['cols'][$c], $cmp['hdr']), $valRef];
+                    $dyn[$valRef] = "'Ringkasan'!dyn_{$key}_{$c}";
+                }
+            } else {
+                $n = $max === null ? $blk['n'] : min($blk['n'], $max);
+                if ($n < 1) {
+                    return;
+                }
+                $first  = $blk['first'];
+                $cat    = $this->ref('A', $first, $first + $n - 1);
+                $series = [];
+                foreach ($cols as $c) {
+                    $series[] = [$this->ref($c, $blk['hdrRow']), $this->ref($c, $first, $first + $n - 1)];
+                }
             }
-            $first  = $blk['first'];
-            $series = [];
-            foreach ($cols as $c) {
-                $series[] = [$this->ref($c, $blk['hdrRow']), $this->ref($c, $first, $first + $n - 1)];
-            }
+
             $out[] = [
                 'name' => $name, 'band' => $band, 'side' => $side, 'title' => $title, 'dynamic' => false,
-                'cat' => $this->ref('A', $first, $first + $n - 1), 'n' => $n, 'series' => $series, 'grouping' => $grouping,
+                'cat' => $cat, 'n' => $n, 'series' => $series, 'grouping' => $grouping,
                 'row' => $this->bannerRow($band), 'rows' => 19,
+                'dyn' => $dyn,
             ];
         };
 
@@ -119,16 +141,30 @@ class LogistikReportDashboard implements WithTitle, WithEvents, WithCharts
             ];
         }
 
-        $fromBlock('ekpedisi', 5, 'F', 'chEkspedisi', 'PER EKSPEDISI: TIBA ON TIME / DELAY & GUDANG ON TIME / DELAY',
-            ['C', 'D', 'O', 'P']);
-     
+        // ekspedisi dipisah jadi 2 grafik full width (banyak ekspedisi, jadi label perlu lebar)
+        $fromBlock('ekpedisi', 5, 'F', 'chEkspedisiTiba', 'PER EKSPEDISI: TIBA ON TIME vs DELAY (CUSTOMER)',
+            ['C', 'D']);
+        $fromBlock('ekpedisi', 6, 'F', 'chEkspedisiGudang', 'PER EKSPEDISI: TIBA DI GUDANG ON TIME vs DELAY',
+            ['O', 'P']);
 
-         // ---- grafik tujuan: TOP 20, 1 grafik per metrik, di kanan grafik Area yang sepasang
+        // ---- CR TOTAL: 1 batang = CR seluruh data yang lolos slicer
+        $out[] = [
+            'name' => 'chCrTotal', 'band' => 7, 'side' => 'L', 'title' => 'CR TOTAL (SESUAI SLICER)', 'dynamic' => false,
+            'cat' => $this->ref('W', 17), 'n' => 1,
+            'series' => [[$this->ref('X', 16), $this->ref('X', 17)]],
+            'grouping' => DataSeries::GROUPING_CLUSTERED,
+            'row' => $this->bannerRow(7), 'rows' => 19,
+        ];
+
+        // ---- IN TRANSIT vs IN GUDANG vs SUDAH TIBA (jumlah grup, ikut slicer)
+       
+
+        // ---- grafik tujuan: TOP 20, 1 grafik per metrik, di kanan grafik Area yang sepasang
         //      kosong kalau slicer belum aktif (flag Ringkasan!T2 = 0)
         if (isset($b['tujuan'])) {
-            $n  = min(LogistikReportSummary::TUJ_TOP, $b['tujuan']['n']);
-            $h1 = LogistikReportSummary::HELP_FIRST;
-            $h2 = $h1 + $n - 1;
+            $n   = min(LogistikReportSummary::TUJ_TOP, $b['tujuan']['n']);
+            $h1  = LogistikReportSummary::HELP_FIRST;
+            $h2  = $h1 + $n - 1;
             $top = LogistikReportSummary::TUJ_TOP;
 
             // [band, nama, judul, kolom bantu]  (band sama dengan chart Area di sebelah kirinya)
@@ -157,7 +193,15 @@ class LogistikReportDashboard implements WithTitle, WithEvents, WithCharts
 
         return $this->specs = $out;
     }
-
+/** peta [referensi statis => named range dinamis] untuk dipasang di XML chart */
+public function dynRefs(): array
+{
+    $m = [];
+    foreach ($this->specs() as $sp) {
+        $m += $sp['dyn'] ?? [];
+    }
+    return $m;
+}
     // ============================================================
     // GRAFIK
     // ============================================================
@@ -173,11 +217,11 @@ class LogistikReportDashboard implements WithTitle, WithEvents, WithCharts
 
             $labels = [new DataSeriesValues(DataSeriesValues::DATASERIES_TYPE_STRING, $sp['cat'], null, $sp['n'])];
             $tags = $values = [];
-            foreach ($sp['series'] as $i => [$nameRef, $valRef]) {
+                     foreach ($sp['series'] as $i => [$nameRef, $valRef]) {
                 $tags[] = new DataSeriesValues(DataSeriesValues::DATASERIES_TYPE_STRING, $nameRef, null, 1);
 
                 $v = new DataSeriesValues(DataSeriesValues::DATASERIES_TYPE_NUMBER, $valRef, null, $sp['n']);
-                $v->setFillColor($single ? self::SINGLE_COLOR : (self::PALETTE[$i] ?? '6B7280'));
+                $v->setFillColor($sp['colors'] ?? ($single ? self::SINGLE_COLOR : (self::PALETTE[$i] ?? '6B7280')));
                 $values[] = $v;
             }
 

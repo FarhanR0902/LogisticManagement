@@ -20,38 +20,33 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Table\TableStyle;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
 /**
- * Sheet "Data" = isi LogistikExportFull (kolom terpilih + kolom [Hitung])
- * + kolom bantu slicer (Periode Keluar, Tanggal Keluar Terakhir, Tahun/Bulan Naik Logistik)
- * + kolom bantu "Rk ..." untuk sheet Ringkasan yang HIDUP (rumus SUMIFS yang ikut filter/slicer),
- * dijadikan Excel Table "tblLogistik".
+ * Sheet "Data" LAPORAN (Dashboard + Ringkasan + Data).
  *
- * Kolom "Rk ..." (dihitung di PHP, 1 = dihitung, 0 = tidak):
+ *  - 1 baris per grup (no_shipment + tujuan) = baris wakil (MIN id).
+ *  - Kolom detail DO dibuang (lihat DROP): sales_document, customer_reference, contract_end_date,
+ *    no_do, total_do_qty_car. Download cepat (LogistikExportFull / CSV) tetap lengkap per DO.
+ *  - nilai_muatan, kirim_kontribusi, biaya_kirim, total_kubik, total_tonase = JUMLAH GRUP
+ *    (biaya_kirim = MAX per grup, sama dengan tabel Data Logistik di web).
+ *  - Angka agregat (Rk ...) tetap dihitung dari SEMUA DO di grup lewat groupRows().
+ *
+ * Kolom bantu "Rk ..." (dihitung di PHP, 1 = dihitung, 0 = tidak):
  *   Rk Tampil       -> rumus =SUBTOTAL(103, Rk Wakil Grup): 1 kalau baris sedang terlihat (tidak terfilter)
- *   Rk Wakil Grup   -> 1 hanya pada baris wakil (MIN id) tiap grup no_shipment + tujuan
- *   Rk Nilai Grup / Rk Biaya Grup -> total grup, hanya di baris wakil
- *   Rk Tiba OT ... Rk Gudang Delay -> flag metrik, hanya di baris wakil
+ *   Rk Wakil Grup   -> 1 pada baris wakil tiap grup
+ *   Rk Nilai Grup / Rk Biaya Grup -> total grup
+ *   Rk Tiba OT ... Rk Gudang Delay -> flag metrik
  *   Rk Area, Rk PIC Monitoring, Rk Dist Channel, Rk Ekspedisi, Rk Tujuan, Rk Planner
  *                   -> kunci pengelompokan (kosong = "(kosong)") yang dibaca SUMIFS di Ringkasan
  *
  * CATATAN kirim_kontribusi:
- *   Kolom ini tidak selalu ada di sumber data (mis. view v_logistik_gabungan yang belum diperbarui).
- *   Kalau tidak ada, Biaya Grup otomatis memakai MAX(biaya_kirim) per grup (sama dengan dashboard web)
- *   dan kolom kirim_kontribusi tidak ditampilkan di sheet Data. Kalau ada, SUM(kirim_kontribusi) dipakai
- *   dan fallback ke MAX(biaya_kirim) hanya bila semua barisnya kosong.
+ *   Kalau kolom ini tidak ada di sumber data, Biaya Grup memakai MAX(biaya_kirim) per grup.
+ *   Kalau ada, SUM(kirim_kontribusi) dipakai dan fallback ke MAX(biaya_kirim) bila semua barisnya kosong.
  */
 class LogistikReportData extends LogistikExportFull implements WithEvents, WithTitle
 {
     public const SUFFIXES = ['', '_2', '_3', '_4', '_5'];
 
-    /** kolom yang tampil di sheet Data laporan (sisanya ada di Export Data cepat) */
-    private const KEEP = [
-        'no_shipment', 'no_do', 'tanggal_naik_logistik', 'rencana_kirim',
-        'planner', 'tujuan', 'area', 'dist_channel', 'ekpedisi', 'mobil',
-        'nilai_muatan', 'biaya_kirim', 'kirim_kontribusi', 'pic_monitoring',
-        'tanggal_keluar_gudang', 'tanggal_tiba', 'tanggal_bongkar',
-        'sla_tiba', 'sla_bongkar', 'status_akhir', 'monitoring_alert',
-        '[Hitung] Update Posisi Mobil', '[Hitung] CR (%)', '[Hitung] Status Akhir',
-    ];
+    /** kolom detail DO yang TIDAK ikut di sheet Data laporan */
+    private const DROP = ['sales_document', 'customer_reference', 'contract_end_date', 'no_do', 'total_do_qty_car'];
 
     /** pola di kolom `mobil` yang dianggap Reefer; selain itu = Dry */
     private const REEFER_REGEX = '/reefer|reffer|refer|chiller|frozen|freezer|cold/i';
@@ -76,7 +71,7 @@ class LogistikReportData extends LogistikExportFull implements WithEvents, WithT
     }
 
     // ============================================================
-    // KOLOM = kolom LogistikExportFull + kolom bantu
+    // KOLOM = kolom LogistikExportFull (tanpa detail DO) + kolom bantu
     // ============================================================
     protected function columns(): array
     {
@@ -84,26 +79,35 @@ class LogistikReportData extends LogistikExportFull implements WithEvents, WithT
             return $this->extraCols;
         }
 
-        // kirim_kontribusi hanya ditampilkan kalau memang ada di sumber data
-        $keep = array_values(array_filter(
-            self::KEEP,
-            fn($c) => $c !== 'kirim_kontribusi' || $this->hasColumn('kirim_kontribusi')
-        ));
-
+        // semua kolom parent kecuali detail DO
         $base = array_values(array_filter(
             parent::columns(),
-            fn($c) => in_array($c[0], $keep, true)
+            fn($c) => !in_array($c[0], self::DROP, true)
         ));
 
-        $bln = ['', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
-            'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+        $bln = [
+            '',
+            'Januari',
+            'Februari',
+            'Maret',
+            'April',
+            'Mei',
+            'Juni',
+            'Juli',
+            'Agustus',
+            'September',
+            'Oktober',
+            'November',
+            'Desember',
+        ];
 
         $extra = [
             ['Periode Keluar', 'raw', fn($r) => ($k = $this->keluarTs($r)) ? (int) date('Ym', $k) : ''],
             ['Tanggal Keluar Terakhir', 'date', fn($r) => ($k = $this->keluarTs($r)) ? $this->xl($k) : ''],
-            ['Tahun Naik Logistik', 'raw', fn($r) => ($t = strtotime((string) $r->tanggal_naik_logistik)) ? (int) date('Y', $t) : ''],
-            ['Bulan Naik Logistik', 'raw', fn($r) => ($t = strtotime((string) $r->tanggal_naik_logistik))
-                ? date('m', $t) . ' ' . $bln[(int) date('n', $t)] : ''],
+            ['Tahun Shipment', 'raw', fn($r) => ($t = strtotime((string) ($r->tanggal_shipment ?? '')))
+                ? (int) date('Y', $t) : 'Tanpa Tanggal'],
+            ['Bulan Shipment', 'raw', fn($r) => ($t = strtotime((string) ($r->tanggal_shipment ?? '')))
+                ? date('m', $t) . ' ' . $bln[(int) date('n', $t)] : 'Tanpa Tanggal'],
         ];
 
         return $this->extraCols = array_merge($base, $extra, $this->rankColumns());
@@ -120,9 +124,22 @@ class LogistikReportData extends LogistikExportFull implements WithEvents, WithT
         return [];
     }
 
-    /** map() = nilai kolom biasa + rumus SUBTOTAL di Rk Tampil (ditulis langsung, tanpa loop kedua) */
+    /**
+     * map() = nilai kolom biasa + rumus SUBTOTAL di Rk Tampil.
+     * Sebelum dipetakan, nilai baris wakil ditimpa dengan JUMLAH GRUP.
+     */
     public function map($r): array
     {
+        if ($info = ($this->groupInfo()[(int) $r->id] ?? null)) {
+            $r->nilai_muatan = $info[0];
+            if ($this->hasColumn('kirim_kontribusi')) {
+                $r->kirim_kontribusi = $info[2];
+            }
+            $r->biaya_kirim  = $info[3];
+            $r->total_kubik  = $info[4];
+            $r->total_tonase = $info[5];
+        }
+
         $row = parent::map($r);
 
         $this->tampilIdx ??= array_search('Rk Tampil', array_column($this->columns(), 0), true);
@@ -134,17 +151,38 @@ class LogistikReportData extends LogistikExportFull implements WithEvents, WithT
     }
 
     // ============================================================
+    // BARIS YANG DITULIS KE SHEET DATA: hanya baris wakil tiap grup
+    // (agregat tetap dihitung dari SEMUA DO lewat groupRows)
+    // ============================================================
+
+    /** id baris wakil (MIN id) per grup no_shipment + tujuan, dari data terfilter */
+    private function repIds()
+    {
+        return $this->baseQuery()
+            ->reorder()
+            ->select(DB::raw('MIN(id) AS id'))
+            ->groupByRaw("COALESCE(NULLIF(TRIM(no_shipment),''), CONCAT('id', id)), COALESCE(tujuan,'')");
+    }
+
+    public function query()
+    {
+        return (clone $this->builder)
+            ->whereIn('id', $this->repIds())
+            ->orderBy('id');
+    }
+
+    // ============================================================
     // DATA GRUP (SATU query)
     // ============================================================
 
-    /** SATU query: baris wakil tiap grup + kolom kunci + kolom keluar gudang */
+    /** SATU query: baris wakil tiap grup + kolom kunci + kolom keluar gudang + total grup */
     private function groupList(): array
     {
         if ($this->groupList !== null) {
             return $this->groupList;
         }
 
-        $cols = ['lp.id', 'g.g_nilai', 'g.g_biaya'];
+        $cols = ['lp.id', 'g.g_nilai', 'g.g_biaya', 'g.g_kontrib', 'g.g_bkirim', 'g.g_kubik', 'g.g_tonase'];
         foreach (['area', 'pic_monitoring', 'dist_channel', 'ekpedisi', 'tujuan', 'planner'] as $c) {
             if ($this->hasColumn($c)) {
                 $cols[] = "lp.{$c}";
@@ -159,7 +197,10 @@ class LogistikReportData extends LogistikExportFull implements WithEvents, WithT
         return $this->groupList = $this->groupRows()->select($cols)->get()->all();
     }
 
-    /** id baris wakil => [total nilai grup, total biaya grup] */
+    /**
+     * id baris wakil => [0 nilai grup, 1 biaya grup, 2 kirim_kontribusi grup (null kalau kosong),
+     *                    3 biaya_kirim (MAX), 4 total_kubik grup, 5 total_tonase grup]
+     */
     private function groupInfo(): array
     {
         if ($this->grp !== null) {
@@ -168,7 +209,14 @@ class LogistikReportData extends LogistikExportFull implements WithEvents, WithT
 
         $out = [];
         foreach ($this->groupList() as $x) {
-            $out[(int) $x->id] = [(float) $x->g_nilai, (float) $x->g_biaya];
+            $out[(int) $x->id] = [
+                (float) $x->g_nilai,
+                (float) $x->g_biaya,
+                $x->g_kontrib === null ? null : (float) $x->g_kontrib,
+                (float) $x->g_bkirim,
+                (float) $x->g_kubik,
+                (float) $x->g_tonase,
+            ];
         }
 
         return $this->grp = $out;
@@ -283,6 +331,18 @@ class LogistikReportData extends LogistikExportFull implements WithEvents, WithT
             $inTransit = $any && !$dangling;
         }
 
+        // in gudang: belum tiba tujuan, ada gudang yang sudah tiba tapi belum keluar
+      // in gudang: ada siklus gudang yang sudah dimulai (planning/tiba gudang) tapi belum keluar
+$inGudang = false;
+if (!$tiba) {
+    foreach (self::SUFFIXES as $s) {
+        $started = $has("planning_loading{$s}") || $has("tanggal_tiba_gudang{$s}");
+        if ($started && !$has("tanggal_keluar_gudang{$s}")) {
+            $inGudang = true;
+            break;
+        }
+    }
+}
         // status gudang: delay kalau ada gudang tiba lebih lambat dari planning, ot kalau ada data & tak ada yg telat
         $gd = null;
         foreach (self::SUFFIXES as $s) {
@@ -329,6 +389,7 @@ class LogistikReportData extends LogistikExportFull implements WithEvents, WithT
             'del_ot'     => $f($mA === 'delivered on time'),
             'del_dl'     => $f($mA === 'delivered delay'),
             'in_transit' => $f($inTransit),
+            'in_gudang'  => $f($inGudang),
             'belum_tiba' => $f(!$tiba),
             'belum_bong' => $f($tiba && !$bongkar),
             'gd_ot'      => $f($gd === 'ot'),
@@ -363,6 +424,7 @@ class LogistikReportData extends LogistikExportFull implements WithEvents, WithT
             ['Rk Delivered OT',             'raw', $k('del_ot')],
             ['Rk Delivered Delay',          'raw', $k('del_dl')],
             ['Rk In Transit',               'raw', $k('in_transit')],
+            ['Rk In Gudang',                'raw', $k('in_gudang')],
             ['Rk Belum Tiba',               'raw', $k('belum_tiba')],
             ['Rk Belum Bongkar',            'raw', $k('belum_bong')],
             ['Rk Gudang OT',                'raw', $k('gd_ot')],
@@ -373,14 +435,16 @@ class LogistikReportData extends LogistikExportFull implements WithEvents, WithT
         // kolom kunci pengelompokan untuk SUMIFS di sheet Ringkasan (kosong => "(kosong)")
         $keyCol = fn(string $c) => fn($r) => ($v = trim((string) ($r->{$c} ?? ''))) !== '' ? $v : '(kosong)';
 
-        foreach ([
-            ['Rk Area',           'area'],
-            ['Rk PIC Monitoring', 'pic_monitoring'],
-            ['Rk Dist Channel',   'dist_channel'],
-            ['Rk Ekspedisi',      'ekpedisi'],
-            ['Rk Tujuan',         'tujuan'],
-            ['Rk Planner',        'planner'],
-        ] as [$h, $c]) {
+        foreach (
+            [
+                ['Rk Area',           'area'],
+                ['Rk PIC Monitoring', 'pic_monitoring'],
+                ['Rk Dist Channel',   'dist_channel'],
+                ['Rk Ekspedisi',      'ekpedisi'],
+                ['Rk Tujuan',         'tujuan'],
+                ['Rk Planner',        'planner'],
+            ] as [$h, $c]
+        ) {
             if ($this->hasColumn($c)) {
                 $cols[] = [$h, 'raw', $keyCol($c)];
             }
@@ -452,18 +516,25 @@ class LogistikReportData extends LogistikExportFull implements WithEvents, WithT
         return $q instanceof EloquentBuilder ? $q->toBase() : $q;
     }
 
-    /** jumlah baris DO (belum digabung per grup) */
+    /**
+     * jumlah baris di sheet Data = jumlah grup (no_shipment + tujuan).
+     * Dipakai Ringkasan sebagai batas rentang SUMIFS.
+     */
     public function totalRows(): int
     {
-        return (int) $this->baseQuery()->reorder()->count();
+        return count($this->groupList());
     }
 
     /**
      * 1 baris wakil per grup (no_shipment + tujuan), sama dengan groupIdsQuery() di controller,
      * ditambah total grup dari SEMUA DO di grup itu:
-     *   g.g_nilai = SUM(nilai_muatan)
-     *   g.g_biaya = SUM(kirim_kontribusi), kalau kosong semua pakai MAX(biaya_kirim)
-     *               (kalau kolom kirim_kontribusi tidak ada di sumber data: langsung MAX(biaya_kirim))
+     *   g.g_nilai   = SUM(nilai_muatan)
+     *   g.g_biaya   = SUM(kirim_kontribusi), kalau kosong semua pakai MAX(biaya_kirim)
+     *                 (kalau kolom kirim_kontribusi tidak ada: langsung MAX(biaya_kirim))
+     *   g.g_kontrib = SUM(kirim_kontribusi)  (NULL kalau kosong semua)
+     *   g.g_bkirim  = MAX(biaya_kirim)
+     *   g.g_kubik   = SUM(total_kubik)
+     *   g.g_tonase  = SUM(total_tonase)
      */
     public function groupRows()
     {
@@ -471,12 +542,19 @@ class LogistikReportData extends LogistikExportFull implements WithEvents, WithT
             ? 'COALESCE(SUM(kirim_kontribusi), MAX(COALESCE(biaya_kirim,0)), 0)'
             : 'COALESCE(MAX(COALESCE(biaya_kirim,0)), 0)';
 
+        $extra = ', '
+            . ($this->hasColumn('kirim_kontribusi') ? 'SUM(kirim_kontribusi)'        : 'NULL') . ' AS g_kontrib, '
+            . ($this->hasColumn('biaya_kirim')      ? 'MAX(COALESCE(biaya_kirim,0))' : '0')    . ' AS g_bkirim, '
+            . ($this->hasColumn('total_kubik')      ? 'SUM(COALESCE(total_kubik,0))' : '0')    . ' AS g_kubik, '
+            . ($this->hasColumn('total_tonase')     ? 'SUM(COALESCE(total_tonase,0))' : '0')   . ' AS g_tonase';
+
         $agg = $this->baseQuery()
             ->reorder()
             ->select(DB::raw(
                 'MIN(id) AS id, '
-                . 'SUM(COALESCE(nilai_muatan,0)) AS g_nilai, '
-                . $biaya . ' AS g_biaya'
+                    . 'SUM(COALESCE(nilai_muatan,0)) AS g_nilai, '
+                    . $biaya . ' AS g_biaya'
+                    . $extra
             ))
             ->groupByRaw("COALESCE(NULLIF(TRIM(no_shipment),''), CONCAT('id', id)), COALESCE(tujuan,'')");
 
@@ -526,10 +604,27 @@ class LogistikReportData extends LogistikExportFull implements WithEvents, WithT
         $inTransit = empty($anyKeluar)
             ? '0=1'
             : '(' . $empty('tanggal_tiba')
-              . ' AND (' . implode(' OR ', $anyKeluar) . ')'
-              . (empty($dangling) ? '' : ' AND NOT (' . implode(' OR ', $dangling) . ')')
-              . ')';
-
+            . ' AND (' . implode(' OR ', $anyKeluar) . ')'
+            . (empty($dangling) ? '' : ' AND NOT (' . implode(' OR ', $dangling) . ')')
+            . ')';
+$inGudangParts = [];
+foreach (self::SUFFIXES as $s) {
+    if (!$this->hasColumn("tanggal_keluar_gudang{$s}")) {
+        continue;
+    }
+    $started = [];
+    foreach (["planning_loading{$s}", "tanggal_tiba_gudang{$s}"] as $c) {
+        if ($this->hasColumn($c)) {
+            $started[] = $filled($c);
+        }
+    }
+    if (!empty($started)) {
+        $inGudangParts[] = '((' . implode(' OR ', $started) . ') AND ' . $empty("tanggal_keluar_gudang{$s}") . ')';
+    }
+}
+$inGudang = empty($inGudangParts)
+    ? '0=1'
+    : '(' . $empty('tanggal_tiba') . ' AND (' . implode(' OR ', $inGudangParts) . '))';
         return [
             'total'      => 'COUNT(*)',
             'tiba_ot'    => $sum($lc('sla_tiba') . "='on time'"),
@@ -543,6 +638,7 @@ class LogistikReportData extends LogistikExportFull implements WithEvents, WithT
             'del_ot'     => $sum($lc('monitoring_alert') . "='delivered on time'"),
             'del_dl'     => $sum($lc('monitoring_alert') . "='delivered delay'"),
             'in_transit' => $sum($inTransit),
+            'in_gudang'  => $sum($inGudang),
             'belum_tiba' => $sum($empty('tanggal_tiba')),
             'belum_bong' => $sum($filled('tanggal_tiba') . ' AND ' . $empty('tanggal_bongkar')),
             'nilai'      => 'SUM(g.g_nilai)',
@@ -606,8 +702,16 @@ class LogistikReportData extends LogistikExportFull implements WithEvents, WithT
      */
     public function tulisPerTujuanPlanner(Worksheet $sheet, int $startRow = 1, int $topN = 15): int
     {
-        $head = ['Total DO', 'Tiba On Time', 'Tiba Delay', 'Bongkar On Time',
-                 'Bongkar Delay', 'Nilai Muatan', 'Biaya Kirim', 'CR (%)'];
+        $head = [
+            'Total DO',
+            'Tiba On Time',
+            'Tiba Delay',
+            'Bongkar On Time',
+            'Bongkar Delay',
+            'Nilai Muatan',
+            'Biaya Kirim',
+            'CR (%)',
+        ];
 
         $blocks = [
             ['RINGKASAN PER TUJUAN',  'Tujuan',  $this->perTujuan()],
@@ -632,8 +736,15 @@ class LogistikReportData extends LogistikExportFull implements WithEvents, WithT
 
             $first = $r;
             $data  = array_map(fn($x) => [
-                $x['label'], $x['total'], $x['tiba_ot'], $x['tiba_dl'],
-                $x['bong_ot'], $x['bong_dl'], $x['nilai'], $x['biaya'], $x['cr'],
+                $x['label'],
+                $x['total'],
+                $x['tiba_ot'],
+                $x['tiba_dl'],
+                $x['bong_ot'],
+                $x['bong_dl'],
+                $x['nilai'],
+                $x['biaya'],
+                $x['cr'],
             ], $rows);
 
             if (!empty($data)) {
@@ -668,13 +779,22 @@ class LogistikReportData extends LogistikExportFull implements WithEvents, WithT
                 $cats = [new DataSeriesValues('String', "{$s}!\$A\${$tj['first']}:\$A\${$cEnd}", null, $n)];
 
                 $ds = new DataSeries(
-                    DataSeries::TYPE_BARCHART, DataSeries::GROUPING_CLUSTERED,
-                    range(0, count($cols) - 1), $labels, $cats, $values
+                    DataSeries::TYPE_BARCHART,
+                    DataSeries::GROUPING_CLUSTERED,
+                    range(0, count($cols) - 1),
+                    $labels,
+                    $cats,
+                    $values
                 );
                 $ds->setPlotDirection(DataSeries::DIRECTION_COL);
 
-                $ch = new Chart($name, new Title($title), new Legend(Legend::POSITION_BOTTOM, null, false),
-                    new PlotArea(null, [$ds]), true);
+                $ch = new Chart(
+                    $name,
+                    new Title($title),
+                    new Legend(Legend::POSITION_BOTTOM, null, false),
+                    new PlotArea(null, [$ds]),
+                    true
+                );
                 $ch->setTopLeftPosition("K{$row}");
                 $ch->setBottomRightPosition('S' . ($row + 19));
                 $sheet->addChart($ch);

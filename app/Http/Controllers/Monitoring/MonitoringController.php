@@ -89,13 +89,10 @@ private function kecualikanShipment($query): void
     if (!is_dir($dir)) mkdir($dir, 0775, true);
     $path = $dir . '/' . $name;
 
-    // build() sudah membuat tabel tblLogistik + chart di Ringkasan
-   // build() membuat sheet Ringkasan (tabel), Data (tblLogistik), dan Dashboard (chart)
+  
 (new MonitoringSlicerExport($filters))->build($path);
 
-// slicer di sheet Dashboard, mengontrol tabel tblLogistik (sheet Data)
 
-    // slicer di sheet Ringkasan, mengontrol tabel tblLogistik (sheet Data)
     $wanted = MonitoringSlicerExport::SLICER_HEADS;
     XlsxSlicerInjector::inject(
         $path,
@@ -676,8 +673,12 @@ private function kecualikanShipment($query): void
             }
         }
 
-        // hitung jumlah GRUP (shipment + tujuan), bukan jumlah baris DO
-        $totalRecords = $this->countGroups($baseQuery);
+        // hitung jumlah GRUP (shipment + tujuan), bukan jumlah baris DO.
+        // Di-cache 60 detik per kombinasi filter (ganti halaman / urutan / search tidak menghitung ulang).
+        $kunciTotal = 'monitoring.total.' . md5(json_encode(
+            $request->except(['draw', 'start', 'length', 'order', 'columns', 'search', '_', 'kelengkapan_sort'])
+        ));
+        $totalRecords = Cache::remember($kunciTotal, 60, fn() => $this->countGroups($baseQuery));
 
         // ================= GLOBAL SEARCH =================
         if ($searchValue !== '') {

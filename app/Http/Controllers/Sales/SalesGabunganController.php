@@ -21,6 +21,9 @@ class SalesGabunganController extends GabunganController
     protected string $dataRoute      = 'sales.data.gabungan';
     protected string $dataView       = 'sales.data_gabungan';
 
+    // scope Sales bergantung $periodeAktif (In Transit tanpa kunci periode) -> tidak cocok untuk tabel temporary tunggal
+    protected bool $dashboardCepat = false;
+
     // periode default Sales (format di DB: "MM-YYYY")
     private const PERIODE_SHIPMENT = '11-2026';
 

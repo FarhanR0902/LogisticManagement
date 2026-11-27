@@ -1245,10 +1245,11 @@ private function totalKey(?string $periode): string
         $searchValue = trim((string) $request->input('search.value', ''));
       $periode = $this->periodeKey($request);
 
-      $repScope = fn($q) => $q->whereIn('id', function ($sub) {
-    $sub->from('logistik_pengiriman')
-        ->selectRaw('MIN(id)')
-        ->groupByRaw(self::GROUP_KEY);
+      // GROUP BY hanya untuk periode yang dipilih (dulu seluruh tabel, semua periode, di setiap request)
+      $repScope = fn($q) => $q->whereIn('id', function ($sub) use ($request) {
+    $sub->from('logistik_pengiriman')->selectRaw('MIN(id)');
+    $this->filterPeriode($sub, $request);
+    $sub->groupByRaw(self::GROUP_KEY);
 });
 
 $baseQuery = $repScope(LogistikPengiriman::query());
@@ -2005,11 +2006,20 @@ private function periodeKey(Request $request): string
         return "CASE WHEN {$adaKeluar} AND NOT (" . implode(' OR ', $menggantung) . ") THEN 1 ELSE 0 END";
     }
 
-    /** Sekarang cukup baca kolom (bisa pakai index) */
-private function selesaiGudangSql(): string
-{
-    return '(' . $this->selesaiGudangExpr() . ')';
-}
+    /**
+     * Pakai kolom generated `selesai_gudang` kalau sudah ada di tabel (bisa di-index, tidak dihitung
+     * ulang per baris). Isinya identik dengan selesaiGudangExpr(). Belum di-migrate -> pakai CASE lama.
+     */
+    private function selesaiGudangSql(): string
+    {
+        $adaKolom = Cache::remember(
+            'planner.has_selesai_gudang',
+            600,
+            fn() => Schema::hasColumn('logistik_pengiriman', 'selesai_gudang')
+        );
+
+        return $adaKolom ? 'selesai_gudang' : '(' . $this->selesaiGudangExpr() . ')';
+    }
     private function hitungBiayaKirimRow($totalKubik, $kubikasi, $biayaTarif): float
     {
         $biayaTarif = (float) $biayaTarif;
