@@ -22,7 +22,8 @@ class LogistikReportExport implements WithMultipleSheets
     public function __construct(
         private $builder,
         private string $filterInfo = '',
-        private ?string $tabel = null
+        private ?string $tabel = null,
+        private bool $ringan = false
     ) {
     }
 
@@ -30,7 +31,8 @@ class LogistikReportExport implements WithMultipleSheets
     {
         // satu instance Data dipakai bersama oleh Ringkasan & Dashboard (daftar grup di-cache di dalamnya)
         $data = new LogistikReportData($this->builder);
-        $data->tabel = $this->tabel;
+        $data->tabel  = $this->tabel;
+        $data->ringan = $this->ringan;
 
         $summary = new LogistikReportSummary($data, $this->filterInfo);
 

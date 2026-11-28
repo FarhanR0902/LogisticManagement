@@ -115,55 +115,56 @@ class SpvPlannerController extends Controller
         return Excel::download(new PasuruanExport(), 'Data_Logistik_Pasuruan.xlsx');
     }
 
-  public function importQtyPgi(Request $request)
-{
-    $request->validate([
-        'file' => 'required|mimes:xlsx,xls,csv',
-    ]);
+    public function importQtyPgi(Request $request)
+    {
+        $request->validate([
+            'file' => 'required|mimes:xlsx,xls,csv',
+        ]);
 
-    $import = new UpdateQtyPgiImport;
-    Excel::import($import, $request->file('file'));
+        $import = new UpdateQtyPgiImport;
+        Excel::import($import, $request->file('file'));
 
-    $message = "Qty DO: {$import->getQtyUpdated()} baris berhasil diupdate.";
+        $message = "Qty DO: {$import->getQtyUpdated()} baris berhasil diupdate.";
 
-    if ($import->getQtySkipped() > 0) {
-        $message .= " {$import->getQtySkipped()} baris dilewati.";
-    }
-    if (!empty($import->getQtyNotFound())) {
-        $message .= " Qty tidak ketemu: " . implode(' | ', array_slice($import->getQtyNotFound(), 0, 5));
-        if (count($import->getQtyNotFound()) > 5) {
-            $message .= " (dan " . (count($import->getQtyNotFound()) - 5) . " lainnya)";
+        if ($import->getQtySkipped() > 0) {
+            $message .= " {$import->getQtySkipped()} baris dilewati.";
         }
+        if (!empty($import->getQtyNotFound())) {
+            $message .= " Qty tidak ketemu: " . implode(' | ', array_slice($import->getQtyNotFound(), 0, 5));
+            if (count($import->getQtyNotFound()) > 5) {
+                $message .= " (dan " . (count($import->getQtyNotFound()) - 5) . " lainnya)";
+            }
+        }
+        if (!empty($import->getQtyAmbiguous())) {
+            $message .= " Qty ambigu: " . implode(' | ', array_slice($import->getQtyAmbiguous(), 0, 5));
+        }
+
+        $message .= " || PGI Date: {$import->getPgiUpdated()} baris berhasil diupdate.";
+
+        if (!empty($import->getPgiNotFound())) {
+            $message .= " PGI tidak ketemu: " . implode(', ', array_slice($import->getPgiNotFound(), 0, 5));
+        }
+
+        // ===== BARU: kirim kontribusi & biaya kirim =====
+        if ($import->getBiayaKirimUpdated() > 0) {
+            $message .= " || Kirim Kontribusi & Biaya Kirim: {$import->getBiayaKirimUpdated()} shipment "
+                . "({$import->getKontribusiRowsUpdated()} baris DO) berhasil diupdate.";
+        }
+
+        $redirect = redirect()->back()->with('success', $message);
+
+        // peringatan / shipment yang dilewati
+        $skipped = $import->getBiayaSkipped();
+        if (!empty($skipped)) {
+            $redirect->with(
+                'warning',
+                'Biaya dilewati/peringatan: ' . implode(' | ', array_slice($skipped, 0, 10))
+                    . (count($skipped) > 10 ? ' (dan ' . (count($skipped) - 10) . ' lainnya)' : '')
+            );
+        }
+
+        return $redirect;
     }
-    if (!empty($import->getQtyAmbiguous())) {
-        $message .= " Qty ambigu: " . implode(' | ', array_slice($import->getQtyAmbiguous(), 0, 5));
-    }
-
-    $message .= " || PGI Date: {$import->getPgiUpdated()} baris berhasil diupdate.";
-
-    if (!empty($import->getPgiNotFound())) {
-        $message .= " PGI tidak ketemu: " . implode(', ', array_slice($import->getPgiNotFound(), 0, 5));
-    }
-
-    // ===== BARU: kirim kontribusi & biaya kirim =====
-    if ($import->getBiayaKirimUpdated() > 0) {
-        $message .= " || Kirim Kontribusi & Biaya Kirim: {$import->getBiayaKirimUpdated()} shipment "
-                  . "({$import->getKontribusiRowsUpdated()} baris DO) berhasil diupdate.";
-    }
-
-    $redirect = redirect()->back()->with('success', $message);
-
-    // peringatan / shipment yang dilewati
-    $skipped = $import->getBiayaSkipped();
-    if (!empty($skipped)) {
-        $redirect->with('warning',
-            'Biaya dilewati/peringatan: ' . implode(' | ', array_slice($skipped, 0, 10))
-            . (count($skipped) > 10 ? ' (dan ' . (count($skipped) - 10) . ' lainnya)' : '')
-        );
-    }
-
-    return $redirect;
-}
     /* =====================================================
      * REASON LISTS
      * ===================================================== */
@@ -321,69 +322,69 @@ class SpvPlannerController extends Controller
      * ===================================================== */
 
     /** SAMA dengan SpvMonitoringController: default tanggal_naik_logistik */
-private function dateFilterColumn($request): string
-{
-    return match ($request->input('tgl_basis')) {
-        'rencana_kirim'         => 'rencana_kirim',
-        'tanggal_naik_logistik' => 'tanggal_naik_logistik',
-        default                 => 'periode_shipment',
-    };
-}
-
-  private function applyFilter($query, $request)
-{
-    if ($request->area) {
-        $query->where('area', $request->area);
+    private function dateFilterColumn($request): string
+    {
+        return match ($request->input('tgl_basis')) {
+            'rencana_kirim'         => 'rencana_kirim',
+            'tanggal_naik_logistik' => 'tanggal_naik_logistik',
+            default                 => 'periode_shipment',
+        };
     }
 
-    if ($request->dist_channel) {
-        $query->where('dist_channel', $request->dist_channel);
-    }
+    private function applyFilter($query, $request)
+    {
+        if ($request->area) {
+            $query->where('area', $request->area);
+        }
 
-    if ($request->filled('pulau') && isset(self::PULAU_MAP[$request->pulau])) {
-        $query->whereIn('area', self::PULAU_MAP[$request->pulau]);
-    }
+        if ($request->dist_channel) {
+            $query->where('dist_channel', $request->dist_channel);
+        }
 
-    $col = $this->dateFilterColumn($request);
+        if ($request->filled('pulau') && isset(self::PULAU_MAP[$request->pulau])) {
+            $query->whereIn('area', self::PULAU_MAP[$request->pulau]);
+        }
 
-    // periode_shipment = teks "MM-YYYY"
-  if ($col === 'periode_shipment') {
-    // Bulan / tahun -> periode_shipment (teks "MM-YYYY")
-    if ($request->month) {
-        $query->where('periode_shipment', substr($request->month, 5, 2) . '-' . substr($request->month, 0, 4));
-    }
-    if ($request->year) {
-        $query->where('periode_shipment', 'like', '%-' . $request->year);
-    }
+        $col = $this->dateFilterColumn($request);
 
-    // Tanggal -> tanggal_shipment (tanggal asli)
-    if ($request->date) {
-        $query->whereDate('tanggal_shipment', $request->date);
-    }
+        // periode_shipment = teks "MM-YYYY"
+        if ($col === 'periode_shipment') {
+            // Bulan / tahun -> periode_shipment (teks "MM-YYYY")
+            if ($request->month) {
+                $query->where('periode_shipment', substr($request->month, 5, 2) . '-' . substr($request->month, 0, 4));
+            }
+            if ($request->year) {
+                $query->where('periode_shipment', 'like', '%-' . $request->year);
+            }
 
-    $from = $request->input('date_from');
-    $to   = $request->input('date_to');
-    if ($from && $to && $from > $to) {
-        [$from, $to] = [$to, $from];
-    }
-    if ($from) $query->whereDate('tanggal_shipment', '>=', $from);
-    if ($to)   $query->whereDate('tanggal_shipment', '<=', $to);
+            // Tanggal -> tanggal_shipment (tanggal asli)
+            if ($request->date) {
+                $query->whereDate('tanggal_shipment', $request->date);
+            }
 
-    return $query;
-}
-    if ($request->date) {
-        $query->whereDate($col, $request->date);
-    }
-    if ($request->month) {
-        $query->whereMonth($col, substr($request->month, 5, 2));
-        $query->whereYear($col, substr($request->month, 0, 4));
-    }
-    if ($request->year) {
-        $query->whereYear($col, $request->year);
-    }
+            $from = $request->input('date_from');
+            $to   = $request->input('date_to');
+            if ($from && $to && $from > $to) {
+                [$from, $to] = [$to, $from];
+            }
+            if ($from) $query->whereDate('tanggal_shipment', '>=', $from);
+            if ($to)   $query->whereDate('tanggal_shipment', '<=', $to);
 
-    return $query;
-}
+            return $query;
+        }
+        if ($request->date) {
+            $query->whereDate($col, $request->date);
+        }
+        if ($request->month) {
+            $query->whereMonth($col, substr($request->month, 5, 2));
+            $query->whereYear($col, substr($request->month, 0, 4));
+        }
+        if ($request->year) {
+            $query->whereYear($col, $request->year);
+        }
+
+        return $query;
+    }
 
     private function applyFilterPasuruan($query, $request)
     {
@@ -426,8 +427,15 @@ private function dateFilterColumn($request): string
         }
 
         $params = array_intersect_key($params, array_flip([
-            'tgl_basis', 'date_from', 'date_to', 'date', 'month', 'year',
-            'area', 'dist_channel', 'pulau',
+            'tgl_basis',
+            'date_from',
+            'date_to',
+            'date',
+            'month',
+            'year',
+            'area',
+            'dist_channel',
+            'pulau',
         ]));
 
         return new Request(array_filter($params, 'is_scalar'));
@@ -557,8 +565,16 @@ private function dateFilterColumn($request): string
         ];
 
         $cols = [
-            'no_shipment', 'tujuan', 'area', 'dist_channel', 'ekpedisi',
-            'mobil', 'nama_driver', 'no_pol', 'pic_monitoring', 'remarks',
+            'no_shipment',
+            'tujuan',
+            'area',
+            'dist_channel',
+            'ekpedisi',
+            'mobil',
+            'nama_driver',
+            'no_pol',
+            'pic_monitoring',
+            'remarks',
         ];
 
         return $base->where(function ($q) use ($cols, $exprs, $like) {
@@ -628,11 +644,13 @@ private function dateFilterColumn($request): string
         $list->getCollection()->transform(function ($r) use ($todayTs) {
             $keluar = null;
             $asal   = '-';
-            foreach ([
-                ['KACS',   $r->tanggal_keluar_gudang],
-                ['SENTUL', $r->tanggal_keluar_gudang_2],
-                ['CCIE',   $r->tanggal_keluar_gudang_3],
-            ] as [$nama, $tgl]) {
+            foreach (
+                [
+                    ['KACS',   $r->tanggal_keluar_gudang],
+                    ['SENTUL', $r->tanggal_keluar_gudang_2],
+                    ['CCIE',   $r->tanggal_keluar_gudang_3],
+                ] as [$nama, $tgl]
+            ) {
                 if (!empty($tgl)) {
                     $ts = strtotime($tgl);
                     if ($keluar === null || $ts >= $keluar) {
@@ -652,11 +670,22 @@ private function dateFilterColumn($request): string
             $cls   = 'gray';
             if ($estimasi) {
                 $sisa = floor(($estimasi - $todayTs) / 86400);
-                if     ($sisa < 0)  { $alert = 'Pending Tiba H+' . abs($sisa); $cls = 'red'; }
-                elseif ($sisa <= 1) { $alert = 'H-' . $sisa;                    $cls = 'red'; }
-                elseif ($sisa <= 3) { $alert = 'H-' . $sisa;                    $cls = 'orange'; }
-                elseif ($sisa <= 7) { $alert = 'H-' . $sisa;                    $cls = 'blue'; }
-                else                { $alert = 'ON TRACK';                      $cls = 'green'; }
+                if ($sisa < 0) {
+                    $alert = 'Pending Tiba H+' . abs($sisa);
+                    $cls = 'red';
+                } elseif ($sisa <= 1) {
+                    $alert = 'H-' . $sisa;
+                    $cls = 'red';
+                } elseif ($sisa <= 3) {
+                    $alert = 'H-' . $sisa;
+                    $cls = 'orange';
+                } elseif ($sisa <= 7) {
+                    $alert = 'H-' . $sisa;
+                    $cls = 'blue';
+                } else {
+                    $alert = 'ON TRACK';
+                    $cls = 'green';
+                }
             }
 
             $r->gudang_asal    = $asal;
@@ -725,9 +754,16 @@ private function dateFilterColumn($request): string
         ];
 
         $cols = [
-            'no_shipment_pasuruan', 'tujuan_pasuruan', 'area_pasuruan', 'dist_channel_pasuruan',
-            'ekspedisi_pasuruan', 'mobil_pasuruan', 'nama_driver_pasuruan', 'no_pol_pasuruan',
-            'pic_monitoring_pasuruan', 'remarks_pasuruan',
+            'no_shipment_pasuruan',
+            'tujuan_pasuruan',
+            'area_pasuruan',
+            'dist_channel_pasuruan',
+            'ekspedisi_pasuruan',
+            'mobil_pasuruan',
+            'nama_driver_pasuruan',
+            'no_pol_pasuruan',
+            'pic_monitoring_pasuruan',
+            'remarks_pasuruan',
         ];
 
         return $base->where(function ($q) use ($cols, $exprs, $like) {
@@ -799,11 +835,22 @@ private function dateFilterColumn($request): string
             $cls   = 'gray';
             if ($estimasi) {
                 $sisa = floor(($estimasi - $todayTs) / 86400);
-                if     ($sisa < 0)  { $alert = 'Pending Tiba H+' . abs($sisa); $cls = 'red'; }
-                elseif ($sisa <= 1) { $alert = 'H-' . $sisa;                    $cls = 'red'; }
-                elseif ($sisa <= 3) { $alert = 'H-' . $sisa;                    $cls = 'orange'; }
-                elseif ($sisa <= 7) { $alert = 'H-' . $sisa;                    $cls = 'blue'; }
-                else                { $alert = 'ON TRACK';                      $cls = 'green'; }
+                if ($sisa < 0) {
+                    $alert = 'Pending Tiba H+' . abs($sisa);
+                    $cls = 'red';
+                } elseif ($sisa <= 1) {
+                    $alert = 'H-' . $sisa;
+                    $cls = 'red';
+                } elseif ($sisa <= 3) {
+                    $alert = 'H-' . $sisa;
+                    $cls = 'orange';
+                } elseif ($sisa <= 7) {
+                    $alert = 'H-' . $sisa;
+                    $cls = 'blue';
+                } else {
+                    $alert = 'ON TRACK';
+                    $cls = 'green';
+                }
             }
 
             return (object) [
@@ -890,70 +937,70 @@ private function dateFilterColumn($request): string
 
             case 'gudang_delay': // sudah dapat unit, belum tiba gudang
                 $q->whereRaw($filled('rencana_kirim_pasuruan'))
-                  ->whereRaw($filled('tanggal_dpt_unit_pasuruan'))
-                  ->whereRaw($empty('tanggal_tiba_gudang_pasuruan'));
+                    ->whereRaw($filled('tanggal_dpt_unit_pasuruan'))
+                    ->whereRaw($empty('tanggal_tiba_gudang_pasuruan'));
                 break;
 
             case 'tujuan_ontime':
                 $q->whereNotNull('tanggal_tiba_pasuruan')
-                  ->whereNotNull('estimasi_tiba_pasuruan')
-                  ->whereRaw('DATEDIFF(DATE(tanggal_tiba_pasuruan), DATE(estimasi_tiba_pasuruan)) <= 0');
+                    ->whereNotNull('estimasi_tiba_pasuruan')
+                    ->whereRaw('DATEDIFF(DATE(tanggal_tiba_pasuruan), DATE(estimasi_tiba_pasuruan)) <= 0');
                 break;
 
             case 'tujuan_delay':
                 $q->whereNotNull('tanggal_tiba_pasuruan')
-                  ->whereNotNull('estimasi_tiba_pasuruan')
-                  ->whereRaw('DATEDIFF(DATE(tanggal_tiba_pasuruan), DATE(estimasi_tiba_pasuruan)) > 0');
+                    ->whereNotNull('estimasi_tiba_pasuruan')
+                    ->whereRaw('DATEDIFF(DATE(tanggal_tiba_pasuruan), DATE(estimasi_tiba_pasuruan)) > 0');
                 break;
 
             case 'bongkar_ontime':
                 $q->whereNotNull('tanggal_bongkar_pasuruan')
-                  ->where('tanggal_bongkar_pasuruan', '!=', '1899-12-31 00:00:00')
-                  ->where(fn($w) => $w->whereNull('overstay_days_pasuruan')->orWhere('overstay_days_pasuruan', 0));
+                    ->where('tanggal_bongkar_pasuruan', '!=', '1899-12-31 00:00:00')
+                    ->where(fn($w) => $w->whereNull('overstay_days_pasuruan')->orWhere('overstay_days_pasuruan', 0));
                 break;
 
             case 'bongkar_delay':
                 $q->whereNotNull('tanggal_bongkar_pasuruan')
-                  ->where('tanggal_bongkar_pasuruan', '!=', '1899-12-31 00:00:00')
-                  ->where('overstay_days_pasuruan', '>', 0);
+                    ->where('tanggal_bongkar_pasuruan', '!=', '1899-12-31 00:00:00')
+                    ->where('overstay_days_pasuruan', '>', 0);
                 break;
         }
 
         return $q;
     }
     /** Pakai route pertama yang terdaftar dari daftar kandidat. */
-private function firstRoute(array $names, array $params = []): string
-{
-    foreach ($names as $n) {
-        if (\Illuminate\Support\Facades\Route::has($n)) {
-            return route($n, $params);
+    private function firstRoute(array $names, array $params = []): string
+    {
+        foreach ($names as $n) {
+            if (\Illuminate\Support\Facades\Route::has($n)) {
+                return route($n, $params);
+            }
         }
+        return '#'; // belum ada route -> cek php artisan route:list
     }
-    return '#'; // belum ada route -> cek php artisan route:list
-}
 
-private function kpiLinks(Request $request): array
-{
-    $filter = array_filter(
-      $request->only(['tgl_basis', 'date', 'date_from', 'date_to', 'month', 'year', 'area', 'dist_channel', 'pulau']),
-        fn($v) => $v !== null && $v !== ''
-    );
+    private function kpiLinks(Request $request): array
+    {
+        $filter = array_filter(
+            $request->only(['tgl_basis', 'date', 'date_from', 'date_to', 'month', 'year', 'area', 'dist_channel', 'pulau']),
+            fn($v) => $v !== null && $v !== ''
+        );
 
-    // halaman list KPI (ManagerController) tidak mengenal tgl_basis 'create_tgl'
-    $kpiFilter = array_diff_key($filter, ['tgl_basis' => true]);
+        // halaman list KPI (ManagerController) tidak mengenal tgl_basis 'create_tgl'
+        $kpiFilter = array_diff_key($filter, ['tgl_basis' => true]);
 
-    return [
-     'total' => url('/spvplanner/full-data-logistik')
-    . (!empty($filter) ? '?' . http_build_query($filter) : ''),
-        'in_transit'      => $this->firstRoute(['spvplanner.intransit'], $filter),
-        'gudang_ontime'   => $this->firstRoute(['manager.gudang.ontime'], $kpiFilter),
-        'gudang_delay'    => $this->firstRoute(['manager.gudang.delay'], $kpiFilter),
-        'customer_ontime' => $this->firstRoute(['manager.tujuan.ontime', 'manager.customer.ontime'], $kpiFilter),
-        'customer_delay'  => $this->firstRoute(['manager.tujuan.delay', 'manager.customer.delay'], $kpiFilter),
-        'bongkar_ontime'  => $this->firstRoute(['manager.bongkar.ontime'], $kpiFilter),
-        'bongkar_delay'   => $this->firstRoute(['manager.bongkar.delay'], $kpiFilter),
-    ];
-}
+        return [
+            'total' => url('/spvplanner/full-data-logistik')
+                . (!empty($filter) ? '?' . http_build_query($filter) : ''),
+            'in_transit'      => $this->firstRoute(['spvplanner.intransit'], $filter),
+            'gudang_ontime'   => $this->firstRoute(['manager.gudang.ontime'], $kpiFilter),
+            'gudang_delay'    => $this->firstRoute(['manager.gudang.delay'], $kpiFilter),
+            'customer_ontime' => $this->firstRoute(['manager.tujuan.ontime', 'manager.customer.ontime'], $kpiFilter),
+            'customer_delay'  => $this->firstRoute(['manager.tujuan.delay', 'manager.customer.delay'], $kpiFilter),
+            'bongkar_ontime'  => $this->firstRoute(['manager.bongkar.ontime'], $kpiFilter),
+            'bongkar_delay'   => $this->firstRoute(['manager.bongkar.delay'], $kpiFilter),
+        ];
+    }
 
     private function kpiLinksPasuruan(Request $request): array
     {
@@ -1011,7 +1058,7 @@ private function kpiLinks(Request $request): array
         $planner_belum_armada = $this->countGroupsPasuruan(
             (clone $base)->where(function ($q) {
                 $q->whereNull('rencana_kirim_pasuruan')->orWhere('rencana_kirim_pasuruan', '')
-                  ->orWhereNull('tanggal_dpt_unit_pasuruan')->orWhere('tanggal_dpt_unit_pasuruan', '');
+                    ->orWhereNull('tanggal_dpt_unit_pasuruan')->orWhere('tanggal_dpt_unit_pasuruan', '');
             })
         );
 
@@ -1152,21 +1199,38 @@ private function kpiLinks(Request $request): array
         ];
 
         return view('spvplanner.dashboard_pasuruan', compact(
-            'total_data', 'kpiLinks',
-            'gudang_ontime', 'gudang_delay',
-            'customer_ontime', 'customer_delay',
-            'bongkar_ontime', 'bongkar_delay',
-            'summary_area', 'summary_tujuan',
-            'totalNilaiMuatan', 'totalBiayaKirim',
-            'ekspedisi', 'label', 'value',
-            'top_ekspedisi_pemakaian', 'trend_pengiriman_bulanan',
-            'summary_area_ontime', 'summary_planner', 'summary_pic_monitoring',
-            'planner_ontime', 'planner_delay',
-            'planner_armada', 'planner_belum_armada',
+            'total_data',
+            'kpiLinks',
+            'gudang_ontime',
+            'gudang_delay',
+            'customer_ontime',
+            'customer_delay',
+            'bongkar_ontime',
+            'bongkar_delay',
+            'summary_area',
+            'summary_tujuan',
+            'totalNilaiMuatan',
+            'totalBiayaKirim',
+            'ekspedisi',
+            'label',
+            'value',
+            'top_ekspedisi_pemakaian',
+            'trend_pengiriman_bulanan',
+            'summary_area_ontime',
+            'summary_planner',
+            'summary_pic_monitoring',
+            'planner_ontime',
+            'planner_delay',
+            'planner_armada',
+            'planner_belum_armada',
             'total_in_transit',
-            'ontime_rate', 'delay_rate',
-            'armada_rate', 'pending_rate',
-            'summary_monitoring', 'list_dist_channel', 'list_area'
+            'ontime_rate',
+            'delay_rate',
+            'armada_rate',
+            'pending_rate',
+            'summary_monitoring',
+            'list_dist_channel',
+            'list_area'
         ));
     }
 
@@ -1211,12 +1275,23 @@ private function kpiLinks(Request $request): array
         $searchValue = trim((string) $request->input('search.value'));
         if ($searchValue !== '') {
             $query->where(function ($q) use ($searchValue) {
-                foreach ([
-                    'no_shipment_pasuruan', 'tujuan_pasuruan', 'area_pasuruan', 'nama_driver_pasuruan',
-                    'no_pol_pasuruan', 'planner_pasuruan', 'mobil_pasuruan', 'ekspedisi_pasuruan',
-                    'pic_monitoring_pasuruan', 'customer_reference_pasuruan', 'sales_document_pasuruan',
-                    'no_do_pasuruan', 'no_delivery_pasuruan',
-                ] as $col) {
+                foreach (
+                    [
+                        'no_shipment_pasuruan',
+                        'tujuan_pasuruan',
+                        'area_pasuruan',
+                        'nama_driver_pasuruan',
+                        'no_pol_pasuruan',
+                        'planner_pasuruan',
+                        'mobil_pasuruan',
+                        'ekspedisi_pasuruan',
+                        'pic_monitoring_pasuruan',
+                        'customer_reference_pasuruan',
+                        'sales_document_pasuruan',
+                        'no_do_pasuruan',
+                        'no_delivery_pasuruan',
+                    ] as $col
+                ) {
                     $q->orWhere($col, 'like', "%{$searchValue}%");
                 }
             });
@@ -1253,10 +1328,10 @@ private function kpiLinks(Request $request): array
         $orderColumn   = $orderableColumns[$orderColIndex] ?? 'tanggal_terima_po_pasuruan';
 
         $query->orderBy($orderColumn, $orderDir)
-              ->orderByRaw('CAST(no_shipment_pasuruan AS UNSIGNED) ASC')
-              ->orderBy('no_shipment_pasuruan')
-              ->orderBy('tujuan_pasuruan')
-              ->orderBy('id');
+            ->orderByRaw('CAST(no_shipment_pasuruan AS UNSIGNED) ASC')
+            ->orderBy('no_shipment_pasuruan')
+            ->orderBy('tujuan_pasuruan')
+            ->orderBy('id');
 
         // ---------- PAGINATION ----------
         $start  = max(0, (int) $request->input('start', 0));
@@ -1294,10 +1369,10 @@ private function kpiLinks(Request $request): array
 
                 'tujuan_html'                => $r->no_shipment_pasuruan
                     ? '<a href="#" class="btn-tujuan" data-shipment="' . e($r->no_shipment_pasuruan)
-                        . '" data-tujuan="' . e($r->tujuan_pasuruan) . '">▶ '
-                        . e($r->tujuan_pasuruan)
-                        . ($g && $g->jml_do > 1 ? ' <span class="badge gray">' . $g->jml_do . ' DO</span>' : '')
-                        . '</a>'
+                    . '" data-tujuan="' . e($r->tujuan_pasuruan) . '">▶ '
+                    . e($r->tujuan_pasuruan)
+                    . ($g && $g->jml_do > 1 ? ' <span class="badge gray">' . $g->jml_do . ' DO</span>' : '')
+                    . '</a>'
                     : e($r->tujuan_pasuruan),
 
                 'area'                       => $r->area_pasuruan,
@@ -1450,19 +1525,26 @@ private function kpiLinks(Request $request): array
         $bongkarTujuan = $r->tanggal_bongkar_pasuruan;
 
         if (empty($dpt)) {
-            $status = 'MENCARI UNIT'; $badge = 'red';
+            $status = 'MENCARI UNIT';
+            $badge = 'red';
         } elseif (empty($tibaGudang)) {
-            $status = 'PERJALANAN KE GUDANG'; $badge = 'orange';
+            $status = 'PERJALANAN KE GUDANG';
+            $badge = 'orange';
         } elseif (!empty($tibaGudang) && empty($keluarGudang)) {
-            $status = 'DI GUDANG'; $badge = 'cream';
+            $status = 'DI GUDANG';
+            $badge = 'cream';
         } elseif (!empty($keluarGudang) && empty($tibaTujuan)) {
-            $status = 'PERJALANAN KE TUJUAN'; $badge = 'yellow';
+            $status = 'PERJALANAN KE TUJUAN';
+            $badge = 'yellow';
         } elseif (!empty($tibaTujuan) && empty($bongkarTujuan)) {
-            $status = 'TIBA DI TUJUAN'; $badge = 'blue';
+            $status = 'TIBA DI TUJUAN';
+            $badge = 'blue';
         } elseif (!empty($tibaTujuan) && !empty($bongkarTujuan)) {
-            $status = 'SUDAH SELESAI'; $badge = 'green';
+            $status = 'SUDAH SELESAI';
+            $badge = 'green';
         } else {
-            $status = '-'; $badge = 'gray';
+            $status = '-';
+            $badge = 'gray';
         }
 
         return '<span class="badge ' . $badge . '">' . e($status) . '</span>';
@@ -1473,8 +1555,14 @@ private function kpiLinks(Request $request): array
         $channel = trim((string) $channel);
 
         $classes = [
-            'badge-green', 'badge-blue', 'badge-orange', 'badge-red',
-            'badge-purple', 'badge-pink', 'badge-cyan', 'badge-yellow',
+            'badge-green',
+            'badge-blue',
+            'badge-orange',
+            'badge-red',
+            'badge-purple',
+            'badge-pink',
+            'badge-cyan',
+            'badge-yellow',
         ];
 
         $badgeClass = $channel
@@ -1918,19 +2006,26 @@ private function kpiLinks(Request $request): array
         $bongkarTujuan = $r->tanggal_bongkar_pasuruan;
 
         if (empty($dpt)) {
-            $status = 'MENCARI UNIT';          $badge = 'red';
+            $status = 'MENCARI UNIT';
+            $badge = 'red';
         } elseif (empty($tibaGudang)) {
-            $status = 'PERJALANAN KE GUDANG';  $badge = 'orange';
+            $status = 'PERJALANAN KE GUDANG';
+            $badge = 'orange';
         } elseif (!empty($tibaGudang) && empty($keluarGudang)) {
-            $status = 'DI GUDANG';             $badge = 'blue';
+            $status = 'DI GUDANG';
+            $badge = 'blue';
         } elseif (!empty($keluarGudang) && empty($tibaTujuan)) {
-            $status = 'PERJALANAN KE TUJUAN';  $badge = 'yellow';
+            $status = 'PERJALANAN KE TUJUAN';
+            $badge = 'yellow';
         } elseif (!empty($tibaTujuan) && empty($bongkarTujuan)) {
-            $status = 'TIBA DI TUJUAN';        $badge = 'success';
+            $status = 'TIBA DI TUJUAN';
+            $badge = 'success';
         } elseif (!empty($tibaTujuan) && !empty($bongkarTujuan)) {
-            $status = 'SUDAH SELESAI';         $badge = 'green';
+            $status = 'SUDAH SELESAI';
+            $badge = 'green';
         } else {
-            $status = '-';                     $badge = 'gray';
+            $status = '-';
+            $badge = 'gray';
         }
         $posisiHtml = '<span class="badge ' . $badge . '">' . e($status) . '</span>';
 
@@ -2010,15 +2105,20 @@ private function kpiLinks(Request $request): array
             $sisaHari = floor(($estimasi - strtotime(date('Y-m-d'))) / 86400);
 
             if ($sisaHari < 0) {
-                $alert = 'OVERDUE';        $alertClass = 'badge-danger';
+                $alert = 'OVERDUE';
+                $alertClass = 'badge-danger';
             } elseif ($sisaHari <= 1) {
-                $alert = 'H-' . $sisaHari; $alertClass = 'badge-danger';
+                $alert = 'H-' . $sisaHari;
+                $alertClass = 'badge-danger';
             } elseif ($sisaHari <= 3) {
-                $alert = 'H-' . $sisaHari; $alertClass = 'badge-warning';
+                $alert = 'H-' . $sisaHari;
+                $alertClass = 'badge-warning';
             } elseif ($sisaHari <= 7) {
-                $alert = 'H-' . $sisaHari; $alertClass = 'badge-info';
+                $alert = 'H-' . $sisaHari;
+                $alertClass = 'badge-info';
             } else {
-                $alert = 'ON TRACK';       $alertClass = 'badge-success';
+                $alert = 'ON TRACK';
+                $alertClass = 'badge-success';
             }
         }
         $alertHtml = '<span class="badge ' . $alertClass . '">' . e($alert) . '</span>';
@@ -2184,15 +2284,15 @@ private function kpiLinks(Request $request): array
         $gudang_ontime = $this->countGroups(
             (clone $base)->where(function ($q) {
                 $q->whereNotNull('tanggal_tiba_gudang')
-                  ->orWhereNotNull('tanggal_tiba_gudang_2')
-                  ->orWhereNotNull('tanggal_tiba_gudang_3');
+                    ->orWhereNotNull('tanggal_tiba_gudang_2')
+                    ->orWhereNotNull('tanggal_tiba_gudang_3');
             })
         );
 
         $gudang_delay = $this->countGroups(
             (clone $base)->where(function ($q) {
                 $q->whereNull('rencana_kirim')->orWhere('rencana_kirim', '')
-                  ->orWhereNull('tanggal_dpt_unit')->orWhere('tanggal_dpt_unit', '');
+                    ->orWhereNull('tanggal_dpt_unit')->orWhere('tanggal_dpt_unit', '');
             })
         );
 
@@ -2239,7 +2339,7 @@ private function kpiLinks(Request $request): array
         $planner_belum_armada = $this->countGroups(
             (clone $base)->where(function ($q) {
                 $q->whereNull('rencana_kirim')->orWhere('rencana_kirim', '')
-                  ->orWhereNull('tanggal_dpt_unit')->orWhere('tanggal_dpt_unit', '');
+                    ->orWhereNull('tanggal_dpt_unit')->orWhere('tanggal_dpt_unit', '');
             })
         );
 
@@ -2424,26 +2524,50 @@ private function kpiLinks(Request $request): array
             'bongkar_delay'          => $total_data > 0 ? ($bongkar_delay / $total_data) * 100 : 0,
         ];
 
-           $kpiLinks = $this->kpiLinks($request);
+        $kpiLinks = $this->kpiLinks($request);
 
-return view('spvplanner.dashboard_full', compact(
-    'total_data', 'kpiLinks', 'gudang_ontime', 'gudang_delay',
-    'customer_ontime', 'customer_delay',
-    'summary_kategori_ekspedisi', 'summary_pengiriman_optimal',
-    'bongkar_ontime', 'bongkar_delay', 'tiba_belum_diisi_delay',
-    'summary_area', 'summary_tujuan',
-    'totalNilaiMuatan', 'totalBiayaKirim',
-    'trend_pengiriman_bulanan', 'ekspedisi',
-    'total_belum_tiba_gudang', 'top_ekspedisi_pemakaian',
-    'total_in_transit', 'summary_area_ontime',
-    'summary_planner', 'summary_pic_monitoring',
-    'label', 'value',
-    'planner_ontime', 'planner_delay',
-    'planner_armada', 'planner_belum_armada',
-    'ontime_rate', 'delay_rate', 'armada_rate', 'pending_rate',
-    'summary_monitoring', 'list_dist_channel', 'list_area',
-    'summary_pulau', 'label_pulau', 'value_muatan_pulau', 'value_biaya_pulau'
-));
+        return view('spvplanner.dashboard_full', compact(
+            'total_data',
+            'kpiLinks',
+            'gudang_ontime',
+            'gudang_delay',
+            'customer_ontime',
+            'customer_delay',
+            'summary_kategori_ekspedisi',
+            'summary_pengiriman_optimal',
+            'bongkar_ontime',
+            'bongkar_delay',
+            'tiba_belum_diisi_delay',
+            'summary_area',
+            'summary_tujuan',
+            'totalNilaiMuatan',
+            'totalBiayaKirim',
+            'trend_pengiriman_bulanan',
+            'ekspedisi',
+            'total_belum_tiba_gudang',
+            'top_ekspedisi_pemakaian',
+            'total_in_transit',
+            'summary_area_ontime',
+            'summary_planner',
+            'summary_pic_monitoring',
+            'label',
+            'value',
+            'planner_ontime',
+            'planner_delay',
+            'planner_armada',
+            'planner_belum_armada',
+            'ontime_rate',
+            'delay_rate',
+            'armada_rate',
+            'pending_rate',
+            'summary_monitoring',
+            'list_dist_channel',
+            'list_area',
+            'summary_pulau',
+            'label_pulau',
+            'value_muatan_pulau',
+            'value_biaya_pulau'
+        ));
     }
 
     /* =====================================================
@@ -2487,7 +2611,12 @@ return view('spvplanner.dashboard_full', compact(
             ->take(10);
 
         return view('spvplanner.dashboard', compact(
-            'total_data', 'ontime', 'delay', 'armada', 'belum_armada', 'summary_area'
+            'total_data',
+            'ontime',
+            'delay',
+            'armada',
+            'belum_armada',
+            'summary_area'
         ));
     }
 
@@ -2563,28 +2692,28 @@ return view('spvplanner.dashboard_full', compact(
      * Data (ajax), rincian DO & export dilayani LogistikController:
      *   route('logistik.ajax'), route('logistik.detail'), route('logistik.export')
      * ===================================================== */
-   public function fullDataLogistik(Request $request)
-{
-    $picList = LogistikPengiriman::whereNotNull('planner')
-        ->where('planner', '!=', '')
-        ->distinct()
-        ->orderBy('planner')
-        ->pluck('planner');
+    public function fullDataLogistik(Request $request)
+    {
+        $picList = LogistikPengiriman::whereNotNull('planner')
+            ->where('planner', '!=', '')
+            ->distinct()
+            ->orderBy('planner')
+            ->pluck('planner');
 
-    $areaList = LogistikPengiriman::whereNotNull('area')
-        ->where('area', '!=', '')
-        ->distinct()
-        ->orderBy('area')
-        ->pluck('area');
+        $areaList = LogistikPengiriman::whereNotNull('area')
+            ->where('area', '!=', '')
+            ->distinct()
+            ->orderBy('area')
+            ->pluck('area');
 
-    $periodeList = LogistikPengiriman::whereNotNull('periode_shipment')
-        ->where('periode_shipment', '!=', '')
-        ->distinct()
-        ->orderByRaw('RIGHT(periode_shipment,4) DESC, LEFT(periode_shipment,2) DESC')
-        ->pluck('periode_shipment');
+        $periodeList = LogistikPengiriman::whereNotNull('periode_shipment')
+            ->where('periode_shipment', '!=', '')
+            ->distinct()
+            ->orderByRaw('RIGHT(periode_shipment,4) DESC, LEFT(periode_shipment,2) DESC')
+            ->pluck('periode_shipment');
 
-    return view('spvplanner.full_data_logistik', compact('picList', 'areaList', 'periodeList'));
-}
+        return view('spvplanner.full_data_logistik', compact('picList', 'areaList', 'periodeList'));
+    }
 
     /* =====================================================
      * GUDANG / SLA HELPERS
@@ -3008,7 +3137,7 @@ return view('spvplanner.dashboard_full', compact(
             return $q->where('id', $row->id);
         }
         return $q->where('no_shipment', $shipment)
-                 ->whereRaw("COALESCE(tujuan,'') = ?", [(string) $row->tujuan]);
+            ->whereRaw("COALESCE(tujuan,'') = ?", [(string) $row->tujuan]);
     }
 
     private function statusOptimal($hasilKubik, $hasilTonase): ?string
@@ -3084,19 +3213,54 @@ return view('spvplanner.dashboard_full', compact(
         $rumus = $this->hitungSla($request);
 
         $data = $request->only([
-            'create_tgl', 'no_shipment', 'kubikasi', 'planner',
-            'dist_channel', 'transport_lead_time', 'tujuan', 'reason_optimal',
-            'area', 'ketersediaan_unit', 'mobil', 'perubahan_mobil',
-            'nilai_muatan', 'biaya_kirim', 'cr', 'kategori_ekspedisi', 'ekpedisi',
-            'tanggal_naik_logistik', 'rencana_kirim', 'tanggal_dpt_unit',
-            'planning_loading', 'tanggal_tiba_gudang', 'tanggal_keluar_gudang', 'reason_gudang',
-            'planning_loading_2', 'tanggal_tiba_gudang_2', 'tanggal_keluar_gudang_2', 'reason_gudang_2',
-            'planning_loading_3', 'tanggal_tiba_gudang_3', 'tanggal_keluar_gudang_3', 'reason_gudang_3',
-            'keterangan', 'route', 'pulau', 'via_kirim',
+            'create_tgl',
+            'no_shipment',
+            'kubikasi',
+            'planner',
+            'dist_channel',
+            'transport_lead_time',
+            'tujuan',
+            'reason_optimal',
+            'area',
+            'ketersediaan_unit',
+            'mobil',
+            'perubahan_mobil',
+            'nilai_muatan',
+            'biaya_kirim',
+            'cr',
+            'kategori_ekspedisi',
+            'ekpedisi',
+            'tanggal_naik_logistik',
+            'rencana_kirim',
+            'tanggal_dpt_unit',
+            'planning_loading',
+            'tanggal_tiba_gudang',
+            'tanggal_keluar_gudang',
+            'reason_gudang',
+            'planning_loading_2',
+            'tanggal_tiba_gudang_2',
+            'tanggal_keluar_gudang_2',
+            'reason_gudang_2',
+            'planning_loading_3',
+            'tanggal_tiba_gudang_3',
+            'tanggal_keluar_gudang_3',
+            'reason_gudang_3',
+            'keterangan',
+            'route',
+            'pulau',
+            'via_kirim',
         ]);
 
-        foreach (['waktu_tiba_gudang', 'waktu_keluar_gudang', 'waktu_tiba_gudang_2', 'waktu_keluar_gudang_2',
-                  'waktu_tiba_gudang_3', 'waktu_keluar_gudang_3'] as $f) {
+        foreach (
+            [
+                'waktu_tiba_gudang',
+                'waktu_keluar_gudang',
+                'waktu_tiba_gudang_2',
+                'waktu_keluar_gudang_2',
+                'waktu_tiba_gudang_3',
+                'waktu_keluar_gudang_3'
+            ] as $f
+        ) {
             $data[$f] = $this->cleanTime($request->$f);
         }
 
@@ -3191,7 +3355,7 @@ return view('spvplanner.dashboard_full', compact(
         DB::table('logistik_pengiriman')
             ->where(function ($q) use ($oldNoShipment, $newNoShipment) {
                 $q->where('no_shipment', $oldNoShipment)
-                  ->orWhere('no_shipment', $newNoShipment);
+                    ->orWhere('no_shipment', $newNoShipment);
             })
             ->update($shared);
 
@@ -3282,11 +3446,24 @@ return view('spvplanner.dashboard_full', compact(
 
         if ($searchValue !== '') {
             $baseQuery->where(function ($q) use ($searchValue) {
-                foreach ([
-                    'planner', 'no_shipment', 'tujuan', 'route', 'pulau', 'area',
-                    'via_kirim', 'dist_channel', 'kategori_ekspedisi', 'ekpedisi',
-                    'nama_driver', 'no_pol', 'mobil', 'transport_lead_time',
-                ] as $col) {
+                foreach (
+                    [
+                        'planner',
+                        'no_shipment',
+                        'tujuan',
+                        'route',
+                        'pulau',
+                        'area',
+                        'via_kirim',
+                        'dist_channel',
+                        'kategori_ekspedisi',
+                        'ekpedisi',
+                        'nama_driver',
+                        'no_pol',
+                        'mobil',
+                        'transport_lead_time',
+                    ] as $col
+                ) {
                     $q->orWhere($col, 'like', "%{$searchValue}%");
                 }
             });
@@ -3350,8 +3527,10 @@ return view('spvplanner.dashboard_full', compact(
     {
         $n    = $s === '' ? 1 : (int) ltrim($s, '_');
         $info = $this->hitungGudang(
-            $r->{'tanggal_tiba_gudang' . $s},   $r->{'waktu_tiba_gudang' . $s},
-            $r->{'tanggal_keluar_gudang' . $s}, $r->{'waktu_keluar_gudang' . $s}
+            $r->{'tanggal_tiba_gudang' . $s},
+            $r->{'waktu_tiba_gudang' . $s},
+            $r->{'tanggal_keluar_gudang' . $s},
+            $r->{'waktu_keluar_gudang' . $s}
         );
 
         if (!$info) {
@@ -3410,7 +3589,7 @@ return view('spvplanner.dashboard_full', compact(
             ? '' : rtrim(rtrim(number_format((float) $v, 4, ',', ''), '0'), ',');
 
         $roInput = fn($name, $value, $cls = '') =>
-            '<input type="text" ' . $formAttr . ' name="' . $name . '" class="' . $cls . '" readonly '
+        '<input type="text" ' . $formAttr . ' name="' . $name . '" class="' . $cls . '" readonly '
             . 'style="background:#f1f5f9;" value="' . e($value) . '">';
 
         $buildSelect = function ($name, $selected, $options, $extraClass = '') use ($formAttr) {
@@ -3628,9 +3807,15 @@ return view('spvplanner.dashboard_full', compact(
             'lama_waktu_pencarian' => null,
             'sla_dapat_mobil'      => null,
             'status_pengiriman'    => null,
-            'lama_digudang'   => null, 'status_gudang'   => null, 'sla_loading'   => null,
-            'lama_digudang_2' => null, 'status_gudang_2' => null, 'sla_loading_2' => null,
-            'lama_digudang_3' => null, 'status_gudang_3' => null, 'sla_loading_3' => null,
+            'lama_digudang'   => null,
+            'status_gudang'   => null,
+            'sla_loading'   => null,
+            'lama_digudang_2' => null,
+            'status_gudang_2' => null,
+            'sla_loading_2' => null,
+            'lama_digudang_3' => null,
+            'status_gudang_3' => null,
+            'sla_loading_3' => null,
         ];
 
         $hitungSelisih = function ($start, $end) {
@@ -3752,9 +3937,15 @@ return view('spvplanner.dashboard_full', compact(
         }
 
         $kolomGudang = [
-            'planning_loading', 'tanggal_tiba_gudang', 'tanggal_keluar_gudang',
-            'planning_loading_2', 'tanggal_tiba_gudang_2', 'tanggal_keluar_gudang_2',
-            'planning_loading_3', 'tanggal_tiba_gudang_3', 'tanggal_keluar_gudang_3',
+            'planning_loading',
+            'tanggal_tiba_gudang',
+            'tanggal_keluar_gudang',
+            'planning_loading_2',
+            'tanggal_tiba_gudang_2',
+            'tanggal_keluar_gudang_2',
+            'planning_loading_3',
+            'tanggal_tiba_gudang_3',
+            'tanggal_keluar_gudang_3',
         ];
 
         $total  = (clone $base)->count();
@@ -3857,5 +4048,4 @@ return view('spvplanner.dashboard_full', compact(
 
         return response()->json($rows->pluck('total', 'tgl'));
     }
-
 }

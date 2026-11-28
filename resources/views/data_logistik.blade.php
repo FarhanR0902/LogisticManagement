@@ -556,15 +556,15 @@
     <div class="container">
 
         <h2>📦 DATA LOGISTIK</h2>
-<a href="#" id="btnExportExcel" class="btn-export" data-mode="">
-    <i class="fa fa-file-excel"></i> Export Data (cepat)
-</a>
+        <a href="#" id="btnExportExcel" class="btn-export" data-mode="">
+            <i class="fa fa-file-excel"></i> Export Data (cepat)
+        </a>
 
-<a href="#" id="btnExportLaporan" class="btn-export" data-mode="laporan">
-    <i class="fa fa-chart-column"></i> Laporan + Dashboard + Slicer
-</a>
-     
-     
+        <a href="#" id="btnExportLaporan" class="btn-export" data-mode="laporan">
+            <i class="fa fa-chart-column"></i> Laporan + Dashboard + Slicer
+        </a>
+
+
         <div class="filter-box">
             <form id="filterForm" onsubmit="return false;">
 
@@ -590,17 +590,17 @@
                         </div>
                     </div>
                 </div>
-<select id="filterTglBasis" name="tgl_basis">
-    <option value="tanggal_shipment" selected>Tanggal Shipment</option>
-    <option value="tanggal_naik_logistik">Tanggal Naik Logistik</option>
-    <option value="rencana_kirim">Rencana Kirim</option>
-</select>
-<select id="filterPeriode" name="periode">
-    <option value="">Semua Periode Shipment</option>
-    @foreach($periodeList as $p)
-        <option value="{{ $p }}">{{ $p }}</option>
-    @endforeach
-</select>
+                <select id="filterTglBasis" name="tgl_basis">
+                    <option value="tanggal_shipment" selected>Tanggal Shipment</option>
+                    <option value="tanggal_naik_logistik">Tanggal Naik PO</option>
+                    <option value="rencana_kirim">Rencana Kirim</option>
+                </select>
+                <select id="filterPeriode" name="periode">
+                    <option value="">Semua Periode Shipment</option>
+                    @foreach($periodeList as $p)
+                    <option value="{{ $p }}">{{ $p }}</option>
+                    @endforeach
+                </select>
 
                 <label class="tgl-lbl">Dari
                     <input type="date" id="filterDateFrom" name="date_from">
@@ -637,7 +637,7 @@
             <table id="tableLogistik" class="display nowrap" style="width:100%">
                 <thead>
                     <tr>
-                        <th>Tanggal Naik Logistik</th>
+                        <th>Tanggal Naik PO</th>
                         <th>Rencana Kirim</th>
                         <th class="col-small">Lead Time</th>
 
@@ -646,9 +646,9 @@
                         <th>Update Posisi Mobil</th>
                         <th>Dist Channel</th>
                         <th>Tujuan</th>
-                       <th>Area</th>
-<th>Kota</th>
-<th>Ketersediaan Unit</th>
+                        <th>Area</th>
+                        <th>Kota</th>
+                        <th>Ketersediaan Unit</th>
                         <th>Mobil</th>
                         <th>Delivery Quantity</th>
                         <th>Nilai Muatan</th>
@@ -698,23 +698,23 @@
                         <th>SLA Loading CCIE</th>
                         <th>Status CCIE</th>
                         <th>Planning Loading P5</th>
-<th>Tanggal Tiba P5</th>
-<th>Waktu Tiba P5</th>
-<th>Tanggal Keluar P5</th>
-<th>Waktu Keluar P5</th>
-<th>Reason Gudang P5</th>
-<th>Lama Di P5</th>
-<th>SLA Loading P5</th>
-<th>Status P5</th>
-<th>Planning Loading Vivatex</th>
-<th>Tanggal Tiba Vivatex</th>
-<th>Waktu Tiba Vivatex</th>
-<th>Tanggal Keluar Vivatex</th>
-<th>Waktu Keluar Vivatex</th>
-<th>Reason Gudang Vivatex</th>
-<th>Lama Di Vivatex</th>
-<th>SLA Loading Vivatex</th>
-<th>Status Vivatex</th>
+                        <th>Tanggal Tiba P5</th>
+                        <th>Waktu Tiba P5</th>
+                        <th>Tanggal Keluar P5</th>
+                        <th>Waktu Keluar P5</th>
+                        <th>Reason Gudang P5</th>
+                        <th>Lama Di P5</th>
+                        <th>SLA Loading P5</th>
+                        <th>Status P5</th>
+                        <th>Planning Loading Vivatex</th>
+                        <th>Tanggal Tiba Vivatex</th>
+                        <th>Waktu Tiba Vivatex</th>
+                        <th>Tanggal Keluar Vivatex</th>
+                        <th>Waktu Keluar Vivatex</th>
+                        <th>Reason Gudang Vivatex</th>
+                        <th>Lama Di Vivatex</th>
+                        <th>SLA Loading Vivatex</th>
+                        <th>Status Vivatex</th>
                         <th>PIC Monitoring</th>
                         <th>Nama Kapal</th>
                         <th>ETD</th>
@@ -844,19 +844,52 @@
                     reloadDebounced();
                 });
             })();
-function gudangCols(s, n) {
-    return [
-        { data: 'planning_loading' + s,           name: 'planning_loading' + s },
-        { data: 'tanggal_tiba_gudang' + s,        name: 'tanggal_tiba_gudang' + s },
-        { data: 'waktu_tiba_gudang' + s + '_fmt', name: 'waktu_tiba_gudang' + s },
-        { data: 'tanggal_keluar_gudang' + s,      name: 'tanggal_keluar_gudang' + s },
-        { data: 'waktu_keluar_gudang' + s + '_fmt', name: 'waktu_keluar_gudang' + s },
-        { data: 'reason_gudang' + s,              name: 'reason_gudang' + s, defaultContent: '-' },
-        { data: 'lama_digudang' + s,              name: 'lama_digudang' + s, defaultContent: '-' },
-        { data: 'sla_loading' + n + '_badge',     name: 'sla_loading' + s, orderable: false, searchable: false },
-        { data: 'status_gudang' + n + '_badge',   name: 'status_gudang' + s, orderable: false, searchable: false }
-    ];
-}
+
+            function gudangCols(s, n) {
+                return [{
+                        data: 'planning_loading' + s,
+                        name: 'planning_loading' + s
+                    },
+                    {
+                        data: 'tanggal_tiba_gudang' + s,
+                        name: 'tanggal_tiba_gudang' + s
+                    },
+                    {
+                        data: 'waktu_tiba_gudang' + s + '_fmt',
+                        name: 'waktu_tiba_gudang' + s
+                    },
+                    {
+                        data: 'tanggal_keluar_gudang' + s,
+                        name: 'tanggal_keluar_gudang' + s
+                    },
+                    {
+                        data: 'waktu_keluar_gudang' + s + '_fmt',
+                        name: 'waktu_keluar_gudang' + s
+                    },
+                    {
+                        data: 'reason_gudang' + s,
+                        name: 'reason_gudang' + s,
+                        defaultContent: '-'
+                    },
+                    {
+                        data: 'lama_digudang' + s,
+                        name: 'lama_digudang' + s,
+                        defaultContent: '-'
+                    },
+                    {
+                        data: 'sla_loading' + n + '_badge',
+                        name: 'sla_loading' + s,
+                        orderable: false,
+                        searchable: false
+                    },
+                    {
+                        data: 'status_gudang' + n + '_badge',
+                        name: 'status_gudang' + s,
+                        orderable: false,
+                        searchable: false
+                    }
+                ];
+            }
             let table = $('#tableLogistik').DataTable({
                 processing: true,
                 serverSide: true,
@@ -892,7 +925,7 @@ function gudangCols(s, n) {
                         d.area = getAreas(); // jQuery otomatis mengirim sebagai area[]=...
                         d.area = getAreas();
                         d.tgl_basis = $('#filterTglBasis').val();
-                           d.periode = $('#filterPeriode').val();  
+                        d.periode = $('#filterPeriode').val();
                         d.date_from = $('#filterDateFrom').val();
                         d.date_to = $('#filterDateTo').val();
                         d.month = $('#filterMonth').val();
@@ -941,10 +974,10 @@ function gudangCols(s, n) {
                         name: 'area'
                     },
                     {
-    data: 'kota',
-    name: 'kota',
-    defaultContent: '-'
-},
+                        data: 'kota',
+                        name: 'kota',
+                        defaultContent: '-'
+                    },
                     {
                         data: 'ketersediaan_unit_badge',
                         name: 'ketersediaan_unit',
@@ -1188,8 +1221,8 @@ function gudangCols(s, n) {
                         orderable: false,
                         searchable: false
                     },
-...gudangCols('_4', 4),
-...gudangCols('_5', 5),
+                    ...gudangCols('_4', 4),
+                    ...gudangCols('_5', 5),
                     {
                         data: 'pic_monitoring',
                         name: 'pic_monitoring'
@@ -1443,9 +1476,9 @@ function gudangCols(s, n) {
 
 
             // Reload table setiap filter berubah (server-side, jadi ringan)
-           $('#filterTglBasis, #filterPeriode, #filterDateFrom, #filterDateTo, #filterMonth, #filterYear').on('change', function() {
-    table.ajax.reload();
-});
+            $('#filterTglBasis, #filterPeriode, #filterDateFrom, #filterDateTo, #filterMonth, #filterYear').on('change', function() {
+                table.ajax.reload();
+            });
             $('#btnResetFilter').on('click', function(e) {
                 e.preventDefault();
                 $('#filterForm')[0].reset(); // basis tanggal balik ke default
@@ -1457,70 +1490,82 @@ function gudangCols(s, n) {
             // ==========================================
             // EXPORT EXCEL SESUAI FILTER AKTIF
             // ==========================================
-          // ==========================================
-// EXPORT EXCEL SESUAI FILTER AKTIF
-// (#btnExportExcel = cepat, #btnExportLaporan = dashboard + slicer)
-// ==========================================
-$('#btnExportExcel, #btnExportLaporan').on('click', function (e) {
-    e.preventDefault();
+            // ==========================================
+            // EXPORT EXCEL SESUAI FILTER AKTIF
+            // (#btnExportExcel = cepat, #btnExportLaporan = dashboard + slicer)
+            // ==========================================
+            $('#btnExportExcel, #btnExportLaporan').on('click', function(e) {
+                e.preventDefault();
 
-    let params = new URLSearchParams();
-    getAreas().forEach(a => params.append('area[]', a));
+                let params = new URLSearchParams();
+                getAreas().forEach(a => params.append('area[]', a));
 
-    let basis   = $('#filterTglBasis').val();
-    let periode = $('#filterPeriode').val();
-    let from    = $('#filterDateFrom').val();
-    let to      = $('#filterDateTo').val();
-    let month   = $('#filterMonth').val();
-    let year    = $('#filterYear').val();
-    let q       = table.search();
+                let basis = $('#filterTglBasis').val();
+                let periode = $('#filterPeriode').val();
+                let from = $('#filterDateFrom').val();
+                let to = $('#filterDateTo').val();
+                let month = $('#filterMonth').val();
+                let year = $('#filterYear').val();
+                let q = table.search();
 
-    if (basis)   params.append('tgl_basis', basis);
-    if (periode) params.append('periode[]', periode);
-    if (from)    params.append('date_from', from);
-    if (to)      params.append('date_to', to);
-    if (month)   params.append('month', month);
-    if (year)    params.append('year', year);
-    if (q)       params.append('search[value]', q);
+                if (basis) params.append('tgl_basis', basis);
+                if (periode) params.append('periode[]', periode);
+                if (from) params.append('date_from', from);
+                if (to) params.append('date_to', to);
+                if (month) params.append('month', month);
+                if (year) params.append('year', year);
+                if (q) params.append('search[value]', q);
 
-    const baseUrl = "{{ route('logistik.export') }}";
-    const mode    = $(this).data('mode');
-    const $btn    = $(this);
+                const baseUrl = "{{ route('logistik.export') }}";
+                const mode = $(this).data('mode');
+                const $btn = $(this);
 
-    function download(m) {
-        let p = new URLSearchParams(params);
-        if (m) p.append('mode', m);
-        window.location.href = baseUrl + '?' + p.toString();
-    }
-
-    if (mode !== 'laporan') {
-        return download('');
-    }
-
-    // laporan: cek jumlah baris dulu
-    let cek = new URLSearchParams(params);
-    cek.append('mode', 'cek');
-    $btn.css({ pointerEvents: 'none', opacity: .6 });
-
-    $.getJSON(baseUrl + '?' + cek.toString())
-        .done(function (r) {
-            if (r.rows > r.max) {
-                if (confirm('Data ' + r.rows.toLocaleString('id-ID') + ' baris melebihi batas laporan (' +
-                    r.max.toLocaleString('id-ID') + ').\nDownload Export Data (cepat) saja?')) {
-                    download('');
+                function download(m) {
+                    let p = new URLSearchParams(params);
+                    if (m) p.append('mode', m);
+                    window.location.href = baseUrl + '?' + p.toString();
                 }
-                $btn.css({ pointerEvents: '', opacity: '' });
-            } else {
-               download('laporan');
-alert('Laporan sedang dibuat di server. Download akan muncul otomatis, mohon tunggu beberapa menit dan jangan klik lagi.');
-                setTimeout(() => $btn.css({ pointerEvents: '', opacity: '' }), 120000);
-            }
-        })
-        .fail(function () {
-            alert('Gagal mengecek jumlah data.');
-            $btn.css({ pointerEvents: '', opacity: '' });
-        });
-});
+
+                if (mode !== 'laporan') {
+                    return download('');
+                }
+
+                // laporan: cek jumlah baris dulu
+                let cek = new URLSearchParams(params);
+                cek.append('mode', 'cek');
+                $btn.css({
+                    pointerEvents: 'none',
+                    opacity: .6
+                });
+
+                $.getJSON(baseUrl + '?' + cek.toString())
+                    .done(function(r) {
+                        if (r.rows > r.max) {
+                            if (confirm('Data ' + r.rows.toLocaleString('id-ID') + ' baris melebihi batas laporan (' +
+                                    r.max.toLocaleString('id-ID') + ').\nDownload Export Data (cepat) saja?')) {
+                                download('');
+                            }
+                            $btn.css({
+                                pointerEvents: '',
+                                opacity: ''
+                            });
+                        } else {
+                            download('laporan');
+                            alert('Laporan sedang dibuat di server. Download akan muncul otomatis, mohon tunggu beberapa menit dan jangan klik lagi.');
+                            setTimeout(() => $btn.css({
+                                pointerEvents: '',
+                                opacity: ''
+                            }), 120000);
+                        }
+                    })
+                    .fail(function() {
+                        alert('Gagal mengecek jumlah data.');
+                        $btn.css({
+                            pointerEvents: '',
+                            opacity: ''
+                        });
+                    });
+            });
         });
     </script>
 

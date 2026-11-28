@@ -655,6 +655,13 @@ class LogistikController extends Controller
 
 
 private const LAPORAN_MAX_ROWS = 40000;
+
+/**
+ * Laporan (Dashboard + Ringkasan + Data + slicer) dibangun lewat PhpSpreadsheet: tiap sel = 1 objek di memori.
+ * Di atas batas ini otomatis dipakai mode RINGAN (sheet Data hanya kolom inti + kolom Rk, tanpa [Hitung]).
+ * Paksa dengan ?ringan=1 / ?ringan=0.
+ */
+private const LAPORAN_RINGAN_MULAI = 5000;
 public function export(Request $request)
 {
     set_time_limit(0);
@@ -677,8 +684,16 @@ public function export(Request $request)
     ]);
 }
 
-if ($mode === 'laporan' && $this->exportCount($query, $request, true) <= self::LAPORAN_MAX_ROWS) {
-    return $this->exportLaporan($query);
+if ($mode === 'laporan') {
+    $grup = $this->exportCount($query, $request, true);
+
+    if ($grup <= self::LAPORAN_MAX_ROWS) {
+        $ringan = $request->has('ringan')
+            ? $request->boolean('ringan')
+            : $grup > self::LAPORAN_RINGAN_MULAI;
+
+        return $this->exportLaporan($query, $ringan);
+    }
 }
 
     // ---------- EXPORT FULL ----------
@@ -764,7 +779,7 @@ private function exportCsv(LogistikExportFull $export)
         'X-Accel-Buffering' => 'no',          // nginx jangan buffer
     ]);
 }
-private function exportLaporan($query)
+private function exportLaporan($query, bool $ringan = false)
 {
     set_time_limit(0);
     ini_set('memory_limit', '-1');
@@ -775,14 +790,15 @@ private function exportLaporan($query)
     $tabel = $this->table === 'logistik_storage' ? 'logistik_storage' : null;
 
     Excel::store(
-        new \App\Exports\LogistikReportExport($query, 'Filter dari halaman Data Logistik', $tabel),
+        new \App\Exports\LogistikReportExport($query, 'Filter dari halaman Data Logistik', $tabel, $ringan),
         $rel,
         'local'
     );
     $path = Storage::disk('local')->path($rel);
 
     $rep = new LogistikReportData($query);
-    $rep->tabel = $tabel;
+    $rep->tabel  = $tabel;
+    $rep->ringan = $ringan;
     $headings = $rep->headings();
     $norm = fn($s) => preg_replace('/[^a-z0-9]/', '', mb_strtolower((string) $s));
 

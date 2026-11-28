@@ -2,6 +2,7 @@
 
 namespace App\Exports;
 
+use App\Exports\Concerns\UrutanKolomWeb;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Maatwebsite\Excel\Concerns\FromQuery;
@@ -17,6 +18,10 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 /**
  * EXPORT FULL data logistik_pengiriman (tanpa composer, tanpa index baru)
  *
+ * Urutan & label kolom mengikuti tabel web (lihat UrutanKolomWeb):
+ *   baseColumns() = definisi kolom apa adanya (nama DB + [Hitung] ...)
+ *   columns()     = baseColumns() yang sudah diurutkan/diberi label seperti tabel web
+ *
  * Jalur CEPAT (dipakai controller):
  *   - writeXlsx($path)  : XLSX ditulis langsung (XML streaming + ZipArchive), tanpa PhpSpreadsheet
  *   - rows()            : generator keyset (WHERE id > last ORDER BY id LIMIT n), tanpa OFFSET / filesort
@@ -30,6 +35,8 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 class LogistikExportFull implements
     FromQuery, WithHeadings, WithMapping, WithColumnFormatting, WithStyles, WithCustomChunkSize
 {
+    use UrutanKolomWeb;
+
     protected $builder;
     private ?array $cols = null;
     private ?array $agg = null;
@@ -276,12 +283,22 @@ class LogistikExportFull implements
     // ============================================================
     // DEFINISI KOLOM [heading, tipe, closure]
     // ============================================================
+
+    /**
+     * Kolom yang dipakai export: baseColumns() diurutkan & diberi label seperti tabel web.
+     * Kolom yang tidak masuk urutan web tetap ikut, ditaruh setelahnya.
+     */
     protected function columns(): array
     {
-        if ($this->cols !== null) {
-            return $this->cols;
-        }
+        return $this->cols ??= $this->urutWeb($this->baseColumns());
+    }
 
+    /**
+     * Kolom apa adanya: nama DB (urut RAW) lalu kolom "[Hitung] ...".
+     * Subclass yang perlu menyaring berdasarkan nama DB memakai method ini.
+     */
+    protected function baseColumns(): array
+    {
         $c = [];
 
         // ---------- BAGIAN 1: KOLOM DATABASE ----------
@@ -290,7 +307,7 @@ class LogistikExportFull implements
         }
 
         if ($this->skipCalc) {
-            return $this->cols = $c;
+            return $c;
         }
 
         // ---------- BAGIAN 2: HASIL HITUNGAN OTOMATIS ----------
@@ -319,7 +336,7 @@ class LogistikExportFull implements
         $c[] = ['[Hitung] Estimasi Tiba Di Customer', 'date', fn($r) => $this->estimasiAdminXl($r)];
         $c[] = ['[Hitung] Ontime/Delay Admin',      'text', fn($r) => $this->statusEstimasiAdmin($r)];
 
-        return $this->cols = $c;
+        return $c;
     }
 
     /** getter per kolom, dispesialisasi per tipe (tanpa switch / in_array per sel) */
@@ -394,22 +411,11 @@ class LogistikExportFull implements
         $sheet->freezePane('A2');
         $sheet->getDefaultColumnDimension()->setWidth(20);
 
-        $rawCount   = count($this->rawCols());
-        $totalCount = count($this->columns());
-
-        $sheet->getStyle('A1:' . Coordinate::stringFromColumnIndex($rawCount) . '1')->applyFromArray([
+        // urutan kolom sekarang mengikuti web (DB & [Hitung] bercampur), jadi satu warna header
+        $sheet->getStyle('A1:' . Coordinate::stringFromColumnIndex(count($this->columns())) . '1')->applyFromArray([
             'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF']],
             'fill' => ['fillType' => 'solid', 'startColor' => ['rgb' => '03C03C']],
         ]);
-        if ($totalCount > $rawCount) {
-            $sheet->getStyle(
-                Coordinate::stringFromColumnIndex($rawCount + 1) . '1:' .
-                Coordinate::stringFromColumnIndex($totalCount) . '1'
-            )->applyFromArray([
-                'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF']],
-                'fill' => ['fillType' => 'solid', 'startColor' => ['rgb' => '2563EB']],
-            ]);
-        }
 
         return [];
     }
@@ -421,7 +427,6 @@ class LogistikExportFull implements
     {
         $this->csv = false;
         $cols  = $this->columns();
-        $raw   = count($this->rawCols());
         $fns   = array_map(fn($c) => $c[2], $cols);
 
         // indeks style (lihat styles.xml di bawah)
@@ -446,11 +451,10 @@ class LogistikExportFull implements
             . '<cols><col min="1" max="' . count($cols) . '" width="20" customWidth="1"/></cols>'
             . '<sheetData>');
 
-        // header
+        // header (satu warna hijau = style 8)
         $h = '<row>';
-        foreach ($cols as $i => [$name]) {
-            $hs = $i < $raw ? 8 : 9;
-            $h .= '<c s="' . $hs . '" t="inlineStr"><is><t>' . $this->esc($name) . '</t></is></c>';
+        foreach ($cols as [$name]) {
+            $h .= '<c s="8" t="inlineStr"><is><t>' . $this->esc($name) . '</t></is></c>';
         }
         fwrite($fh, $h . '</row>');
 

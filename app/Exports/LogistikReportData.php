@@ -23,10 +23,11 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
  * Sheet "Data" LAPORAN (Dashboard + Ringkasan + Data).
  *
  *  - 1 baris per grup (no_shipment + tujuan) = baris wakil (MIN id).
- *  - Kolom detail DO dibuang (lihat DROP): sales_document, customer_reference, contract_end_date,
- *    no_do, total_do_qty_car. Download cepat (LogistikExportFull / CSV) tetap lengkap per DO.
- *  - nilai_muatan, kirim_kontribusi, biaya_kirim, total_kubik, total_tonase = JUMLAH GRUP
- *    (biaya_kirim = MAX per grup, sama dengan tabel Data Logistik di web).
+ *  - Urutan & label kolom mengikuti tabel web (lihat UrutanKolomWeb, dipakai lewat LogistikExportFull).
+ *  - Kolom detail DO dibuang (lihat DROP): sales_document, customer_reference, contract_end_date, no_do.
+ *    Download cepat (LogistikExportFull / CSV) tetap lengkap per DO.
+ *  - nilai_muatan, kirim_kontribusi, biaya_kirim, total_kubik, total_tonase, total_do_qty_car (Delivery Quantity)
+ *    = JUMLAH GRUP (biaya_kirim = MAX per grup, sama dengan tabel Data Logistik di web).
  *  - Angka agregat (Rk ...) tetap dihitung dari SEMUA DO di grup lewat groupRows().
  *
  * Kolom bantu "Rk ..." (dihitung di PHP, 1 = dihitung, 0 = tidak):
@@ -45,11 +46,35 @@ class LogistikReportData extends LogistikExportFull implements WithEvents, WithT
 {
     public const SUFFIXES = ['', '_2', '_3', '_4', '_5'];
 
-    /** kolom detail DO yang TIDAK ikut di sheet Data laporan */
-    private const DROP = ['sales_document', 'customer_reference', 'contract_end_date', 'no_do', 'total_do_qty_car'];
+    /** kolom detail DO yang TIDAK ikut di sheet Data laporan (nama DB) */
+    private const DROP = ['sales_document', 'customer_reference', 'contract_end_date', 'no_do'];
 
     /** pola di kolom `mobil` yang dianggap Reefer; selain itu = Dry */
     private const REEFER_REGEX = '/reefer|reffer|refer|chiller|frozen|freezer|cold/i';
+
+    /**
+     * Mode ringan (?ringan=1): sheet Data hanya memuat kolom inti + kolom bantu (Rk ...), tanpa kolom
+     * [Hitung] dan kolom database yang jarang dipakai. Ringkasan, Dashboard, dan slicer tetap sama
+     * (semuanya membaca kolom Rk). Jumlah sel di sheet Data turun kira-kira separuh.
+     */
+    public bool $ringan = false;
+
+    private const KOLOM_INTI = [
+        'tanggal_shipment', 'periode_shipment', 'no_shipment', 'tujuan', 'area', 'pulau', 'dist_channel',
+        'planner', 'pic_monitoring', 'kategori_ekspedisi', 'ekpedisi', 'mobil', 'nama_driver', 'no_pol',
+        'route', 'via_kirim', 'transport_lead_time', 'total_do_qty_car',
+        'nilai_muatan', 'biaya_kirim', 'kirim_kontribusi', 'cr',
+        'kubikasi', 'tonase', 'total_kubik', 'total_tonase', 'hasil_kubik', 'hasil_tonase', 'pengiriman_optimal',
+        'tanggal_naik_logistik', 'rencana_kirim', 'tanggal_dpt_unit',
+        'planning_loading', 'tanggal_tiba_gudang', 'tanggal_keluar_gudang',
+        'planning_loading_2', 'tanggal_tiba_gudang_2', 'tanggal_keluar_gudang_2',
+        'planning_loading_3', 'tanggal_tiba_gudang_3', 'tanggal_keluar_gudang_3',
+        'planning_loading_4', 'tanggal_tiba_gudang_4', 'tanggal_keluar_gudang_4',
+        'planning_loading_5', 'tanggal_tiba_gudang_5', 'tanggal_keluar_gudang_5',
+        'estimasi_tiba', 'tanggal_tiba', 'waktu_tiba', 'tanggal_bongkar', 'waktu_bongkar',
+        'sla_tiba', 'sla_bongkar', 'status_akhir', 'monitoring_alert', 'overstay_days',
+        'reason_tiba', 'reason_bongkar', 'remarks', 'selisih_qty', 'qty_monitoring', 'remarks_qty',
+    ];
 
     private ?array $extraCols = null;
     private ?array $tblCols = null;
@@ -71,7 +96,7 @@ class LogistikReportData extends LogistikExportFull implements WithEvents, WithT
     }
 
     // ============================================================
-    // KOLOM = kolom LogistikExportFull (tanpa detail DO) + kolom bantu
+    // KOLOM = kolom LogistikExportFull (tanpa detail DO) diurutkan seperti web + kolom bantu
     // ============================================================
     protected function columns(): array
     {
@@ -79,11 +104,15 @@ class LogistikReportData extends LogistikExportFull implements WithEvents, WithT
             return $this->extraCols;
         }
 
-        // semua kolom parent kecuali detail DO
+        // kolom parent apa adanya (nama DB / [Hitung]), disaring berdasarkan nama DB
         $base = array_values(array_filter(
-            parent::columns(),
+            $this->baseColumns(),
             fn($c) => !in_array($c[0], self::DROP, true)
+                && (!$this->ringan || in_array($c[0], self::KOLOM_INTI, true))
         ));
+
+        // lalu diurutkan & diberi label seperti tabel web
+        $base = $this->urutWeb($base);
 
         $bln = [
             '',
@@ -138,6 +167,9 @@ class LogistikReportData extends LogistikExportFull implements WithEvents, WithT
             $r->biaya_kirim  = $info[3];
             $r->total_kubik  = $info[4];
             $r->total_tonase = $info[5];
+            if ($this->hasColumn('total_do_qty_car')) {
+                $r->total_do_qty_car = $info[6];
+            }
         }
 
         $row = parent::map($r);
@@ -182,7 +214,7 @@ class LogistikReportData extends LogistikExportFull implements WithEvents, WithT
             return $this->groupList;
         }
 
-        $cols = ['lp.id', 'g.g_nilai', 'g.g_biaya', 'g.g_kontrib', 'g.g_bkirim', 'g.g_kubik', 'g.g_tonase'];
+        $cols = ['lp.id', 'g.g_nilai', 'g.g_biaya', 'g.g_kontrib', 'g.g_bkirim', 'g.g_kubik', 'g.g_tonase', 'g.g_qty'];
         foreach (['area', 'pic_monitoring', 'dist_channel', 'ekpedisi', 'tujuan', 'planner'] as $c) {
             if ($this->hasColumn($c)) {
                 $cols[] = "lp.{$c}";
@@ -199,7 +231,8 @@ class LogistikReportData extends LogistikExportFull implements WithEvents, WithT
 
     /**
      * id baris wakil => [0 nilai grup, 1 biaya grup, 2 kirim_kontribusi grup (null kalau kosong),
-     *                    3 biaya_kirim (MAX), 4 total_kubik grup, 5 total_tonase grup]
+     *                    3 biaya_kirim (MAX), 4 total_kubik grup, 5 total_tonase grup,
+     *                    6 total_do_qty_car grup (Delivery Quantity)]
      */
     private function groupInfo(): array
     {
@@ -216,6 +249,7 @@ class LogistikReportData extends LogistikExportFull implements WithEvents, WithT
                 (float) $x->g_bkirim,
                 (float) $x->g_kubik,
                 (float) $x->g_tonase,
+                (float) $x->g_qty,
             ];
         }
 
@@ -331,18 +365,18 @@ class LogistikReportData extends LogistikExportFull implements WithEvents, WithT
             $inTransit = $any && !$dangling;
         }
 
-        // in gudang: belum tiba tujuan, ada gudang yang sudah tiba tapi belum keluar
-      // in gudang: ada siklus gudang yang sudah dimulai (planning/tiba gudang) tapi belum keluar
-$inGudang = false;
-if (!$tiba) {
-    foreach (self::SUFFIXES as $s) {
-        $started = $has("planning_loading{$s}") || $has("tanggal_tiba_gudang{$s}");
-        if ($started && !$has("tanggal_keluar_gudang{$s}")) {
-            $inGudang = true;
-            break;
+        // in gudang: ada siklus gudang yang sudah dimulai (planning/tiba gudang) tapi belum keluar
+        $inGudang = false;
+        if (!$tiba) {
+            foreach (self::SUFFIXES as $s) {
+                $started = $has("planning_loading{$s}") || $has("tanggal_tiba_gudang{$s}");
+                if ($started && !$has("tanggal_keluar_gudang{$s}")) {
+                    $inGudang = true;
+                    break;
+                }
+            }
         }
-    }
-}
+
         // status gudang: delay kalau ada gudang tiba lebih lambat dari planning, ot kalau ada data & tak ada yg telat
         $gd = null;
         foreach (self::SUFFIXES as $s) {
@@ -484,13 +518,21 @@ if (!$tiba) {
         return $f;
     }
 
-    /** huruf kolom (A, B, ...) berdasarkan nama heading (di-cache) */
+    /**
+     * huruf kolom (A, B, ...) berdasarkan nama heading (di-cache).
+     * Nama lama (heading asli sebelum diganti label web, mis. 'area') tetap dikenali.
+     */
     public function letter(string $head): string
     {
         if ($this->letters === null) {
             $this->letters = [];
             foreach ($this->columns() as $i => $col) {
                 $this->letters[$col[0]] ??= Coordinate::stringFromColumnIndex($i + 1);
+            }
+            foreach ($this->aliasOf as $label => $lama) {
+                if (isset($this->letters[$label])) {
+                    $this->letters[$lama] ??= $this->letters[$label];
+                }
             }
         }
 
@@ -535,6 +577,7 @@ if (!$tiba) {
      *   g.g_bkirim  = MAX(biaya_kirim)
      *   g.g_kubik   = SUM(total_kubik)
      *   g.g_tonase  = SUM(total_tonase)
+     *   g.g_qty     = SUM(total_do_qty_car)  (Delivery Quantity)
      */
     public function groupRows()
     {
@@ -543,10 +586,11 @@ if (!$tiba) {
             : 'COALESCE(MAX(COALESCE(biaya_kirim,0)), 0)';
 
         $extra = ', '
-            . ($this->hasColumn('kirim_kontribusi') ? 'SUM(kirim_kontribusi)'        : 'NULL') . ' AS g_kontrib, '
-            . ($this->hasColumn('biaya_kirim')      ? 'MAX(COALESCE(biaya_kirim,0))' : '0')    . ' AS g_bkirim, '
-            . ($this->hasColumn('total_kubik')      ? 'SUM(COALESCE(total_kubik,0))' : '0')    . ' AS g_kubik, '
-            . ($this->hasColumn('total_tonase')     ? 'SUM(COALESCE(total_tonase,0))' : '0')   . ' AS g_tonase';
+            . ($this->hasColumn('kirim_kontribusi') ? 'SUM(kirim_kontribusi)'         : 'NULL') . ' AS g_kontrib, '
+            . ($this->hasColumn('biaya_kirim')      ? 'MAX(COALESCE(biaya_kirim,0))'  : '0')    . ' AS g_bkirim, '
+            . ($this->hasColumn('total_kubik')      ? 'SUM(COALESCE(total_kubik,0))'  : '0')    . ' AS g_kubik, '
+            . ($this->hasColumn('total_tonase')     ? 'SUM(COALESCE(total_tonase,0))' : '0')    . ' AS g_tonase, '
+            . ($this->hasColumn('total_do_qty_car') ? 'SUM(COALESCE(total_do_qty_car,0))' : '0') . ' AS g_qty';
 
         $agg = $this->baseQuery()
             ->reorder()
@@ -607,24 +651,26 @@ if (!$tiba) {
             . ' AND (' . implode(' OR ', $anyKeluar) . ')'
             . (empty($dangling) ? '' : ' AND NOT (' . implode(' OR ', $dangling) . ')')
             . ')';
-$inGudangParts = [];
-foreach (self::SUFFIXES as $s) {
-    if (!$this->hasColumn("tanggal_keluar_gudang{$s}")) {
-        continue;
-    }
-    $started = [];
-    foreach (["planning_loading{$s}", "tanggal_tiba_gudang{$s}"] as $c) {
-        if ($this->hasColumn($c)) {
-            $started[] = $filled($c);
+
+        $inGudangParts = [];
+        foreach (self::SUFFIXES as $s) {
+            if (!$this->hasColumn("tanggal_keluar_gudang{$s}")) {
+                continue;
+            }
+            $started = [];
+            foreach (["planning_loading{$s}", "tanggal_tiba_gudang{$s}"] as $c) {
+                if ($this->hasColumn($c)) {
+                    $started[] = $filled($c);
+                }
+            }
+            if (!empty($started)) {
+                $inGudangParts[] = '((' . implode(' OR ', $started) . ') AND ' . $empty("tanggal_keluar_gudang{$s}") . ')';
+            }
         }
-    }
-    if (!empty($started)) {
-        $inGudangParts[] = '((' . implode(' OR ', $started) . ') AND ' . $empty("tanggal_keluar_gudang{$s}") . ')';
-    }
-}
-$inGudang = empty($inGudangParts)
-    ? '0=1'
-    : '(' . $empty('tanggal_tiba') . ' AND (' . implode(' OR ', $inGudangParts) . '))';
+        $inGudang = empty($inGudangParts)
+            ? '0=1'
+            : '(' . $empty('tanggal_tiba') . ' AND (' . implode(' OR ', $inGudangParts) . '))';
+
         return [
             'total'      => 'COUNT(*)',
             'tiba_ot'    => $sum($lc('sla_tiba') . "='on time'"),
